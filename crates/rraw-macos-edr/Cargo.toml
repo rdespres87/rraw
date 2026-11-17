@@ -1,0 +1,13 @@
+[package]
+name = "rraw-macos-edr"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Isolated macOS AppKit / CAMetalLayer EDR bridge behind safe DisplayHeadroomProvider"
+
+[dependencies]
+rraw-core.workspace = true
+
+[lints]
+workspace = true

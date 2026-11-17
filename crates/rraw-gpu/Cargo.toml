@@ -1,0 +1,15 @@
+[package]
+name = "rraw-gpu"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Headless and interactive wgpu compute pipeline, WGSL stages, and LRU VRAM cache"
+
+[dependencies]
+rraw-core.workspace = true
+rraw-optics.workspace = true
+rraw-color.workspace = true
+
+[lints]
+workspace = true

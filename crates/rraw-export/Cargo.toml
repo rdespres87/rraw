@@ -1,0 +1,15 @@
+[package]
+name = "rraw-export"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Multi-threaded batch export engine and ISO 21496-1 HDR Gain Map generator"
+
+[dependencies]
+rraw-core.workspace = true
+rraw-gpu.workspace = true
+rraw-color.workspace = true
+
+[lints]
+workspace = true

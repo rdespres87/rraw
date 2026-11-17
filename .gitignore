@@ -1,0 +1,23 @@
+# Rust build artifacts and profiling data
+/target/
+**/*.rs.bk
+*.profraw
+*.profdata
+
+# Rraw runtime cache and sidecar scratch artifacts
+*.rraw-cache
+
+# macOS Finder metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editors, IDEs, and local runtime state
+.idea/
+.vscode/
+.cursor/
+.headroom/
+*.swp
+*.swo
+*~

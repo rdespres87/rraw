@@ -1,0 +1,40 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/rraw-core",
+    "crates/rraw-decode",
+    "crates/rraw-optics",
+    "crates/rraw-color",
+    "crates/rraw-gpu",
+    "crates/rraw-ai",
+    "crates/rraw-storage",
+    "crates/rraw-export",
+    "crates/rraw-macos-edr",
+    "crates/rraw-cli",
+    "crates/rraw-app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+authors = ["Rraw Contributors"]
+description = "Native macOS Apple Silicon RAW photographic processor in pure Rust"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+[workspace.dependencies]
+rraw-core = { path = "crates/rraw-core" }
+rraw-decode = { path = "crates/rraw-decode" }
+rraw-optics = { path = "crates/rraw-optics" }
+rraw-color = { path = "crates/rraw-color" }
+rraw-gpu = { path = "crates/rraw-gpu" }
+rraw-ai = { path = "crates/rraw-ai" }
+rraw-storage = { path = "crates/rraw-storage" }
+rraw-export = { path = "crates/rraw-export" }
+rraw-macos-edr = { path = "crates/rraw-macos-edr" }

@@ -1,0 +1,14 @@
+[package]
+name = "rraw-optics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "4-tier optical correction resolver, UV LUT generator, and Richardson-Lucy deconvolution"
+
+[dependencies]
+rraw-core.workspace = true
+rraw-decode.workspace = true
+
+[lints]
+workspace = true

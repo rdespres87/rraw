@@ -1,0 +1,14 @@
+[package]
+name = "rraw-color"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Dual-illuminant DNG spectral colorimetry, ACEScg grading, AgX/OpenDRT, and CPU reference pipeline"
+
+[dependencies]
+rraw-core.workspace = true
+rraw-optics.workspace = true
+
+[lints]
+workspace = true

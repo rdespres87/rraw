@@ -1,0 +1,20 @@
+[package]
+name = "rraw-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Command-line reference runner, optical inspector, and golden test tool for Rraw"
+
+[dependencies]
+rraw-core.workspace = true
+rraw-decode.workspace = true
+rraw-optics.workspace = true
+rraw-color.workspace = true
+rraw-gpu.workspace = true
+rraw-ai.workspace = true
+rraw-storage.workspace = true
+rraw-export.workspace = true
+
+[lints]
+workspace = true
