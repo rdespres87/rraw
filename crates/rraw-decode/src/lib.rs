@@ -2,37 +2,28 @@
 
 //! Pure-Rust RAW decoding contracts, signed normalization, and DNG metadata extraction.
 
-use std::fmt;
 use std::path::Path;
 
-use rraw_core::{CfaPattern, CoreError, PhotoMetadata, SignedCfaBuffer};
+use rraw_core::{CfaPattern, ColorLabel, CoreError, PhotoMetadata, PickStatus, SignedCfaBuffer};
+use thiserror::Error;
+
+pub mod noise_profile;
+pub mod opcodes;
+pub mod synthetic;
+
+use noise_profile::estimate_noise_profile_wavelet_mad;
 
 /// Typed errors produced by `rraw-decode`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Error)]
 pub enum DecodeError {
+    #[error("RAW I/O error: {0}")]
     Io(String),
+    #[error("unsupported RAW format: {0}")]
     UnsupportedFormat(String),
+    #[error("malformed RAW metadata: {0}")]
     MalformedMetadata(String),
-    Core(CoreError),
-}
-
-impl fmt::Display for DecodeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Io(msg) => write!(f, "RAW I/O error: {msg}"),
-            Self::UnsupportedFormat(msg) => write!(f, "unsupported RAW format: {msg}"),
-            Self::MalformedMetadata(msg) => write!(f, "malformed RAW metadata: {msg}"),
-            Self::Core(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl std::error::Error for DecodeError {}
-
-impl From<CoreError> for DecodeError {
-    fn from(value: CoreError) -> Self {
-        Self::Core(value)
-    }
+    #[error(transparent)]
+    Core(#[from] CoreError),
 }
 
 /// Output produced by a `RawDecoder` implementation.
@@ -46,6 +37,84 @@ pub struct DecodedRaw {
 pub trait RawDecoder: Send + Sync {
     /// Decodes a RAW file at `path` into canonical metadata and signed normalized CFA data.
     fn decode_file(&self, path: &Path) -> Result<DecodedRaw, DecodeError>;
+}
+
+/// Concrete pure-safe-Rust RAW decoder wrapping `rawler` and DNG parsers.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PureRustRawDecoder;
+
+impl PureRustRawDecoder {
+    /// Creates a new pure-Rust decoder instance.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self
+    }
+}
+
+impl RawDecoder for PureRustRawDecoder {
+    fn decode_file(&self, path: &Path) -> Result<DecodedRaw, DecodeError> {
+        let raw_image = rawler::decode_file(path).map_err(|e| {
+            DecodeError::Io(format!("failed to decode RAW file {}: {e}", path.display()))
+        })?;
+
+        let raw_samples = match &raw_image.data {
+            rawler::RawImageData::Integer(samples) => samples.as_slice(),
+            rawler::RawImageData::Float(_) => {
+                return Err(DecodeError::UnsupportedFormat(
+                    "floating point raw image format not yet supported".to_string(),
+                ));
+            }
+        };
+
+        let width = raw_image.width;
+        let height = raw_image.height;
+        let cfa_pattern = CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb);
+
+        let black_levels = raw_image.blacklevel.as_bayer_array();
+        let white_levels = raw_image.whitelevel.as_bayer_array();
+
+        let mut dummy_meta = PhotoMetadata {
+            camera_make: raw_image.clean_make.clone(),
+            camera_model: raw_image.clean_model.clone(),
+            lens_model: None,
+            focal_length_mm: None,
+            aperture_f_number: None,
+            iso: None,
+            width,
+            height,
+            black_levels,
+            white_levels,
+            cfa_pattern,
+            noise_profile: rraw_core::NoiseProfile::new(
+                [0.001; 3],
+                [0.0001; 3],
+                rraw_core::NoiseProfileSource::WaveletMadFallback,
+            )?,
+            vignette_handled_by_gainmap: false,
+            rating: 0,
+            pick: PickStatus::Unflagged,
+            label: ColorLabel::None,
+            keywords: Vec::new(),
+        };
+
+        if black_levels[0] >= white_levels[0] {
+            return Err(DecodeError::MalformedMetadata(format!(
+                "invalid black/white level range: black={}, white={}",
+                black_levels[0], white_levels[0]
+            )));
+        }
+
+        let signed_cfa = normalize_cfa_signed(raw_samples, width, height, &dummy_meta)?;
+
+        // If no noise profile was loaded, compute wavelet MAD fallback
+        let estimated_noise = estimate_noise_profile_wavelet_mad(&signed_cfa)?;
+        dummy_meta.noise_profile = estimated_noise;
+
+        Ok(DecodedRaw {
+            metadata: dummy_meta,
+            cfa_signed: signed_cfa,
+        })
+    }
 }
 
 /// Performs Stage 1 signed black/white normalization `(raw - B_c) / (W_c - B_c)`
