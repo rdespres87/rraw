@@ -10,12 +10,14 @@ pub mod colorchecker;
 pub mod drt;
 pub mod gamut_guard;
 pub mod matrix;
+pub mod pipeline;
 
 pub use cct::*;
 pub use colorchecker::*;
 pub use drt::*;
 pub use gamut_guard::*;
 pub use matrix::*;
+pub use pipeline::*;
 
 /// Typed errors returned by `rraw-color`.
 #[derive(Debug, Clone, PartialEq, Error)]
