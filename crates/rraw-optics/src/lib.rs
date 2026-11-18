@@ -5,10 +5,12 @@
 pub mod lut;
 pub mod model;
 pub mod resolver;
+pub mod rl;
 
 pub use lut::{UvLutGenerator, UvLutTable};
 pub use model::{DistortionPoly, LateralTca, OpticalCorrectionModel, RadialVignette};
 pub use resolver::OpticalResolver;
+pub use rl::{execute_richardson_lucy, RichardsonLucyParams};
 
 use rraw_core::PhotoMetadata;
 
