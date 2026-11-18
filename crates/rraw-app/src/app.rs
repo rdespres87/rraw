@@ -36,6 +36,10 @@ pub struct RrawApp {
     pub photo_cache: Vec<CachedPhotoEntry>,
     /// Cached GPU texture handle for rendering in egui viewport.
     pub preview_texture: Option<egui::TextureHandle>,
+    /// Cached GPU texture handle for rendering the untouched original photo.
+    pub original_texture: Option<egui::TextureHandle>,
+    /// Whether the user has toggled comparison mode to view the original untouched photo.
+    pub is_comparing_original: bool,
     /// Pre-computed live RGB histogram data.
     pub histogram: HistogramData,
     /// Flag signaling that preview texture must be re-rendered.
@@ -124,6 +128,10 @@ pub struct RrawApp {
     pub last_selected_index: Option<usize>,
     /// Search query for filtering EXIF metadata tags table.
     pub exif_search_query: String,
+    /// Active color channel in the tone curves inspector.
+    pub active_curve_channel: CurveChannel,
+    /// Index of curve point currently being dragged, if any.
+    pub dragging_curve_point: Option<usize>,
 }
 
 impl RrawApp {
@@ -177,6 +185,8 @@ impl RrawApp {
             base_preview: None,
             photo_cache: Vec::new(),
             preview_texture: None,
+            original_texture: None,
+            is_comparing_original: false,
             histogram: HistogramData::default(),
             needs_preview_update: false,
             decode_sender,
@@ -221,6 +231,8 @@ impl RrawApp {
             export_batch_selection: false,
             last_selected_index: None,
             exif_search_query: String::new(),
+            active_curve_channel: CurveChannel::CombinedRgb,
+            dragging_curve_point: None,
         };
 
         // Open the first photo in default directory if available
@@ -248,6 +260,16 @@ impl RrawApp {
                     Some(ctx.load_texture("raw_preview", preview, egui::TextureOptions::LINEAR));
             }
             self.histogram = hist;
+
+            if self.original_texture.is_none() {
+                let (orig_preview, _) =
+                    render_preview_from_base(base, &DarkroomGradingState::default());
+                self.original_texture = Some(ctx.load_texture(
+                    "raw_original",
+                    orig_preview,
+                    egui::TextureOptions::LINEAR,
+                ));
+            }
         }
         self.needs_preview_update = false;
     }
@@ -471,6 +493,8 @@ impl RrawApp {
         // Reset zoom & pan to Fit on new photo open
         self.zoom_level = 0.0;
         self.pan_offset = egui::Vec2::ZERO;
+        self.original_texture = None;
+        self.is_comparing_original = false;
 
         // Check sidecars on disk first
         let (disk_grading, disk_rating) = load_photo_sidecars(&abs_path);
@@ -560,6 +584,9 @@ impl eframe::App for RrawApp {
                 for entry in &self.directory_entries {
                     self.selected_photos.insert(entry.clone());
                 }
+            }
+            if i.key_pressed(egui::Key::Backslash) {
+                self.is_comparing_original = !self.is_comparing_original;
             }
             if i.key_pressed(egui::Key::Escape)
                 || ((i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::D))
@@ -713,11 +740,14 @@ impl eframe::App for RrawApp {
 
                     ui.separator();
 
-                    if ui.button("📂 Open RAW...").clicked() {
+                    if ui.button("📂 Open Image...").clicked() {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter(
-                                "RAW Images",
-                                &["arw", "cr2", "cr3", "dng", "nef", "raf", "rw2", "orf"],
+                                "Supported Images",
+                                &[
+                                    "arw", "cr2", "cr3", "dng", "nef", "raf", "rw2", "orf", "jpg",
+                                    "jpeg", "png", "tif", "tiff",
+                                ],
                             )
                             .pick_file()
                         {

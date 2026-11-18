@@ -202,6 +202,9 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
             }
+            DarkroomSection::ToneCurves => {
+                self.render_tone_curves_section(ui);
+            }
             DarkroomSection::Crop => {
                 let c_crop = ui.checkbox(&mut self.grading.crop_enabled, "Activer le recadrage");
                 if c_crop.changed() {

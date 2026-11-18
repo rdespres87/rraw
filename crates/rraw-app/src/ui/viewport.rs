@@ -133,8 +133,22 @@ impl RrawApp {
                 egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
             };
 
+            let is_holding_on_img = ui.input(|i| {
+                i.pointer.button_down(egui::PointerButton::Primary)
+                    && i.pointer.interact_pos().is_some_and(|p| preview_rect.contains(p))
+            }) && !is_tool_active
+                && self.crop_drag_handle == CropDragHandle::None
+                && self.zoom_level <= 0.0;
+
+            let show_original = self.is_comparing_original || is_holding_on_img;
+            let active_texture = if show_original {
+                self.original_texture.as_ref().unwrap_or(texture)
+            } else {
+                texture
+            };
+
             painter.image(
-                texture.id(),
+                active_texture.id(),
                 preview_rect,
                 uv,
                 egui::Color32::WHITE,

@@ -5,6 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use egui::Color32;
+use rayon::prelude::*;
 use rraw_color::{apply_agx_edr, apply_opendrt, DisplayTransform};
 use rraw_core::{CfaColor, SignedCfaBuffer};
 use rraw_decode::{PureRustRawDecoder, RawDecoder};
@@ -273,11 +274,60 @@ impl BaseRgbPreview {
             cam_to_srgb,
         }
     }
+
+    /// Builds a base preview from an in-memory 8-bit RGB raster image (JPEG, PNG).
+    #[must_use]
+    pub fn from_rgb_image(img: &image::RgbImage, target_width: usize) -> Self {
+        let (w, h) = img.dimensions();
+        let target_w = target_width.max(1);
+        let step = (w as usize / target_w).max(1);
+        let preview_w = (w as usize / step).max(1);
+        let preview_h = (h as usize / step).max(1);
+
+        let mut samples_rgb = Vec::with_capacity(preview_w * preview_h);
+        for py in 0..preview_h {
+            let sy = (py * step) as u32;
+            for px in 0..preview_w {
+                let sx = (px * step) as u32;
+                let pixel = img.get_pixel(sx.min(w.saturating_sub(1)), sy.min(h.saturating_sub(1)));
+                // Convert sRGB 8-bit non-linear gamma to linear float
+                let r = ((pixel[0] as f32) / 255.0).powf(2.2);
+                let g = ((pixel[1] as f32) / 255.0).powf(2.2);
+                let b = ((pixel[2] as f32) / 255.0).powf(2.2);
+                samples_rgb.push([r, g, b]);
+            }
+        }
+
+        Self {
+            width: preview_w,
+            height: preview_h,
+            samples_rgb,
+            as_shot_wb: [1.0, 1.0, 1.0],
+            cam_to_srgb: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        }
+    }
 }
 
-/// Generates a fast ~140px RGB thumbnail image from a RAW file applying its sidecar grading if available.
+/// Generates a fast ~140px RGB thumbnail image from a RAW or raster file applying its sidecar grading if available.
 #[must_use]
 pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
+    let ext_lower = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    if matches!(ext_lower.as_str(), "jpg" | "jpeg" | "png" | "tif" | "tiff") {
+        if let Ok(dyn_img) = image::open(path) {
+            let thumb = dyn_img.thumbnail(140, 100).to_rgb8();
+            let (w, h) = thumb.dimensions();
+            return Some(egui::ColorImage::from_rgb(
+                [w as usize, h as usize],
+                &thumb.into_raw(),
+            ));
+        }
+    }
+
     let decoder = PureRustRawDecoder::new();
     let decoded = decoder.decode_file(path).ok()?;
     let (grading_opt, _) = load_photo_sidecars(path);
@@ -359,6 +409,9 @@ pub fn render_preview_from_base(
         (0.0, 0.0)
     };
 
+    let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
+    let has_curves = !grading.tone_curves.is_identity();
+
     let auto_zoom = if grading.geometry_enabled && grading.auto_crop_geometry {
         let abs_rot = rot_deg.abs().to_radians();
         let rot_zoom = abs_rot.cos() + abs_rot.sin() * (cy / cx.max(1.0));
@@ -374,6 +427,240 @@ pub fn render_preview_from_base(
         1.0
     };
 
+    let is_identity_geom = rot_deg.abs() < 1e-4
+        && k_dist.abs() < 1e-5
+        && keystone_v.abs() < 1e-5
+        && keystone_h.abs() < 1e-5
+        && flip_x > 0.0
+        && flip_y > 0.0
+        && (auto_zoom - 1.0).abs() < 1e-4;
+
+    let has_tonal_adjustment = grading.shadows.abs() > 0.01
+        || grading.highlights.abs() > 0.01
+        || grading.blacks.abs() > 0.01;
+
+    let combined_mat = [
+        mat[0] * eff_wb_r * exposure_gain,
+        mat[1] * eff_wb_g * exposure_gain,
+        mat[2] * eff_wb_b * exposure_gain,
+        mat[3] * eff_wb_r * exposure_gain,
+        mat[4] * eff_wb_g * exposure_gain,
+        mat[5] * eff_wb_b * exposure_gain,
+        mat[6] * eff_wb_r * exposure_gain,
+        mat[7] * eff_wb_g * exposure_gain,
+        mat[8] * eff_wb_b * exposure_gain,
+    ];
+
+    let factor = 1.0 + (grading.contrast / 100.0).clamp(-0.8, 2.0);
+    let base_vibrance = 0.10_f32;
+    let user_vibrance = grading.vibrance / 100.0;
+    let user_sat = grading.saturation / 100.0;
+
+    let to_u8_fast = |x: f32| -> u8 {
+        let clamped = x.clamp(0.0, 1.0);
+        let toe = if clamped < 0.35 {
+            clamped.powf(1.08)
+        } else {
+            clamped
+        };
+        let mapped = toe.powf(1.0 / 2.2);
+        (mapped * 255.0).clamp(0.0, 255.0) as u8
+    };
+
+    struct RowEvaluation {
+        pixels: Vec<Color32>,
+        hist_r: [u32; 256],
+        hist_g: [u32; 256],
+        hist_b: [u32; 256],
+        hist_lum: [u32; 256],
+        shadow_clipped: u32,
+        highlight_clipped: u32,
+    }
+
+    let rows: Vec<RowEvaluation> = (0..preview_h)
+        .into_par_iter()
+        .map(|py| {
+            let mut row_pixels = Vec::with_capacity(preview_w);
+            let mut row_r = [0_u32; 256];
+            let mut row_g = [0_u32; 256];
+            let mut row_b = [0_u32; 256];
+            let mut row_lum = [0_u32; 256];
+            let mut row_sc = 0_u32;
+            let mut row_hc = 0_u32;
+
+            let raw_dy = (py as f32 - cy) * flip_y;
+            let row_identity_offset = py * preview_w;
+
+            for px in 0..preview_w {
+                let (sample_idx, v_mult) = if is_identity_geom {
+                    let s_idx =
+                        (row_identity_offset + px).min(base.samples_rgb.len().saturating_sub(1));
+                    let v = if v_gain > 1e-4 {
+                        let kx = px as f32 - cx;
+                        let ky = py as f32 - cy;
+                        let norm_r2 = (kx * kx + ky * ky) / max_radius_sq;
+                        1.0 + v_gain * norm_r2 + (v_gain * 0.4) * (norm_r2 * norm_r2)
+                    } else {
+                        1.0
+                    };
+                    (s_idx, v)
+                } else {
+                    let raw_dx = (px as f32 - cx) * flip_x;
+                    let rx = raw_dx * cos_rot + raw_dy * sin_rot;
+                    let ry = -raw_dx * sin_rot + raw_dy * cos_rot;
+                    let v_scale = (1.0 + keystone_v * (ry / cy)).max(0.1);
+                    let kx = (rx / v_scale) / auto_zoom;
+                    let h_scale = (1.0 + keystone_h * (kx / cx)).max(0.1);
+                    let ky = (ry / h_scale) / auto_zoom;
+
+                    let s_idx = if k_dist.abs() > 1e-5 {
+                        let r2 = (kx * kx + ky * ky) / max_radius_sq;
+                        let warp = 1.0 + k_dist * r2;
+                        let warped_x = ((cx + kx * warp).round() as isize)
+                            .clamp(0, preview_w as isize - 1)
+                            as usize;
+                        let warped_y = ((cy + ky * warp).round() as isize)
+                            .clamp(0, preview_h as isize - 1)
+                            as usize;
+                        warped_y * preview_w + warped_x
+                    } else {
+                        let sx =
+                            ((cx + kx).round() as isize).clamp(0, preview_w as isize - 1) as usize;
+                        let sy =
+                            ((cy + ky).round() as isize).clamp(0, preview_h as isize - 1) as usize;
+                        sy * preview_w + sx
+                    };
+
+                    let v = if v_gain > 1e-4 {
+                        let norm_r2 = (kx * kx + ky * ky) / max_radius_sq;
+                        1.0 + v_gain * norm_r2 + (v_gain * 0.4) * (norm_r2 * norm_r2)
+                    } else {
+                        1.0
+                    };
+                    (s_idx.min(base.samples_rgb.len().saturating_sub(1)), v)
+                };
+
+                let [mean_r, mean_g, mean_b] = base.samples_rgb[sample_idx];
+
+                let r_scaled = (combined_mat[0] * mean_r
+                    + combined_mat[1] * mean_g
+                    + combined_mat[2] * mean_b)
+                    .max(0.0)
+                    * v_mult;
+                let g_scaled = (combined_mat[3] * mean_r
+                    + combined_mat[4] * mean_g
+                    + combined_mat[5] * mean_b)
+                    .max(0.0)
+                    * v_mult;
+                let b_scaled = (combined_mat[6] * mean_r
+                    + combined_mat[7] * mean_g
+                    + combined_mat[8] * mean_b)
+                    .max(0.0)
+                    * v_mult;
+
+                let (r_toned, g_toned, b_toned) = if has_tonal_adjustment {
+                    let lum = 0.2126 * r_scaled + 0.7152 * g_scaled + 0.0722 * b_scaled;
+                    let y_norm = lum / (lum + 0.18);
+                    let shadow_weight = (1.0 - y_norm).powi(2);
+                    let highlight_weight = y_norm.powi(2);
+                    let shadow_shift = (grading.shadows / 100.0) * 2.5 * shadow_weight;
+                    let highlight_shift = (grading.highlights / 100.0) * 2.5 * highlight_weight;
+                    let blacks_weight = (1.0 - y_norm).powi(4);
+                    let blacks_shift = (grading.blacks / 100.0) * 1.5 * blacks_weight;
+                    let tone_gain = 2.0_f32.powf(shadow_shift + highlight_shift + blacks_shift);
+                    (
+                        (r_scaled * tone_gain).max(0.0),
+                        (g_scaled * tone_gain).max(0.0),
+                        (b_scaled * tone_gain).max(0.0),
+                    )
+                } else {
+                    (r_scaled, g_scaled, b_scaled)
+                };
+
+                let (r_curved, g_curved, b_curved) = if has_curves {
+                    let c = rraw_color::curves::apply_tone_curves_lut(
+                        glam::Vec3::new(r_toned, g_toned, b_toned),
+                        &curves_lut,
+                    );
+                    (c.x, c.y, c.z)
+                } else {
+                    (r_toned, g_toned, b_toned)
+                };
+
+                let (r_drt, g_drt, b_drt) = match grading.display_transform {
+                    DisplayTransform::AgX => (
+                        apply_agx_edr(r_curved, 1.0),
+                        apply_agx_edr(g_curved, 1.0),
+                        apply_agx_edr(b_curved, 1.0),
+                    ),
+                    DisplayTransform::OpenDrt => (
+                        apply_opendrt(r_curved, 1.0),
+                        apply_opendrt(g_curved, 1.0),
+                        apply_opendrt(b_curved, 1.0),
+                    ),
+                };
+
+                let r_c = ((r_drt - 0.18) * factor + 0.18).max(0.0);
+                let g_c = ((g_drt - 0.18) * factor + 0.18).max(0.0);
+                let b_c = ((b_drt - 0.18) * factor + 0.18).max(0.0);
+
+                let lum_c = 0.2126 * r_c + 0.7152 * g_c + 0.0722 * b_c;
+                let max_val = r_c.max(g_c).max(b_c);
+                let min_val = r_c.min(g_c).min(b_c);
+                let current_sat = if max_val > 1e-4 {
+                    (max_val - min_val) / max_val
+                } else {
+                    0.0
+                };
+                let vib_weight = (1.0 - current_sat).clamp(0.0, 1.0);
+                let eff_sat = ((1.0 + user_sat)
+                    * (1.0 + (base_vibrance + user_vibrance) * vib_weight))
+                    .max(0.0);
+
+                let r_s = (lum_c + (r_c - lum_c) * eff_sat).max(0.0);
+                let g_s = (lum_c + (g_c - lum_c) * eff_sat).max(0.0);
+                let b_s = (lum_c + (b_c - lum_c) * eff_sat).max(0.0);
+
+                let (u8_r, u8_g, u8_b) = if grading.is_monochrome {
+                    let lum_val = ((to_u8_fast(r_s) as u32 * 54
+                        + to_u8_fast(g_s) as u32 * 183
+                        + to_u8_fast(b_s) as u32 * 19)
+                        >> 8) as u8;
+                    (lum_val, lum_val, lum_val)
+                } else {
+                    (to_u8_fast(r_s), to_u8_fast(g_s), to_u8_fast(b_s))
+                };
+
+                row_r[u8_r as usize] += 1;
+                row_g[u8_g as usize] += 1;
+                row_b[u8_b as usize] += 1;
+
+                let lum = (((u8_r as u32 * 54) + (u8_g as u32 * 183) + (u8_b as u32 * 19)) >> 8)
+                    .min(255) as usize;
+                row_lum[lum] += 1;
+
+                if lum == 0 {
+                    row_sc += 1;
+                }
+                if lum == 255 {
+                    row_hc += 1;
+                }
+
+                row_pixels.push(Color32::from_rgb(u8_r, u8_g, u8_b));
+            }
+
+            RowEvaluation {
+                pixels: row_pixels,
+                hist_r: row_r,
+                hist_g: row_g,
+                hist_b: row_b,
+                hist_lum: row_lum,
+                shadow_clipped: row_sc,
+                highlight_clipped: row_hc,
+            }
+        })
+        .collect();
+
     let mut color_pixels = Vec::with_capacity(preview_w * preview_h);
     let mut hist_r = [0_u32; 256];
     let mut hist_g = [0_u32; 256];
@@ -382,149 +669,16 @@ pub fn render_preview_from_base(
     let mut shadow_clipped = 0_u32;
     let mut highlight_clipped = 0_u32;
 
-    for py in 0..preview_h {
-        let raw_dy = (py as f32 - cy) * flip_y;
-
-        for px in 0..preview_w {
-            let raw_dx = (px as f32 - cx) * flip_x;
-
-            // 1. Rotation around optical center
-            let rx = raw_dx * cos_rot + raw_dy * sin_rot;
-            let ry = -raw_dx * sin_rot + raw_dy * cos_rot;
-
-            // 2. Keystone perspective correction & auto-crop zoom
-            let v_scale = (1.0 + keystone_v * (ry / cy)).max(0.1);
-            let kx = (rx / v_scale) / auto_zoom;
-            let h_scale = (1.0 + keystone_h * (kx / cx)).max(0.1);
-            let ky = (ry / h_scale) / auto_zoom;
-
-            let sample_idx = if k_dist.abs() > 1e-5 {
-                let r2 = (kx * kx + ky * ky) / max_radius_sq;
-                let warp = 1.0 + k_dist * r2;
-                let warped_x =
-                    ((cx + kx * warp).round() as isize).clamp(0, preview_w as isize - 1) as usize;
-                let warped_y =
-                    ((cy + ky * warp).round() as isize).clamp(0, preview_h as isize - 1) as usize;
-                warped_y * preview_w + warped_x
-            } else {
-                let sx = ((cx + kx).round() as isize).clamp(0, preview_w as isize - 1) as usize;
-                let sy = ((cy + ky).round() as isize).clamp(0, preview_h as isize - 1) as usize;
-                sy * preview_w + sx
-            };
-
-            let [mean_r, mean_g, mean_b] = base.samples_rgb[sample_idx];
-
-            let v_mult = if v_gain > 1e-4 {
-                let norm_r2 = (kx * kx + ky * ky) / max_radius_sq;
-                1.0 + v_gain * norm_r2 + (v_gain * 0.4) * (norm_r2 * norm_r2)
-            } else {
-                1.0
-            };
-
-            let r_wb = mean_r * eff_wb_r;
-            let g_wb = mean_g * eff_wb_g;
-            let b_wb = mean_b * eff_wb_b;
-
-            // Apply camera color calibration matrix to eliminate CFA spectral cross-talk
-            let r_linear = (mat[0] * r_wb + mat[1] * g_wb + mat[2] * b_wb).max(0.0);
-            let g_linear = (mat[3] * r_wb + mat[4] * g_wb + mat[5] * b_wb).max(0.0);
-            let b_linear = (mat[6] * r_wb + mat[7] * g_wb + mat[8] * b_wb).max(0.0);
-
-            let r_scaled = (r_linear * exposure_gain * v_mult).max(0.0);
-            let g_scaled = (g_linear * exposure_gain * v_mult).max(0.0);
-            let b_scaled = (b_linear * exposure_gain * v_mult).max(0.0);
-
-            // Responsive localized Shadows and Highlights tonal adjustment
-            let lum = 0.2126 * r_scaled + 0.7152 * g_scaled + 0.0722 * b_scaled;
-            let y_norm = lum / (lum + 0.18);
-            let shadow_weight = (1.0 - y_norm).powi(2);
-            let highlight_weight = y_norm.powi(2);
-            let shadow_shift = (grading.shadows / 100.0) * 2.5 * shadow_weight;
-            let highlight_shift = (grading.highlights / 100.0) * 2.5 * highlight_weight;
-            let blacks_weight = (1.0 - y_norm).powi(4);
-            let blacks_shift = (grading.blacks / 100.0) * 1.5 * blacks_weight;
-            let tone_gain = 2.0_f32.powf(shadow_shift + highlight_shift + blacks_shift);
-
-            let r_toned = (r_scaled * tone_gain).max(0.0);
-            let g_toned = (g_scaled * tone_gain).max(0.0);
-            let b_toned = (b_scaled * tone_gain).max(0.0);
-
-            // Apply Display Rendering Transform (AgX or OpenDRT)
-            let (r_drt, g_drt, b_drt) = match grading.display_transform {
-                DisplayTransform::AgX => (
-                    apply_agx_edr(r_toned, 1.0),
-                    apply_agx_edr(g_toned, 1.0),
-                    apply_agx_edr(b_toned, 1.0),
-                ),
-                DisplayTransform::OpenDrt => (
-                    apply_opendrt(r_toned, 1.0),
-                    apply_opendrt(g_toned, 1.0),
-                    apply_opendrt(b_toned, 1.0),
-                ),
-            };
-
-            let factor = 1.0 + (grading.contrast / 100.0).clamp(-0.8, 2.0);
-            let r_c = ((r_drt - 0.18) * factor + 0.18).max(0.0);
-            let g_c = ((g_drt - 0.18) * factor + 0.18).max(0.0);
-            let b_c = ((b_drt - 0.18) * factor + 0.18).max(0.0);
-
-            // Perceptual Vibrance & Saturation enhancement
-            let lum_c = 0.2126 * r_c + 0.7152 * g_c + 0.0722 * b_c;
-            let max_val = r_c.max(g_c).max(b_c);
-            let min_val = r_c.min(g_c).min(b_c);
-            let current_sat = if max_val > 1e-4 {
-                (max_val - min_val) / max_val
-            } else {
-                0.0
-            };
-            let base_vibrance = 0.10_f32;
-            let user_vibrance = grading.vibrance / 100.0;
-            let user_sat = grading.saturation / 100.0;
-            let vib_weight = (1.0 - current_sat).clamp(0.0, 1.0);
-            let eff_sat =
-                ((1.0 + user_sat) * (1.0 + (base_vibrance + user_vibrance) * vib_weight)).max(0.0);
-
-            let r_s = (lum_c + (r_c - lum_c) * eff_sat).max(0.0);
-            let g_s = (lum_c + (g_c - lum_c) * eff_sat).max(0.0);
-            let b_s = (lum_c + (b_c - lum_c) * eff_sat).max(0.0);
-
-            let to_u8 = |x: f32| -> u8 {
-                let clamped = x.clamp(0.0, 1.0);
-                let toe = if clamped < 0.35 {
-                    clamped.powf(1.08)
-                } else {
-                    clamped
-                };
-                let mapped = toe.powf(1.0 / 2.2);
-                (mapped * 255.0).clamp(0.0, 255.0) as u8
-            };
-
-            let (u8_r, u8_g, u8_b) = if grading.is_monochrome {
-                let lum_val =
-                    ((to_u8(r_s) as u32 * 54 + to_u8(g_s) as u32 * 183 + to_u8(b_s) as u32 * 19)
-                        >> 8) as u8;
-                (lum_val, lum_val, lum_val)
-            } else {
-                (to_u8(r_s), to_u8(g_s), to_u8(b_s))
-            };
-
-            hist_r[u8_r as usize] += 1;
-            hist_g[u8_g as usize] += 1;
-            hist_b[u8_b as usize] += 1;
-
-            let lum = (((u8_r as u32 * 54) + (u8_g as u32 * 183) + (u8_b as u32 * 19)) >> 8)
-                .min(255) as usize;
-            hist_lum[lum] += 1;
-
-            if lum == 0 {
-                shadow_clipped += 1;
-            }
-            if lum == 255 {
-                highlight_clipped += 1;
-            }
-
-            color_pixels.push(Color32::from_rgb(u8_r, u8_g, u8_b));
+    for row in rows {
+        color_pixels.extend_from_slice(&row.pixels);
+        for i in 0..256 {
+            hist_r[i] += row.hist_r[i];
+            hist_g[i] += row.hist_g[i];
+            hist_b[i] += row.hist_b[i];
+            hist_lum[i] += row.hist_lum[i];
         }
+        shadow_clipped += row.shadow_clipped;
+        highlight_clipped += row.highlight_clipped;
     }
 
     let max_count = hist_lum[1..255].iter().copied().max().unwrap_or(1).max(1);
@@ -631,6 +785,9 @@ pub fn render_export_image(
         (0.0, 0.0)
     };
 
+    let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
+    let has_curves = !grading.tone_curves.is_identity();
+
     let auto_zoom = if grading.geometry_enabled && grading.auto_crop_geometry {
         let abs_rot = rot_deg.abs().to_radians();
         let rot_zoom = abs_rot.cos() + abs_rot.sin() * (cy / cx.max(1.0));
@@ -713,6 +870,16 @@ pub fn render_export_image(
             let r_toned = (r_scaled * tone_gain).max(0.0);
             let g_toned = (g_scaled * tone_gain).max(0.0);
             let b_toned = (b_scaled * tone_gain).max(0.0);
+
+            let (r_toned, g_toned, b_toned) = if has_curves {
+                let c = rraw_color::curves::apply_tone_curves_lut(
+                    glam::Vec3::new(r_toned, g_toned, b_toned),
+                    &curves_lut,
+                );
+                (c.x, c.y, c.z)
+            } else {
+                (r_toned, g_toned, b_toned)
+            };
 
             let (r_drt, g_drt, b_drt) = match grading.display_transform {
                 DisplayTransform::AgX => (
@@ -843,6 +1010,54 @@ pub fn decode_photo_file_payload(
     target_path: &Path,
     is_prefetch: bool,
 ) -> Option<BackgroundDecodePayload> {
+    let ext_lower = target_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    if matches!(ext_lower.as_str(), "jpg" | "jpeg" | "png" | "tif" | "tiff") {
+        if let Ok(dyn_img) = image::open(target_path) {
+            let rgb = dyn_img.to_rgb8();
+            let (orig_w, orig_h) = rgb.dimensions();
+            let base = BaseRgbPreview::from_rgb_image(&rgb, 1600);
+            let dummy_cfa = SignedCfaBuffer::default();
+
+            let file_name = target_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("image")
+                .to_string();
+
+            let photo_view = LoadedPhotoView {
+                path: target_path.to_path_buf(),
+                camera_make: "Raster Image".to_string(),
+                camera_model: format!("{} ({})", ext_lower.to_ascii_uppercase(), file_name),
+                lens_model: String::new(),
+                dimensions: (orig_w, orig_h),
+                iso: 100,
+                shutter_str: "-".to_string(),
+                aperture_str: "-".to_string(),
+                focal_length_str: String::new(),
+                date_time: String::new(),
+                exposure_bias: String::new(),
+                rating: 0,
+                exif_tags: vec![
+                    ("Format".to_string(), ext_lower.to_ascii_uppercase()),
+                    ("Dimensions".to_string(), format!("{orig_w}x{orig_h}")),
+                ],
+            };
+
+            return Some(BackgroundDecodePayload {
+                path: target_path.to_path_buf(),
+                photo_view,
+                base_preview: base,
+                cfa: dummy_cfa,
+                is_prefetch,
+            });
+        }
+    }
+
     let decoder = PureRustRawDecoder::new();
     let decoded = decoder.decode_file(target_path).ok()?;
     let meta = decoded.metadata;
