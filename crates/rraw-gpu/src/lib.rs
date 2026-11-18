@@ -10,6 +10,7 @@ pub mod roi;
 pub mod stage3;
 pub mod stage4;
 pub mod stage5;
+pub mod stage6;
 pub mod stage7;
 
 pub use cache::{LruVramCache, VramPhotoEntry};
@@ -20,6 +21,7 @@ pub use roi::{expand_roi_with_halo, RoiWindow};
 pub use stage3::{Stage3Params, Stage3RlPipeline};
 pub use stage4::{Stage4Params, Stage4WarpPipeline};
 pub use stage5::{Stage5Params, Stage5Pipeline};
+pub use stage6::{Stage6Params, Stage6Pipeline};
 pub use stage7::{Stage7Params, Stage7Pipeline};
 
 use rraw_color::effective_laplacian_octaves;
