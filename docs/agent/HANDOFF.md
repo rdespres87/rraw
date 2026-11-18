@@ -2,20 +2,17 @@
 
 ## Last Completed Milestone
 
-- **Phase 2 — Task 2.2 (`rraw-gpu`) Committed (`8e922ad`)**:
-  - Implemented byte-budgeted `LruVramCache` with clean LRU photo eviction order preventing VRAM exhaustion.
-  - Implemented `expand_roi_with_halo` supporting 120 Hz interactive scrubbing with 32px boundary protection.
-  - Implemented Stage 5 WGSL compute shader with AP1 Gamut Guard and $N_{\text{octaves}} - L$ Laplacian pyramid local contrast, verifying scale-invariance RMSE $< 0.5\%$ between $1:1$ ($L=0$) and $1:4$ ($L=2$).
-  - Implemented Stage 7 WGSL compute shader with AgX DRT and parallel workgroup reduction for 256-bin luminance histogram and clipping detection.
-  - 56 unit and integration tests passing cleanly across the workspace with zero clippy warnings.
+- **Phase 2 — Task 2.3 (`rraw-macos-edr` & `rraw-app`) Committed (`7446b08`)**:
+  - Implemented safe `MacOsDisplayHeadroomProvider` over audited `objc2` and `objc2-app-kit` querying `NSScreen.maximumExtendedDynamicRangeColorComponentValue`.
+  - Implemented thread-safe `MockDisplayHeadroomProvider` for deterministic testing.
+  - Implemented `DualPassCompositor` maintaining permanently fixed `Rgba16Float` swapchain surface across display transitions, clamping EDR viewport output to $1.0$ under SDR, and guaranteeing 100% luminance invariance for the SDR UI.
+  - 58 unit and integration tests passing cleanly across the workspace with zero clippy warnings.
+  - **Phase 2 is 100% complete**.
 
 ## Exact Next Logical Action
 
-1. **Next Development Task (Task 2.3 — `rraw-macos-edr` & `rraw-app`)**:
-   - Follow Security Gate 1: Draft and present architectural plan for safe `objc2` `DisplayHeadroomProvider` implementation (`NSScreen.maximumExtendedDynamicRangeColorComponentValue`, `CAMetalLayer` `extendedLinearDisplayP3`).
-   - Implement permanently fixed `Rgba16Float` surface format across display transitions in `rraw-app`.
-   - Implement dual-pass compositor: SDR UI (`egui`) + EDR viewport (`wgpu`).
-   - TDD Gate: Mock `DisplayHeadroomProvider` transition $H_{\text{active}} = 4.0 \to 1.0$ keeps `Rgba16Float` fixed, clamps viewport output to $1.0$, and preserves `egui` UI color invariance.
+1. **Next Development Task (Task 3.1 — `rraw-optics` & `rraw-gpu`)**:
+   - Follow Security Gate 1: Draft and present architectural plan for 4-tier optical resolver (MakerNotes, `Lensfun` XML, `.lcp`, manual), $256 \times 256$ UV LUT generation, and Stage 4 Catmull-Rom `WARP` compute shader with fused radial vignetting (`!vignette_handled_by_gainmap`) and $\ge 0.0$ positive half-space clamping.
+   - TDD Gate: Known pincushion + lateral R/B CA + $\cos^4(\theta)$ vignette rectified to $< 0.05\text{ px}$ error, zero $< 0.0$ outputs, and zero over-correction when `vignette_handled_by_gainmap == true`.
 2. **Subsequent Phase 3 Tasks**:
-   - Task 3.1 (`rraw-optics` & `rraw-gpu`): 4-tier optical resolver, $256 \times 256$ UV LUTs, fused Catmull-Rom `WARP` shader.
-   - Task 3.2 (`rraw-optics` & `rraw-gpu`): Regularized Richardson-Lucy Capture Sharpening.
+   - Task 3.2 (`rraw-optics` & `rraw-gpu`): Damped Richardson-Lucy Capture Sharpening ($\epsilon = 10^{-6}$, `NoiseProfile` edge mask, radial $\text{PSF}_r$, local overshoot deringing).
