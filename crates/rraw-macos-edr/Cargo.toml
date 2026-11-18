@@ -9,5 +9,9 @@ description = "Isolated macOS AppKit / CAMetalLayer EDR bridge behind safe Displ
 [dependencies]
 rraw-core.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-app-kit.workspace = true
+
 [lints]
 workspace = true
