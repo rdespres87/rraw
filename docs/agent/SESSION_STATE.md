@@ -16,9 +16,10 @@
   - Task 2.3 (`rraw-macos-edr` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `7446b08`)
   - Task 3.1 (`rraw-optics` & `rraw-gpu`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `71635cc`)
   - Task 3.2 (`rraw-optics` & `rraw-gpu`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `cd5474f`)
-  - Task 4.1 (`rraw-ai`): Ready to start under Security Gate 1 (Phase-preserving `504×504` tile denoiser, FP16 Anscombe/log conditioning, `(PhotoId, Stage0Epoch)` cancellation, `ort` CoreML EP)
-- **Git Branch**: `main` (Task 3.2 committed in `cd5474f`)
-- **Last Approved Gate**: Gate 3 (Task 3.2 authorized by user on 2026-11-18)
+  - Task 4.1 (`rraw-ai`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `28597cd`)
+  - Task 4.2 (`rraw-gpu` & `rraw-app`): Ready to start under Security Gate 1 (Post-warp `[0, 1]²` geometric masks and `ACEScg` parametric Luminance/Chroma/Hue masks)
+- **Git Branch**: `main` (Task 4.1 committed in `28597cd`)
+- **Last Approved Gate**: Gate 3 (Task 4.1 authorized by user on 2026-11-18)
 
 ## Workspace Structure Verified
 
@@ -37,10 +38,10 @@
 
 ## Known Open Items
 
-- Phase 3 Complete (commits `71635cc` and `cd5474f` with 65 passing tests).
-- Next up: Task 4.1 (`rraw-ai`).
+- Task 4.1 Complete (commit `28597cd` with 69 passing tests).
+- Next up: Task 4.2 (`rraw-gpu` & `rraw-app`).
 
 ## Last Observed Verification Run
 
 - `./.git/hooks/pre-commit` (`cargo fmt --all -- --check` + `cargo clippy --workspace --all-targets -- -D warnings`): passed (exit `0`).
-- `cargo test --workspace`: passed (`65` unit/integration tests across all `11` crates: `rraw-core`: 14, `rraw-gpu`: 12, `rraw-color`: 7, `rraw-decode`: 7, `rraw-optics`: 9, `rraw-app`: 4, `rraw-cli`: 3, `rraw-ai`: 4, `rraw-macos-edr`: 2, `rraw-storage`: 2, `rraw-export`: 1; `0` failed, `0` ignored).
+- `cargo test --workspace`: passed (`69` unit/integration tests across all `11` crates: `rraw-core`: 14, `rraw-gpu`: 12, `rraw-color`: 7, `rraw-decode`: 7, `rraw-optics`: 9, `rraw-ai`: 8, `rraw-app`: 4, `rraw-cli`: 3, `rraw-macos-edr`: 2, `rraw-storage`: 2, `rraw-export`: 1; `0` failed, `0` ignored).
