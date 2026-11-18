@@ -2,20 +2,22 @@
 
 ## Last Completed Milestone
 
-- **Modular UI & Architecture Refactoring (`ac0a8ea`)**:
-  - Decomposed monolithic 5,772-line `crates/rraw-app/src/app.rs` down to 897 lines (-84%) and `src/main.rs` down to 65 lines (-87%).
-  - Clean separation into `src/state.rs` (configuration, sidecars, presets), `src/preview.rs` (decoding worker, 30-photo LRU cache, fast thumbnails), `src/shell.rs` (EDR surface binding), and isolated `src/ui/*` modules (`explorer.rs`, `presets.rs`, `histogram.rs`, `exif.rs`, `export.rs`, `inspector.rs`, `filmstrip.rs`, `viewport.rs`).
-  - Extracted 371 lines of unit tests to `tests/shell_tests.rs`.
-  - Audited and approved by local Inquisitor (Qwen 3.6 35B) with zero regressions across all 90 tests.
+- **Phase 6.1 — Interactive PCHIP Tone Curves & Preview Acceleration (`64921a7`, `d75eafc`)**:
+  - Implemented Fritsch-Carlson Monotone Cubic Hermite Spline (PCHIP) evaluator and 1024-entry LUT evaluation in `rraw-color` and `rraw-core`.
+  - Added interactive multi-channel tone curve canvas with live histogram underlay in `rraw-app`, positioned in the left panel right above the live waveform histogram for cohesive tonal scopes.
+  - Multi-threaded preview evaluation via `rayon` across CPU cores with identity-geometry fast path and `opt-level = 3` in dev profile for silky-smooth 60-120 FPS slider and curve scrubbing.
+  - Added native JPEG and PNG raster loading with on-the-fly sRGB linear conversion and thumbnails.
+  - Implemented instant untouched raw A/B inspection via 0 ms GPU texture swapping on photo click-and-hold or `\` key.
+  - Mapped vertical mouse wheel deltas to horizontal scrolling over the filmstrip.
+  - 95 unit/integration tests passing workspace-wide.
 
-## Next Logical Action: Phase 6.1 — Interactive Parametric Tone Curves (PCHIP Splines)
+## Next Logical Action: Phase 6.2 — Extended Film Emulation & Creative Presets
 
-- **Target crates**: `rraw-core`, `rraw-color`, `rraw-gpu`, `rraw-app/src/ui/tone_curve_widget.rs`
+- **Target crates**: `rraw-color`, `rraw-core`, `rraw-app`
 - **Scope**:
-  1. Define `ToneCurvesRecipe`, `ChannelCurve`, `CurvePoint` in `rraw-core::recipe`.
-  2. Implement Fritsch-Carlson Monotone Cubic Hermite Spline (PCHIP) evaluator in `rraw-color`.
-  3. Generate 1D $1024 \times 1$ `Rgba16Float` LUT texture and sample in WGSL Stage 5.
-  4. Create `tone_curve_widget.rs` in `rraw-app/src/ui/` with interactive spline canvas and live background histogram underlay.
+  1. Define 3D CLUT / parametric creative film profile recipes (e.g. Classic Chrome, Portra, Tri-X 400).
+  2. Implement tetrahedral 3D LUT interpolation in `rraw-color`.
+  3. Wire creative profiles into `rraw-app` preset selector and sidecars.
 
 ## Repository Completion State
 
