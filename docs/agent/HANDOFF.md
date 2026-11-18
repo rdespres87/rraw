@@ -9,7 +9,8 @@
   - `rraw-color`: CFA pattern invariant hoisted out of pixel demosaicing loops.
   - `rraw-core`: Bitwise `& 1` CFA Bayer phase evaluation.
   - `rraw-decode`: Pre-allocated EXIF tag vectors (`with_capacity(64)`) and strided Haar wavelet MAD buffers.
-  - CI: 90 tests passing, 0 clippy warnings, zero unwrap / expect in production.
+  - Re-check: Re-evaluated with local Inquisitor (`AUDIT_LOCAL_RECHECK.md`), all 90 tests passing, 0 clippy warnings.
+  - Remote Sync: Successfully pushed to `git@github.com:rdespres87/rraw.git` on branch `main`.
 
 ## Repository Completion State
 
