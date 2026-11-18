@@ -2,16 +2,20 @@
 
 ## Last Completed Milestone
 
-- **Phase 2 — Task 2.1 (`rraw-gpu`) Committed (`4eb20a4`)**:
-  - Implemented `GpuContext::new_headless()` with robust adapter fallback and queue acquisition on Apple Silicon Metal.
-  - Implemented Stage 1 WGSL compute shader with signed `R32Float` normalization (preserving sub-black read noise without DC bias), outlier hot-pixel defect repair, and saturation `clip_mask`.
-  - Implemented Stage 2 WGSL compute shader with unclamped pre-demosaic white balance ($\text{sat}_c = w_c$), Hamilton-Adams directional edge-adaptive Bayer demosaicing ($\text{PSNR} > 42\text{ dB}$ on Siemens star), and chromatic-ratio highlight reconstruction ($R=G=B$ above $1.0$ without magenta cast).
-  - 52 unit and integration tests passing cleanly across the workspace with zero clippy warnings.
+- **Phase 2 — Task 2.2 (`rraw-gpu`) Committed (`8e922ad`)**:
+  - Implemented byte-budgeted `LruVramCache` with clean LRU photo eviction order preventing VRAM exhaustion.
+  - Implemented `expand_roi_with_halo` supporting 120 Hz interactive scrubbing with 32px boundary protection.
+  - Implemented Stage 5 WGSL compute shader with AP1 Gamut Guard and $N_{\text{octaves}} - L$ Laplacian pyramid local contrast, verifying scale-invariance RMSE $< 0.5\%$ between $1:1$ ($L=0$) and $1:4$ ($L=2$).
+  - Implemented Stage 7 WGSL compute shader with AgX DRT and parallel workgroup reduction for 256-bin luminance histogram and clipping detection.
+  - 56 unit and integration tests passing cleanly across the workspace with zero clippy warnings.
 
 ## Exact Next Logical Action
 
-1. **Next Development Task (Task 2.2 — `rraw-gpu`)**:
-   - Follow Security Gate 1: Draft and present architectural plan for the VRAM-budgeted LRU DAG cache (`L0`/`L1`/`L2`), 120 Hz RoI scrubbing with `32px` halo, mipmap pyramid generation ($L \in \{0, 1, 2\}$), and Stages 5–7 WGSL compute shaders (`ACEScg` colorimetry, $N_{\text{octaves}} - L$ Laplacian pyramid local contrast, `AgX`/`OpenDRT`, and GPU histogram/scopes).
-   - TDD Gate: Scale-invariance RMSE $< 0.5\%$ between $1:1$ ($L=0$) and $1:4$ ($L=2$); 5th photo into a 2-photo LRU cache cleanly evicts oldest VRAM textures.
-2. **Subsequent Phase 2 Tasks**:
-   - Task 2.3 (`rraw-macos-edr` & `rraw-app`): Safe `objc2` `DisplayHeadroomProvider` bridge, permanently fixed `Rgba16Float` surface, and dual-pass SDR UI + EDR viewport compositor.
+1. **Next Development Task (Task 2.3 — `rraw-macos-edr` & `rraw-app`)**:
+   - Follow Security Gate 1: Draft and present architectural plan for safe `objc2` `DisplayHeadroomProvider` implementation (`NSScreen.maximumExtendedDynamicRangeColorComponentValue`, `CAMetalLayer` `extendedLinearDisplayP3`).
+   - Implement permanently fixed `Rgba16Float` surface format across display transitions in `rraw-app`.
+   - Implement dual-pass compositor: SDR UI (`egui`) + EDR viewport (`wgpu`).
+   - TDD Gate: Mock `DisplayHeadroomProvider` transition $H_{\text{active}} = 4.0 \to 1.0$ keeps `Rgba16Float` fixed, clamps viewport output to $1.0$, and preserves `egui` UI color invariance.
+2. **Subsequent Phase 3 Tasks**:
+   - Task 3.1 (`rraw-optics` & `rraw-gpu`): 4-tier optical resolver, $256 \times 256$ UV LUTs, fused Catmull-Rom `WARP` shader.
+   - Task 3.2 (`rraw-optics` & `rraw-gpu`): Regularized Richardson-Lucy Capture Sharpening.
