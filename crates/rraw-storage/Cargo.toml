@@ -9,6 +9,9 @@ description = "Async SQLite DAM cache, non-destructive .rraw.json and .xmp sidec
 [dependencies]
 rraw-core.workspace = true
 rraw-decode.workspace = true
+quick-xml.workspace = true
+rusqlite.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true
