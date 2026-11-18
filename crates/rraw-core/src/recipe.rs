@@ -220,6 +220,14 @@ impl Default for Stage5GradingParams {
     }
 }
 
+/// Range specification for ACEScg parametric color qualifiers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ParametricRange {
+    pub min_val: f32,
+    pub max_val: f32,
+    pub feather: f32,
+}
+
 /// Geometric mask specification defined in `[0.0, 1.0]²` post-warp coordinates.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -239,6 +247,15 @@ pub enum MaskKind {
         radius: [f32; 2],
         /// Rotation angle in degrees.
         rotation_deg: f32,
+    },
+    /// ACEScg parametric color qualifier (Luminance, Chroma, Hue).
+    ParametricColor {
+        /// Luminance range in ACEScg space ($Y \in [0, \infty)$).
+        luminance: Option<ParametricRange>,
+        /// Chroma range in ACEScg space ($C \in [0, \infty)$).
+        chroma: Option<ParametricRange>,
+        /// Hue angle range in degrees ($H \in [0, 360)$).
+        hue_deg: Option<ParametricRange>,
     },
 }
 
