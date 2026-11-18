@@ -13,7 +13,7 @@ use rraw_core::{
 use rraw_decode::DecodeError;
 use rraw_export::ExportSpec;
 use rraw_gpu::{GpuContextMode, RenderSurfaceState, ScrubbingPolicy};
-use rraw_macos_edr::{EdrLayerConfig, SdrFallbackHeadroomProvider};
+use rraw_macos_edr::{DualPassCompositor, EdrLayerConfig, SdrFallbackHeadroomProvider};
 use rraw_optics::OpticalResolutionTier;
 use rraw_storage::SidecarPaths;
 
@@ -23,6 +23,7 @@ struct AppShellState<'a> {
     surface: RenderSurfaceState,
     edr_layer: EdrLayerConfig,
     scrubbing: ScrubbingPolicy,
+    compositor: DualPassCompositor<'a>,
 }
 
 impl<'a> AppShellState<'a> {
@@ -33,6 +34,7 @@ impl<'a> AppShellState<'a> {
             surface: RenderSurfaceState::new(headroom),
             edr_layer: EdrLayerConfig::default(),
             scrubbing: ScrubbingPolicy::default(),
+            compositor: DualPassCompositor::new(provider),
         }
     }
 
@@ -40,6 +42,7 @@ impl<'a> AppShellState<'a> {
     fn refresh_display_headroom(&mut self) -> SurfaceFormat {
         let sample = self.provider.current_headroom();
         self.surface.apply_headroom(sample);
+        self.compositor.sync_display_headroom();
         self.surface.format
     }
 }
