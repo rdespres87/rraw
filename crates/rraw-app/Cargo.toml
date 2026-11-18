@@ -6,6 +6,13 @@ license.workspace = true
 authors.workspace = true
 description = "Native macOS 120 Hz ProMotion EDR darkroom and catalog-free RAW workspace"
 
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "rraw-app"
+path = "src/main.rs"
+
 [dependencies]
 rraw-core.workspace = true
 rraw-decode.workspace = true
