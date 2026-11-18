@@ -10,5 +10,8 @@ description = "4-tier optical correction resolver, UV LUT generator, and Richard
 rraw-core.workspace = true
 rraw-decode.workspace = true
 
+[dev-dependencies]
+rraw-gpu.workspace = true
+
 [lints]
 workspace = true

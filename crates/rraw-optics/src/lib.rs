@@ -2,6 +2,14 @@
 
 //! 4-tier optical aberration correction resolver and Stage 3/4 reference kernels.
 
+pub mod lut;
+pub mod model;
+pub mod resolver;
+
+pub use lut::{UvLutGenerator, UvLutTable};
+pub use model::{DistortionPoly, LateralTca, OpticalCorrectionModel, RadialVignette};
+pub use resolver::OpticalResolver;
+
 use rraw_core::PhotoMetadata;
 
 /// Resolution tier used to correct distortion, chromatic aberration, and vignetting.

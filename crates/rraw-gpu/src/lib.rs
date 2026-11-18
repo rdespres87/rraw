@@ -7,6 +7,7 @@ pub mod context;
 pub mod error;
 pub mod pipeline;
 pub mod roi;
+pub mod stage4;
 pub mod stage5;
 pub mod stage7;
 
@@ -15,6 +16,7 @@ pub use context::GpuContext;
 pub use error::GpuError;
 pub use pipeline::{Stage1Params, Stage1Pipeline, Stage2Params, Stage2Pipeline};
 pub use roi::{expand_roi_with_halo, RoiWindow};
+pub use stage4::{Stage4Params, Stage4WarpPipeline};
 pub use stage5::{Stage5Params, Stage5Pipeline};
 pub use stage7::{Stage7Params, Stage7Pipeline};
 
