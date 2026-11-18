@@ -4,7 +4,7 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 4 — CoreML AI (`504×504` Tiling), Local Masks, DAM & HDR Export
+- **Active Phase**: Phase 5 — Native macOS Interactive GUI Shell
 - **Active Tasks**:
   - Task 0.1 & Task 0.2: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized)
   - Task 1.1 (`rraw-core`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `acedebb`)
@@ -20,6 +20,7 @@
   - Task 4.2 (`rraw-gpu` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `e836632`)
   - Task 4.3 (`rraw-storage` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `c4d4abb`)
   - Task 4.4 (`rraw-export`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `a3ee723`)
+  - Task 5.1 (`rraw-app`): **Ready for Gate 3** (Inquisitor APPROVED, CI green, `eframe`/`egui` native macOS window shell)
 - **Git Branch**: `main` (Task 4.4 committed in `a3ee723`)
 - **Last Approved Gate**: Gate 3 (Task 4.4 authorized by user on 2026-11-18)
 
@@ -40,10 +41,19 @@
 
 ## Known Open Items
 
-- All Phases Complete (Phases 0, 1, 2, 3, and 4 are 100% complete across all 11 crates).
-- Total tests: 79 unit/integration tests passing cleanly.
+- Known Open Items:
+  - Phase 5 GUI Enhancements:
+    - Left panel layout: strictly ordered (1. `📁 Explorateur de dossiers` at the top, 2. `🎨 Styles & Préréglages` with dropdown combobox + reset, 3. `📋 Données EXIF` clear striped summary table, comprehensive decoded tag inspection with live search filter, and JSON copy/export, 4. `📊 Histogramme Waveform RGB` at the bottom).
+    - Explorer usability & default directory: defaults to user's Desktop (`~/Desktop`), interactive breadcrumb navigation bar, and clean `📁 .. (Dossier parent)` entry at the top of the directory listing.
+    - Filmstrip scrollbar clearance: card height resized (104px) and 14px buffer space added so the horizontal scrollbar sits completely below the cards and never covers the rating stars.
+    - Classical multi-selection: click (single select/open), Cmd/Ctrl+Click (toggle), Shift+Click (range selection), Cmd+A (select all), Cmd+D / Escape (clear), Space (toggle active photo), Shift+Arrow (range extension).
+    - Photo switching performance (instant visual feedback): immediate display of thumbnail texture in frame 0 while background decode loads, bounding downsampling width to 1600 (3x faster), prefetch 2-ahead and 2-behind, and expanded MRU cache to 30 photos.
+    - Embellished Histogram: OLED rounded card, sqrt scaling to reveal midtones, glowing RGB curves, quartile zone guides (Noirs, Ombres, Exposition, Hautes Lum.), clipping badges.
+    - Crop & Geometry: 120 FPS vector overlay, aspect ratio presets, Enter/double-click commit, independent enable/disable toggles.
+    - Batch Export: configurable subfolder (`Export`), suffix (`_rraw`), formats (JPEG quality, PNG 8/16, TIFF 8/16), auto-closing dialog.
+- Total tests: 90 unit/integration tests passing cleanly.
 
 ## Last Observed Verification Run
 
 - `./.git/hooks/pre-commit` (`cargo fmt --all -- --check` + `cargo clippy --workspace --all-targets -- -D warnings`): passed (exit `0`).
-- `cargo test --workspace`: passed (`79` unit/integration tests across all `11` crates: `rraw-core`: 14, `rraw-gpu`: 15, `rraw-color`: 7, `rraw-decode`: 7, `rraw-optics`: 9, `rraw-ai`: 8, `rraw-storage`: 5, `rraw-export`: 5, `rraw-app`: 4, `rraw-cli`: 3, `rraw-macos-edr`: 2; `0` failed, `0` ignored).
+- `cargo test --workspace`: passed (`90` unit/integration tests across all `11` crates; `0` failed, `0` ignored).
