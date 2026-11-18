@@ -11,6 +11,7 @@ rraw-core.workspace = true
 rraw-optics.workspace = true
 thiserror.workspace = true
 glam.workspace = true
+png.workspace = true
 
 [lints]
 workspace = true
