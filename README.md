@@ -1,13 +1,63 @@
 # Rraw
 
-**Rraw** is a native macOS (Apple Silicon M-series) photographic RAW development workstation written in Rust. It combines a catalog-free filesystem browser, a mathematically grounded 7-stage GPU pipeline (`wgpu` / Metal), neural and wavelet CFA denoising, regularized Richardson-Lucy capture sharpening, dual-illuminant spectral colorimetry in `ACEScg` (`AP1` D60), and 120 Hz ProMotion Extended Dynamic Range (EDR) display support.
+**Rraw** is a high-performance, native macOS (Apple Silicon M-series) photographic RAW development workstation engineered in Rust. It combines a catalog-free filesystem browser, a mathematically grounded 7-stage GPU pipeline (`wgpu` / Metal), dual wavelet and neural sensor-noise reduction, regularized Richardson-Lucy optical deconvolution, dual-illuminant spectral colorimetry in `ACEScg` (`AP1` D60), and 120 Hz ProMotion Extended Dynamic Range (EDR) display rendering.
 
-## Architecture Highlights
+---
 
-- **Pure-Rust Parsing & Business Logic**: All TIFF/ISOBMFF, DNG `OpcodeList`, MakerNotes, Lensfun XML, and Adobe `.lcp` parsing are implemented in safe Rust (`#![forbid(unsafe_code)]`), without legacy C/C++ parsing dependencies (`LibRaw`, `exiv2`).
-- **Strict `unsafe` Isolation (`E0453` Compliant)**: 10 out of 11 workspace crates enforce `#![forbid(unsafe_code)]`. Only `rraw-macos-edr` uses `#![deny(unsafe_code)]` with minimal, `// SAFETY:`-documented `#[allow(unsafe_code)]` blocks bridging `AppKit` / `QuartzCore` behind the safe `DisplayHeadroomProvider` trait.
-- **Zero-Crash Policy**: Production and test targets forbid `.unwrap()`, `.expect()`, `panic!()`, `todo!()`, and `unimplemented!()` via workspace Clippy lints.
-- **Catalog-Free Workflow & Hybrid Sidecars**: Operates directly on local/external folders with an asynchronous SQLite metadata cache (`PhotoMetadata`), deterministic `.rraw.json` recipe files, and non-destructive `.xmp` read/write preserving third-party namespaces.
+## Key Capabilities & Features
+
+### 1. RAW Sensor & Camera Decoding
+- **Bayer & Fujifilm X-Trans**: Pure-Rust decoding powered by `rawler` and dedicated TIFF/ISOBMFF parsers, supporting modern Bayer sensors (Sony, Nikon, Canon, Leica, Panasonic) as well as $6 \times 6$ Fujifilm X-Trans CFA patterns.
+- **Signed Sensor Normalization**: Preserves negative read-noise samples below black level ($< 0.0$) in `R32Float` representation to maintain unbiased noise statistics.
+- **Defect & Artifact Mitigation**: Pre-demosaic repair of hot pixels, PDAF focus-pixel lines, and sensor phase artifacts.
+- **Chromatic-Ratio Highlight Reconstruction**: Reconstructs saturated highlight channels using unclipped channel ratios to prevent hue shifts (e.g., magenta highlights).
+
+### 2. Dual Denoising Engine
+- **Real-Time GPU Wavelets (120 Hz)**: Generalized Anscombe Variance-Stabilizing Transform (GAT) coupled with multi-scale À-Trous wavelets on GPU, calibrated directly to the sensor's Poisson-Gaussian noise profile.
+- **High-Fidelity Neural Denoising (Apple Neural Engine)**: Offline inference via CoreML / `ort` executed directly on the Apple Neural Engine (ANE). Uses a phase-preserving $504 \times 504$ tiling strategy with $48\text{ px}$ $\cos^2$ overlap blending to eliminate tile-boundary seams.
+
+### 3. 4-Tier Optical Correction & Capture Sharpening
+- **Hierarchical Optical Resolver**: Automatically resolves geometric distortion, lateral chromatic aberration (CA), and vignetting through a 4-tier fallback:
+  1. *Tier 1*: Embedded camera MakerNotes and DNG opcodes (Sony, Nikon, Fuji, Micro 4/3, Canon).
+  2. *Tier 2*: Open-source `Lensfun` database (`PTLens`, `Poly3`, `Poly5` models).
+  3. *Tier 3*: Local Adobe Lens Profile (`.lcp`) files (`Brown-Conrady`).
+  4. *Tier 4*: Manual parametric adjustment.
+- **Fused GPU WARP Shader**: High-precision Catmull-Rom bicubic sampling with fused radial vignetting and lateral CA correction in a single GPU pass.
+- **Regularized Richardson-Lucy Deconvolution**: Recovers optical diffraction and lens softness using a radial Point Spread Function (PSF) and a noise-adaptive edge mask ($M_{\text{edge}}$) that prevents noise amplification in smooth areas.
+
+### 4. Cinematic Color Science & Native EDR
+- **`ACEScg` Working Space**: 100% linear floating-point processing in the Academy Color Encoding System (`ACEScg` / `AP1` D60).
+- **Dual-Illuminant Spectral Calibration**: Continuous mired interpolation between D50 and D65 calibration illuminants, Bradford chromatic adaptation, and an identity-core Gamut Guard.
+- **Modern Tone Mapping**: `AgX` and `OpenDRT` transforms parameterizing highlight rolloff based on real-time display capabilities.
+- **Native Liquid Retina XDR / Pro Display XDR (up to 1600 nits)**: Direct zero-copy composition on `CAMetalLayer` in `extendedLinearDisplayP3` (`Rgba16Float`), rendering true specular highlights without premature SDR tone compression.
+- **Real-Time GPU Diagnostic Scopes**: Workgroup-reduced GPU histogram, RGB parade, and real-time clipping zebra overlays (SDR clipping $> 1.0$ and live EDR headroom clipping $> H_{\text{active}}$).
+
+### 5. Local Adjustments & Parametric Masking
+- **Geometric Masks**: Normalized $[0, 1]^2$ linear and radial gradients computed post-warp.
+- **Parametric Masks**: High-precision Luminance, Chroma, and Hue masks evaluated at 120 Hz in `ACEScg` color space directly on GPU.
+
+### 6. Catalog-Free Workflow & Non-Destructive Sidecars
+- **Direct Filesystem Operation**: No proprietary, monolithic catalog databases that risk corruption or lock-in.
+- **Asynchronous SQLite Cache**: Ultra-fast background indexing of metadata (`PhotoMetadata`), EXIF, and thumbnail mipmaps for instantaneous folder navigation.
+- **Dual Sidecar Architecture**:
+  - Deterministic `.rraw.json` recipe DAG recording all adjustment parameters.
+  - Lossless, non-destructive `.xmp` sidecar synchronization, strictly preserving third-party namespaces (e.g. Adobe Lightroom, Darktable).
+
+### 7. Next-Generation HDR Batch Export
+- **Multi-Threaded Queue**: Asynchronous background export preserving full bit depth.
+- **Supported Formats**: 16-bit TIFF, 16-bit PNG, full-quality JPEG, AVIF (pure-Rust `rav1e`), and JPEG XL (`libjxl`).
+- **ISO 21496-1 HDR Gain Maps**: Embeds standardized gain maps into AVIF, JPEG XL, and JPEG files, providing universal backward compatibility on standard SDR displays while unlocking full HDR luminance on supported devices.
+
+---
+
+## Architecture & Engineering Rigor
+
+- **Pure-Rust Parsing & Business Logic**: All TIFF/ISOBMFF, DNG `OpcodeList`, MakerNotes, Lensfun XML, and Adobe `.lcp` parsing are implemented in safe Rust (`#![forbid(unsafe_code)]`), eliminating attack surfaces from legacy C/C++ libraries.
+- **Strict `unsafe` Isolation (`E0453` Compliant)**: 10 out of 11 workspace crates enforce `#![forbid(unsafe_code)]`. Only `rraw-macos-edr` uses `#![deny(unsafe_code)]` with minimal, audited, `// SAFETY:`-documented `#[allow(unsafe_code)]` blocks bridging `AppKit` / `QuartzCore` behind the safe `DisplayHeadroomProvider` trait.
+- **Zero-Crash Policy**: Workspace-wide Clippy lints forbid `.unwrap()`, `.expect()`, `panic!()`, `todo!()`, and `unimplemented!()` in all production and test code.
+- **Mathematically Grounded TDD**: Every processing stage is verified with deterministic synthetic fixtures (Poisson-Gaussian noise, Siemens stars, analytic PSF blur, synthetic D50/D65 ColorChecker patches) and headless GPU testing (`GpuContext::new_headless()`).
+
+---
 
 ## 7-Stage GPU Pipeline Summary
 
@@ -18,6 +68,8 @@
 5. **Stage 5 — DNG Colorimetry & Grading (`ACEScg` `AP1` D60 Linear)**: Iterative CCT solver with 1D mired interpolation, strict separation of `ForwardMatrix1/2` vs `ColorMatrix1/2` (`(AB·CC·CM)^-1`) -> Bradford adaptation -> `ACEScg`, identity-core Gamut Guard, exposure, scale-invariant Laplacian local contrast ($N_{\text{effective}} = N_{\text{octaves}} - L$), and post-warp normalized `[0, 1]²` local masks.
 6. **Stage 6 — Display Rendering Transform (DRT)**: `AgX` / `OpenDRT` parameterized by live display headroom $H_{\text{active}} \in [1.0, 16.0]$, encoding to `ExtendedLinearDisplayP3` (`Rgba16Float` fixed swapchain format) or export profiles (`sRGB`, `Display P3`, `Rec.2020 PQ/HLG`, ISO 21496-1 Gain Maps).
 7. **Stage 7 — 120 Hz Compositor & GPU Scopes**: Dual-pass Metal compositing (EDR image viewport up to $H_{\text{active}}$ + nominal `[0.0, 1.0]` SDR `egui` UI) alongside workgroup-reduced GPU histogram, RGB parade, and dual SDR (`> 1.0`) / EDR (`> H_active`) clipping overlays.
+
+---
 
 ## 11-Crate Workspace Layout
 
@@ -35,6 +87,17 @@
 | [`rraw-cli`](crates/rraw-cli/Cargo.toml) | `bin` | `#![forbid(unsafe_code)]` | Lightweight CLI orchestrating CPU/GPU reference pipelines for profiling, optical inspection, and golden tests | 8 core/processing lib crates (excludes `rraw-macos-edr`, `rraw-app`) |
 | [`rraw-app`](crates/rraw-app/Cargo.toml) | `bin` | `#![forbid(unsafe_code)]` | Native macOS GUI (`eframe`/`egui` + `wgpu` Metal), filesystem browser/filmstrip, 120 Hz EDR darkroom | All 9 library crates |
 
+---
+
+## System Requirements
+
+- **Operating System**: macOS 14.0 (Sonoma) or newer.
+- **Hardware Architecture**: Apple Silicon (M1, M2, M3, M4 family). M-series Pro/Max/Ultra recommended for optimal 120 Hz ProMotion scrubbing and batch neural inference.
+- **Display**: Liquid Retina XDR display (MacBook Pro 14"/16") or Apple Pro Display XDR recommended for full Extended Dynamic Range (up to 1600 nits).
+- **Memory**: 16 GB unified memory minimum (32 GB+ recommended for ultra-high-resolution RAW batch processing).
+
+---
+
 ## Build, Lint & Test Commands
 
 ```bash
@@ -47,6 +110,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 # Run all unit and integration tests across all 11 crates
 cargo test --workspace
 ```
+
+---
 
 ## License
 
