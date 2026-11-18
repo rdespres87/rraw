@@ -146,6 +146,19 @@ impl RrawApp {
 
                 ui.add_space(4.0);
 
+                // Map vertical mouse wheel scroll to horizontal filmstrip scroll when hovering bottom panel
+                let panel_rect = ui.max_rect();
+                if ui.rect_contains_pointer(panel_rect) {
+                    ui.input_mut(|i| {
+                        if i.smooth_scroll_delta.x.abs() < 1e-4
+                            && i.smooth_scroll_delta.y.abs() > 0.0
+                        {
+                            i.smooth_scroll_delta.x = i.smooth_scroll_delta.y;
+                            i.smooth_scroll_delta.y = 0.0;
+                        }
+                    });
+                }
+
                 // Horizontal Filmstrip scroll area with visible scrollbar positioned safely below cards
                 egui::ScrollArea::horizontal()
                     .auto_shrink([false, false])
@@ -549,9 +562,23 @@ impl RrawApp {
                                     .size(13.0)
                                     .color(Color32::from_rgb(230, 235, 245)),
                             )
-                            .default_open(true)
+                            .default_open(false)
                             .show(ui, |ui| {
                                 self.render_exif_panel(ui);
+                            });
+
+                            ui.separator();
+
+                            // 4. Courbes de tonalité (AVANT L'HISTOGRAMME)
+                            egui::CollapsingHeader::new(
+                                egui::RichText::new("📈 Courbes de tonalité")
+                                    .strong()
+                                    .size(13.0)
+                                    .color(Color32::from_rgb(230, 235, 245)),
+                            )
+                            .default_open(true)
+                            .show(ui, |ui| {
+                                self.render_tone_curves_section(ui);
                             });
                         });
                 });

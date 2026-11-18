@@ -9,4 +9,5 @@ pub mod filmstrip;
 pub mod histogram;
 pub mod inspector;
 pub mod presets;
+pub mod tone_curves;
 pub mod viewport;

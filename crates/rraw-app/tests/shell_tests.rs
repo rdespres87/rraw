@@ -355,3 +355,91 @@ fn default_directory_resolves_cleanly() {
         });
     assert!(default_dir.exists());
 }
+
+#[test]
+fn test_tone_curves_roundtrip_through_sidecar_and_preview() -> Result<(), Box<dyn std::error::Error>>
+{
+    use rraw_core::curves::CurvePoint;
+    use rraw_core::{BayerOrigin, CfaPattern, SignedCfaBuffer};
+
+    let mut grading = DarkroomGradingState::default();
+    assert!(grading.tone_curves.is_identity());
+
+    // Add S-curve contrast
+    grading
+        .tone_curves
+        .combined_rgb
+        .add_point(CurvePoint::new(0.25, 0.15)?);
+    grading
+        .tone_curves
+        .combined_rgb
+        .add_point(CurvePoint::new(0.75, 0.85)?);
+    assert!(!grading.tone_curves.is_identity());
+
+    // 1. Verify sidecar serialization roundtrip
+    let sidecar = SidecarRecipe::from_state(&grading, 5);
+    let mut restored = DarkroomGradingState::default();
+    sidecar.apply_to(&mut restored);
+    assert_eq!(restored.tone_curves, grading.tone_curves);
+
+    // 2. Verify preview rendering behaves deterministically with curves applied
+    let width = 64;
+    let height = 64;
+    let cfa = SignedCfaBuffer::new(
+        width,
+        height,
+        CfaPattern::Bayer(BayerOrigin::Rggb),
+        vec![0.5_f32; width * height],
+    )?;
+    let base = BaseRgbPreview::from_cfa_with_color(&cfa, [1.0, 1.0, 1.0], None);
+
+    let (img_linear, _) = render_preview_from_base(&base, &DarkroomGradingState::default());
+    let (img_curved, _) = render_preview_from_base(&base, &grading);
+
+    assert_eq!(img_linear.pixels.len(), img_curved.pixels.len());
+    assert!(img_curved.pixels[0].r() > 0);
+
+    Ok(())
+}
+
+#[test]
+fn test_from_rgb_image_constructs_linear_preview_and_renders() {
+    let mut rgb_img = image::RgbImage::new(100, 80);
+    for pixel in rgb_img.pixels_mut() {
+        *pixel = image::Rgb([128, 64, 200]);
+    }
+
+    let base = BaseRgbPreview::from_rgb_image(&rgb_img, 50);
+    assert!(base.width <= 50);
+    assert_eq!(base.samples_rgb.len(), base.width * base.height);
+    assert_eq!(base.as_shot_wb, [1.0, 1.0, 1.0]);
+
+    let (preview, hist) = render_preview_from_base(&base, &DarkroomGradingState::default());
+    assert_eq!(preview.size, [base.width, base.height]);
+    assert_eq!(preview.pixels.len(), base.width * base.height);
+    assert!(hist.max_count > 0);
+}
+
+#[test]
+fn test_before_after_untouched_original_state() {
+    let mut rgb_img = image::RgbImage::new(60, 40);
+    for pixel in rgb_img.pixels_mut() {
+        *pixel = image::Rgb([100, 150, 200]);
+    }
+    let base = BaseRgbPreview::from_rgb_image(&rgb_img, 60);
+
+    let original_state = DarkroomGradingState::default();
+    let modified_state = DarkroomGradingState {
+        exposure_ev: 2.0,
+        contrast: 50.0,
+        ..Default::default()
+    };
+
+    let (orig_preview, orig_hist) = render_preview_from_base(&base, &original_state);
+    let (mod_preview, mod_hist) = render_preview_from_base(&base, &modified_state);
+
+    assert_eq!(orig_preview.size, mod_preview.size);
+    // Modified exposure + contrast should produce brighter pixel output
+    assert!(mod_preview.pixels[0].r() > orig_preview.pixels[0].r());
+    assert_ne!(orig_hist.lum, mod_hist.lum);
+}

@@ -16,6 +16,38 @@ pub enum LeftPanelTab {
     Exif,
 }
 
+/// Active channel in the interactive tone curve editor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CurveChannel {
+    #[default]
+    CombinedRgb,
+    Red,
+    Green,
+    Blue,
+    Luma,
+}
+
+impl CurveChannel {
+    pub const ALL: [Self; 5] = [
+        Self::CombinedRgb,
+        Self::Red,
+        Self::Green,
+        Self::Blue,
+        Self::Luma,
+    ];
+
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::CombinedRgb => "RVB",
+            Self::Red => "Rouge",
+            Self::Green => "Vert",
+            Self::Blue => "Bleu",
+            Self::Luma => "Luminance",
+        }
+    }
+}
+
 /// High-level inspector navigation tabs in the right panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InspectorTab {
@@ -198,6 +230,7 @@ impl ExportScaleMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DarkroomSection {
     ExposureTone,
+    ToneCurves,
     WhiteBalanceColor,
     Crop,
     Straighten,
@@ -223,6 +256,7 @@ impl DarkroomSection {
     pub const fn title(self) -> &'static str {
         match self {
             Self::ExposureTone => "☀️ Exposition & Tonalité",
+            Self::ToneCurves => "📈 Courbes de tonalité",
             Self::WhiteBalanceColor => "🎨 Balance des blancs & Couleur",
             Self::Crop => "✂️ Recadrer (Crop)",
             Self::Straighten => "📐 Redresser (Rotation / Horizon)",
@@ -666,6 +700,9 @@ pub struct DarkroomGradingState {
     pub keystone_vertical: f32,
     pub keystone_horizontal: f32,
     pub auto_crop_geometry: bool,
+
+    // Tone curves
+    pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
 }
 
 impl Default for DarkroomGradingState {
@@ -704,6 +741,7 @@ impl Default for DarkroomGradingState {
             keystone_vertical: 0.0,
             keystone_horizontal: 0.0,
             auto_crop_geometry: true,
+            tone_curves: rraw_core::curves::ToneCurvesRecipe::default(),
         }
     }
 }
@@ -768,6 +806,8 @@ pub struct SidecarRecipe {
     pub keystone_vertical: f32,
     #[serde(default)]
     pub keystone_horizontal: f32,
+    #[serde(default)]
+    pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
 }
 
 impl SidecarRecipe {
@@ -810,6 +850,7 @@ impl SidecarRecipe {
             geometry_enabled: grading.geometry_enabled,
             keystone_vertical: grading.keystone_vertical,
             keystone_horizontal: grading.keystone_horizontal,
+            tone_curves: grading.tone_curves.clone(),
         }
     }
 
@@ -836,6 +877,7 @@ impl SidecarRecipe {
         grading.vignette_correction = self.vignette_correction;
         grading.vignette_amount = self.vignette_amount;
         grading.is_monochrome = self.is_monochrome;
+        grading.tone_curves = self.tone_curves.clone();
         grading.preset = if let Some(p_str) = &self.preset {
             GradingPreset::from_id_str(p_str)
                 .unwrap_or_else(|| GradingPreset::detect_preset(grading))
