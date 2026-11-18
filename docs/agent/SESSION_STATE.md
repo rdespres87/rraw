@@ -4,7 +4,7 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 2 — Headless `wgpu` GPU Pipeline, LRU DAG Cache & 120 Hz EDR Viewport
+- **Active Phase**: Phase 3 — 4-Tier Optical Engine & Regularized Capture Sharpening
 - **Active Tasks**:
   - Task 0.1 & Task 0.2: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized)
   - Task 1.1 (`rraw-core`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `acedebb`)
@@ -13,9 +13,10 @@
   - Task 1.4 (`rraw-cli`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `486aff9`)
   - Task 2.1 (`rraw-gpu`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `4eb20a4`)
   - Task 2.2 (`rraw-gpu`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `8e922ad`)
-  - Task 2.3 (`rraw-macos-edr` & `rraw-app`): Ready to start under strict TDD (safe `objc2` `DisplayHeadroomProvider` bridge, permanently fixed `Rgba16Float` surface, dual-pass SDR UI + EDR viewport compositor)
-- **Git Branch**: `main` (Task 2.2 committed in `8e922ad`)
-- **Last Approved Gate**: Gate 3 (Task 2.2 authorized by user on 2026-11-18)
+  - Task 2.3 (`rraw-macos-edr` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `7446b08`)
+  - Task 3.1 (`rraw-optics` & `rraw-gpu`): Ready to start under strict TDD (4-tier optical resolver, 256x256 UV LUTs, fused Catmull-Rom WARP shader)
+- **Git Branch**: `main` (Task 2.3 committed in `7446b08`)
+- **Last Approved Gate**: Gate 3 (Task 2.3 authorized by user on 2026-11-18)
 
 ## Workspace Structure Verified
 
@@ -34,10 +35,10 @@
 
 ## Known Open Items
 
-- Task 2.2 Complete (commit `8e922ad` with 56 passing tests).
-- Next up: Task 2.3 (`rraw-macos-edr` & `rraw-app`).
+- Phase 2 Complete (all 3 tasks committed with 58 passing tests).
+- Next up: Task 3.1 (`rraw-optics` & `rraw-gpu`).
 
 ## Last Observed Verification Run
 
 - `./.git/hooks/pre-commit` (`cargo fmt --all -- --check` + `cargo clippy --workspace --all-targets -- -D warnings`): passed (exit `0`).
-- `cargo test --workspace`: passed (`56` unit/integration tests across all `11` crates: `rraw-core`: 14, `rraw-gpu`: 12, `rraw-color`: 7, `rraw-decode`: 7, `rraw-cli`: 3, `rraw-ai`: 4, `rraw-app`: 2, `rraw-macos-edr`: 2, `rraw-optics`: 2, `rraw-storage`: 2, `rraw-export`: 1; `0` failed, `0` ignored).
+- `cargo test --workspace`: passed (`58` unit/integration tests across all `11` crates: `rraw-core`: 14, `rraw-gpu`: 12, `rraw-color`: 7, `rraw-decode`: 7, `rraw-app`: 4, `rraw-cli`: 3, `rraw-ai`: 4, `rraw-macos-edr`: 2, `rraw-optics`: 2, `rraw-storage`: 2, `rraw-export`: 1; `0` failed, `0` ignored).
