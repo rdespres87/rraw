@@ -128,7 +128,7 @@ impl RawDecoder for PureRustRawDecoder {
                 }
             });
 
-        let mut exif_tags = Vec::new();
+        let mut exif_tags = Vec::with_capacity(64);
         exif_tags.push(("Camera Make".to_string(), dummy_meta.camera_make.clone()));
         exif_tags.push(("Camera Model".to_string(), dummy_meta.camera_model.clone()));
         exif_tags.push((

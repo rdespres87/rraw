@@ -51,11 +51,6 @@ pub fn estimate_noise_profile_wavelet_mad(
     let pattern = cfa.pattern();
     let samples = cfa.samples();
 
-    let mut channel_diffs: [Vec<f32>; 3] = [Vec::new(), Vec::new(), Vec::new()];
-
-    // Collect high-pass 2D Haar wavelet diagonal detail coefficients d = 0.5 * (p00 - p10 - p01 + p11)
-    // across all CFA color phases (ox, oy). Because Var(d) = 0.25 * 4 * sigma^2 = sigma^2,
-    // this cancels any linear image luminance gradient while providing i.i.d. Gaussian samples.
     let step_x = pattern.period_x();
     let step_y = pattern.period_y();
 
@@ -64,6 +59,13 @@ pub fn estimate_noise_profile_wavelet_mad(
     let stride_mult = (raw_pts_per_phase / 16384).max(1);
     let stride_x = step_x * 2 * stride_mult;
     let stride_y = step_y * 2 * stride_mult;
+
+    let pts_cap = (raw_pts_per_phase / stride_mult).min(32768);
+    let mut channel_diffs: [Vec<f32>; 3] = [
+        Vec::with_capacity(pts_cap),
+        Vec::with_capacity(pts_cap),
+        Vec::with_capacity(pts_cap),
+    ];
 
     for oy in 0..step_y {
         for ox in 0..step_x {

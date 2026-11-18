@@ -156,106 +156,118 @@ impl CpuReferencePipeline {
         // 2 & 3. Demosaic + Highlight Reconstruction
         let mut demosaiced = Vec::with_capacity(width * height);
         let exposure_scale = 2.0_f32.powf(recipe.stage5_grading.exposure_ev);
+        let sat_threshold = 0.99;
 
-        for y in 0..height {
-            let iy = y as isize;
-            for x in 0..width {
-                let ix = x as isize;
-                let color = pattern.color_at(x, y);
+        match pattern {
+            CfaPattern::Bayer(origin) => {
+                for y in 0..height {
+                    let iy = y as isize;
+                    let is_red_row = match origin {
+                        BayerOrigin::Rggb | BayerOrigin::Grbg => y & 1 == 0,
+                        BayerOrigin::Bggr | BayerOrigin::Gbrg => y & 1 != 0,
+                    };
 
-                let (mut r, mut g, mut b) = match (pattern, color) {
-                    (CfaPattern::Bayer(_origin), CfaColor::Red) => {
-                        let r = sample_at(ix, iy);
-                        let g = (sample_at(ix - 1, iy)
-                            + sample_at(ix + 1, iy)
-                            + sample_at(ix, iy - 1)
-                            + sample_at(ix, iy + 1))
-                            * 0.25;
-                        let b = (sample_at(ix - 1, iy - 1)
-                            + sample_at(ix + 1, iy - 1)
-                            + sample_at(ix - 1, iy + 1)
-                            + sample_at(ix + 1, iy + 1))
-                            * 0.25;
-                        (r, g, b)
-                    }
-                    (CfaPattern::Bayer(_origin), CfaColor::Blue) => {
-                        let b = sample_at(ix, iy);
-                        let g = (sample_at(ix - 1, iy)
-                            + sample_at(ix + 1, iy)
-                            + sample_at(ix, iy - 1)
-                            + sample_at(ix, iy + 1))
-                            * 0.25;
-                        let r = (sample_at(ix - 1, iy - 1)
-                            + sample_at(ix + 1, iy - 1)
-                            + sample_at(ix - 1, iy + 1)
-                            + sample_at(ix + 1, iy + 1))
-                            * 0.25;
-                        (r, g, b)
-                    }
-                    (CfaPattern::Bayer(origin), CfaColor::Green) => {
-                        let g = sample_at(ix, iy);
-                        // Determine if we are on a Red row or Blue row
-                        let is_red_row = match origin {
-                            BayerOrigin::Rggb | BayerOrigin::Grbg => y % 2 == 0,
-                            BayerOrigin::Bggr | BayerOrigin::Gbrg => y % 2 != 0,
+                    for x in 0..width {
+                        let ix = x as isize;
+                        let color = pattern.color_at(x, y);
+
+                        let (mut r, mut g, mut b) = match color {
+                            CfaColor::Red => {
+                                let r = sample_at(ix, iy);
+                                let g = (sample_at(ix - 1, iy)
+                                    + sample_at(ix + 1, iy)
+                                    + sample_at(ix, iy - 1)
+                                    + sample_at(ix, iy + 1))
+                                    * 0.25;
+                                let b = (sample_at(ix - 1, iy - 1)
+                                    + sample_at(ix + 1, iy - 1)
+                                    + sample_at(ix - 1, iy + 1)
+                                    + sample_at(ix + 1, iy + 1))
+                                    * 0.25;
+                                (r, g, b)
+                            }
+                            CfaColor::Blue => {
+                                let b = sample_at(ix, iy);
+                                let g = (sample_at(ix - 1, iy)
+                                    + sample_at(ix + 1, iy)
+                                    + sample_at(ix, iy - 1)
+                                    + sample_at(ix, iy + 1))
+                                    * 0.25;
+                                let r = (sample_at(ix - 1, iy - 1)
+                                    + sample_at(ix + 1, iy - 1)
+                                    + sample_at(ix - 1, iy + 1)
+                                    + sample_at(ix + 1, iy + 1))
+                                    * 0.25;
+                                (r, g, b)
+                            }
+                            CfaColor::Green => {
+                                let g = sample_at(ix, iy);
+                                let (r, b) = if is_red_row {
+                                    let r = (sample_at(ix - 1, iy) + sample_at(ix + 1, iy)) * 0.5;
+                                    let b = (sample_at(ix, iy - 1) + sample_at(ix, iy + 1)) * 0.5;
+                                    (r, b)
+                                } else {
+                                    let b = (sample_at(ix - 1, iy) + sample_at(ix + 1, iy)) * 0.5;
+                                    let r = (sample_at(ix, iy - 1) + sample_at(ix, iy + 1)) * 0.5;
+                                    (r, b)
+                                };
+                                (r, g, b)
+                            }
                         };
-                        let (r, b) = if is_red_row {
-                            let r = (sample_at(ix - 1, iy) + sample_at(ix + 1, iy)) * 0.5;
-                            let b = (sample_at(ix, iy - 1) + sample_at(ix, iy + 1)) * 0.5;
-                            (r, b)
-                        } else {
-                            let b = (sample_at(ix - 1, iy) + sample_at(ix + 1, iy)) * 0.5;
-                            let r = (sample_at(ix, iy - 1) + sample_at(ix, iy + 1)) * 0.5;
-                            (r, b)
-                        };
-                        (r, g, b)
-                    }
-                    (CfaPattern::XTrans(_), _) => {
-                        // Passthrough fallback for X-Trans on CPU reference
-                        let s = sample_at(ix, iy);
-                        (s, s, s)
-                    }
-                };
 
-                // Highlight Reconstruction (HLR) above sat_c:
-                // Prevents asymmetric channel clipping from shifting neutral highlights to magenta.
-                let sat_threshold = 0.99;
-                let r_clipped = r >= sat_threshold * sat_r;
-                let g_clipped = g >= sat_threshold * sat_g;
-                let b_clipped = b >= sat_threshold * sat_b;
+                        // Highlight Reconstruction (HLR) above sat_c:
+                        let r_clipped = r >= sat_threshold * sat_r;
+                        let g_clipped = g >= sat_threshold * sat_g;
+                        let b_clipped = b >= sat_threshold * sat_b;
 
-                if r_clipped || g_clipped || b_clipped {
-                    // Reconstruct luminance from unsaturated channels if available
-                    if !g_clipped {
-                        // Green is reliable: pull Red and Blue into neutral alignment with Green
-                        if r_clipped {
-                            r = g.max(sat_threshold * sat_r);
+                        if r_clipped || g_clipped || b_clipped {
+                            if !g_clipped {
+                                if r_clipped {
+                                    r = g.max(sat_threshold * sat_r);
+                                }
+                                if b_clipped {
+                                    b = g.max(sat_threshold * sat_b);
+                                }
+                            } else if !r_clipped && !b_clipped {
+                                let avg_rb = (r + b) * 0.5;
+                                g = avg_rb;
+                            } else {
+                                let max_val = r.max(g).max(b);
+                                r = max_val;
+                                g = max_val;
+                                b = max_val;
+                            }
                         }
-                        if b_clipped {
-                            b = g.max(sat_threshold * sat_b);
-                        }
-                    } else if !r_clipped && !b_clipped {
-                        let avg_rb = (r + b) * 0.5;
-                        g = avg_rb;
-                    } else {
-                        // All channels near or above physical saturation ceiling: equalize to prevent color cast
-                        let max_val = r.max(g).max(b);
-                        r = max_val;
-                        g = max_val;
-                        b = max_val;
+
+                        // 4. Colorimetry & Exposure
+                        let exposed = Vec3::new(r, g, b) * exposure_scale;
+                        let guarded = apply_gamut_guard_ap1(exposed);
+
+                        // 5. AgX DRT
+                        let drt_r = apply_agx_edr(guarded.x, headroom);
+                        let drt_g = apply_agx_edr(guarded.y, headroom);
+                        let drt_b = apply_agx_edr(guarded.z, headroom);
+
+                        demosaiced.push([drt_r, drt_g, drt_b]);
                     }
                 }
+            }
+            CfaPattern::XTrans(_) => {
+                for y in 0..height {
+                    let iy = y as isize;
+                    for x in 0..width {
+                        let ix = x as isize;
+                        let s = sample_at(ix, iy);
+                        let exposed = Vec3::new(s, s, s) * exposure_scale;
+                        let guarded = apply_gamut_guard_ap1(exposed);
 
-                // 4. Colorimetry & Exposure
-                let exposed = Vec3::new(r, g, b) * exposure_scale;
-                let guarded = apply_gamut_guard_ap1(exposed);
+                        let drt_r = apply_agx_edr(guarded.x, headroom);
+                        let drt_g = apply_agx_edr(guarded.y, headroom);
+                        let drt_b = apply_agx_edr(guarded.z, headroom);
 
-                // 5. AgX DRT
-                let drt_r = apply_agx_edr(guarded.x, headroom);
-                let drt_g = apply_agx_edr(guarded.y, headroom);
-                let drt_b = apply_agx_edr(guarded.z, headroom);
-
-                demosaiced.push([drt_r, drt_g, drt_b]);
+                        demosaiced.push([drt_r, drt_g, drt_b]);
+                    }
+                }
             }
         }
 
