@@ -2,13 +2,14 @@
 
 ## Last Completed Milestone
 
-- **Phase 5 — Task 5.1 (`rraw-app`) Implemented**:
-  - Implemented `eframe` / `egui` native macOS window shell with `RrawApp`.
-  - Added live `NSScreen` EDR headroom detection badge, top control bar with native macOS file dialog (`rfd`) for RAW opening and image export.
-  - Added comprehensive right Darkroom inspector panel (Exposure EV, Kelvin WB, Tint, Display Transform combo, Wavelet denoise, Richardson-Lucy capture sharpening, and optical toggles).
-  - Maintained `--summary` and `--headless` flags for instant CI/script execution without opening a native window.
-  - Maintained strict `#![forbid(unsafe_code)]` on `rraw-app` and zero unwrap / expect across the workspace.
-  - Workspace test suite: 83 unit/integration tests passing cleanly.
+- **Local Inquisitor Remediation & Performance Grill (`cfb21a6`)**:
+  - Remediated findings from local Inquisitor audit across 11 crates (`AUDIT_LOCAL_INQUISITION.md`).
+  - `rraw-ai`: $O(1)$ analytical boundary reflection and precomputed 1D separable window tables ($W_x$).
+  - `rraw-gpu`: $O(\log N)$ indexed LRU cache (`BTreeMap` + `HashMap`) eliminating linear queue scans.
+  - `rraw-color`: CFA pattern invariant hoisted out of pixel demosaicing loops.
+  - `rraw-core`: Bitwise `& 1` CFA Bayer phase evaluation.
+  - `rraw-decode`: Pre-allocated EXIF tag vectors (`with_capacity(64)`) and strided Haar wavelet MAD buffers.
+  - CI: 90 tests passing, 0 clippy warnings, zero unwrap / expect in production.
 
 ## Repository Completion State
 
