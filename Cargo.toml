@@ -54,3 +54,16 @@ rraw-ai = { path = "crates/rraw-ai" }
 rraw-storage = { path = "crates/rraw-storage" }
 rraw-export = { path = "crates/rraw-export" }
 rraw-macos-edr = { path = "crates/rraw-macos-edr" }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff"] }
+
+[profile.dev.package.rawler]
+opt-level = 3
+
+[profile.dev.package.rraw-decode]
+opt-level = 3
+
+[profile.dev.package.rraw-color]
+opt-level = 3
+
+[profile.dev.package.image]
+opt-level = 3

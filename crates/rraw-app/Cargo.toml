@@ -16,6 +16,15 @@ rraw-ai.workspace = true
 rraw-storage.workspace = true
 rraw-export.workspace = true
 rraw-macos-edr.workspace = true
+image.workspace = true
+byteorder.workspace = true
+bytemuck.workspace = true
+png.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+eframe = "0.37.0"
+egui = "0.37.0"
+rfd = "0.18.0"
 
 [lints]
 workspace = true
