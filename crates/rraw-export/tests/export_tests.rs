@@ -154,14 +154,22 @@ fn test_batch_export_queue_parallel_execution() {
     let count = width * height;
     let dummy_rgb = vec![0.5_f32; count * 3];
 
-    for i in 0..3 {
-        let output_path = temp_dir.join(format!("output_{i}.png"));
+    let formats = [ExportFormat::Png16, ExportFormat::Jpeg, ExportFormat::Tiff8];
+    for (i, &format) in formats.iter().enumerate() {
+        let ext = match format {
+            ExportFormat::Png16 => "png",
+            ExportFormat::Jpeg => "jpg",
+            ExportFormat::Tiff8 => "tif",
+            _ => "bin",
+        };
+        let output_path = temp_dir.join(format!("output_{i}.{ext}"));
         let job = BatchExportJob {
             output_path,
             width,
             height,
-            format: ExportFormat::Png16,
+            format,
             rgb_linear: dummy_rgb.clone(),
+            jpeg_quality: 85,
         };
         queue.push_job(job);
     }

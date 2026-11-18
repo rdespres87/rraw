@@ -20,7 +20,10 @@ use rraw_gpu::RenderSurfaceState;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExportFormat {
     Tiff16,
+    Tiff8,
     Png16,
+    Png8,
+    Jpeg,
     Jpeg8Chroma444,
     Avif10,
     Avif12,
