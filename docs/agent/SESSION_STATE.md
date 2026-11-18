@@ -4,7 +4,7 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 5 — Native macOS Interactive GUI Shell
+- **Active Phase**: Phase 6 — Advanced Color & Tone Architecture (Phase 6.1 Complete)
 - **Active Tasks**:
   - Task 0.1 & Task 0.2: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized)
   - Task 1.1 (`rraw-core`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `acedebb`)
@@ -22,11 +22,11 @@
   - Task 4.4 (`rraw-export`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `a3ee723`)
   - Task 5.1 (`rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `015d27c`)
   - Modular UI & App Refactoring (`rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `ac0a8ea` — 5,772 lines modularized into `state.rs`, `preview.rs`, `shell.rs`, `ui/*`)
-  - Post-Audit Remediation: **Complete** (Local Inquisitor Qwen 3.6 35B approved, CI green, Gate 3 authorized, commit `cfb21a6`)
-  - Post-Audit Re-check: **Complete** (Local Inquisitor re-check verified, zero regressions, all 90 tests passing)
-- **Git Branch**: `main` (ahead of origin by commit `ac0a8ea`)
+  - Phase 6.1 (Interactive PCHIP Tone Curves): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `64921a7`)
+  - App Tone Curves UI, Rayon 60 FPS Preview, Raster & UX: **Complete** (CI green, Gate 3 authorized, commit `d75eafc`)
+- **Git Branch**: `main` (ahead of origin by commits `64921a7` and `d75eafc`)
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
-- **Last Approved Gate**: Gate 3 (Commit authorized on 2026-11-18)
+- **Last Approved Gate**: Gate 3 (Commits authorized on 2026-11-18)
 
 ## Workspace Structure Verified
 
@@ -55,9 +55,9 @@
     - Embellished Histogram: OLED rounded card, sqrt scaling to reveal midtones, glowing RGB curves, quartile zone guides (Noirs, Ombres, Exposition, Hautes Lum.), clipping badges.
     - Crop & Geometry: 120 FPS vector overlay, aspect ratio presets, Enter/double-click commit, independent enable/disable toggles.
     - Batch Export: configurable subfolder (`Export`), suffix (`_rraw`), formats (JPEG quality, PNG 8/16, TIFF 8/16), auto-closing dialog.
-- Total tests: 90 unit/integration tests passing cleanly.
+- Total tests: 95 unit/integration tests passing cleanly.
 
 ## Last Observed Verification Run
 
 - `./.git/hooks/pre-commit` (`cargo fmt --all -- --check` + `cargo clippy --workspace --all-targets -- -D warnings`): passed (exit `0`).
-- `cargo test --workspace`: passed (`90` unit/integration tests across all `11` crates; `0` failed, `0` ignored).
+- `cargo test --workspace`: passed (`95` unit/integration tests across all `11` crates; `0` failed, `0` ignored).
