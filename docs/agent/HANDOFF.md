@@ -2,17 +2,22 @@
 
 ## Last Completed Milestone
 
-- **Phase 0 — Governance, Documentation & 11-Crate Workspace Initialization (Committed)**:
-  - Initialized local Git repository (`main`) and installed executable `.git/hooks/pre-commit`.
-  - Commit 1 (`2adfa28`): `.gitignore`, `rust-toolchain.toml`, `LICENSE` (`GPL-3.0-or-later`), root `Cargo.toml` workspace lints (`unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented` denied), `Cargo.lock`, and 11 compilable crates (`10` `#![forbid(unsafe_code)]`, `rraw-macos-edr` `#![deny(unsafe_code)]`) with `32` passing contract/smoke unit tests.
-  - Commit 2: `AGENTS.md`, `README.md`, `docs/studies/ARCHITECTURE.md`, and complete 10-file governance suite in `docs/agent/`.
+- **Phase 1 — Task 1.1 (`rraw-core`) Committed (`acedebb`)**:
+  - Implemented versioned `.rraw.json` recipe DAG (`schema_version = 1`) across all photographic stages (`Stage1SensorParams` through `Stage7DisplayParams`).
+  - Implemented deterministic stage-scoped SHA-256 cache hashing (`hash_l0`, `hash_l1`, `hash_l2`, `hash_display`).
+  - Added canonical JSON serialization and schema version validation.
+  - Verified TDD isolation invariants (exposure changes invalidate display hash while keeping L0, L1, L2 bitwise identical; optics changes invalidate L2 and display while keeping L0 and L1 identical).
+  - 37 unit and integration tests passing cleanly across the workspace with zero clippy warnings.
 
 ## Exact Next Logical Action
 
-1. **Next Development Task (Task 1.1 — `rraw-core`)**:
-   - Follow strict TDD (`Red -> Verify Failure -> Green -> Refactor`) to implement the full versioned `.rraw.json` recipe DAG, canonical deterministic serialization, and stage-scoped cache hashing (`L0`, `L1`, `L2`, display hash) in `crates/rraw-core`.
-   - Gate test: Verify that mutating exposure invalidates the display hash while preserving `L0`, `L1`, and `L2` cache hashes identically, and mutating optical distortion invalidates `L2` and display hashes while preserving `L0` and `L1`.
+1. **Next Development Task (Task 1.2 — `rraw-decode`)**:
+   - Follow Security Gate 1: Draft and present architectural plan for pure-Rust decoding in `crates/rraw-decode`.
+   - Planned work:
+     - Wrap `rawler` behind `RawDecoder` trait with pure-safe Rust fallback / synthetic RAW generator.
+     - DNG `NoiseProfile` tag `0xc761` extraction and wavelet MAD fallback estimator.
+     - Binary DNG `OpcodeList1..3` parser (`WarpRectilinear`, `FixVignetteRadial`, `GainMap` raising `vignette_handled_by_gainmap`).
+   - TDD Gate: Bit-exact decoding of synthetic DNG 1.7 `OpcodeList3` + `GainMap`; MAD recovers synthetic noise $\sigma = 0.02$ within $\pm 2\%$; signed sub-black samples remain $< 0.0$ with zero mean ($|\mu| < 10^{-4}$).
 2. **Subsequent Phase 1 Tasks**:
-   - Task 1.2 (`rraw-decode`): `rawler` behind `RawDecoder` + synthetic RAW generator + `NoiseProfile` (`0xc761` & MAD fallback) + binary DNG `OpcodeList1..3` / `GainMap` parsers.
    - Task 1.3 (`rraw-color`): Iterative CCT solver, 1D mired interpolation, `ForwardMatrix1/2` & `ColorMatrix1/2` -> Bradford -> `ACEScg`, identity-core Gamut Guard, `AgX`/`OpenDRT`.
    - Task 1.4 (`rraw-cli`): Shared CPU reference pipeline & 16-bit PNG export.
