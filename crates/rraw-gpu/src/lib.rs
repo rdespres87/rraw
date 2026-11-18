@@ -2,6 +2,14 @@
 
 //! GPU compute pipeline topology, LRU VRAM cache budget, and 120 Hz RoI scrubbing contracts.
 
+pub mod context;
+pub mod error;
+pub mod pipeline;
+
+pub use context::GpuContext;
+pub use error::GpuError;
+pub use pipeline::{Stage1Params, Stage1Pipeline, Stage2Params, Stage2Pipeline};
+
 use rraw_color::effective_laplacian_octaves;
 use rraw_core::{HeadroomSample, SurfaceFormat, SurfaceSpec};
 use rraw_optics::OpticalStagePlan;
