@@ -20,9 +20,10 @@
   - Task 4.2 (`rraw-gpu` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `e836632`)
   - Task 4.3 (`rraw-storage` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `c4d4abb`)
   - Task 4.4 (`rraw-export`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `a3ee723`)
-  - Task 5.1 (`rraw-app`): **Ready for Gate 3** (Inquisitor APPROVED, CI green, `eframe`/`egui` native macOS window shell)
-- **Git Branch**: `main` (Task 4.4 committed in `a3ee723`)
-- **Last Approved Gate**: Gate 3 (Task 4.4 authorized by user on 2026-11-18)
+  - Task 5.1 (`rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `015d27c`)
+  - Post-Audit Remediation: **Complete** (Local Inquisitor Qwen 3.6 35B approved, CI green, Gate 3 authorized, commit `cfb21a6`)
+- **Git Branch**: `main` (Latest commit `cfb21a6`)
+- **Last Approved Gate**: Gate 3 (Remediation authorized by user on 2026-11-18)
 
 ## Workspace Structure Verified
 
