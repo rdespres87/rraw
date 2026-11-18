@@ -59,6 +59,12 @@ pub fn estimate_noise_profile_wavelet_mad(
     let step_x = pattern.period_x();
     let step_y = pattern.period_y();
 
+    // Strided subsampling capping sample count to ~16k per channel to avoid multi-million allocation churn
+    let raw_pts_per_phase = (width / (step_x * 2)).max(1) * (height / (step_y * 2)).max(1);
+    let stride_mult = (raw_pts_per_phase / 16384).max(1);
+    let stride_x = step_x * 2 * stride_mult;
+    let stride_y = step_y * 2 * stride_mult;
+
     for oy in 0..step_y {
         for ox in 0..step_x {
             let color = pattern.color_at(ox, oy);
@@ -74,9 +80,9 @@ pub fn estimate_noise_profile_wavelet_mad(
                     let d = 0.5 * (p00 - p10 - p01 + p11);
                     channel_diffs[color.channel_index()].push(d);
 
-                    x += step_x * 2;
+                    x += stride_x;
                 }
-                y += step_y * 2;
+                y += stride_y;
             }
         }
     }
