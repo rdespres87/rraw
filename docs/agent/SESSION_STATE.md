@@ -14,9 +14,10 @@
   - Task 2.1 (`rraw-gpu`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `4eb20a4`)
   - Task 2.2 (`rraw-gpu`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `8e922ad`)
   - Task 2.3 (`rraw-macos-edr` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `7446b08`)
-  - Task 3.1 (`rraw-optics` & `rraw-gpu`): Ready to start under strict TDD (4-tier optical resolver, 256x256 UV LUTs, fused Catmull-Rom WARP shader)
-- **Git Branch**: `main` (Task 2.3 committed in `7446b08`)
-- **Last Approved Gate**: Gate 3 (Task 2.3 authorized by user on 2026-11-18)
+  - Task 3.1 (`rraw-optics` & `rraw-gpu`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `71635cc`)
+  - Task 3.2 (`rraw-optics` & `rraw-gpu`): Ready to start under strict TDD (Damped Richardson-Lucy Capture Sharpening, NoiseProfile edge mask, radial PSF, local overshoot deringing)
+- **Git Branch**: `main` (Task 3.1 committed in `71635cc`)
+- **Last Approved Gate**: Gate 3 (Task 3.1 authorized by user on 2026-11-18)
 
 ## Workspace Structure Verified
 
@@ -35,10 +36,10 @@
 
 ## Known Open Items
 
-- Phase 2 Complete (all 3 tasks committed with 58 passing tests).
-- Next up: Task 3.1 (`rraw-optics` & `rraw-gpu`).
+- Task 3.1 Complete (commit `71635cc` with 61 passing tests).
+- Next up: Task 3.2 (`rraw-optics` & `rraw-gpu`).
 
 ## Last Observed Verification Run
 
 - `./.git/hooks/pre-commit` (`cargo fmt --all -- --check` + `cargo clippy --workspace --all-targets -- -D warnings`): passed (exit `0`).
-- `cargo test --workspace`: passed (`58` unit/integration tests across all `11` crates: `rraw-core`: 14, `rraw-gpu`: 12, `rraw-color`: 7, `rraw-decode`: 7, `rraw-app`: 4, `rraw-cli`: 3, `rraw-ai`: 4, `rraw-macos-edr`: 2, `rraw-optics`: 2, `rraw-storage`: 2, `rraw-export`: 1; `0` failed, `0` ignored).
+- `cargo test --workspace`: passed (`61` unit/integration tests across all `11` crates: `rraw-core`: 14, `rraw-gpu`: 12, `rraw-color`: 7, `rraw-decode`: 7, `rraw-optics`: 5, `rraw-app`: 4, `rraw-cli`: 3, `rraw-ai`: 4, `rraw-macos-edr`: 2, `rraw-storage`: 2, `rraw-export`: 1; `0` failed, `0` ignored).
