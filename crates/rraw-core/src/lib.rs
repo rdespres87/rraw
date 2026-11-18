@@ -4,37 +4,36 @@
 
 use std::fmt;
 
+use thiserror::Error;
+
+pub mod recipe;
+pub use recipe::*;
+
 /// Typed error returned by `rraw-core` invariant constructors and validators.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Error)]
 pub enum CoreError {
     /// Image or buffer dimensions were zero or overflowed element count.
+    #[error("invalid buffer dimensions: {width}x{height}")]
     InvalidDimensions { width: usize, height: usize },
     /// Sample slice length did not match `width * height`.
+    #[error("buffer length mismatch: expected {expected} samples, got {actual}")]
     BufferLengthMismatch { expected: usize, actual: usize },
     /// A physical parameter violated finiteness or positivity constraints.
+    #[error("invalid physical value for `{field}`: {value}")]
     InvalidPhysicalValue { field: &'static str, value: f32 },
+    /// Recipe serialization failed.
+    #[error("recipe serialization error: {0}")]
+    SerializationError(String),
+    /// Recipe deserialization failed.
+    #[error("recipe deserialization error: {0}")]
+    DeserializationError(String),
+    /// Recipe schema version is not supported.
+    #[error("unsupported recipe schema version: expected {expected}, got {actual}")]
+    UnsupportedSchemaVersion { expected: u32, actual: u32 },
+    /// Invalid hex string for stage hash.
+    #[error("invalid stage hash hex string: {0}")]
+    InvalidStageHashHex(String),
 }
-
-impl fmt::Display for CoreError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidDimensions { width, height } => {
-                write!(f, "invalid buffer dimensions: {width}x{height}")
-            }
-            Self::BufferLengthMismatch { expected, actual } => {
-                write!(
-                    f,
-                    "buffer length mismatch: expected {expected} samples, got {actual}"
-                )
-            }
-            Self::InvalidPhysicalValue { field, value } => {
-                write!(f, "invalid physical value for `{field}`: {value}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for CoreError {}
 
 /// Color filter channel at a sensor photosite.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -353,7 +352,7 @@ impl SignedCfaBuffer {
 }
 
 /// Pre-demosaic white-balance channel multipliers `(w_R, w_G, w_B)`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct WhiteBalanceMultipliers {
     r: f32,
     g: f32,
@@ -361,6 +360,13 @@ pub struct WhiteBalanceMultipliers {
 }
 
 impl WhiteBalanceMultipliers {
+    /// Neutral 1.0 white-balance multipliers.
+    pub const UNITY: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+    };
+
     /// Validates strictly positive finite white-balance multipliers.
     pub fn new(r: f32, g: f32, b: f32) -> Result<Self, CoreError> {
         for (field, value) in [("wb_r", r), ("wb_g", g), ("wb_b", b)] {
@@ -387,6 +393,12 @@ impl WhiteBalanceMultipliers {
     #[must_use]
     pub const fn b(self) -> f32 {
         self.b
+    }
+}
+
+impl Default for WhiteBalanceMultipliers {
+    fn default() -> Self {
+        Self::UNITY
     }
 }
 
