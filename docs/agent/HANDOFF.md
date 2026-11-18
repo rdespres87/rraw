@@ -2,15 +2,20 @@
 
 ## Last Completed Milestone
 
-- **Local Inquisitor Remediation & Performance Grill (`cfb21a6`)**:
-  - Remediated findings from local Inquisitor audit across 11 crates (`AUDIT_LOCAL_INQUISITION.md`).
-  - `rraw-ai`: $O(1)$ analytical boundary reflection and precomputed 1D separable window tables ($W_x$).
-  - `rraw-gpu`: $O(\log N)$ indexed LRU cache (`BTreeMap` + `HashMap`) eliminating linear queue scans.
-  - `rraw-color`: CFA pattern invariant hoisted out of pixel demosaicing loops.
-  - `rraw-core`: Bitwise `& 1` CFA Bayer phase evaluation.
-  - `rraw-decode`: Pre-allocated EXIF tag vectors (`with_capacity(64)`) and strided Haar wavelet MAD buffers.
-  - Re-check: Re-evaluated with local Inquisitor (`AUDIT_LOCAL_RECHECK.md`), all 90 tests passing, 0 clippy warnings.
-  - Remote Sync: Successfully pushed to `git@github.com:rdespres87/rraw.git` on branch `main`.
+- **Modular UI & Architecture Refactoring (`ac0a8ea`)**:
+  - Decomposed monolithic 5,772-line `crates/rraw-app/src/app.rs` down to 897 lines (-84%) and `src/main.rs` down to 65 lines (-87%).
+  - Clean separation into `src/state.rs` (configuration, sidecars, presets), `src/preview.rs` (decoding worker, 30-photo LRU cache, fast thumbnails), `src/shell.rs` (EDR surface binding), and isolated `src/ui/*` modules (`explorer.rs`, `presets.rs`, `histogram.rs`, `exif.rs`, `export.rs`, `inspector.rs`, `filmstrip.rs`, `viewport.rs`).
+  - Extracted 371 lines of unit tests to `tests/shell_tests.rs`.
+  - Audited and approved by local Inquisitor (Qwen 3.6 35B) with zero regressions across all 90 tests.
+
+## Next Logical Action: Phase 6.1 — Interactive Parametric Tone Curves (PCHIP Splines)
+
+- **Target crates**: `rraw-core`, `rraw-color`, `rraw-gpu`, `rraw-app/src/ui/tone_curve_widget.rs`
+- **Scope**:
+  1. Define `ToneCurvesRecipe`, `ChannelCurve`, `CurvePoint` in `rraw-core::recipe`.
+  2. Implement Fritsch-Carlson Monotone Cubic Hermite Spline (PCHIP) evaluator in `rraw-color`.
+  3. Generate 1D $1024 \times 1$ `Rgba16Float` LUT texture and sample in WGSL Stage 5.
+  4. Create `tone_curve_widget.rs` in `rraw-app/src/ui/` with interactive spline canvas and live background histogram underlay.
 
 ## Repository Completion State
 
