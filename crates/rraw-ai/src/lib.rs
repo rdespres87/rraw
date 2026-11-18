@@ -2,6 +2,14 @@
 
 //! Asynchronous 504x504 tiled CoreML CFA denoising and epoch cancellation contracts.
 
+pub mod conditioning;
+pub mod denoiser;
+pub mod tiling;
+
+pub use conditioning::{anscombe_transform, inverse_anscombe_transform, AnscombeParams};
+pub use denoiser::{NeuralTileDenoiser, SimulatedTileDenoiser, SimulationMode};
+pub use tiling::{TileBlender, TileSlicer};
+
 use rraw_core::{AiError, CfaPattern, Stage0Token, TileGeometry};
 
 /// Single fixed-size `504x504` tile descriptor generated for CFA-phase-preserving inference.
