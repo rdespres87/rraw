@@ -35,3 +35,21 @@ All planned deliverables across all six development phases (Phases 0–5) are im
    - `Task 4.4`: Multi-threaded batch exporter and ISO 21496-1 HDR Gain Maps (`a3ee723`).
 6. **Phase 5**:
    - `Task 5.1`: Native macOS interactive window shell (`eframe` / `egui` + `rfd`) with live EDR headroom, strictly ordered Left Panel (1. `📁 Explorateur de dossiers` with Desktop default, breadcrumbs, and `..` parent navigation; 2. `🎨 Styles & Préréglages` with dropdown combobox and quick reset; 3. `📋 Données EXIF` with full striped summary, complete rawler tag extraction (serial numbers, lenses, color space, exposure mode, scene capture, light source, dates, offsets, GPS, CFA/sensor levels), real-time search filter, and JSON copy/export; 4. `📊 Histogramme Waveform RGB` at the bottom); clean right Inspector; toggles for crop and geometry; 120 FPS mouse-driven vector cropping; bottom filmstrip with scrollbar completely cleared below cards without covering stars; classical keyboard and mouse multi-selection (Click, Cmd/Ctrl+Click, Shift+Click range, Cmd+A, Cmd+D, Esc, Space, Shift+Arrow); instantaneous photo switching with frame-0 thumbnail display, 1600px preview bounding, 30-photo MRU cache, and ±2 adjacent prefetching. All 90 tests passing cleanly.
+
+---
+
+## Future Extensions & Roadmap Backlog (Phase 6 Candidates)
+
+Stored in project memory for future development cycles:
+1. **Interactive Parametric Tone Curves (`rraw-gpu` & `rraw-app`)**:
+   - Parametric splines (RGB, Luma) with control points evaluated directly in WGSL Stage 5.
+   - Interactive curve widget in the right Inspector with histogram underlay.
+2. **Extended Film Emulation & Creative Presets (`rraw-color`)**:
+   - Extended LUT / recipe library (Classic Chrome, Portra, Tri-X 400 emulations via 3D CLUT / parametric recipes).
+3. **AI Semantic Segmentation Masks (`rraw-ai` & `rraw-app`)**:
+   - CoreML subject, sky, background, and portrait segmentation models feeding the local mask pipeline.
+4. **Color Management & Soft Proofing (`rraw-color` & `rraw-app`)**:
+   - Target print ICC profile simulation and out-of-gamut clipping visualization.
+5. **Timelapse & DNG Sequence Batch Exporter (`rraw-export`)**:
+   - Parallel frame rendering to video codecs (ProRes 4444 XQ / AV1 HDR) or image sequences.
+

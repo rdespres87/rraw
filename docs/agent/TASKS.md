@@ -29,3 +29,13 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 
 ## Phase 5 — Native macOS Interactive GUI Shell
 - [x] **Task 5.1 (`rraw-app`)**: `eframe` / `egui` native macOS window shell with live EDR headroom query, Darkroom grading sliders (Exposure, WB, Contrast, Denoise, Optics), RAW file selector (`rfd`), and `--summary` headless mode fallback
+
+---
+
+## Phase 6 — Future Roadmap & Extensions Backlog
+- [ ] **Task 6.1 (`rraw-gpu` & `rraw-app`)**: Interactive Parametric Tone Curves (RGB & Luma splines evaluated in WGSL Stage 5 with histogram underlay)
+- [ ] **Task 6.2 (`rraw-color`)**: Extended Film Emulation & 3D CLUT / Creative Presets library
+- [ ] **Task 6.3 (`rraw-ai` & `rraw-app`)**: CoreML AI Semantic Segmentation Masks (subject, sky, background, portrait)
+- [ ] **Task 6.4 (`rraw-color` & `rraw-app`)**: Color Management & Soft Proofing (ICC printer profiles, out-of-gamut alerts)
+- [ ] **Task 6.5 (`rraw-export`)**: Timelapse & High-Bitrate Video Exporter (ProRes 4444 XQ / AV1 HDR from DNG sequence)
+
