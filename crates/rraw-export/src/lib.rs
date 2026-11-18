@@ -2,6 +2,16 @@
 
 //! Multi-threaded batch export specifications and ISO 21496-1 Gain Map contracts.
 
+pub mod batch;
+pub mod error;
+pub mod iso21496;
+
+pub use batch::{BatchExportJob, BatchExportQueue};
+pub use error::ExportError;
+pub use iso21496::{
+    GainMapCalculator, GainMapReconstructor, Iso21496Params, Iso21496TmapBox, Iso21496XmpPacket,
+};
+
 use rraw_color::DisplayTransform;
 use rraw_core::HeadroomSample;
 use rraw_gpu::RenderSurfaceState;

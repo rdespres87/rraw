@@ -10,6 +10,9 @@ description = "Multi-threaded batch export engine and ISO 21496-1 HDR Gain Map g
 rraw-core.workspace = true
 rraw-gpu.workspace = true
 rraw-color.workspace = true
+byteorder.workspace = true
+png.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true

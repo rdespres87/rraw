@@ -1725,9 +1725,12 @@ dependencies = [
 name = "rraw-export"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
+ "png",
  "rraw-color",
  "rraw-core",
  "rraw-gpu",
+ "thiserror",
 ]
 
 [[package]]
