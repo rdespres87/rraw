@@ -6,7 +6,10 @@ use std::fmt;
 
 use thiserror::Error;
 
+pub mod curves;
 pub mod recipe;
+
+pub use curves::*;
 pub use recipe::*;
 
 /// Typed error returned by `rraw-core` invariant constructors and validators.
@@ -325,7 +328,20 @@ impl SignedCfaBuffer {
             samples,
         })
     }
+}
 
+impl Default for SignedCfaBuffer {
+    fn default() -> Self {
+        Self {
+            width: 1,
+            height: 1,
+            pattern: CfaPattern::Bayer(BayerOrigin::Rggb),
+            samples: vec![0.0],
+        }
+    }
+}
+
+impl SignedCfaBuffer {
     /// Sensor buffer width in pixels.
     #[must_use]
     pub const fn width(&self) -> usize {

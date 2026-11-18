@@ -200,3 +200,27 @@ fn test_stage_hash_hex_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     assert!(rraw_core::recipe::StageHash::from_hex(&"zz".repeat(32)).is_err());
     Ok(())
 }
+
+#[test]
+fn test_tone_curves_recipe_invariants_and_serialization() -> Result<(), Box<dyn std::error::Error>>
+{
+    use rraw_core::curves::{CurvePoint, ToneCurvesRecipe};
+
+    let mut curves = ToneCurvesRecipe::default();
+    assert!(curves.is_identity());
+
+    let pt1 = CurvePoint::new(0.25, 0.20)?;
+    let pt2 = CurvePoint::new(0.75, 0.85)?;
+    curves.combined_rgb.add_point(pt1);
+    curves.combined_rgb.add_point(pt2);
+    assert!(!curves.is_identity());
+    assert_eq!(curves.combined_rgb.points.len(), 4);
+
+    let mut recipe = Recipe::default();
+    recipe.stage5_grading.tone_curves = curves.clone();
+
+    let json = recipe.to_canonical_json()?;
+    let deserialized: Recipe = Recipe::from_canonical_json(&json)?;
+    assert_eq!(deserialized.stage5_grading.tone_curves, curves);
+    Ok(())
+}

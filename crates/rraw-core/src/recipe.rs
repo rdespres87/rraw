@@ -202,6 +202,9 @@ pub struct Stage5GradingParams {
     pub vibrance: f32,
     /// Laplacian pyramid multi-scale local contrast amount.
     pub laplacian_local_contrast: f32,
+    /// Multi-channel parametric tone curves.
+    #[serde(default)]
+    pub tone_curves: crate::curves::ToneCurvesRecipe,
 }
 
 impl Default for Stage5GradingParams {
@@ -216,6 +219,7 @@ impl Default for Stage5GradingParams {
             saturation: 0.0,
             vibrance: 0.0,
             laplacian_local_contrast: 0.0,
+            tone_curves: crate::curves::ToneCurvesRecipe::default(),
         }
     }
 }
