@@ -157,6 +157,8 @@ impl CpuReferencePipeline {
         let mut demosaiced = Vec::with_capacity(width * height);
         let exposure_scale = 2.0_f32.powf(recipe.stage5_grading.exposure_ev);
         let sat_threshold = 0.99;
+        let curves_lut = crate::curves::generate_1d_lut_1024(&recipe.stage5_grading.tone_curves);
+        let has_curves = !recipe.stage5_grading.tone_curves.is_identity();
 
         match pattern {
             CfaPattern::Bayer(origin) => {
@@ -239,9 +241,14 @@ impl CpuReferencePipeline {
                             }
                         }
 
-                        // 4. Colorimetry & Exposure
+                        // 4. Colorimetry, Tone Curves & Exposure
                         let exposed = Vec3::new(r, g, b) * exposure_scale;
-                        let guarded = apply_gamut_guard_ap1(exposed);
+                        let curved = if has_curves {
+                            crate::curves::apply_tone_curves_lut(exposed, &curves_lut)
+                        } else {
+                            exposed
+                        };
+                        let guarded = apply_gamut_guard_ap1(curved);
 
                         // 5. AgX DRT
                         let drt_r = apply_agx_edr(guarded.x, headroom);
@@ -259,7 +266,12 @@ impl CpuReferencePipeline {
                         let ix = x as isize;
                         let s = sample_at(ix, iy);
                         let exposed = Vec3::new(s, s, s) * exposure_scale;
-                        let guarded = apply_gamut_guard_ap1(exposed);
+                        let curved = if has_curves {
+                            crate::curves::apply_tone_curves_lut(exposed, &curves_lut)
+                        } else {
+                            exposed
+                        };
+                        let guarded = apply_gamut_guard_ap1(curved);
 
                         let drt_r = apply_agx_edr(guarded.x, headroom);
                         let drt_g = apply_agx_edr(guarded.y, headroom);

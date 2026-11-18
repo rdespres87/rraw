@@ -170,3 +170,54 @@ fn test_agx_edr_monotonicity_and_headroom_bounds() {
         assert!(odrt_100 > odrt_0);
     }
 }
+
+#[test]
+fn test_pchip_monotone_cubic_hermite_spline_properties() -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_color::curves::{evaluate_channel_curve_pchip, generate_1d_lut_1024};
+    use rraw_core::curves::{ChannelCurve, CurvePoint, ToneCurvesRecipe};
+
+    // 1. Identity curve satisfies y == x
+    let id_curve = ChannelCurve::new_linear();
+    for i in 0..=100 {
+        let x = i as f32 / 100.0;
+        let y = evaluate_channel_curve_pchip(&id_curve, x);
+        assert!((y - x).abs() < 1e-4, "Identity failed at x={x}: got {y}");
+    }
+
+    // 2. S-curve with steep contrast must strictly preserve monotonicity (no Runge oscillations)
+    let mut s_curve = ChannelCurve::new_linear();
+    s_curve.add_point(CurvePoint::new(0.20, 0.05)?);
+    s_curve.add_point(CurvePoint::new(0.50, 0.50)?);
+    s_curve.add_point(CurvePoint::new(0.80, 0.95)?);
+
+    let mut prev_y = -1.0_f32;
+    for i in 0..=1000 {
+        let x = i as f32 / 1000.0;
+        let y = evaluate_channel_curve_pchip(&s_curve, x);
+        assert!(
+            (0.0..=1.0).contains(&y),
+            "PCHIP S-curve out of bounds: y={y} at x={x}"
+        );
+        if i > 0 {
+            assert!(
+                y >= prev_y - 1e-6,
+                "PCHIP violated monotonicity at x={x}: y={y} < prev_y={prev_y}"
+            );
+        }
+        prev_y = y;
+    }
+
+    // 3. 1D LUT generation
+    let recipe = ToneCurvesRecipe {
+        combined_rgb: s_curve,
+        ..Default::default()
+    };
+    let lut = generate_1d_lut_1024(&recipe);
+    assert_eq!(lut.len(), 1024);
+    // Red, Green, Blue should match combined curve; Luma is identity
+    assert!((lut[0][0] - 0.0).abs() < 1e-4);
+    assert!((lut[1023][0] - 1.0).abs() < 1e-4);
+    assert!((lut[512][3] - 512.0 / 1023.0).abs() < 1e-4);
+
+    Ok(())
+}

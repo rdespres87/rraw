@@ -7,6 +7,7 @@ use thiserror::Error;
 
 pub mod cct;
 pub mod colorchecker;
+pub mod curves;
 pub mod drt;
 pub mod gamut_guard;
 pub mod matrix;
@@ -14,6 +15,7 @@ pub mod pipeline;
 
 pub use cct::*;
 pub use colorchecker::*;
+pub use curves::*;
 pub use drt::*;
 pub use gamut_guard::*;
 pub use matrix::*;
