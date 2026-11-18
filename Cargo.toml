@@ -29,6 +29,10 @@ todo = "deny"
 unimplemented = "deny"
 
 [workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+sha2 = { version = "0.10", default-features = false }
 rraw-core = { path = "crates/rraw-core" }
 rraw-decode = { path = "crates/rraw-decode" }
 rraw-optics = { path = "crates/rraw-optics" }
