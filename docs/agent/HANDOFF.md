@@ -2,21 +2,19 @@
 
 ## Last Completed Milestone
 
-- **Phase 4 — Task 4.2 (`rraw-gpu` & `rraw-app`) Committed (`e836632`)**:
-  - Implemented `ParametricRange` and `MaskKind::ParametricColor` in `rraw-core`.
-  - Implemented Stage 6 WGSL compute shader (`stage6_masks.wgsl`) evaluating linear gradients, rotated radial ellipses, and ACEScg parametric qualifiers in normalized `[0, 1]²` coordinates.
-  - Implemented headless `Stage6Pipeline` evaluating local exposure modulations at 120 Hz interactive rates.
-  - 72 unit and integration tests passing cleanly across the workspace with zero clippy warnings.
+- **Phase 4 — Task 4.3 (`rraw-storage` & `rraw-app`) Committed (`c4d4abb`)**:
+  - Implemented `XmpEditor` preserving third-party XML elements (`crs:*`, `darktable:*`) during metadata mutation.
+  - Implemented `SqliteDamIndex` and `DamFilter` providing multi-criteria photographic queries.
+  - Implemented `DiskThumbnailCache` for `Size160` and `Size320` thumbnail storage.
+  - 75 unit and integration tests passing cleanly across the workspace with zero clippy warnings.
 
 ## Exact Next Logical Action
 
-1. **Next Development Task (Task 4.3 — `rraw-storage` & `rraw-app`)**:
-   - Follow Security Gate 1: Draft and present architectural plan for Async SQLite DAM Index, Non-Destructive Sidecars & Browser UI:
-     - SQLite schema (`rusqlite`) indexing `PhotoMetadata`, tags, ratings, color labels, and file paths.
-     - Non-destructive `.xmp` and `.rraw.json` sidecar synchronization:
-       - Preserve third-party namespaces (e.g. Adobe `crs:*`, Darktable `darktable:*`) verbatim without loss or reformatting.
-       - Update standard Dublin Core (`dc:subject`), Photoshop (`photoshop:*`), and XMP Basic (`xmp:Rating`).
-     - Disk-backed thumbnail mipmap cache.
-     - Headless / UI browser filtering contracts.
-2. **Subsequent Phase 4 Tasks**:
-   - Task 4.4 (`rraw-export`): Multi-threaded batch exporter + ISO 21496-1 HDR Gain Maps.
+1. **Next Development Task (Task 4.4 — `rraw-export`)**:
+   - Follow Security Gate 1: Draft and present architectural plan for Multi-Threaded Batch Exporter & ISO 21496-1 HDR Gain Maps:
+     - Multi-threaded batch export queue supporting 16-bit TIFF/PNG, JPEG, AVIF, JXL with ICC color profile embedding.
+     - ISO 21496-1 HDR Gain Maps:
+       - Gain map calculation: ratio $G = \frac{I_{\text{HDR}}}{I_{\text{SDR}} + \epsilon}$ in log2 space.
+       - Binary `tmap` ISOBMFF box generation.
+       - XMP metadata sidecar / APP2 MPF embedding (`hdrgm:Version`, `hdrgm:GainMapMin`, `hdrgm:GainMapMax`, `hdrgm:HDRCapacityMin`, `hdrgm:HDRCapacityMax`).
+       - TDD Gate: Export $+3\text{ EV}$ HDR image with Gain Map, parse binary `tmap` and XMP `hdrgm:*`, verify reconstructed linear highlights recover up to $8.0$ within $< 1\%$.
