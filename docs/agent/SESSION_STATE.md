@@ -19,9 +19,9 @@
   - Task 4.1 (`rraw-ai`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `28597cd`)
   - Task 4.2 (`rraw-gpu` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `e836632`)
   - Task 4.3 (`rraw-storage` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `c4d4abb`)
-  - Task 4.4 (`rraw-export`): Ready to start under Security Gate 1 (Multi-threaded batch exporter, 16-bit TIFF/PNG, JPEG, AVIF, JXL + ISO 21496-1 HDR Gain Maps)
-- **Git Branch**: `main` (Task 4.3 committed in `c4d4abb`)
-- **Last Approved Gate**: Gate 3 (Task 4.3 authorized by user on 2026-11-18)
+  - Task 4.4 (`rraw-export`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `a3ee723`)
+- **Git Branch**: `main` (Task 4.4 committed in `a3ee723`)
+- **Last Approved Gate**: Gate 3 (Task 4.4 authorized by user on 2026-11-18)
 
 ## Workspace Structure Verified
 
@@ -40,10 +40,10 @@
 
 ## Known Open Items
 
-- Task 4.3 Complete (commit `c4d4abb` with 75 passing tests).
-- Next up: Task 4.4 (`rraw-export`).
+- All Phases Complete (Phases 0, 1, 2, 3, and 4 are 100% complete across all 11 crates).
+- Total tests: 79 unit/integration tests passing cleanly.
 
 ## Last Observed Verification Run
 
 - `./.git/hooks/pre-commit` (`cargo fmt --all -- --check` + `cargo clippy --workspace --all-targets -- -D warnings`): passed (exit `0`).
-- `cargo test --workspace`: passed (`75` unit/integration tests across all `11` crates: `rraw-core`: 14, `rraw-gpu`: 15, `rraw-color`: 7, `rraw-decode`: 7, `rraw-optics`: 9, `rraw-ai`: 8, `rraw-storage`: 5, `rraw-app`: 4, `rraw-cli`: 3, `rraw-macos-edr`: 2, `rraw-export`: 1; `0` failed, `0` ignored).
+- `cargo test --workspace`: passed (`79` unit/integration tests across all `11` crates: `rraw-core`: 14, `rraw-gpu`: 15, `rraw-color`: 7, `rraw-decode`: 7, `rraw-optics`: 9, `rraw-ai`: 8, `rraw-storage`: 5, `rraw-export`: 5, `rraw-app`: 4, `rraw-cli`: 3, `rraw-macos-edr`: 2; `0` failed, `0` ignored).
