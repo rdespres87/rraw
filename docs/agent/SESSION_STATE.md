@@ -24,9 +24,10 @@
   - Modular UI & App Refactoring (`rraw-app`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `ac0a8ea` — 5,772 lines modularized into `state.rs`, `preview.rs`, `shell.rs`, `ui/*`)
   - Phase 6.1 (Interactive PCHIP Tone Curves): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `64921a7`)
   - App Tone Curves UI, Rayon 60 FPS Preview, Raster & UX: **Complete** (CI green, Gate 3 authorized, commit `d75eafc`)
-- **Git Branch**: `main` (ahead of origin by commits `64921a7` and `d75eafc`)
+  - GitHub Actions CI Workflow: **Complete** (`macos-13` runner)
+- **Git Branch**: `main`
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
-- **Last Approved Gate**: Gate 3 (Commits authorized on 2026-11-18)
+- **Last Approved Gate**: Gate 3 (Authorized on 2026-11-18)
 
 ## Workspace Structure Verified
 
