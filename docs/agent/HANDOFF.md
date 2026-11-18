@@ -2,16 +2,17 @@
 
 ## Last Completed Milestone
 
-- **Phase 4 — Task 4.4 (`rraw-export`) Committed (`a3ee723`)**:
-  - Implemented `Iso21496Params`, `GainMapCalculator`, and `GainMapReconstructor` recovering linear HDR highlights up to 8.0 (+3 EV) within $< 1\%$ error.
-  - Implemented binary ISOBMFF `tmap` box encoder/decoder and XMP `hdrgm:*` packet parser.
-  - Implemented `BatchExportQueue` and 16-bit PNG raster encoder executing across worker threadpools.
-  - 79 unit and integration tests passing cleanly across the workspace with zero clippy warnings.
-  - **ALL PHASES (0–4) ARE 100% COMPLETE**.
+- **Phase 5 — Task 5.1 (`rraw-app`) Implemented**:
+  - Implemented `eframe` / `egui` native macOS window shell with `RrawApp`.
+  - Added live `NSScreen` EDR headroom detection badge, top control bar with native macOS file dialog (`rfd`) for RAW opening and image export.
+  - Added comprehensive right Darkroom inspector panel (Exposure EV, Kelvin WB, Tint, Display Transform combo, Wavelet denoise, Richardson-Lucy capture sharpening, and optical toggles).
+  - Maintained `--summary` and `--headless` flags for instant CI/script execution without opening a native window.
+  - Maintained strict `#![forbid(unsafe_code)]` on `rraw-app` and zero unwrap / expect across the workspace.
+  - Workspace test suite: 83 unit/integration tests passing cleanly.
 
 ## Repository Completion State
 
-All planned deliverables across all five development phases (Phase 0 Governance & Workspace, Phase 1 Foundations & CLI, Phase 2 GPU Pipeline & EDR Compositor, Phase 3 Optics & Sharpening, Phase 4 CoreML AI, Masks, DAM & HDR Export) are implemented, verified by adversarial TDD, and passing all pre-commit formatting and clippy gates.
+All planned deliverables across all six development phases (Phases 0–5) are implemented, verified by adversarial TDD, and passing all pre-commit formatting and clippy gates.
 
 ### Summary of Completed Workspace Milestones
 1. **Phase 0**: Repository governance, `#![forbid(unsafe_code)]` / audited EDR isolation, 11 crates.
@@ -32,3 +33,5 @@ All planned deliverables across all five development phases (Phase 0 Governance 
    - `Task 4.2`: Stage 6 post-warp geometric & ACEScg parametric masks at 120 Hz (`e836632`).
    - `Task 4.3`: SQLite DAM index, non-destructive XMP editor preserving third-party nodes (`c4d4abb`).
    - `Task 4.4`: Multi-threaded batch exporter and ISO 21496-1 HDR Gain Maps (`a3ee723`).
+6. **Phase 5**:
+   - `Task 5.1`: Native macOS interactive window shell (`eframe` / `egui` + `rfd`) with live EDR headroom, strictly ordered Left Panel (1. `📁 Explorateur de dossiers` with Desktop default, breadcrumbs, and `..` parent navigation; 2. `🎨 Styles & Préréglages` with dropdown combobox and quick reset; 3. `📋 Données EXIF` with full striped summary, complete rawler tag extraction (serial numbers, lenses, color space, exposure mode, scene capture, light source, dates, offsets, GPS, CFA/sensor levels), real-time search filter, and JSON copy/export; 4. `📊 Histogramme Waveform RGB` at the bottom); clean right Inspector; toggles for crop and geometry; 120 FPS mouse-driven vector cropping; bottom filmstrip with scrollbar completely cleared below cards without covering stars; classical keyboard and mouse multi-selection (Click, Cmd/Ctrl+Click, Shift+Click range, Cmd+A, Cmd+D, Esc, Space, Shift+Arrow); instantaneous photo switching with frame-0 thumbnail display, 1600px preview bounding, 30-photo MRU cache, and ±2 adjacent prefetching. All 90 tests passing cleanly.
