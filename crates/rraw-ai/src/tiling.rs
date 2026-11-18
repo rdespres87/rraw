@@ -40,11 +40,11 @@ impl TileSlicer {
             let py = if gy < height {
                 gy
             } else {
-                let mut ry = gy;
-                while ry >= height {
-                    ry = ry.saturating_sub(TileGeometry::CFA_PHASE_ALIGNMENT);
-                }
-                ry
+                let excess = gy.saturating_sub(height).saturating_add(1);
+                let steps = excess
+                    .div_ceil(TileGeometry::CFA_PHASE_ALIGNMENT)
+                    .saturating_mul(TileGeometry::CFA_PHASE_ALIGNMENT);
+                gy.saturating_sub(steps).min(height.saturating_sub(1))
             };
 
             for tx in 0..size {
@@ -52,11 +52,11 @@ impl TileSlicer {
                 let px = if gx < width {
                     gx
                 } else {
-                    let mut rx = gx;
-                    while rx >= width {
-                        rx = rx.saturating_sub(TileGeometry::CFA_PHASE_ALIGNMENT);
-                    }
-                    rx
+                    let excess = gx.saturating_sub(width).saturating_add(1);
+                    let steps = excess
+                        .div_ceil(TileGeometry::CFA_PHASE_ALIGNMENT)
+                        .saturating_mul(TileGeometry::CFA_PHASE_ALIGNMENT);
+                    gx.saturating_sub(steps).min(width.saturating_sub(1))
                 };
 
                 let src_idx = py.saturating_mul(width).saturating_add(px);
@@ -106,6 +106,23 @@ impl TileBlender {
         let valid_w = region.valid_width.min(size);
         let valid_h = region.valid_height.min(size);
 
+        // Precompute 1D separable horizontal weights to avoid trigonometric re-evaluation in hot inner loop
+        let mut wx_table = [1.0_f32; TileGeometry::TILE_SIZE];
+        for (tx, wx) in wx_table.iter_mut().enumerate().take(valid_w) {
+            *wx = if region.origin_x > 0 && tx < overlap {
+                let theta = (PI * 0.5) * ((tx as f32 + 0.5) / o_f32);
+                let s = theta.sin();
+                s * s
+            } else if region.origin_x.saturating_add(size) < self.width && tx >= size - overlap {
+                let d = (size - 1 - tx) as f32;
+                let theta = (PI * 0.5) * ((d + 0.5) / o_f32);
+                let s = theta.sin();
+                s * s
+            } else {
+                1.0
+            };
+        }
+
         for ty in 0..valid_h {
             let gy = region.origin_y.saturating_add(ty);
             if gy >= self.height {
@@ -127,27 +144,11 @@ impl TileBlender {
                 1.0
             };
 
-            for tx in 0..valid_w {
+            for (tx, &wx) in wx_table.iter().enumerate().take(valid_w) {
                 let gx = region.origin_x.saturating_add(tx);
                 if gx >= self.width {
                     continue;
                 }
-
-                // Left boundary overlap transition
-                let wx = if region.origin_x > 0 && tx < overlap {
-                    let theta = (PI * 0.5) * ((tx as f32 + 0.5) / o_f32);
-                    let s = theta.sin();
-                    s * s
-                // Right boundary overlap transition
-                } else if region.origin_x.saturating_add(size) < self.width && tx >= size - overlap
-                {
-                    let d = (size - 1 - tx) as f32;
-                    let theta = (PI * 0.5) * ((d + 0.5) / o_f32);
-                    let s = theta.sin();
-                    s * s
-                } else {
-                    1.0
-                };
 
                 let weight = wx * wy;
                 let tile_idx = ty.saturating_mul(size).saturating_add(tx);

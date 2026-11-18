@@ -109,8 +109,8 @@ impl CfaPattern {
     pub const fn color_at(&self, x: usize, y: usize) -> CfaColor {
         match self {
             Self::Bayer(origin) => {
-                let cx = x % 2;
-                let cy = y % 2;
+                let cx = x & 1;
+                let cy = y & 1;
                 match (origin, cy, cx) {
                     (BayerOrigin::Rggb, 0, 0) => CfaColor::Red,
                     (BayerOrigin::Rggb, 0, 1) | (BayerOrigin::Rggb, 1, 0) => CfaColor::Green,
