@@ -2,41 +2,33 @@
 
 //! Spectral colorimetry (`ACEScg` `AP1` D60), tone mapping, and shared CPU reference pipeline.
 
-use std::fmt;
-
 use rraw_core::{ChannelSaturation, CoreError, WhiteBalanceMultipliers};
+use thiserror::Error;
+
+pub mod cct;
+pub mod colorchecker;
+pub mod drt;
+pub mod gamut_guard;
+pub mod matrix;
+
+pub use cct::*;
+pub use colorchecker::*;
+pub use drt::*;
+pub use gamut_guard::*;
+pub use matrix::*;
 
 /// Typed errors returned by `rraw-color`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Error)]
 pub enum ColorError {
     /// Correlated color temperature was non-finite or non-positive.
+    #[error("invalid color temperature in Kelvin: {value}")]
     InvalidKelvin { value: f64 },
     /// Mired interpolation input was `NaN` or infinite.
+    #[error("invalid mired input for `{field}`: {value}")]
     InvalidMired { field: &'static str, value: f64 },
     /// Propagated invariant error from `rraw-core`.
-    Core(CoreError),
-}
-
-impl fmt::Display for ColorError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidKelvin { value } => {
-                write!(f, "invalid color temperature in Kelvin: {value}")
-            }
-            Self::InvalidMired { field, value } => {
-                write!(f, "invalid mired input for `{field}`: {value}")
-            }
-            Self::Core(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl std::error::Error for ColorError {}
-
-impl From<CoreError> for ColorError {
-    fn from(value: CoreError) -> Self {
-        Self::Core(value)
-    }
+    #[error(transparent)]
+    Core(#[from] CoreError),
 }
 
 /// Selects the DNG matrix calibration path into `ACEScg` (`AP1` D60).
