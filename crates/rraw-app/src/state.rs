@@ -235,6 +235,56 @@ impl ExportScaleMode {
     }
 }
 
+/// Tool family categorization for organized darkroom palette grouping.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum ToolFamily {
+    #[default]
+    All,
+    Light,
+    Color,
+    Detail,
+    Geometry,
+    LocalMasks,
+    Timelapse,
+}
+
+impl ToolFamily {
+    pub const ALL: [Self; 6] = [
+        Self::All,
+        Self::Light,
+        Self::Color,
+        Self::Detail,
+        Self::Geometry,
+        Self::LocalMasks,
+    ];
+
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::All => "Tous",
+            Self::Light => "☀️ Lumière",
+            Self::Color => "🎨 Couleur",
+            Self::Detail => "🔍 Détail",
+            Self::Geometry => "📐 Géométrie",
+            Self::LocalMasks => "🖌️ Masques",
+            Self::Timelapse => "🎬 Timelapse",
+        }
+    }
+
+    #[must_use]
+    pub const fn short_label(self) -> &'static str {
+        match self {
+            Self::All => "Tous",
+            Self::Light => "Lumière",
+            Self::Color => "Couleur",
+            Self::Detail => "Détail",
+            Self::Geometry => "Géométrie",
+            Self::LocalMasks => "Masques",
+            Self::Timelapse => "Timelapse",
+        }
+    }
+}
+
 /// Identifiers for customizable darkroom inspector sections that can be reordered by the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DarkroomSection {
@@ -254,18 +304,34 @@ pub enum DarkroomSection {
 }
 
 impl DarkroomSection {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::ExposureTone,
-        Self::AiSemanticMasks,
+        Self::ToneCurves,
         Self::WhiteBalanceColor,
         Self::SoftProofing,
-        Self::Timelapse,
+        Self::DetailDenoise,
         Self::Crop,
         Self::Straighten,
         Self::Geometry,
-        Self::DetailDenoise,
         Self::OpticalCorrections,
+        Self::AiSemanticMasks,
+        Self::Timelapse,
     ];
+
+    #[must_use]
+    pub const fn family(self) -> ToolFamily {
+        match self {
+            Self::ExposureTone | Self::ToneCurves => ToolFamily::Light,
+            Self::WhiteBalanceColor | Self::SoftProofing => ToolFamily::Color,
+            Self::DetailDenoise => ToolFamily::Detail,
+            Self::Crop | Self::Straighten | Self::Geometry | Self::OpticalCorrections => {
+                ToolFamily::Geometry
+            }
+            Self::AiSemanticMasks => ToolFamily::LocalMasks,
+            Self::Timelapse => ToolFamily::Timelapse,
+            Self::LegacyOther => ToolFamily::All,
+        }
+    }
 
     #[must_use]
     pub const fn title(self) -> &'static str {

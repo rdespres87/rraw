@@ -8,7 +8,341 @@ use rraw_color::DisplayTransform;
 use crate::app::RrawApp;
 use crate::state::*;
 
+/// Matches a darkroom section against a search query using its title and common keywords.
+fn section_matches_search(section: DarkroomSection, query: &str) -> bool {
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return true;
+    }
+    let title = section.title().to_lowercase();
+    if title.contains(&q) {
+        return true;
+    }
+    match section {
+        DarkroomSection::ExposureTone => {
+            q.contains("expo")
+                || q.contains("lum")
+                || q.contains("ton")
+                || q.contains("contr")
+                || q.contains("noir")
+                || q.contains("blanc")
+                || q.contains("sat")
+        }
+        DarkroomSection::ToneCurves => {
+            q.contains("courb") || q.contains("curve") || q.contains("rgb") || q.contains("spline")
+        }
+        DarkroomSection::WhiteBalanceColor => {
+            q.contains("bal")
+                || q.contains("wb")
+                || q.contains("blanc")
+                || q.contains("kelvin")
+                || q.contains("teinte")
+                || q.contains("clut")
+                || q.contains("lut")
+                || q.contains("coul")
+        }
+        DarkroomSection::SoftProofing => {
+            q.contains("epreuv")
+                || q.contains("proof")
+                || q.contains("gamut")
+                || q.contains("icc")
+                || q.contains("papier")
+        }
+        DarkroomSection::DetailDenoise => {
+            q.contains("bruit")
+                || q.contains("noise")
+                || q.contains("denoise")
+                || q.contains("nett")
+                || q.contains("sharp")
+                || q.contains("ondelette")
+        }
+        DarkroomSection::Crop => q.contains("recadr") || q.contains("crop") || q.contains("ratio"),
+        DarkroomSection::Straighten => {
+            q.contains("redres")
+                || q.contains("rotat")
+                || q.contains("horizon")
+                || q.contains("niv")
+        }
+        DarkroomSection::Geometry => {
+            q.contains("geom") || q.contains("persp") || q.contains("keystone")
+        }
+        DarkroomSection::OpticalCorrections => {
+            q.contains("optiq")
+                || q.contains("lens")
+                || q.contains("distor")
+                || q.contains("vignett")
+                || q.contains("aberr")
+                || q.contains("defringe")
+        }
+        DarkroomSection::AiSemanticMasks => {
+            q.contains("masq")
+                || q.contains("mask")
+                || q.contains("pinceau")
+                || q.contains("brush")
+                || q.contains("ia")
+                || q.contains("retouch")
+        }
+        DarkroomSection::Timelapse => {
+            q.contains("time") || q.contains("lapse") || q.contains("flicker")
+        }
+        DarkroomSection::LegacyOther => false,
+    }
+}
+
 impl RrawApp {
+    /// Returns true if a darkroom section contains non-default adjustment values.
+    #[must_use]
+    pub fn is_section_active(&self, section: DarkroomSection) -> bool {
+        match section {
+            DarkroomSection::ExposureTone => {
+                self.grading.exposure_ev != 0.0
+                    || self.grading.contrast != 0.0
+                    || self.grading.highlights != 0.0
+                    || self.grading.shadows != 0.0
+                    || self.grading.blacks != 0.0
+                    || self.grading.saturation != 0.0
+                    || self.grading.vibrance != 0.0
+            }
+            DarkroomSection::ToneCurves => !self.grading.tone_curves.is_identity(),
+            DarkroomSection::WhiteBalanceColor => {
+                (self.grading.kelvin - 5500.0).abs() > 1.0
+                    || self.grading.tint != 0.0
+                    || self.grading.custom_clut.is_some()
+                    || self.grading.is_monochrome
+            }
+            DarkroomSection::SoftProofing => self.grading.soft_proof.enabled,
+            DarkroomSection::DetailDenoise => {
+                (self.grading.wavelet_denoise_sigma - 1.0).abs() > 0.01
+                    || (self.grading.color_denoise - 25.0).abs() > 0.01
+                    || self.grading.luma_denoise > 0.0
+                    || (self.grading.capture_sharpening_amount - 0.5).abs() > 0.01
+            }
+            DarkroomSection::Crop => self.grading.crop_enabled,
+            DarkroomSection::Straighten => {
+                self.grading.rotation_degrees != 0.0
+                    || self.grading.flip_horizontal
+                    || self.grading.flip_vertical
+            }
+            DarkroomSection::Geometry => {
+                self.grading.keystone_vertical != 0.0 || self.grading.keystone_horizontal != 0.0
+            }
+            DarkroomSection::OpticalCorrections => {
+                self.grading.distortion_amount != 0.0
+                    || self.grading.defringe_purple_amount != 0.0
+                    || self.grading.defringe_green_amount != 0.0
+                    || self.grading.creative_vignette_amount != 0.0
+            }
+            DarkroomSection::AiSemanticMasks => {
+                !self.grading.semantic_masks.is_empty() || !self.grading.local_masks.is_empty()
+            }
+            DarkroomSection::Timelapse => false,
+            DarkroomSection::LegacyOther => false,
+        }
+    }
+
+    /// Resets all parameters of a specific darkroom section back to standard defaults.
+    pub fn reset_section(&mut self, section: DarkroomSection) {
+        match section {
+            DarkroomSection::ExposureTone => {
+                self.grading.exposure_ev = 0.0;
+                self.grading.contrast = 0.0;
+                self.grading.highlights = 0.0;
+                self.grading.shadows = 0.0;
+                self.grading.blacks = 0.0;
+                self.grading.saturation = 0.0;
+                self.grading.vibrance = 0.0;
+            }
+            DarkroomSection::ToneCurves => {
+                self.grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();
+            }
+            DarkroomSection::WhiteBalanceColor => {
+                self.grading.kelvin = 5500.0;
+                self.grading.tint = 0.0;
+                self.grading.custom_clut = None;
+                self.grading.is_monochrome = false;
+                self.grading.display_transform = rraw_color::DisplayTransform::AgX;
+            }
+            DarkroomSection::SoftProofing => {
+                self.grading.soft_proof.enabled = false;
+                self.grading.soft_proof.show_gamut_warning = false;
+            }
+            DarkroomSection::DetailDenoise => {
+                self.grading.wavelet_denoise_sigma = 1.0;
+                self.grading.color_denoise = 25.0;
+                self.grading.luma_denoise = 0.0;
+                self.grading.capture_sharpening_amount = 0.5;
+            }
+            DarkroomSection::Crop => {
+                self.grading.crop_enabled = false;
+                self.grading.crop_left = 0.0;
+                self.grading.crop_top = 0.0;
+                self.grading.crop_right = 1.0;
+                self.grading.crop_bottom = 1.0;
+            }
+            DarkroomSection::Straighten => {
+                self.grading.rotation_degrees = 0.0;
+                self.grading.flip_horizontal = false;
+                self.grading.flip_vertical = false;
+            }
+            DarkroomSection::Geometry => {
+                self.grading.geometry_enabled = true;
+                self.grading.keystone_vertical = 0.0;
+                self.grading.keystone_horizontal = 0.0;
+                self.grading.auto_crop_geometry = true;
+            }
+            DarkroomSection::OpticalCorrections => {
+                self.grading.distortion_correction = true;
+                self.grading.distortion_amount = 0.0;
+                self.grading.chromatic_aberration_correction = true;
+                self.grading.defringe_purple_amount = 0.0;
+                self.grading.defringe_green_amount = 0.0;
+                self.grading.vignette_correction = true;
+                self.grading.vignette_amount = 50.0;
+                self.grading.creative_vignette_amount = 0.0;
+                self.grading.creative_vignette_midpoint = 50.0;
+                self.grading.creative_vignette_feather = 50.0;
+                self.grading.creative_vignette_roundness = 0.0;
+            }
+            DarkroomSection::AiSemanticMasks => {
+                self.grading.semantic_masks.clear();
+                self.grading.local_masks.clear();
+                self.grading.active_brush_mask_idx = None;
+            }
+            DarkroomSection::Timelapse | DarkroomSection::LegacyOther => {}
+        }
+
+        self.grading.preset = GradingPreset::Custom;
+        self.current_preset = GradingPreset::Custom;
+        self.needs_preview_update = true;
+        self.save_current_photo_sidecar();
+    }
+
+    /// Renders the complete right-hand darkroom development panel with family filters, search, and active-only toggle.
+    pub fn render_darkroom_panel(&mut self, ui: &mut egui::Ui) {
+        let order = self.layout_config.section_order.clone();
+
+        egui::Panel::right("darkroom_panel")
+            .resizable(true)
+            .default_size(360.0)
+            .min_size(320.0)
+            .max_size(600.0)
+            .frame(
+                egui::Frame::side_top_panel(ui.style()).fill(egui::Color32::from_rgb(24, 26, 31)),
+            )
+            .show(ui, |ui| {
+                ui.add_space(4.0);
+
+                // 1. Header with panel title and layout reset
+                ui.horizontal(|ui| {
+                    ui.heading("🛠️ Développement");
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .small_button("↺ Disposition")
+                            .on_hover_text("Réinitialiser l'ordre des sections")
+                            .clicked()
+                        {
+                            self.layout_config = AppLayoutConfig::default();
+                            self.layout_config.save();
+                        }
+                    });
+                });
+
+                ui.add_space(4.0);
+
+                // 2. Family Category Filter Bar (Tous, Lumière, Couleur, Détail, Géométrie, Masques)
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(3.0, 3.0);
+                    for family in ToolFamily::ALL {
+                        let is_selected = self.active_tool_family == family;
+                        let text = egui::RichText::new(family.label()).size(11.0);
+                        if ui.selectable_label(is_selected, text).clicked() {
+                            self.active_tool_family = family;
+                        }
+                    }
+                });
+
+                ui.add_space(4.0);
+
+                // 3. Secondary Toolbar: Search Query + Active Tools Toggle
+                ui.horizontal(|ui| {
+                    // Search box
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.tool_search_query)
+                            .hint_text("🔍 Filtrer les réglages...")
+                            .desired_width((ui.available_width() - 105.0).max(80.0)),
+                    );
+                    if !self.tool_search_query.is_empty() && ui.small_button("✕").clicked() {
+                        self.tool_search_query.clear();
+                    }
+
+                    // Active-only toggle
+                    let active_label = if self.active_tools_only {
+                        egui::RichText::new("☑ Modifiés")
+                            .color(egui::Color32::from_rgb(100, 190, 255))
+                            .size(11.0)
+                    } else {
+                        egui::RichText::new("☐ Modifiés").size(11.0)
+                    };
+                    if ui
+                        .selectable_label(self.active_tools_only, active_label)
+                        .on_hover_text("N'afficher que les réglages modifiés sur cette image")
+                        .clicked()
+                    {
+                        self.active_tools_only = !self.active_tools_only;
+                    }
+                });
+
+                ui.separator();
+
+                // 4. Scrollable Sections List with Dynamic Filtering
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        let mut rendered_count = 0;
+
+                        for (idx, section) in order.iter().enumerate() {
+                            // Filter by ToolFamily
+                            if self.active_tool_family != ToolFamily::All
+                                && section.family() != self.active_tool_family
+                            {
+                                continue;
+                            }
+
+                            // Filter by Active Only
+                            if self.active_tools_only && !self.is_section_active(*section) {
+                                continue;
+                            }
+
+                            // Filter by Search Query
+                            if !section_matches_search(*section, &self.tool_search_query) {
+                                continue;
+                            }
+
+                            self.render_darkroom_section(ui, *section, idx);
+                            rendered_count += 1;
+                        }
+
+                        if rendered_count == 0 {
+                            ui.add_space(20.0);
+                            ui.vertical_centered(|ui| {
+                                ui.label(
+                                    egui::RichText::new(
+                                        "Aucun réglage ne correspond aux filtres actifs.",
+                                    )
+                                    .color(egui::Color32::GRAY)
+                                    .italics(),
+                                );
+                                if self.active_tools_only
+                                    && ui.button("Afficher tous les outils").clicked()
+                                {
+                                    self.active_tools_only = false;
+                                }
+                            });
+                        }
+                    });
+            });
+    }
+
     /// Moves a darkroom section up or down in the persistent layout order.
     pub fn move_section(&mut self, idx: usize, up: bool) {
         if up && idx > 0 {
@@ -29,19 +363,56 @@ impl RrawApp {
     ) {
         let is_first = idx == 0;
         let is_last = idx + 1 == self.layout_config.section_order.len();
+        let is_active = self.is_section_active(section);
 
-        ui.horizontal(|ui| {
-            ui.strong(section.title());
+        let header_title = if is_active {
+            egui::RichText::new(section.title())
+                .color(egui::Color32::from_rgb(120, 200, 255))
+                .strong()
+        } else {
+            egui::RichText::new(section.title()).strong()
+        };
 
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if !is_last && ui.small_button("▼").on_hover_text("Move down").clicked() {
-                    self.move_section(idx, false);
-                }
-                if !is_first && ui.small_button("▲").on_hover_text("Move up").clicked() {
-                    self.move_section(idx, true);
-                }
-            });
-        });
+        egui::Frame::group(ui.style())
+            .fill(egui::Color32::from_rgb(20, 22, 27))
+            .inner_margin(6.0)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if is_active {
+                        ui.label(
+                            egui::RichText::new("●")
+                                .color(egui::Color32::from_rgb(100, 190, 255))
+                                .size(9.0),
+                        );
+                    }
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if !is_last && ui.small_button("▼").on_hover_text("Déplacer vers le bas").clicked() {
+                            self.move_section(idx, false);
+                        }
+                        if !is_first && ui.small_button("▲").on_hover_text("Déplacer vers le haut").clicked() {
+                            self.move_section(idx, true);
+                        }
+                        if ui
+                            .small_button("↺")
+                            .on_hover_text("Réinitialiser ce module aux valeurs par défaut")
+                            .clicked()
+                        {
+                            self.reset_section(section);
+                        }
+                    });
+                });
+
+                egui::CollapsingHeader::new(header_title)
+                    .id_salt(format!("section_{:?}", section))
+                    .default_open(matches!(
+                        section,
+                        DarkroomSection::ExposureTone
+                            | DarkroomSection::ToneCurves
+                            | DarkroomSection::WhiteBalanceColor
+                    ))
+                    .show(ui, |ui| {
+                        ui.add_space(2.0);
 
         match section {
             DarkroomSection::ExposureTone => {
@@ -1391,6 +1762,9 @@ impl RrawApp {
             DarkroomSection::LegacyOther => {}
         }
 
+                    });
+            });
+
         if self.needs_preview_update {
             if let Some(photo) = &self.loaded_photo {
                 self.photo_gradings
@@ -1404,6 +1778,6 @@ impl RrawApp {
             }
         }
 
-        ui.separator();
+        ui.add_space(4.0);
     }
 }

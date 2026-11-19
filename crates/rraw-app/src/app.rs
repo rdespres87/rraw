@@ -58,6 +58,12 @@ pub struct RrawApp {
     pub inspector_tab: InspectorTab,
     /// Active navigation tab in left panel.
     pub left_panel_tab: LeftPanelTab,
+    /// Active tool family filter for categorized palette views.
+    pub active_tool_family: ToolFamily,
+    /// Whether only modified / active tools are displayed in the inspector.
+    pub active_tools_only: bool,
+    /// Search query for filtering darkroom tools.
+    pub tool_search_query: String,
     /// Whether the leveling line tool is active.
     pub horizon_tool_active: bool,
     /// Drag start point for leveling line tool.
@@ -212,6 +218,9 @@ impl RrawApp {
             directory_entries: default_entries,
             inspector_tab: InspectorTab::Develop,
             left_panel_tab: LeftPanelTab::Explorer,
+            active_tool_family: ToolFamily::All,
+            active_tools_only: false,
+            tool_search_query: String::new(),
             horizon_tool_active: false,
             horizon_start_point: None,
             last_fit_scale: 1.0,
@@ -1134,6 +1143,12 @@ impl eframe::App for RrawApp {
 
         // 3. Bottom Filmstrip Panel
         self.render_filmstrip_panel(ui);
+
+        // 4. Left Sidebar Panel (Histogram Waveform + Explorer + Presets + EXIF)
+        self.render_left_panel(ui);
+
+        // 5. Right Darkroom Inspector Panel (Categorized Palettes + Active Filter + Collapsible Cards)
+        self.render_darkroom_panel(ui);
 
         // 6. Central Viewport Area
         self.render_central_viewport(ui);
