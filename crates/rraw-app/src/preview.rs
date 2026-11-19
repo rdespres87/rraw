@@ -515,88 +515,12 @@ impl BaseRgbPreview {
         let pattern = cfa.pattern();
 
         if target_width >= width {
-            // 1:1 Full-Resolution CFA Bilinear Demosaicing (preserves 100% native sensor pixels & sharpness)
+            // 1:1 Full-Resolution CFA Edge-Aware Adaptive Demosaicing (preserves 100% native sharpness, eliminates zippering & false color)
             let preview_w = width;
             let preview_h = height;
-            let mut samples_rgb = vec![[0.0_f32; 3]; preview_w * preview_h];
-
-            // Precompute 6x6 periodic CFA color LUT (covers both 2x2 Bayer and 6x6 X-Trans without modulo per neighbor)
-            let mut cfa_lut = [[CfaColor::Green; 6]; 6];
-            for (ly, row_lut) in cfa_lut.iter_mut().enumerate() {
-                for (lx, cell) in row_lut.iter_mut().enumerate() {
-                    *cell = pattern.color_at(lx, ly);
-                }
-            }
-
-            samples_rgb
-                .par_chunks_mut(preview_w)
-                .enumerate()
-                .for_each(|(y, out_row)| {
-                    let y0 = y.saturating_sub(1);
-                    let y1 = (y + 1).min(height - 1);
-                    let lut_y = y % 6;
-
-                    for (x, out_px) in out_row.iter_mut().enumerate() {
-                        let center_color = cfa_lut[lut_y][x % 6];
-                        let center_val = samples[y * width + x];
-
-                        let x0 = x.saturating_sub(1);
-                        let x1 = (x + 1).min(width - 1);
-
-                        let mut r_sum = 0.0_f32;
-                        let mut r_cnt = 0_u32;
-                        let mut g_sum = 0.0_f32;
-                        let mut g_cnt = 0_u32;
-                        let mut b_sum = 0.0_f32;
-                        let mut b_cnt = 0_u32;
-
-                        for ny in y0..=y1 {
-                            let n_lut_y = ny % 6;
-                            let row_off = ny * width;
-                            for nx in x0..=x1 {
-                                let val = samples[row_off + nx];
-                                match cfa_lut[n_lut_y][nx % 6] {
-                                    CfaColor::Red => {
-                                        r_sum += val;
-                                        r_cnt += 1;
-                                    }
-                                    CfaColor::Green => {
-                                        g_sum += val;
-                                        g_cnt += 1;
-                                    }
-                                    CfaColor::Blue => {
-                                        b_sum += val;
-                                        b_cnt += 1;
-                                    }
-                                }
-                            }
-                        }
-
-                        let r = if center_color == CfaColor::Red {
-                            center_val
-                        } else if r_cnt > 0 {
-                            r_sum / (r_cnt as f32)
-                        } else {
-                            center_val
-                        };
-                        let g = if center_color == CfaColor::Green {
-                            center_val
-                        } else if g_cnt > 0 {
-                            g_sum / (g_cnt as f32)
-                        } else {
-                            center_val
-                        };
-                        let b = if center_color == CfaColor::Blue {
-                            center_val
-                        } else if b_cnt > 0 {
-                            b_sum / (b_cnt as f32)
-                        } else {
-                            center_val
-                        };
-
-                        *out_px = [r, g, b];
-                    }
-                });
+            let samples_rgb =
+                rraw_core::demosaic_cfa(cfa, rraw_core::DemosaicMethod::EdgeAwareAdaptive)
+                    .unwrap_or_else(|_| vec![[0.0_f32; 3]; preview_w * preview_h]);
 
             let semantic_masks = infer_preview_semantic_masks(
                 &samples_rgb,
@@ -885,6 +809,19 @@ pub fn render_preview_from_base(
         (0.0, 0.0)
     };
 
+    let denoise_cfg = rraw_core::DenoiseConfig {
+        chroma_amount: (grading.color_denoise / 100.0).clamp(0.0, 1.0),
+        luma_amount: (grading.luma_denoise / 100.0).clamp(0.0, 1.0),
+    };
+    let denoised_samples = if denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4 {
+        let mut s = base.samples_rgb.clone();
+        rraw_core::denoise_rgb(&mut s, preview_w, preview_h, &denoise_cfg);
+        Some(s)
+    } else {
+        None
+    };
+    let effective_samples = denoised_samples.as_deref().unwrap_or(&base.samples_rgb);
+
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();
 
@@ -973,7 +910,7 @@ pub fn render_preview_from_base(
             for (px, out_pixel) in row_pixels.iter_mut().enumerate() {
                 let (sample_idx, v_mult) = if is_identity_geom {
                     let s_idx =
-                        (row_identity_offset + px).min(base.samples_rgb.len().saturating_sub(1));
+                        (row_identity_offset + px).min(effective_samples.len().saturating_sub(1));
                     let v = if v_gain > 1e-4 {
                         let kx = px as f32 - cx;
                         let ky = py as f32 - cy;
@@ -1016,10 +953,10 @@ pub fn render_preview_from_base(
                     } else {
                         1.0
                     };
-                    (s_idx.min(base.samples_rgb.len().saturating_sub(1)), v)
+                    (s_idx.min(effective_samples.len().saturating_sub(1)), v)
                 };
 
-                let [mean_r, mean_g, mean_b] = base.samples_rgb[sample_idx];
+                let [mean_r, mean_g, mean_b] = effective_samples[sample_idx];
 
                 let r_scaled = (combined_mat[0] * mean_r
                     + combined_mat[1] * mean_g
@@ -1361,6 +1298,19 @@ pub fn render_export_image(
         (0.0, 0.0)
     };
 
+    let denoise_cfg = rraw_core::DenoiseConfig {
+        chroma_amount: (grading.color_denoise / 100.0).clamp(0.0, 1.0),
+        luma_amount: (grading.luma_denoise / 100.0).clamp(0.0, 1.0),
+    };
+    let denoised_samples = if denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4 {
+        let mut s = base.samples_rgb.clone();
+        rraw_core::denoise_rgb(&mut s, preview_w, preview_h, &denoise_cfg);
+        Some(s)
+    } else {
+        None
+    };
+    let effective_samples = denoised_samples.as_deref().unwrap_or(&base.samples_rgb);
+
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();
 
@@ -1412,7 +1362,7 @@ pub fn render_export_image(
                 sy * preview_w + sx
             };
 
-            let [mean_r, mean_g, mean_b] = base.samples_rgb[sample_idx];
+            let [mean_r, mean_g, mean_b] = effective_samples[sample_idx];
 
             let v_mult = if v_gain > 1e-4 {
                 let norm_r2 = (kx * kx + ky * ky) / max_radius_sq;

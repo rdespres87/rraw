@@ -790,19 +790,53 @@ impl RrawApp {
                 }
             }
             DarkroomSection::DetailDenoise => {
-                ui.label("Wavelet Denoise (σ)");
-                let r_w = ui.add(
-                    egui::Slider::new(&mut self.grading.wavelet_denoise_sigma, 0.0..=5.0)
-                        .show_value(true),
-                );
-                if r_w.changed() {
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("🎨 Débruitage Couleur (Chrominance)").strong());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if (self.grading.color_denoise - 25.0).abs() > 0.1
+                            && ui
+                                .small_button("Auto (25)")
+                                .on_hover_text("Rétablir la valeur automatique recommandée")
+                                .clicked()
+                        {
+                            self.grading.color_denoise = 25.0;
+                            self.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
+                    });
+                });
+                let r_cd = ui
+                    .add(
+                        egui::Slider::new(&mut self.grading.color_denoise, 0.0..=100.0)
+                            .show_value(true)
+                            .suffix("%"),
+                    )
+                    .on_hover_text("Supprime les marbrures et tavelures colorées (magenta/vertes) sans flouter les détails nets");
+                if r_cd.changed() {
                     self.grading.preset = GradingPreset::Custom;
                     self.current_preset = GradingPreset::Custom;
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Richardson-Lucy Sharpening");
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new("💡 Débruitage Luminance (Grain)").strong());
+                let r_ld = ui
+                    .add(
+                        egui::Slider::new(&mut self.grading.luma_denoise, 0.0..=100.0)
+                            .show_value(true)
+                            .suffix("%"),
+                    )
+                    .on_hover_text("Lisse le grain noir et blanc dans les aplats tout en préservant le micro-contraste des contours");
+                if r_ld.changed() {
+                    self.grading.preset = GradingPreset::Custom;
+                    self.current_preset = GradingPreset::Custom;
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+
+                ui.add_space(4.0);
+                ui.label("🔍 Accentuation des détails (Sharpening)");
                 let r_s = ui.add(
                     egui::Slider::new(&mut self.grading.capture_sharpening_amount, 0.0..=2.0)
                         .show_value(true),
@@ -810,6 +844,17 @@ impl RrawApp {
                 if r_s.changed() {
                     self.grading.preset = GradingPreset::Custom;
                     self.current_preset = GradingPreset::Custom;
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+
+                ui.add_space(4.0);
+                if ui.button("Réinitialiser Détails & Débruitage").clicked() {
+                    self.grading.color_denoise = 25.0;
+                    self.grading.luma_denoise = 0.0;
+                    self.grading.capture_sharpening_amount = 0.5;
+                    self.grading.preset = GradingPreset::detect_preset(&self.grading);
+                    self.current_preset = self.grading.preset;
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }

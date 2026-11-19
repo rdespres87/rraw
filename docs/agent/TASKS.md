@@ -32,11 +32,32 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 
 ---
 
-## Phase 6 — Future Roadmap & Extensions Backlog
+## Phase 6 — Extended Color, Presets, AI Masks & Timelapse Engine (Complete)
 - [x] **Task 6.1 (`rraw-gpu` & `rraw-app`)**: Interactive Parametric Tone Curves (PCHIP splines evaluated in WGSL Stage 5 with live sqrt histogram underlay & in/out readout, commit `64921a7`, `e084390`, `4b0c724`)
 - [x] **Task 6.2 (`rraw-color` & `rraw-app`)**: Extended Film Emulation & 3D CLUT / Creative Presets library (tetrahedral & trilinear CLUT, `.cube` parser/exporter, film profiles & grading presets, commit `a607876`)
 - [x] **Task 6.2b (`rraw-gpu` & `rraw-app`)**: GPU WGSL 3D CLUT & User `.cube` Import (hardware trilinear `texture_3d<f32>` in Stage 5 at 120 FPS, UI `.cube` file import, intensity slider, sidecar persistence)
 - [x] **Task 6.3 (`rraw-core`, `rraw-ai`, `rraw-gpu` & `rraw-app`)**: CoreML AI Semantic Segmentation Masks (`Subject`, `Sky`, `Background`, `Portrait` with edge-aware guided refinement, WGSL Stage 6 bilinear evaluation, live viewport overlay & local grading)
 - [x] **Task 6.4 (`rraw-color` & `rraw-app`)**: Color Management & Soft Proofing (ICC display/printer profiles, Perceptual & Relative Colorimetric intents, paper white & black ink simulation, out-of-gamut zebra alerts)
 - [x] **Task 6.5 (`rraw-export` & `rraw-app`)**: Timelapse & High-Bitrate Video Exporter (Temporal RAW log2 luminance deflicker, Holy Grail keyframe ramping, 5-digit sequence assembly & ProRes/HEVC manifest)
+
+---
+
+## Phase 7 — Advanced Demosaicing & Noise Reduction Engine (Edge-Aware / Guided Wavelet / Luma & Chroma Denoise)
+- [x] **Task 7.1 (`rraw-core` & `rraw-app`)**: Edge-Aware Adaptive Demosaicing (Directional green gradient interpolation / Hamilton-Adams & RCD color difference filter eliminating zippering & false color on high-contrast edges)
+- [x] **Task 7.2 (`rraw-core` & `rraw-app`)**: Guided Bilateral & Wavelet Chrominance Denoise (Luminance-guided chrominance bilateral filtering eliminating color speckles/mottle in shadows and high ISO without edge blurring)
+- [x] **Task 7.3 (`rraw-core` & `rraw-app`)**: Luminance Denoise & Viewport Before/After Ergonomics (Edge-preserving luma grain filter, active sliders in `DarkroomSection::DetailDenoise`, right-click/shortcut key original comparison in 1:1 zoom, sidecar persistence and export integration)
+
+---
+
+## Phase 8 — Complete Optical Correction Suite (Distortion, CA Defringe, Vignetting & Profile Matching)
+- [ ] **Task 8.1 (`rraw-optics` & `rraw-app`)**: Chromatic Aberration Auto-Detection & Axial/Lateral Defringe (Purple and green fringing suppression with edge-threshold and hue span controls)
+- [ ] **Task 8.2 (`rraw-optics` & `rraw-app`)**: Lens Profile Matching & Metadata Linking (Exif LensModel/FocalLength matching with Lensfun / DNG OpcodeList3 formulas and strength sliders)
+- [ ] **Task 8.3 (`rraw-app`)**: Enhanced Optical Inspector UI in `DarkroomSection::OpticalCorrections` (Auto-Profile vs Manual mode, interactive defringe preview, sidecar persistence and reset)
+
+---
+
+## Phase 9 — Local Masking & Selective Grading Engine (Gradients, Radial & Brush Strokes)
+- [ ] **Task 9.1 (`rraw-core` & `rraw-app`)**: Local Masking DAG & Data Model (`LinearGradientMask`, `RadialGradientMask`, `BrushStrokeMask` with local EV, Contrast, Temperature, Saturation, Sharpness)
+- [ ] **Task 9.2 (`rraw-app` & `rraw-gpu`)**: Interactive Viewport Overlay & Canvas Tooling (Direct mouse drag for linear/radial gradients with rotation & feather handles, brush stroke painting with radius/hardness)
+- [ ] **Task 9.3 (`rraw-app`)**: Local Mask Layer Stack Inspector & Pipeline Compositor (Layer list, enable/disable, invert, opacity, blend with CoreML AI semantic masks, multi-scale export)
 
