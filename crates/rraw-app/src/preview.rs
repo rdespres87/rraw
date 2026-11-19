@@ -511,19 +511,117 @@ impl BaseRgbPreview {
             };
         }
 
-        let raw_step = (width / target_width.max(1)).max(1);
-        let step = if !raw_step.is_multiple_of(2) {
-            raw_step + 1
-        } else {
-            raw_step
-        };
-
-        let preview_w = (width / step).max(1);
-        let preview_h = (height / step).max(1);
         let samples = cfa.samples();
         let pattern = cfa.pattern();
 
-        // Precompute Bayer quad color channel mapping for sub-millisecond point-decimation sampling
+        if target_width >= width {
+            // 1:1 Full-Resolution CFA Bilinear Demosaicing (preserves 100% native sensor pixels & sharpness)
+            let preview_w = width;
+            let preview_h = height;
+            let mut samples_rgb = vec![[0.0_f32; 3]; preview_w * preview_h];
+
+            // Precompute 6x6 periodic CFA color LUT (covers both 2x2 Bayer and 6x6 X-Trans without modulo per neighbor)
+            let mut cfa_lut = [[CfaColor::Green; 6]; 6];
+            for (ly, row_lut) in cfa_lut.iter_mut().enumerate() {
+                for (lx, cell) in row_lut.iter_mut().enumerate() {
+                    *cell = pattern.color_at(lx, ly);
+                }
+            }
+
+            samples_rgb
+                .par_chunks_mut(preview_w)
+                .enumerate()
+                .for_each(|(y, out_row)| {
+                    let y0 = y.saturating_sub(1);
+                    let y1 = (y + 1).min(height - 1);
+                    let lut_y = y % 6;
+
+                    for (x, out_px) in out_row.iter_mut().enumerate() {
+                        let center_color = cfa_lut[lut_y][x % 6];
+                        let center_val = samples[y * width + x];
+
+                        let x0 = x.saturating_sub(1);
+                        let x1 = (x + 1).min(width - 1);
+
+                        let mut r_sum = 0.0_f32;
+                        let mut r_cnt = 0_u32;
+                        let mut g_sum = 0.0_f32;
+                        let mut g_cnt = 0_u32;
+                        let mut b_sum = 0.0_f32;
+                        let mut b_cnt = 0_u32;
+
+                        for ny in y0..=y1 {
+                            let n_lut_y = ny % 6;
+                            let row_off = ny * width;
+                            for nx in x0..=x1 {
+                                let val = samples[row_off + nx];
+                                match cfa_lut[n_lut_y][nx % 6] {
+                                    CfaColor::Red => {
+                                        r_sum += val;
+                                        r_cnt += 1;
+                                    }
+                                    CfaColor::Green => {
+                                        g_sum += val;
+                                        g_cnt += 1;
+                                    }
+                                    CfaColor::Blue => {
+                                        b_sum += val;
+                                        b_cnt += 1;
+                                    }
+                                }
+                            }
+                        }
+
+                        let r = if center_color == CfaColor::Red {
+                            center_val
+                        } else if r_cnt > 0 {
+                            r_sum / (r_cnt as f32)
+                        } else {
+                            center_val
+                        };
+                        let g = if center_color == CfaColor::Green {
+                            center_val
+                        } else if g_cnt > 0 {
+                            g_sum / (g_cnt as f32)
+                        } else {
+                            center_val
+                        };
+                        let b = if center_color == CfaColor::Blue {
+                            center_val
+                        } else if b_cnt > 0 {
+                            b_sum / (b_cnt as f32)
+                        } else {
+                            center_val
+                        };
+
+                        *out_px = [r, g, b];
+                    }
+                });
+
+            let semantic_masks = infer_preview_semantic_masks(
+                &samples_rgb,
+                preview_w,
+                preview_h,
+                as_shot_wb,
+                cam_to_srgb,
+            );
+
+            return Self {
+                width: preview_w,
+                height: preview_h,
+                samples_rgb,
+                as_shot_wb,
+                cam_to_srgb,
+                semantic_masks,
+                exif_orientation: 1,
+            };
+        }
+
+        // Sub-sampled fast preview / scaled export path (target_width < width)
+        let preview_w = target_width.clamp(1, width);
+        let preview_h = ((height as u64 * preview_w as u64) / (width as u64)).max(1) as usize;
+
+        // Precompute Bayer quad color channel mapping for fast 2x2 quad sampling
         let colors = [
             pattern.color_at(0, 0),
             pattern.color_at(1, 0),
@@ -553,15 +651,20 @@ impl BaseRgbPreview {
         }
 
         let mut samples_rgb = Vec::with_capacity(preview_w * preview_h);
+        let max_even_x = width.saturating_sub(2) & !1;
+        let max_even_y = height.saturating_sub(2) & !1;
 
         for py in 0..preview_h {
-            let sy = py * step;
+            // Align to even 2x2 Bayer super-pixel origin while matching exact target_width / preview_h dimensions
+            let raw_sy = (py * height) / preview_h;
+            let sy = (raw_sy & !1).min(max_even_y);
             let next_sy = (sy + 1).min(height.saturating_sub(1));
             let row0 = sy * width;
             let row1 = next_sy * width;
 
             for px in 0..preview_w {
-                let sx = px * step;
+                let raw_sx = (px * width) / preview_w;
+                let sx = (raw_sx & !1).min(max_even_x);
                 let next_sx = (sx + 1).min(width.saturating_sub(1));
 
                 let quad = [
@@ -1677,3 +1780,4 @@ pub fn decode_photo_file_payload(
         is_prefetch,
     })
 }
+
