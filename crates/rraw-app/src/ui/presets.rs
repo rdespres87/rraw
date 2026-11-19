@@ -13,9 +13,10 @@ impl RrawApp {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new("Style :").strong().size(12.0));
+                let combo_w = (ui.available_width() - 32.0).max(80.0);
                 egui::ComboBox::from_id_salt("left_panel_preset_combo")
                     .selected_text(self.current_preset.name())
-                    .width(180.0)
+                    .width(combo_w)
                     .show_ui(ui, |ui| {
                         for preset in GradingPreset::ALL {
                             if preset == GradingPreset::Custom {
@@ -33,8 +34,8 @@ impl RrawApp {
                     });
 
                 if ui
-                    .small_button("↺ As Shot")
-                    .on_hover_text("Réinitialiser aux réglages boîtier d'origine")
+                    .small_button("↺")
+                    .on_hover_text("Réinitialiser au profil boîtier d'origine (As Shot)")
                     .clicked()
                 {
                     GradingPreset::AsShot.apply(&mut self.grading);

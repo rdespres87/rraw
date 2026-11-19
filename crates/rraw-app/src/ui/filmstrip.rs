@@ -61,7 +61,7 @@ impl RrawApp {
                     let sel_count = self.selected_photos.len();
                     let sel_text = if sel_count > 0 {
                         format!(
-                            "Lot d'export : ☑ {} cochée{}",
+                            "Lot d'export : ✓ {} cochée{}",
                             sel_count,
                             if sel_count > 1 { "s" } else { "" }
                         )
@@ -509,11 +509,9 @@ impl RrawApp {
 
     /// Renders the left sidebar panel containing the reference histogram waveform, folder explorer, styles, and EXIF.
     pub fn render_left_panel(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::left("left_panel")
-            .resizable(true)
-            .default_size(320.0)
-            .min_size(260.0)
-            .max_size(520.0)
+        egui::Panel::left("left_panel_fixed")
+            .resizable(false)
+            .exact_size(320.0)
             .frame(
                 egui::Frame::side_top_panel(ui.style()).fill(egui::Color32::from_rgb(22, 24, 28)),
             )

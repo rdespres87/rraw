@@ -220,6 +220,41 @@ fn test_tool_family_categorization_and_palette_grouping() {
 }
 
 #[test]
+fn test_layout_config_family_and_active_tools_persistence() -> Result<(), Box<dyn std::error::Error>>
+{
+    use app::{AppLayoutConfig, DarkroomSection, ToolFamily};
+
+    let mut config = AppLayoutConfig::default();
+    assert_eq!(config.active_tool_family, ToolFamily::All);
+    assert!(!config.active_tools_only);
+
+    config.active_tool_family = ToolFamily::Light;
+    config.active_tools_only = true;
+
+    // Serialize to JSON and deserialize back
+    let json = serde_json::to_string(&config)?;
+    let restored: AppLayoutConfig = serde_json::from_str(&json)?;
+
+    assert_eq!(restored.active_tool_family, ToolFamily::Light);
+    assert!(restored.active_tools_only);
+    assert_eq!(restored.section_order.len(), 11);
+
+    // Verify sections matching the Light family
+    let light_sections: Vec<_> = restored
+        .section_order
+        .iter()
+        .filter(|s| s.family() == ToolFamily::Light)
+        .copied()
+        .collect();
+    assert_eq!(
+        light_sections,
+        vec![DarkroomSection::ExposureTone, DarkroomSection::ToneCurves]
+    );
+
+    Ok(())
+}
+
+#[test]
 fn sidecar_saving_and_loading_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let temp_dir = std::env::temp_dir().join("rraw_test_sidecars");
     std::fs::create_dir_all(&temp_dir)?;

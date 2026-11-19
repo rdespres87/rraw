@@ -8,87 +8,6 @@ use rraw_color::DisplayTransform;
 use crate::app::RrawApp;
 use crate::state::*;
 
-/// Matches a darkroom section against a search query using its title and common keywords.
-fn section_matches_search(section: DarkroomSection, query: &str) -> bool {
-    let q = query.trim().to_lowercase();
-    if q.is_empty() {
-        return true;
-    }
-    let title = section.title().to_lowercase();
-    if title.contains(&q) {
-        return true;
-    }
-    match section {
-        DarkroomSection::ExposureTone => {
-            q.contains("expo")
-                || q.contains("lum")
-                || q.contains("ton")
-                || q.contains("contr")
-                || q.contains("noir")
-                || q.contains("blanc")
-                || q.contains("sat")
-        }
-        DarkroomSection::ToneCurves => {
-            q.contains("courb") || q.contains("curve") || q.contains("rgb") || q.contains("spline")
-        }
-        DarkroomSection::WhiteBalanceColor => {
-            q.contains("bal")
-                || q.contains("wb")
-                || q.contains("blanc")
-                || q.contains("kelvin")
-                || q.contains("teinte")
-                || q.contains("clut")
-                || q.contains("lut")
-                || q.contains("coul")
-        }
-        DarkroomSection::SoftProofing => {
-            q.contains("epreuv")
-                || q.contains("proof")
-                || q.contains("gamut")
-                || q.contains("icc")
-                || q.contains("papier")
-        }
-        DarkroomSection::DetailDenoise => {
-            q.contains("bruit")
-                || q.contains("noise")
-                || q.contains("denoise")
-                || q.contains("nett")
-                || q.contains("sharp")
-                || q.contains("ondelette")
-        }
-        DarkroomSection::Crop => q.contains("recadr") || q.contains("crop") || q.contains("ratio"),
-        DarkroomSection::Straighten => {
-            q.contains("redres")
-                || q.contains("rotat")
-                || q.contains("horizon")
-                || q.contains("niv")
-        }
-        DarkroomSection::Geometry => {
-            q.contains("geom") || q.contains("persp") || q.contains("keystone")
-        }
-        DarkroomSection::OpticalCorrections => {
-            q.contains("optiq")
-                || q.contains("lens")
-                || q.contains("distor")
-                || q.contains("vignett")
-                || q.contains("aberr")
-                || q.contains("defringe")
-        }
-        DarkroomSection::AiSemanticMasks => {
-            q.contains("masq")
-                || q.contains("mask")
-                || q.contains("pinceau")
-                || q.contains("brush")
-                || q.contains("ia")
-                || q.contains("retouch")
-        }
-        DarkroomSection::Timelapse => {
-            q.contains("time") || q.contains("lapse") || q.contains("flicker")
-        }
-        DarkroomSection::LegacyOther => false,
-    }
-}
-
 impl RrawApp {
     /// Returns true if a darkroom section contains non-default adjustment values.
     #[must_use]
@@ -221,11 +140,9 @@ impl RrawApp {
     pub fn render_darkroom_panel(&mut self, ui: &mut egui::Ui) {
         let order = self.layout_config.section_order.clone();
 
-        egui::Panel::right("darkroom_panel")
-            .resizable(true)
-            .default_size(360.0)
-            .min_size(320.0)
-            .max_size(600.0)
+        egui::Panel::right("darkroom_panel_fixed")
+            .resizable(false)
+            .exact_size(360.0)
             .frame(
                 egui::Frame::side_top_panel(ui.style()).fill(egui::Color32::from_rgb(24, 26, 31)),
             )
@@ -249,48 +166,71 @@ impl RrawApp {
 
                 ui.add_space(4.0);
 
-                // 2. Family Category Filter Bar (Tous, Lumière, Couleur, Détail, Géométrie, Masques)
-                ui.horizontal_wrapped(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(3.0, 3.0);
-                    for family in ToolFamily::ALL {
-                        let is_selected = self.active_tool_family == family;
+                // 2. Family Category Filter Bar (2 balanced rows of 3 buttons with equal width)
+                let btn_w = ((ui.available_width() - 8.0) / 3.0).floor();
+                let row1 = [ToolFamily::All, ToolFamily::Light, ToolFamily::Color];
+                let row2 = [
+                    ToolFamily::Detail,
+                    ToolFamily::Geometry,
+                    ToolFamily::LocalMasks,
+                ];
+
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(4.0, 3.0);
+                    for &family in &row1 {
+                        let is_sel = self.active_tool_family == family;
                         let text = egui::RichText::new(family.label()).size(11.0);
-                        if ui.selectable_label(is_selected, text).clicked() {
+                        if ui
+                            .add_sized([btn_w, 22.0], egui::Button::new(text).selected(is_sel))
+                            .clicked()
+                        {
                             self.active_tool_family = family;
+                            self.layout_config.active_tool_family = family;
+                            self.layout_config.save();
                         }
                     }
                 });
 
-                ui.add_space(4.0);
-
-                // 3. Secondary Toolbar: Search Query + Active Tools Toggle
                 ui.horizontal(|ui| {
-                    // Search box
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.tool_search_query)
-                            .hint_text("🔍 Filtrer les réglages...")
-                            .desired_width((ui.available_width() - 105.0).max(80.0)),
-                    );
-                    if !self.tool_search_query.is_empty() && ui.small_button("✕").clicked() {
-                        self.tool_search_query.clear();
-                    }
-
-                    // Active-only toggle
-                    let active_label = if self.active_tools_only {
-                        egui::RichText::new("☑ Modifiés")
-                            .color(egui::Color32::from_rgb(100, 190, 255))
-                            .size(11.0)
-                    } else {
-                        egui::RichText::new("☐ Modifiés").size(11.0)
-                    };
-                    if ui
-                        .selectable_label(self.active_tools_only, active_label)
-                        .on_hover_text("N'afficher que les réglages modifiés sur cette image")
-                        .clicked()
-                    {
-                        self.active_tools_only = !self.active_tools_only;
+                    ui.spacing_mut().item_spacing = egui::vec2(4.0, 3.0);
+                    for &family in &row2 {
+                        let is_sel = self.active_tool_family == family;
+                        let text = egui::RichText::new(family.label()).size(11.0);
+                        if ui
+                            .add_sized([btn_w, 22.0], egui::Button::new(text).selected(is_sel))
+                            .clicked()
+                        {
+                            self.active_tool_family = family;
+                            self.layout_config.active_tool_family = family;
+                            self.layout_config.save();
+                        }
                     }
                 });
+
+                ui.add_space(3.0);
+
+                // 3. Active-only toggle full width
+                let active_label = if self.active_tools_only {
+                    egui::RichText::new("✓ N'afficher que les réglages modifiés")
+                        .color(egui::Color32::from_rgb(100, 190, 255))
+                        .size(11.5)
+                } else {
+                    egui::RichText::new("N'afficher que les réglages modifiés").size(11.5)
+                };
+                if ui
+                    .add_sized(
+                        [ui.available_width(), 22.0],
+                        egui::Button::new(active_label).selected(self.active_tools_only),
+                    )
+                    .on_hover_text(
+                        "Filtrer pour n'afficher que les réglages modifiés sur cette image",
+                    )
+                    .clicked()
+                {
+                    self.active_tools_only = !self.active_tools_only;
+                    self.layout_config.active_tools_only = self.active_tools_only;
+                    self.layout_config.save();
+                }
 
                 ui.separator();
 
@@ -313,11 +253,6 @@ impl RrawApp {
                                 continue;
                             }
 
-                            // Filter by Search Query
-                            if !section_matches_search(*section, &self.tool_search_query) {
-                                continue;
-                            }
-
                             self.render_darkroom_section(ui, *section, idx);
                             rendered_count += 1;
                         }
@@ -336,6 +271,8 @@ impl RrawApp {
                                     && ui.button("Afficher tous les outils").clicked()
                                 {
                                     self.active_tools_only = false;
+                                    self.layout_config.active_tools_only = false;
+                                    self.layout_config.save();
                                 }
                             });
                         }
@@ -373,45 +310,67 @@ impl RrawApp {
             egui::RichText::new(section.title()).strong()
         };
 
+        let is_specific_family = self.active_tool_family != ToolFamily::All;
+        let default_open = is_specific_family
+            || matches!(
+                section,
+                DarkroomSection::ExposureTone
+                    | DarkroomSection::ToneCurves
+                    | DarkroomSection::WhiteBalanceColor
+            );
+
         egui::Frame::group(ui.style())
             .fill(egui::Color32::from_rgb(20, 22, 27))
-            .inner_margin(6.0)
+            .inner_margin(egui::Margin::symmetric(8, 6))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    if is_active {
-                        ui.label(
-                            egui::RichText::new("●")
-                                .color(egui::Color32::from_rgb(100, 190, 255))
-                                .size(9.0),
-                        );
-                    }
+                let id = ui.make_persistent_id(format!("sec_{:?}", section));
+                let mut state = egui::collapsing_header::CollapsingState::load_with_default_open(
+                    ui.ctx(),
+                    id,
+                    default_open,
+                );
+                if is_specific_family {
+                    state.set_open(true);
+                }
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if !is_last && ui.small_button("▼").on_hover_text("Déplacer vers le bas").clicked() {
-                            self.move_section(idx, false);
+                state
+                    .show_header(ui, |ui| {
+                        if is_active {
+                            ui.label(
+                                egui::RichText::new("●")
+                                    .color(egui::Color32::from_rgb(100, 190, 255))
+                                    .size(9.0),
+                            );
                         }
-                        if !is_first && ui.small_button("▲").on_hover_text("Déplacer vers le haut").clicked() {
-                            self.move_section(idx, true);
-                        }
-                        if ui
-                            .small_button("↺")
-                            .on_hover_text("Réinitialiser ce module aux valeurs par défaut")
-                            .clicked()
-                        {
-                            self.reset_section(section);
-                        }
-                    });
-                });
+                        ui.label(header_title);
 
-                egui::CollapsingHeader::new(header_title)
-                    .id_salt(format!("section_{:?}", section))
-                    .default_open(matches!(
-                        section,
-                        DarkroomSection::ExposureTone
-                            | DarkroomSection::ToneCurves
-                            | DarkroomSection::WhiteBalanceColor
-                    ))
-                    .show(ui, |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if !is_last
+                                && ui
+                                    .small_button("▼")
+                                    .on_hover_text("Déplacer vers le bas")
+                                    .clicked()
+                            {
+                                self.move_section(idx, false);
+                            }
+                            if !is_first
+                                && ui
+                                    .small_button("▲")
+                                    .on_hover_text("Déplacer vers le haut")
+                                    .clicked()
+                            {
+                                self.move_section(idx, true);
+                            }
+                            if ui
+                                .small_button("↺")
+                                .on_hover_text("Réinitialiser ce module aux valeurs par défaut")
+                                .clicked()
+                            {
+                                self.reset_section(section);
+                            }
+                        });
+                    })
+                    .body_unindented(|ui| {
                         ui.add_space(2.0);
 
         match section {
@@ -529,29 +488,29 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.horizontal(|ui| {
-                    ui.label("Transform:");
-                    egui::ComboBox::from_id_salt("drt_select")
-                        .selected_text(format!("{:?}", self.grading.display_transform))
-                        .show_ui(ui, |ui| {
-                            let c1 = ui.selectable_value(
-                                &mut self.grading.display_transform,
-                                DisplayTransform::AgX,
-                                "AgX (Default)",
-                            );
-                            let c2 = ui.selectable_value(
-                                &mut self.grading.display_transform,
-                                DisplayTransform::OpenDrt,
-                                "OpenDRT",
-                            );
-                            if c1.changed() || c2.changed() {
-                                self.grading.preset = GradingPreset::Custom;
-                                self.current_preset = GradingPreset::Custom;
-                                self.needs_preview_update = true;
-                                ui.ctx().request_repaint();
-                            }
-                        });
-                });
+                ui.label("Rendu couleur (DRT) :");
+                let drt_w = (ui.available_width() - 8.0).max(100.0);
+                egui::ComboBox::from_id_salt("drt_select")
+                    .selected_text(format!("{:?}", self.grading.display_transform))
+                    .width(drt_w)
+                    .show_ui(ui, |ui| {
+                        let c1 = ui.selectable_value(
+                            &mut self.grading.display_transform,
+                            DisplayTransform::AgX,
+                            "AgX (Default)",
+                        );
+                        let c2 = ui.selectable_value(
+                            &mut self.grading.display_transform,
+                            DisplayTransform::OpenDrt,
+                            "OpenDRT",
+                        );
+                        if c1.changed() || c2.changed() {
+                            self.grading.preset = GradingPreset::Custom;
+                            self.current_preset = GradingPreset::Custom;
+                            self.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
+                    });
 
                 let c_mono = ui.checkbox(&mut self.grading.is_monochrome, "Monochrome (B&W)");
                 if c_mono.changed() {
@@ -576,16 +535,18 @@ impl RrawApp {
             DarkroomSection::AiSemanticMasks => {
                 let mut changed = false;
 
+                ui.label(egui::RichText::new("Masques géométriques :").strong());
+                let btn_w = ((ui.available_width() - 8.0) / 3.0).floor();
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Masques géométriques :").strong());
+                    ui.spacing_mut().item_spacing = egui::vec2(4.0, 3.0);
                     if ui
-                        .small_button("+ Dégradé linéaire")
+                        .add_sized([btn_w, 22.0], egui::Button::new("+ Linéaire"))
                         .on_hover_text("Ajouter un dégradé linéaire (ex. ciel ou premier plan)")
                         .clicked()
                     {
                         let count = self.grading.local_masks.len() + 1;
                         self.grading.local_masks.push(LocalMaskLayer::new_linear(
-                            format!("Dégradé linéaire {count}"),
+                            format!("Linéaire {count}"),
                             [0.5, 0.0],
                             [0.5, 0.45],
                         ));
@@ -593,13 +554,13 @@ impl RrawApp {
                         changed = true;
                     }
                     if ui
-                        .small_button("+ Dégradé radial")
+                        .add_sized([btn_w, 22.0], egui::Button::new("+ Radial"))
                         .on_hover_text("Ajouter un masque radial (ex. sujet, visage ou projecteur)")
                         .clicked()
                     {
                         let count = self.grading.local_masks.len() + 1;
                         self.grading.local_masks.push(LocalMaskLayer::new_radial(
-                            format!("Dégradé radial {count}"),
+                            format!("Radial {count}"),
                             [0.5, 0.5],
                             [0.3, 0.3],
                         ));
@@ -608,7 +569,7 @@ impl RrawApp {
                         changed = true;
                     }
                     if ui
-                        .small_button("+ Pinceau")
+                        .add_sized([btn_w, 22.0], egui::Button::new("+ Pinceau"))
                         .on_hover_text(
                             "Ajouter un pinceau de retouche libre à peindre sur la photo",
                         )
@@ -637,7 +598,7 @@ impl RrawApp {
                         .fill(Color32::from_rgb(30, 34, 40))
                         .inner_margin(6.0)
                         .show(ui, |ui| {
-                            ui.horizontal(|ui| {
+                            ui.horizontal_wrapped(|ui| {
                                 let icon = match &mask.kind {
                                     LocalMaskKind::LinearGradient { .. } => "📏",
                                     LocalMaskKind::RadialGradient { .. } => "⭕",
@@ -779,6 +740,8 @@ impl RrawApp {
                                             {
                                                 changed = true;
                                             }
+                                        });
+                                        ui.horizontal(|ui| {
                                             ui.label("Arrivée Y :");
                                             if ui
                                                 .add(
@@ -797,7 +760,7 @@ impl RrawApp {
                                         rotation_deg: _,
                                     } => {
                                         ui.horizontal(|ui| {
-                                            ui.label("Centre X/Y :");
+                                            ui.label("Centre X :");
                                             if ui
                                                 .add(
                                                     egui::Slider::new(&mut center[0], 0.0..=1.0)
@@ -807,6 +770,9 @@ impl RrawApp {
                                             {
                                                 changed = true;
                                             }
+                                        });
+                                        ui.horizontal(|ui| {
+                                            ui.label("Centre Y :");
                                             if ui
                                                 .add(
                                                     egui::Slider::new(&mut center[1], 0.0..=1.0)
@@ -818,7 +784,7 @@ impl RrawApp {
                                             }
                                         });
                                         ui.horizontal(|ui| {
-                                            ui.label("Rayons X/Y :");
+                                            ui.label("Rayon X :");
                                             if ui
                                                 .add(
                                                     egui::Slider::new(&mut radius[0], 0.05..=1.0)
@@ -828,6 +794,9 @@ impl RrawApp {
                                             {
                                                 changed = true;
                                             }
+                                        });
+                                        ui.horizontal(|ui| {
+                                            ui.label("Rayon Y :");
                                             if ui
                                                 .add(
                                                     egui::Slider::new(&mut radius[1], 0.05..=1.0)
@@ -867,6 +836,8 @@ impl RrawApp {
                                             {
                                                 changed = true;
                                             }
+                                        });
+                                        ui.horizontal(|ui| {
                                             ui.label("Débit :");
                                             if ui
                                                 .add(
@@ -961,11 +932,11 @@ impl RrawApp {
                             .any(|m| m.category == cat);
                         let label = SemanticMaskLayer::category_label(cat);
                         let btn_text = if exists {
-                            egui::RichText::new(format!("☑ {label}"))
+                            egui::RichText::new(format!("✓ {label}"))
                                 .strong()
                                 .color(Color32::from_rgb(110, 225, 145))
                         } else {
-                            egui::RichText::new(format!("☐ {label}"))
+                            egui::RichText::new(label.to_string())
                         };
                         let tooltip = if exists {
                             "Cliquer pour décocher et retirer ce masque IA"
@@ -1116,6 +1087,8 @@ impl RrawApp {
                                     {
                                         changed = true;
                                     }
+                                });
+                                ui.horizontal(|ui| {
                                     ui.label("Opacité");
                                     if ui
                                         .add(
@@ -1155,93 +1128,91 @@ impl RrawApp {
             DarkroomSection::SoftProofing => {
                 let mut sp_changed = false;
 
-                ui.horizontal(|ui| {
-                    if ui
-                        .checkbox(
-                            &mut self.grading.soft_proof.enabled,
-                            egui::RichText::new("Activer l'épreuvage écran (Soft Proofing)")
-                                .strong(),
-                        )
-                        .changed()
-                    {
-                        sp_changed = true;
-                    }
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Profil cible :");
-                    egui::ComboBox::from_id_salt("soft_proof_profile_combo")
-                        .selected_text(self.grading.soft_proof.profile.label())
-                        .show_ui(ui, |ui| {
-                            for prof in rraw_color::SoftProofProfile::ALL {
-                                if ui
-                                    .selectable_value(
-                                        &mut self.grading.soft_proof.profile,
-                                        prof,
-                                        prof.label(),
-                                    )
-                                    .changed()
-                                {
-                                    // Auto-enable paper & ink simulation when choosing a physical paper profile
-                                    if prof.is_print_medium() {
-                                        self.grading.soft_proof.simulate_paper_and_ink = true;
-                                    }
-                                    sp_changed = true;
-                                }
-                            }
-                        });
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Intention :");
-                    egui::ComboBox::from_id_salt("soft_proof_intent_combo")
-                        .selected_text(self.grading.soft_proof.intent.label())
-                        .show_ui(ui, |ui| {
-                            for intent in rraw_color::SoftProofRenderingIntent::ALL {
-                                if ui
-                                    .selectable_value(
-                                        &mut self.grading.soft_proof.intent,
-                                        intent,
-                                        intent.label(),
-                                    )
-                                    .changed()
-                                {
-                                    sp_changed = true;
-                                }
-                            }
-                        });
-                });
-
                 if ui
                     .checkbox(
-                        &mut self.grading.soft_proof.simulate_paper_and_ink,
-                        "Simuler le blanc du papier et l'encre noire (Dmin / Dmax)",
-                    )
-                    .on_hover_text(
-                        "Simule la teinte chaude du papier coton/baryté et la réflectance minimale de l'encre noire",
+                        &mut self.grading.soft_proof.enabled,
+                        egui::RichText::new("Activer l'épreuvage écran").strong(),
                     )
                     .changed()
                 {
                     sp_changed = true;
                 }
 
-                ui.horizontal(|ui| {
-                    let alert_label = if self.grading.soft_proof.show_gamut_warning {
-                        egui::RichText::new("⚠️ Alerte Hors-Gamut (Zébrures Magenta/Cyan)")
-                            .color(Color32::from_rgb(255, 110, 230))
-                    } else {
-                        egui::RichText::new("Afficher l'alerte Hors-Gamut (Zébrures Magenta/Cyan)")
-                    };
-                    if ui
-                        .checkbox(&mut self.grading.soft_proof.show_gamut_warning, alert_label)
-                        .on_hover_text(
-                            "Affiche en magenta/cyan les pixels qui dépassent l'espace colorimétrique cible",
-                        )
-                        .changed()
-                    {
-                        sp_changed = true;
-                    }
-                });
+                ui.add_space(2.0);
+                ui.label("Profil cible :");
+                let combo_w = (ui.available_width() - 8.0).max(100.0);
+                egui::ComboBox::from_id_salt("soft_proof_profile_combo")
+                    .selected_text(self.grading.soft_proof.profile.label())
+                    .width(combo_w)
+                    .show_ui(ui, |ui| {
+                        for prof in rraw_color::SoftProofProfile::ALL {
+                            if ui
+                                .selectable_value(
+                                    &mut self.grading.soft_proof.profile,
+                                    prof,
+                                    prof.label(),
+                                )
+                                .changed()
+                            {
+                                // Auto-enable paper & ink simulation when choosing a physical paper profile
+                                if prof.is_print_medium() {
+                                    self.grading.soft_proof.simulate_paper_and_ink = true;
+                                }
+                                sp_changed = true;
+                            }
+                        }
+                    });
+
+                ui.add_space(2.0);
+                ui.label("Intention de rendu :");
+                let intent_w = (ui.available_width() - 8.0).max(100.0);
+                egui::ComboBox::from_id_salt("soft_proof_intent_combo")
+                    .selected_text(self.grading.soft_proof.intent.label())
+                    .width(intent_w)
+                    .show_ui(ui, |ui| {
+                        for intent in rraw_color::SoftProofRenderingIntent::ALL {
+                            if ui
+                                .selectable_value(
+                                    &mut self.grading.soft_proof.intent,
+                                    intent,
+                                    intent.label(),
+                                )
+                                .changed()
+                            {
+                                sp_changed = true;
+                            }
+                        }
+                    });
+
+                ui.add_space(2.0);
+                if ui
+                    .checkbox(
+                        &mut self.grading.soft_proof.simulate_paper_and_ink,
+                        "Simuler papier et encre",
+                    )
+                    .on_hover_text(
+                        "Simule la teinte chaude du papier coton/baryté (Dmin) et la réflectance minimale de l'encre noire (Dmax)",
+                    )
+                    .changed()
+                {
+                    sp_changed = true;
+                }
+
+                let alert_label = if self.grading.soft_proof.show_gamut_warning {
+                    egui::RichText::new("⚠️ Alerte Hors-Gamut")
+                        .color(Color32::from_rgb(255, 110, 230))
+                } else {
+                    egui::RichText::new("Alerte Hors-Gamut")
+                };
+                if ui
+                    .checkbox(&mut self.grading.soft_proof.show_gamut_warning, alert_label)
+                    .on_hover_text(
+                        "Affiche en magenta/cyan les pixels qui dépassent l'espace colorimétrique cible",
+                    )
+                    .changed()
+                {
+                    sp_changed = true;
+                }
 
                 let oog_count = self.histogram.out_of_gamut_count;
                 let status_text = if oog_count > 0 {
@@ -1438,6 +1409,9 @@ impl RrawApp {
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
+                });
+
+                ui.horizontal(|ui| {
                     let c_fx = ui.checkbox(&mut self.grading.flip_horizontal, "↔ Miroir H");
                     let c_fy = ui.checkbox(&mut self.grading.flip_vertical, "↕ Miroir V");
                     if c_fx.changed() || c_fy.changed() {
