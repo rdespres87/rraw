@@ -132,11 +132,17 @@ pub struct RrawApp {
     pub active_curve_channel: CurveChannel,
     /// Index of curve point currently being dragged, if any.
     pub dragging_curve_point: Option<usize>,
+    /// Timestamp of last automatic filesystem check for new/deleted photos in `current_directory`.
+    pub last_dir_poll: std::time::Instant,
 }
 
 impl RrawApp {
     /// Initializes a new interactive application instance.
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        cc.egui_ctx.all_styles_mut(|style| {
+            style.spacing.scroll.kinetic.rubber_band = false;
+        });
+
         #[cfg(target_os = "macos")]
         let headroom_provider: Box<dyn DisplayHeadroomProvider> =
             Box::new(MacOsDisplayHeadroomProvider);
@@ -233,6 +239,7 @@ impl RrawApp {
             exif_search_query: String::new(),
             active_curve_channel: CurveChannel::CombinedRgb,
             dragging_curve_point: None,
+            last_dir_poll: std::time::Instant::now(),
         };
 
         // Open the first photo in default directory if available
@@ -327,6 +334,32 @@ impl RrawApp {
             abs_dir.display(),
             self.directory_entries.len()
         );
+    }
+
+    /// Polls the currently open directory for newly added or deleted image files without requiring a manual folder reopen.
+    pub fn poll_current_directory_changes(&mut self) -> bool {
+        let Some(dir) = self.current_directory.clone() else {
+            return false;
+        };
+        let mut latest = self.directory_entries.clone();
+        if !sync_directory_entries(&dir, &mut latest) {
+            return false;
+        }
+
+        for path in &latest {
+            if !self.directory_entries.contains(path) {
+                let (grading_opt, rating_opt) = load_photo_sidecars(path);
+                if let Some(g) = grading_opt {
+                    self.photo_gradings.insert(path.clone(), g);
+                }
+                if let Some(r) = rating_opt {
+                    self.photo_ratings.insert(path.clone(), r);
+                }
+            }
+        }
+        self.selected_photos.retain(|p| latest.contains(p));
+        self.directory_entries = latest;
+        true
     }
 
     /// Triggers background prefetching of adjacent photos (+1, +2, -1, -2) for instant switching.
@@ -449,8 +482,6 @@ impl RrawApp {
                 }
             }
         } else {
-            self.selected_photos.clear();
-            self.selected_photos.insert(target.clone());
             self.last_selected_index = Some(new_idx);
         }
 
@@ -566,6 +597,8 @@ impl RrawApp {
 
 impl eframe::App for RrawApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        ui.style_mut().spacing.scroll.kinetic.rubber_band = false;
+
         // Keyboard navigation and multi-selection
         let shift = ui.input(|i| i.modifiers.shift);
         let nav_prev =
@@ -713,6 +746,16 @@ impl eframe::App for RrawApp {
         if !self.thumbnail_pending.is_empty() {
             ui.ctx().request_repaint();
         }
+
+        // Automatically detect newly added or removed photos in the active folder every 1.5s
+        if self.last_dir_poll.elapsed() >= std::time::Duration::from_millis(1500) {
+            self.last_dir_poll = std::time::Instant::now();
+            if self.poll_current_directory_changes() {
+                ui.ctx().request_repaint();
+            }
+        }
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(1500));
 
         // Sub-millisecond zero-latency preview texture update
         if self.needs_preview_update {
