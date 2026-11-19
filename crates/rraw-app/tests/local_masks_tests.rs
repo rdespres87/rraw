@@ -99,3 +99,54 @@ fn test_local_masks_sidecar_recipe_roundtrip() {
     assert_eq!(restored.local_masks[1].name, "Subject Light");
     assert!((restored.local_masks[1].exposure_ev - 0.8).abs() < 1e-4);
 }
+
+#[test]
+fn test_freehand_brush_mask_painting_and_erasing() {
+    let mut brush_mask = LocalMaskLayer::new_brush("Dodge & Burn Brush", 0.15, 0.8);
+    // Empty brush has zero weight everywhere
+    assert_eq!(brush_mask.evaluate_weight(0.5, 0.5), 0.0);
+
+    // Paint a dab at [0.5, 0.5]
+    assert!(brush_mask.add_brush_dab(0.5, 0.5));
+    // Redundant dab at exact same position is skipped
+    assert!(!brush_mask.add_brush_dab(0.5, 0.5));
+
+    let w_center = brush_mask.evaluate_weight(0.5, 0.5);
+    assert!(
+        (w_center - 0.8).abs() < 1e-4,
+        "Painted center should have flow weight 0.8: {w_center}"
+    );
+    assert_eq!(
+        brush_mask.evaluate_weight(0.9, 0.9),
+        0.0,
+        "Far outside brush radius must be 0.0"
+    );
+
+    // Switch to erase mode and erase at [0.5, 0.5]
+    brush_mask.set_brush_erase_mode(true);
+    // Move slightly or force dab
+    assert!(brush_mask.add_brush_dab_forced(0.5, 0.5));
+    let w_after_erase = brush_mask.evaluate_weight(0.5, 0.5);
+    assert!(
+        w_after_erase < 1e-4,
+        "Erased center must drop back to 0.0: {w_after_erase}"
+    );
+}
+
+#[test]
+fn test_freehand_brush_fine_precision_radius_and_zoomed_bounds() {
+    // Ultra-fine brush (e.g. 0.002 = 0.2% of photo width, ideal when zoomed at 200%-400%)
+    let mut fine_brush = LocalMaskLayer::new_brush("Eyelash Detail Brush", 0.002, 1.0);
+    assert!(fine_brush.add_brush_dab(0.5000, 0.5000));
+
+    // At center, weight is 1.0
+    let w_center = fine_brush.evaluate_weight(0.5000, 0.5000);
+    assert!((w_center - 1.0).abs() < 1e-4);
+
+    // Just 0.003 away (outside 0.002 radius), weight drops strictly to 0.0
+    let w_outside = fine_brush.evaluate_weight(0.5030, 0.5000);
+    assert_eq!(
+        w_outside, 0.0,
+        "Points outside ultra-fine radius must be strictly 0.0"
+    );
+}

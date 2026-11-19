@@ -636,17 +636,25 @@ impl eframe::App for RrawApp {
             if i.key_pressed(egui::Key::Backslash) {
                 self.is_comparing_original = !self.is_comparing_original;
             }
-            if i.key_pressed(egui::Key::Escape)
-                || ((i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::D))
-            {
+            if i.key_pressed(egui::Key::Escape) {
+                if self.grading.active_brush_mask_idx.is_some() {
+                    self.grading.active_brush_mask_idx = None;
+                } else if !(i.modifiers.command || i.modifiers.ctrl) {
+                    self.selected_photos.clear();
+                }
+            }
+            if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::D) {
                 self.selected_photos.clear();
             }
             if i.key_pressed(egui::Key::Space) {
-                if let Some(photo) = &self.loaded_photo {
-                    if self.selected_photos.contains(&photo.path) {
-                        self.selected_photos.remove(&photo.path);
-                    } else {
-                        self.selected_photos.insert(photo.path.clone());
+                // In Darkroom with brush active, Space is reserved for panning zoomed image
+                if self.grading.active_brush_mask_idx.is_none() {
+                    if let Some(photo) = &self.loaded_photo {
+                        if self.selected_photos.contains(&photo.path) {
+                            self.selected_photos.remove(&photo.path);
+                        } else {
+                            self.selected_photos.insert(photo.path.clone());
+                        }
                     }
                 }
             }

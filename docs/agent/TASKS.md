@@ -57,7 +57,7 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 ---
 
 ## Phase 9 — Local Masking & Selective Grading Engine (Gradients, Radial & Brush Strokes)
-- [ ] **Task 9.1 (`rraw-core` & `rraw-app`)**: Local Masking DAG & Data Model (`LinearGradientMask`, `RadialGradientMask`, `BrushStrokeMask` with local EV, Contrast, Temperature, Saturation, Sharpness)
-- [ ] **Task 9.2 (`rraw-app` & `rraw-gpu`)**: Interactive Viewport Overlay & Canvas Tooling (Direct mouse drag for linear/radial gradients with rotation & feather handles, brush stroke painting with radius/hardness)
+- [x] **Task 9.1 (`rraw-core` & `rraw-app`)**: Local Masking DAG & Data Model (`LinearGradientMask`, `RadialGradientMask` with local EV, Contrast, Temperature, Saturation, continuous analytical falloff, ruby overlay, sidecar persistence)
+- [x] **Task 9.2 (`rraw-app` & `rraw-gpu`)**: Interactive Freehand Brush Masking & Viewport Tooling (Vector dabs, flow, additive/subtractive erase, radius slider down to 0.001, bracket step scaling, scroll wheel zoom, Spacebar/middle-click pan, double-click collision fix)
 - [ ] **Task 9.3 (`rraw-app`)**: Local Mask Layer Stack Inspector & Pipeline Compositor (Layer list, enable/disable, invert, opacity, blend with CoreML AI semantic masks, multi-scale export)
 
