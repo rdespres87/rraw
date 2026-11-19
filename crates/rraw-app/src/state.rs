@@ -911,6 +911,8 @@ pub struct DarkroomGradingState {
     pub tint: f32,
     pub display_transform: DisplayTransform,
     pub wavelet_denoise_sigma: f32,
+    pub color_denoise: f32,
+    pub luma_denoise: f32,
     pub capture_sharpening_amount: f32,
     pub distortion_correction: bool,
     pub distortion_amount: f32,
@@ -1018,6 +1020,8 @@ impl Default for DarkroomGradingState {
             tint: 0.0,
             display_transform: DisplayTransform::AgX,
             wavelet_denoise_sigma: 1.0,
+            color_denoise: 25.0,
+            luma_denoise: 0.0,
             capture_sharpening_amount: 0.5,
             distortion_correction: true,
             distortion_amount: 0.0,
@@ -1056,6 +1060,10 @@ const fn default_one_f32() -> f32 {
     1.0
 }
 
+const fn default_color_denoise() -> f32 {
+    25.0
+}
+
 /// Serialized recipe saved into adjacent `<photo>.rraw.json` sidecar.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SidecarRecipe {
@@ -1076,6 +1084,10 @@ pub struct SidecarRecipe {
     pub tint: f32,
     pub display_transform: String,
     pub wavelet_denoise_sigma: f32,
+    #[serde(default = "default_color_denoise")]
+    pub color_denoise: f32,
+    #[serde(default)]
+    pub luma_denoise: f32,
     pub capture_sharpening_amount: f32,
     pub distortion_correction: bool,
     pub distortion_amount: f32,
@@ -1140,6 +1152,8 @@ impl SidecarRecipe {
                 DisplayTransform::OpenDrt => "OpenDrt".to_string(),
             },
             wavelet_denoise_sigma: grading.wavelet_denoise_sigma,
+            color_denoise: grading.color_denoise,
+            luma_denoise: grading.luma_denoise,
             capture_sharpening_amount: grading.capture_sharpening_amount,
             distortion_correction: grading.distortion_correction,
             distortion_amount: grading.distortion_amount,
@@ -1187,6 +1201,8 @@ impl SidecarRecipe {
             DisplayTransform::AgX
         };
         grading.wavelet_denoise_sigma = self.wavelet_denoise_sigma;
+        grading.color_denoise = self.color_denoise;
+        grading.luma_denoise = self.luma_denoise;
         grading.capture_sharpening_amount = self.capture_sharpening_amount;
         grading.distortion_correction = self.distortion_correction;
         grading.distortion_amount = self.distortion_amount;

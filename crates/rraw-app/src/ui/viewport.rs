@@ -146,14 +146,31 @@ impl RrawApp {
                 egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
             };
 
-            let is_holding_on_img = ui.input(|i| {
+            let is_holding_right_click = ui.input(|i| {
+                i.pointer.button_down(egui::PointerButton::Secondary)
+                    && i.pointer
+                        .interact_pos()
+                        .is_some_and(|p| available_rect.contains(p))
+            });
+
+            let is_holding_shortcut_key = ui.input(|i| {
+                i.key_down(egui::Key::P) || i.key_down(egui::Key::Backslash)
+            });
+
+            let is_holding_left_fit = ui.input(|i| {
                 i.pointer.button_down(egui::PointerButton::Primary)
-                    && i.pointer.interact_pos().is_some_and(|p| preview_rect.contains(p))
+                    && i.pointer
+                        .interact_pos()
+                        .is_some_and(|p| preview_rect.contains(p))
             }) && !is_tool_active
                 && self.crop_drag_handle == CropDragHandle::None
                 && self.zoom_level <= 0.0;
 
-            let show_original = self.is_comparing_original || is_holding_on_img;
+            let show_original = self.is_comparing_original
+                || is_holding_left_fit
+                || is_holding_right_click
+                || is_holding_shortcut_key;
+
             let active_texture = if show_original {
                 self.original_texture.as_ref().unwrap_or(texture)
             } else {
@@ -172,6 +189,28 @@ impl RrawApp {
                 egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 65, 75)),
                 egui::StrokeKind::Outside,
             );
+
+            // Live Original (Before/After) HUD Badge when holding right click, primary click in fit, or shortcut key
+            if show_original {
+                let badge_rect = egui::Rect::from_center_size(
+                    egui::pos2(available_rect.center().x, available_rect.top() + 24.0),
+                    egui::vec2(180.0, 28.0),
+                );
+                painter.rect_filled(badge_rect, 6.0, egui::Color32::from_black_alpha(220));
+                painter.rect_stroke(
+                    badge_rect,
+                    6.0,
+                    egui::Stroke::new(1.5, egui::Color32::from_rgb(255, 190, 60)),
+                    egui::StrokeKind::Inside,
+                );
+                painter.text(
+                    badge_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    "👁️ Original (Avant retouche)",
+                    egui::FontId::proportional(13.0),
+                    egui::Color32::from_rgb(255, 220, 110),
+                );
+            }
 
             // Live Soft Proofing HUD Badge at top-left of viewport
             if self.grading.soft_proof.enabled || self.grading.soft_proof.show_gamut_warning {

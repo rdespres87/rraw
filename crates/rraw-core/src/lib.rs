@@ -7,9 +7,13 @@ use std::fmt;
 use thiserror::Error;
 
 pub mod curves;
+pub mod demosaic;
+pub mod denoise;
 pub mod recipe;
 
 pub use curves::*;
+pub use demosaic::*;
+pub use denoise::*;
 pub use recipe::*;
 
 /// Typed error returned by `rraw-core` invariant constructors and validators.

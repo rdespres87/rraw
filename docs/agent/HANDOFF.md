@@ -51,13 +51,18 @@
   - Implemented live In/Out percentage coordinate readout and vertical hairline cursor guide.
   - Added dynamic activity dot indicator on modified curve channel selector tabs.
 
-## Next Logical Action: Task 6.5 — Timelapse & High-Bitrate Video Exporter (`rraw-export` & `rraw-app`)
+## Next Logical Action: Task 8.1 — Chromatic Aberration Auto-Detection & Axial/Lateral Defringe (`rraw-optics` & `rraw-app`)
 
-- Implement sequence assembly and anti-flicker temporal exposure/WB smoothing in `rraw-export` for timelapse / high-bitrate DNG sequence rendering.
+- **Objective**: Implement optical defringing to detect and suppress purple and green fringing along high-contrast backlit edges (branches, windows) with customizable edge threshold and hue span controls.
+- **Deliverables**:
+  1. Optical CA fringe detection kernel analyzing radial edge gradients and chromatic overshoot.
+  2. Sub-pixel lateral chromatic aberration color channel re-alignment.
+  3. Interactive sliders in `DarkroomSection::OpticalCorrections` with live 120 FPS feedback and sidecar persistence.
+  4. Unit and integration tests verifying chromatic fringe attenuation on synthetic high-contrast step edges.
 
 ## Repository Completion State
 
-All planned deliverables across all six development phases (Phases 0–5) are implemented, verified by adversarial TDD, and passing all pre-commit formatting and clippy gates.
+All planned deliverables across Phases 0–6 and Phase 7 (Tasks 7.1, 7.2, 7.3) are implemented, verified by adversarial TDD, and passing all pre-commit formatting and clippy gates. Phase 8 is the active development horizon.
 
 ### Summary of Completed Workspace Milestones
 1. **Phase 0**: Repository governance, `#![forbid(unsafe_code)]` / audited EDR isolation, 11 crates.

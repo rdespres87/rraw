@@ -1055,3 +1055,70 @@ fn test_full_resolution_1_to_1_export_preserves_exact_sensor_dimensions(
 
     Ok(())
 }
+
+#[test]
+fn test_chroma_and_luma_denoise_reduces_variance_in_rendered_preview_and_export(
+) -> Result<(), rraw_core::CoreError> {
+    use rraw_core::{BayerOrigin, CfaPattern, SignedCfaBuffer};
+
+    let width = 64;
+    let height = 64;
+    let pattern = CfaPattern::Bayer(BayerOrigin::Rggb);
+    let mut samples = vec![0.5_f32; width * height];
+    // Add non-periodic spatial noise across the sensor grid
+    for y in 0..height {
+        for x in 0..width {
+            let n = (((x * 37 + y * 73 + (x ^ y)) % 23) as f32 / 23.0 - 0.5) * 0.30;
+            samples[y * width + x] = (0.5 + n).clamp(0.1, 0.9);
+        }
+    }
+    let cfa = SignedCfaBuffer::new(width, height, pattern, samples)?;
+    let base = app::BaseRgbPreview::from_cfa_with_color_and_target_width(
+        &cfa,
+        [1.0, 1.0, 1.0],
+        None,
+        width,
+    );
+
+    // Render with zero denoise and identity optics
+    let no_denoise = DarkroomGradingState {
+        distortion_correction: false,
+        vignette_correction: false,
+        color_denoise: 0.0,
+        luma_denoise: 0.0,
+        ..Default::default()
+    };
+    let (_, _, u8_raw, _) = app::render_export_image(&base, &no_denoise, 1.0);
+
+    // Render with active chroma & luma denoise
+    let with_denoise = DarkroomGradingState {
+        distortion_correction: false,
+        vignette_correction: false,
+        color_denoise: 90.0,
+        luma_denoise: 80.0,
+        ..Default::default()
+    };
+    let (_, _, u8_clean, _) = app::render_export_image(&base, &with_denoise, 1.0);
+
+    // Compute pixel variance of raw vs clean
+    let mean_raw: f32 = u8_raw.iter().map(|&b| b as f32).sum::<f32>() / (u8_raw.len() as f32);
+    let var_raw: f32 = u8_raw
+        .iter()
+        .map(|&b| (b as f32 - mean_raw).powi(2))
+        .sum::<f32>()
+        / (u8_raw.len() as f32);
+
+    let mean_clean: f32 = u8_clean.iter().map(|&b| b as f32).sum::<f32>() / (u8_clean.len() as f32);
+    let var_clean: f32 = u8_clean
+        .iter()
+        .map(|&b| (b as f32 - mean_clean).powi(2))
+        .sum::<f32>()
+        / (u8_clean.len() as f32);
+
+    assert!(
+        var_clean < var_raw * 0.5,
+        "Denoised variance {var_clean} must be < 50% of raw {var_raw}"
+    );
+
+    Ok(())
+}

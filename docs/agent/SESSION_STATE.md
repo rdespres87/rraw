@@ -4,7 +4,7 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 6 — Advanced Color & Tone Architecture (All Tasks 6.1–6.5 Complete)
+- **Active Phase**: Phase 7 — Advanced Demosaicing & Noise Reduction Engine (Edge-Aware / Guided Wavelet / Luma & Chroma Denoise)
 - **Active Tasks**:
   - Task 0.1 & Task 0.2: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized)
   - Task 1.1 (`rraw-core`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `acedebb`)
@@ -33,7 +33,11 @@
   - Phase 6.2b GPU WGSL 3D CLUT & User `.cube` Import: **Complete** (Inquisitor APPROVED, CI green 106 tests, Gate 3 authorized, commit `bd55977`)
   - Phase 6.3 CoreML AI Semantic Segmentation Masks: **Complete** (Inquisitor APPROVED, CI green 117 tests across 37 suites, commits `8dc9095`, `245aa56`, `af92b80`)
   - Phase 6.4 Color Management & Soft Proofing (ICC Profiles & Out-of-Gamut Alerts): **Complete** (Inquisitor APPROVED, CI green 122 tests across 38 suites, commit `d46b2b8`)
-  - Phase 6.5 Timelapse, Keyframe Ramping & Temporal Deflicker Engine (`rraw-export` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green 126 tests across 39 suites)
+  - Phase 6.5 Timelapse, Keyframe Ramping & Temporal Deflicker Engine (`rraw-export` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green 127 tests across 39 suites, commit `568540a`)
+  - Full-Resolution 1:1 CFA Export Demosaicing & Sensor Dimensions Fix: **Complete** (commit `65568a0`)
+  - Task 7.1 (`rraw-core` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green 132 tests across 40 suites, local audit APPROVED via Qwen 3.6 35B)
+  - Task 7.2 & 7.3 (`rraw-core` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green 136 tests across 41 suites, local audit APPROVED via Qwen 3.6 35B, right-click zoom before/after & live denoise engine)
+  - Phase 8.1 (`rraw-optics` & `rraw-app`): **In Planning / Next**
 - **Git Branch**: `main`
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
 - **Last Approved Gate**: Gate 3 (Authorized on 2026-11-19)
