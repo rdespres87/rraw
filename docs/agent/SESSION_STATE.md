@@ -38,7 +38,8 @@
   - Task 7.1 (`rraw-core` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green 132 tests across 40 suites, local audit APPROVED via Qwen 3.6 35B)
   - Task 7.2 & 7.3 (`rraw-core` & `rraw-app`): **Complete** (Inquisitor APPROVED, CI green 136 tests across 41 suites, local audit APPROVED via Qwen 3.6 35B, right-click zoom before/after & live denoise engine, commit `7e81685`)
   - Chroma Denoise Color-Bleed & WB Barrier Fix: **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 137 tests across 41 suites, commit `3b07b4a`)
-  - Phase 8.1 (`rraw-optics` & `rraw-app`): **In Planning / Next**
+  - Task 8.1 Optical Defringe, Creative Vignetting & Sepia Vintage (`rraw-optics` & `rraw-app`): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 142 tests across 42 suites, commit `165ba90`)
+  - Phase 9.1 Local Retouching & Masking Suite (Linear/Radial Gradients & Brush): **In Planning / Next**
 - **Git Branch**: `main`
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
 - **Last Approved Gate**: Gate 3 (Authorized on 2026-11-19)
