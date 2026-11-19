@@ -3602,6 +3602,7 @@ name = "rraw-gpu"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "glam",
  "pollster",
  "rraw-color",
  "rraw-core",

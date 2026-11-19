@@ -16,6 +16,7 @@ thiserror.workspace = true
 wgpu.workspace = true
 
 [dev-dependencies]
+glam.workspace = true
 rraw-decode.workspace = true
 
 [lints]
