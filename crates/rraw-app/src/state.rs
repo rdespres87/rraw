@@ -495,6 +495,9 @@ impl GradingPreset {
     pub fn apply(self, grading: &mut DarkroomGradingState) {
         grading.preset = self;
         grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();
+        if self != Self::Custom {
+            grading.custom_clut = None;
+        }
         match self {
             Self::AsShot => {
                 let p = grading.preset;
@@ -800,6 +803,15 @@ impl Default for HistogramData {
     }
 }
 
+/// Active custom 3D CLUT state.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CustomClutState {
+    pub name: String,
+    pub path: Option<std::path::PathBuf>,
+    pub lut: std::sync::Arc<rraw_color::ColorLut3d>,
+    pub strength: f32,
+}
+
 /// Darkroom grading parameters bound to reactive egui sliders.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DarkroomGradingState {
@@ -845,6 +857,9 @@ pub struct DarkroomGradingState {
 
     // Tone curves
     pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
+
+    // 3D CLUT (.cube)
+    pub custom_clut: Option<CustomClutState>,
 }
 
 impl Default for DarkroomGradingState {
@@ -884,6 +899,7 @@ impl Default for DarkroomGradingState {
             keystone_horizontal: 0.0,
             auto_crop_geometry: true,
             tone_curves: rraw_core::curves::ToneCurvesRecipe::default(),
+            custom_clut: None,
         }
     }
 }
@@ -950,6 +966,10 @@ pub struct SidecarRecipe {
     pub keystone_horizontal: f32,
     #[serde(default)]
     pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
+    #[serde(default)]
+    pub custom_lut_path: Option<String>,
+    #[serde(default = "default_one_f32")]
+    pub custom_lut_strength: f32,
 }
 
 impl SidecarRecipe {
@@ -993,6 +1013,11 @@ impl SidecarRecipe {
             keystone_vertical: grading.keystone_vertical,
             keystone_horizontal: grading.keystone_horizontal,
             tone_curves: grading.tone_curves.clone(),
+            custom_lut_path: grading
+                .custom_clut
+                .as_ref()
+                .and_then(|c| c.path.as_ref().map(|p| p.to_string_lossy().to_string())),
+            custom_lut_strength: grading.custom_clut.as_ref().map_or(1.0, |c| c.strength),
         }
     }
 
@@ -1055,6 +1080,29 @@ impl SidecarRecipe {
         grading.geometry_enabled = self.geometry_enabled;
         grading.keystone_vertical = self.keystone_vertical;
         grading.keystone_horizontal = self.keystone_horizontal;
+
+        if let Some(path_str) = &self.custom_lut_path {
+            let path = std::path::PathBuf::from(path_str);
+            if path.exists() {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if let Ok(lut) = rraw_color::ColorLut3d::from_cube_str(&content) {
+                        let name = path
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("Custom LUT")
+                            .to_string();
+                        grading.custom_clut = Some(CustomClutState {
+                            name,
+                            path: Some(path),
+                            lut: std::sync::Arc::new(lut),
+                            strength: self.custom_lut_strength.clamp(0.0, 1.0),
+                        });
+                    }
+                }
+            }
+        } else {
+            grading.custom_clut = None;
+        }
     }
 }
 

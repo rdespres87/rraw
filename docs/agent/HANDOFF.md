@@ -2,7 +2,15 @@
 
 ## Last Completed Milestone
 
-- **Phase 6.2 — Extended Film Emulation & Creative Presets**:
+- **Phase 6.2b — GPU WGSL 3D CLUT & User `.cube` Import**:
+  - Bound 3D CLUT texture (`texture_3d<f32>`) and filtering sampler to Stage 5 compute shader (`stage5_color_laplacian.wgsl`) with half-texel boundary alignment for 120 FPS hardware trilinear interpolation.
+  - Implemented `f32_to_f16` IEEE 754 half-float encoder and dynamic `Rgba16Float` 3D texture creation with a default 2x2x2 identity fallback texture.
+  - Integrated custom `.cube` file import via native file dialog (`rfd`) in `rraw-app` Left Panel (`presets.rs`), with active LUT badge (`🎞 <name> (N³)`), intensity slider (`0% .. 100%`), and quick reset button (`✖`).
+  - Added full sidecar persistence in `SidecarRecipe` (`custom_lut_path` and `custom_lut_strength`).
+  - Added CPU preview integration in `preview.rs` (tetrahedral interpolation with strength blending).
+  - Verified with 106 unit and integration tests passing cleanly across 36 suites, 0 clippy warnings, and local adversarial audit.
+
+- **Phase 6.2 — Extended Film Emulation & Creative Presets (`a607876`)**:
   - Implemented 3D CLUT (`ColorLut3d`) in `rraw-color` (`crates/rraw-color/src/clut.rs`) with zero-allocation tetrahedral and trilinear interpolation.
   - Implemented `.cube` file parser (`from_cube_str`) and exporter (`to_cube_str`) adhering to Adobe / DaVinci Resolve specification.
   - Built algorithmic spectral film profile generators (`FilmSimulationProfile`): *Fujifilm Classic Chrome*, *Kodak Portra 400*, *Fujifilm Velvia 50*, *Kodak Tri-X 400*, and *Ilford HP5 Plus*.
@@ -26,10 +34,13 @@
   - Implemented live In/Out percentage coordinate readout and vertical hairline cursor guide.
   - Added dynamic activity dot indicator on modified curve channel selector tabs.
 
-## Next Logical Action: Gate 3 Validation & Interactive Testing
+## Next Logical Action: Task 6.3 — AI Semantic Segmentation Masks (`rraw-ai` & `rraw-app`)
 
-- Present Gate 3 to user with unified diff, test protocol, and commit proposal.
-- Await user approval for atomic commit and push.
+- Implement Semantic Segmentation contracts and inference pipelines in `rraw-ai`:
+  - Neural mask models / estimators for Subject, Sky, Background, and Portrait.
+  - Integration with `Stage6MasksParams` and `MaskKind` (bitmap / neural mask feeding post-warp evaluation).
+  - UI interaction in `rraw-app` (Masks inspector panel with one-click "Select Subject", "Select Sky", "Select Background").
+- Await user approval for remote push of commit `a607876` (`origin/main`).
 
 ## Repository Completion State
 
