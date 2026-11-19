@@ -5,11 +5,17 @@
 pub mod batch;
 pub mod error;
 pub mod iso21496;
+pub mod timelapse;
 
 pub use batch::{BatchExportJob, BatchExportQueue};
 pub use error::ExportError;
 pub use iso21496::{
     GainMapCalculator, GainMapReconstructor, Iso21496Params, Iso21496TmapBox, Iso21496XmpPacket,
+};
+pub use timelapse::{
+    compute_deflicker_ev_offsets, compute_frame_log_luminance, format_sequence_filename,
+    interpolate_keyframes, write_timelapse_manifest, TimelapseDeflickerConfig, TimelapseFrameRate,
+    TimelapseKeyframe,
 };
 
 use rraw_color::DisplayTransform;

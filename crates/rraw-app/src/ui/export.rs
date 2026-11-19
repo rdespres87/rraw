@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Image export dialog and file encoding execution.
+//! Image export dialog, batch processor, and RAW Timelapse & Temporal Deflicker sequence exporter.
 
 use std::path::{Path, PathBuf};
 
@@ -102,81 +102,144 @@ impl RrawApp {
         Ok(())
     }
 
-    /// Executes photographic export of the active or selected images with all darkroom corrections,
-    /// cropping, scaling, and the user-selected format & compression level.
+    fn compute_export_target_width(&self, cfa_width: usize, cfa_height: usize) -> usize {
+        match self.export_scale_mode {
+            ExportScaleMode::Original => cfa_width.max(1),
+            ExportScaleMode::Percent75 => ((cfa_width * 3) / 4).max(1),
+            ExportScaleMode::Percent50 => (cfa_width / 2).max(1),
+            ExportScaleMode::FitLongEdge2048 => {
+                if cfa_width >= cfa_height {
+                    2048.min(cfa_width)
+                } else {
+                    ((2048 * cfa_width) / cfa_height.max(1)).clamp(1, cfa_width)
+                }
+            }
+            ExportScaleMode::FitLongEdge3840 => {
+                if cfa_width >= cfa_height {
+                    3840.min(cfa_width)
+                } else {
+                    ((3840 * cfa_width) / cfa_height.max(1)).clamp(1, cfa_width)
+                }
+            }
+        }
+    }
+
+    fn build_export_base_from_cfa(
+        &self,
+        cfa: &rraw_core::SignedCfaBuffer,
+        ref_preview: &BaseRgbPreview,
+    ) -> BaseRgbPreview {
+        let target_width = self.compute_export_target_width(cfa.width(), cfa.height());
+        let mut b = BaseRgbPreview::from_cfa_with_color_and_target_width(
+            cfa,
+            ref_preview.as_shot_wb,
+            None,
+            target_width,
+        );
+        b.cam_to_srgb = ref_preview.cam_to_srgb;
+        b.with_exif_orientation(ref_preview.exif_orientation)
+    }
+
+    fn resolve_photo_preview_and_grading(
+        &self,
+        photo_path: &Path,
+    ) -> Option<(BaseRgbPreview, DarkroomGradingState)> {
+        let is_loaded = self.loaded_photo.as_ref().map(|p| p.path.as_path()) == Some(photo_path);
+        if is_loaded {
+            let base = match (&self.cached_cfa, &self.base_preview) {
+                (Some(cfa), Some(prev)) => self.build_export_base_from_cfa(cfa, prev),
+                (_, Some(prev)) => prev.clone(),
+                _ => return None,
+            };
+            Some((base, self.grading.clone()))
+        } else if let Some(cached) = self.photo_cache.iter().find(|e| e.path == photo_path) {
+            let grading = self
+                .photo_gradings
+                .get(photo_path)
+                .cloned()
+                .unwrap_or_else(|| load_photo_sidecars(photo_path).0.unwrap_or_default());
+            let base = self.build_export_base_from_cfa(&cached.cfa, &cached.base_preview);
+            Some((base, grading))
+        } else if let Some(payload) = decode_photo_file_payload(photo_path, false) {
+            let grading = self
+                .photo_gradings
+                .get(photo_path)
+                .cloned()
+                .unwrap_or_else(|| load_photo_sidecars(photo_path).0.unwrap_or_default());
+            let base = self.build_export_base_from_cfa(&payload.cfa, &payload.base_preview);
+            Some((base, grading))
+        } else {
+            None
+        }
+    }
+
+    /// Returns the ordered list of photos participating in a Timelapse sequence export.
+    #[must_use]
+    pub fn timelapse_candidate_paths(&self) -> Vec<PathBuf> {
+        if self.selected_photos.len() >= 2 {
+            let mut sorted: Vec<PathBuf> = self.selected_photos.iter().cloned().collect();
+            sorted.sort();
+            sorted
+        } else {
+            let mut filtered: Vec<PathBuf> = self
+                .directory_entries
+                .iter()
+                .filter(|p| {
+                    let rating = self.photo_ratings.get(*p).copied().unwrap_or(0);
+                    self.rating_filter.matches(rating)
+                })
+                .cloned()
+                .collect();
+            filtered.sort();
+            filtered
+        }
+    }
+
+    /// Executes photographic export (Single photo, Batch selection, or Timelapse sequence with
+    /// temporal anti-flicker and keyframe ramping).
     pub fn execute_export(&mut self) -> Result<PathBuf, String> {
-        let photos_to_export: Vec<PathBuf> = if self.export_batch_selection {
-            if self.selected_photos.is_empty() {
+        // Keep backward compatibility if export_batch_selection was toggled programmatically
+        let mode = if self.export_target_mode == ExportTargetMode::CurrentPhoto
+            && self.export_batch_selection
+        {
+            ExportTargetMode::BatchSelection
+        } else {
+            self.export_target_mode
+        };
+
+        if mode == ExportTargetMode::TimelapseSequence {
+            return self.execute_timelapse_export();
+        }
+
+        let photos_to_export: Vec<PathBuf> = match mode {
+            ExportTargetMode::BatchSelection => {
+                if self.selected_photos.is_empty() {
+                    if let Some(loaded) = &self.loaded_photo {
+                        vec![loaded.path.clone()]
+                    } else {
+                        return Err("Aucune photo sélectionnée pour l'export par lot.".to_string());
+                    }
+                } else {
+                    let mut sorted: Vec<PathBuf> = self.selected_photos.iter().cloned().collect();
+                    sorted.sort();
+                    sorted
+                }
+            }
+            ExportTargetMode::CurrentPhoto | ExportTargetMode::TimelapseSequence => {
                 if let Some(loaded) = &self.loaded_photo {
                     vec![loaded.path.clone()]
                 } else {
-                    return Err("Aucune photo sélectionnée pour l'export par lot.".to_string());
+                    return Err("Aucune photo chargée à exporter.".to_string());
                 }
-            } else {
-                let mut sorted: Vec<PathBuf> = self.selected_photos.iter().cloned().collect();
-                sorted.sort();
-                sorted
             }
-        } else if let Some(loaded) = &self.loaded_photo {
-            vec![loaded.path.clone()]
-        } else {
-            return Err("Aucune photo chargée à exporter.".to_string());
         };
 
         let mut last_exported_path = None;
         let mut count = 0;
 
         for photo_path in &photos_to_export {
-            let is_loaded = self.loaded_photo.as_ref().map(|p| &p.path) == Some(photo_path);
-            let (base_preview, grading) = if is_loaded {
-                let base = match &self.cached_cfa {
-                    Some(cfa) => {
-                        let target_width = match self.export_scale_mode {
-                            ExportScaleMode::Original => cfa.width().saturating_div(2).max(1200),
-                            ExportScaleMode::Percent75 => (cfa.width() * 3 / 8).max(900),
-                            ExportScaleMode::Percent50 => (cfa.width() / 4).max(600),
-                            ExportScaleMode::FitLongEdge2048 => 2048,
-                            ExportScaleMode::FitLongEdge3840 => 3840,
-                        };
-                        let as_shot_wb = self
-                            .base_preview
-                            .as_ref()
-                            .map(|b| b.as_shot_wb)
-                            .unwrap_or([2.0, 1.0, 1.5]);
-                        let exif_orient =
-                            self.base_preview.as_ref().map_or(1, |b| b.exif_orientation);
-                        let mut b = BaseRgbPreview::from_cfa_with_color_and_target_width(
-                            cfa,
-                            as_shot_wb,
-                            None,
-                            target_width,
-                        );
-                        if let Some(prev) = &self.base_preview {
-                            b.cam_to_srgb = prev.cam_to_srgb;
-                        }
-                        b.with_exif_orientation(exif_orient)
-                    }
-                    None => match &self.base_preview {
-                        Some(b) => b.clone(),
-                        None => continue,
-                    },
-                };
-                (base, self.grading.clone())
-            } else if let Some(cached) = self.photo_cache.iter().find(|e| &e.path == photo_path) {
-                let grading = self
-                    .photo_gradings
-                    .get(photo_path)
-                    .cloned()
-                    .unwrap_or_else(|| load_photo_sidecars(photo_path).0.unwrap_or_default());
-                (cached.base_preview.clone(), grading)
-            } else if let Some(payload) = decode_photo_file_payload(photo_path, false) {
-                let grading = self
-                    .photo_gradings
-                    .get(photo_path)
-                    .cloned()
-                    .unwrap_or_else(|| load_photo_sidecars(photo_path).0.unwrap_or_default());
-                (payload.base_preview, grading)
-            } else {
+            let Some((base_preview, grading)) = self.resolve_photo_preview_and_grading(photo_path)
+            else {
                 continue;
             };
 
@@ -221,6 +284,343 @@ impl RrawApp {
         last_exported_path.ok_or_else(|| "Erreur lors de l'export".to_string())
     }
 
+    fn execute_timelapse_export(&mut self) -> Result<PathBuf, String> {
+        let sequence_paths = self.timelapse_candidate_paths();
+        if sequence_paths.is_empty() {
+            return Err("Aucune photo disponible pour assembler le Timelapse.".to_string());
+        }
+
+        // Persist current photo grading in memory map before assembling sequence
+        if let Some(loaded) = &self.loaded_photo {
+            self.photo_gradings
+                .insert(loaded.path.clone(), self.grading.clone());
+        }
+
+        let mut decoded_frames: Vec<(PathBuf, BaseRgbPreview, DarkroomGradingState)> =
+            Vec::with_capacity(sequence_paths.len());
+
+        for path in &sequence_paths {
+            if let Some((base, grading)) = self.resolve_photo_preview_and_grading(path) {
+                decoded_frames.push((path.clone(), base, grading));
+            }
+        }
+
+        if decoded_frames.is_empty() {
+            return Err("Impossible de décoder les images de la séquence Timelapse.".to_string());
+        }
+
+        let frame_refs: Vec<(&BaseRgbPreview, DarkroomGradingState)> = decoded_frames
+            .iter()
+            .map(|(_, b, g)| (b, g.clone()))
+            .collect();
+
+        let (smoothed_gradings, offsets_ev) = prepare_timelapse_frame_gradings(
+            &frame_refs,
+            self.timelapse_keyframe_ramping,
+            &self.timelapse_deflicker,
+        );
+
+        let first_path = &decoded_frames[0].0;
+        let base_dest = self.export_custom_dir.clone().unwrap_or_else(|| {
+            first_path
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| PathBuf::from("."))
+        });
+
+        let final_dest = if self.export_use_subfolder && !self.export_subfolder.trim().is_empty() {
+            base_dest.join(self.export_subfolder.trim())
+        } else {
+            base_dest
+        };
+
+        std::fs::create_dir_all(&final_dest)
+            .map_err(|e| format!("Impossible de créer le dossier Timelapse: {e}"))?;
+
+        let ext = self.export_format.extension();
+        let mut last_path = None;
+
+        for (idx, ((_, base, _), grading)) in decoded_frames
+            .iter()
+            .zip(smoothed_gradings.iter())
+            .enumerate()
+        {
+            let (out_w, out_h, u8_bytes, u16_samples) = render_export_image(base, grading, 1.0);
+            let seq_filename = rraw_export::format_sequence_filename(
+                &self.timelapse_sequence_prefix,
+                idx + 1,
+                ext,
+            );
+            let target_path = final_dest.join(seq_filename);
+            self.write_exported_image(&target_path, out_w, out_h, &u8_bytes, &u16_samples)?;
+            last_path = Some(target_path);
+        }
+
+        let manifest_path = rraw_export::write_timelapse_manifest(
+            &final_dest,
+            &self.timelapse_sequence_prefix,
+            ext,
+            self.timelapse_fps,
+            decoded_frames.len(),
+            &offsets_ev,
+        )
+        .map_err(|e| format!("Erreur lors de l'écriture du manifeste Timelapse: {e}"))?;
+
+        self.save_current_photo_sidecar();
+
+        Ok(last_path.unwrap_or(manifest_path))
+    }
+
+    /// Renders the shared Timelapse & Holy Grail keyframe editor UI (used both in the right
+    /// inspector side panel and inside the floating export window).
+    pub fn render_timelapse_controls_ui(&mut self, ui: &mut egui::Ui, id_salt_prefix: &str) {
+        let tl_paths = self.timelapse_candidate_paths();
+        let frame_count = tl_paths.len();
+        let dur_s = self.timelapse_fps.duration_seconds(frame_count);
+
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                egui::RichText::new(format!("🎞️ Séquence : {} images", frame_count))
+                    .strong()
+                    .color(Color32::from_rgb(120, 220, 255)),
+            );
+            ui.separator();
+            ui.label(
+                egui::RichText::new(format!(
+                    "Durée : {:.2} s @ {} fps",
+                    dur_s,
+                    self.timelapse_fps.fps()
+                ))
+                .strong()
+                .color(Color32::from_rgb(130, 235, 165)),
+            );
+        });
+
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.label("Cadence (FPS) :");
+            egui::ComboBox::from_id_salt(format!("{id_salt_prefix}_timelapse_fps_combo"))
+                .selected_text(self.timelapse_fps.label())
+                .show_ui(ui, |ui| {
+                    for fps in rraw_export::TimelapseFrameRate::ALL {
+                        ui.selectable_value(&mut self.timelapse_fps, fps, fps.label());
+                    }
+                });
+        });
+
+        ui.separator();
+        ui.checkbox(
+            &mut self.timelapse_deflicker.enabled,
+            "✨ Anti-Scintillement (RAW Deflicker)",
+        )
+        .on_hover_text(
+            "Analyse la courbe de luminance log2 linéaire et compense les micro-variations d'exposition (ΔEV) entre images consécutives",
+        );
+
+        if self.timelapse_deflicker.enabled {
+            ui.horizontal(|ui| {
+                ui.label("Fenêtre glissante :");
+                let mut rad = self.timelapse_deflicker.window_radius as u32;
+                if ui
+                    .add(egui::Slider::new(&mut rad, 1..=15).suffix(" images"))
+                    .changed()
+                {
+                    self.timelapse_deflicker.window_radius = rad as usize;
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Intensité Deflicker :");
+                let mut pct = (self.timelapse_deflicker.strength * 100.0).round();
+                if ui
+                    .add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%"))
+                    .changed()
+                {
+                    self.timelapse_deflicker.strength = (pct / 100.0).clamp(0.0, 1.0);
+                }
+            });
+        }
+
+        ui.separator();
+        ui.checkbox(
+            &mut self.timelapse_keyframe_ramping,
+            "🌅 Interpolation Holy Grail (1ère → Dernière)",
+        )
+        .on_hover_text(
+            "Interpole progressivement l'Exposition, la Température (Kelvin), la Teinte, le Contraste et la Saturation entre la première et la dernière image de la séquence",
+        );
+
+        if self.timelapse_keyframe_ramping && frame_count >= 2 {
+            let first_path = tl_paths[0].clone();
+            let last_path = tl_paths[frame_count - 1].clone();
+
+            if let Some(loaded) = &self.loaded_photo {
+                self.photo_gradings
+                    .insert(loaded.path.clone(), self.grading.clone());
+            }
+            if !self.photo_gradings.contains_key(&first_path) {
+                let g = load_photo_sidecars(&first_path).0.unwrap_or_default();
+                self.photo_gradings.insert(first_path.clone(), g);
+            }
+            if !self.photo_gradings.contains_key(&last_path) {
+                let g = load_photo_sidecars(&last_path).0.unwrap_or_default();
+                self.photo_gradings.insert(last_path.clone(), g);
+            }
+
+            let first_name = first_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Image 1")
+                .to_string();
+            let last_name = last_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Image N")
+                .to_string();
+
+            let mut open_preview_target: Option<PathBuf> = None;
+
+            ui.add_space(4.0);
+            // Keyframe 1 (Start)
+            let mut g_first = self
+                .photo_gradings
+                .get(&first_path)
+                .cloned()
+                .unwrap_or_default();
+            let mut first_changed = false;
+            let mut first_commit_disk = false;
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("☀️ Départ (#1 : {first_name})"))
+                        .small()
+                        .strong()
+                        .color(Color32::from_rgb(255, 215, 110)),
+                );
+                if ui
+                    .small_button("👁️ Voir")
+                    .on_hover_text("Afficher la 1ère photo dans le viewport")
+                    .clicked()
+                {
+                    open_preview_target = Some(first_path.clone());
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Exp :").small());
+                let r_exp = ui.add(
+                    egui::Slider::new(&mut g_first.exposure_ev, -4.0..=4.0)
+                        .step_by(0.05)
+                        .suffix(" EV"),
+                );
+                if r_exp.changed() {
+                    first_changed = true;
+                }
+                if r_exp.drag_stopped() || r_exp.lost_focus() {
+                    first_commit_disk = true;
+                }
+                ui.label(egui::RichText::new("Temp :").small());
+                let r_tmp = ui.add(
+                    egui::Slider::new(&mut g_first.kelvin, 2000.0..=12000.0)
+                        .step_by(50.0)
+                        .suffix(" K"),
+                );
+                if r_tmp.changed() {
+                    first_changed = true;
+                }
+                if r_tmp.drag_stopped() || r_tmp.lost_focus() {
+                    first_commit_disk = true;
+                }
+            });
+            if first_changed {
+                self.photo_gradings
+                    .insert(first_path.clone(), g_first.clone());
+                if self
+                    .loaded_photo
+                    .as_ref()
+                    .is_some_and(|p| p.path == first_path)
+                {
+                    self.grading = g_first.clone();
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+            }
+            if first_commit_disk {
+                let r = self.photo_ratings.get(&first_path).copied().unwrap_or(0);
+                save_photo_sidecars(&first_path, &g_first, r);
+            }
+
+            ui.add_space(2.0);
+            // Keyframe N (End)
+            let mut g_last = self
+                .photo_gradings
+                .get(&last_path)
+                .cloned()
+                .unwrap_or_default();
+            let mut last_changed = false;
+            let mut last_commit_disk = false;
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("🌙 Fin (#{frame_count} : {last_name})"))
+                        .small()
+                        .strong()
+                        .color(Color32::from_rgb(155, 195, 255)),
+                );
+                if ui
+                    .small_button("👁️ Voir")
+                    .on_hover_text("Afficher la dernière photo dans le viewport")
+                    .clicked()
+                {
+                    open_preview_target = Some(last_path.clone());
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Exp :").small());
+                let r_exp = ui.add(
+                    egui::Slider::new(&mut g_last.exposure_ev, -4.0..=4.0)
+                        .step_by(0.05)
+                        .suffix(" EV"),
+                );
+                if r_exp.changed() {
+                    last_changed = true;
+                }
+                if r_exp.drag_stopped() || r_exp.lost_focus() {
+                    last_commit_disk = true;
+                }
+                ui.label(egui::RichText::new("Temp :").small());
+                let r_tmp = ui.add(
+                    egui::Slider::new(&mut g_last.kelvin, 2000.0..=12000.0)
+                        .step_by(50.0)
+                        .suffix(" K"),
+                );
+                if r_tmp.changed() {
+                    last_changed = true;
+                }
+                if r_tmp.drag_stopped() || r_tmp.lost_focus() {
+                    last_commit_disk = true;
+                }
+            });
+            if last_changed {
+                self.photo_gradings
+                    .insert(last_path.clone(), g_last.clone());
+                if self
+                    .loaded_photo
+                    .as_ref()
+                    .is_some_and(|p| p.path == last_path)
+                {
+                    self.grading = g_last.clone();
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+            }
+            if last_commit_disk {
+                let r = self.photo_ratings.get(&last_path).copied().unwrap_or(0);
+                save_photo_sidecars(&last_path, &g_last, r);
+            }
+
+            if let Some(target) = open_preview_target {
+                self.open_raw_file(&target);
+            }
+        }
+    }
+
     /// Renders the export configuration dialog window.
     pub fn render_export_dialog(&mut self, ctx: &egui::Context) {
         if !self.show_export_dialog {
@@ -231,57 +631,105 @@ impl RrawApp {
         let mut trigger_export = false;
         let mut close_dialog = false;
 
-        egui::Window::new("📤 Exporter")
+        egui::Window::new("📤 Exporter / 🎬 Timelapse")
             .open(&mut is_open)
-            .collapsible(false)
+            .movable(true)
+            .collapsible(true)
             .resizable(false)
-            .default_width(440.0)
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+            .default_width(470.0)
+            .default_pos(egui::pos2(780.0, 52.0))
             .show(ctx, |ui| {
                 ui.heading("Cible d'export");
-                ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.export_batch_selection, false, "Photo courante");
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .radio_value(
+                            &mut self.export_target_mode,
+                            ExportTargetMode::CurrentPhoto,
+                            "📷 Photo courante",
+                        )
+                        .clicked()
+                    {
+                        self.export_batch_selection = false;
+                    }
                     let sel_count = self.selected_photos.len();
                     let batch_label = format!(
-                        "Sélection par lot ({} photo{})",
+                        "🗂️ Lot ({} photo{})",
                         sel_count,
                         if sel_count > 1 { "s" } else { "" }
                     );
-                    ui.radio_value(&mut self.export_batch_selection, true, batch_label);
+                    if ui
+                        .radio_value(
+                            &mut self.export_target_mode,
+                            ExportTargetMode::BatchSelection,
+                            batch_label,
+                        )
+                        .clicked()
+                    {
+                        self.export_batch_selection = true;
+                    }
+                    if ui
+                        .radio_value(
+                            &mut self.export_target_mode,
+                            ExportTargetMode::TimelapseSequence,
+                            "🎬 Séquence Timelapse & Anti-Flicker",
+                        )
+                        .clicked()
+                    {
+                        self.export_batch_selection = true;
+                        if self.export_subfolder == "Export" {
+                            self.export_subfolder = "Timelapse".to_string();
+                        }
+                    }
                 });
 
-                if !self.export_batch_selection {
-                    if let Some(photo) = &self.loaded_photo {
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("Photo active :").strong());
-                            if let Some(name) = photo.path.file_name().and_then(|n| n.to_str()) {
-                                ui.label(
-                                    egui::RichText::new(name).color(Color32::from_rgb(100, 180, 255)),
-                                );
-                            }
-                        });
-                        let crop_text = if self.grading.crop_enabled {
-                            " (Recadrage actif appliqué)"
-                        } else {
-                            ""
-                        };
-                        ui.label(
-                            egui::RichText::new(format!(
-                                "Définition capteur : {} × {} px{crop_text}",
-                                photo.dimensions.0, photo.dimensions.1
-                            ))
-                            .small()
-                            .color(Color32::LIGHT_GRAY),
-                        );
+                match self.export_target_mode {
+                    ExportTargetMode::CurrentPhoto => {
+                        if let Some(photo) = &self.loaded_photo {
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new("Photo active :").strong());
+                                if let Some(name) = photo.path.file_name().and_then(|n| n.to_str())
+                                {
+                                    ui.label(
+                                        egui::RichText::new(name)
+                                            .color(Color32::from_rgb(100, 180, 255)),
+                                    );
+                                }
+                            });
+                            let crop_text = if self.grading.crop_enabled {
+                                " (Recadrage actif appliqué)"
+                            } else {
+                                ""
+                            };
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "Définition capteur : {} × {} px{crop_text}",
+                                    photo.dimensions.0, photo.dimensions.1
+                                ))
+                                .small()
+                                .color(Color32::LIGHT_GRAY),
+                            );
+                        }
                     }
-                } else if self.selected_photos.is_empty() {
-                    ui.label(
-                        egui::RichText::new(
-                            "⚠️ Aucune photo cochée dans les vignettes. Seule la photo active sera exportée.",
-                        )
-                        .small()
-                        .color(Color32::from_rgb(255, 180, 50)),
-                    );
+                    ExportTargetMode::BatchSelection => {
+                        if self.selected_photos.is_empty() {
+                            ui.label(
+                                egui::RichText::new(
+                                    "⚠️ Aucune photo cochée dans les vignettes. Seule la photo active sera exportée.",
+                                )
+                                .small()
+                                .color(Color32::from_rgb(255, 180, 50)),
+                            );
+                        }
+                    }
+                    ExportTargetMode::TimelapseSequence => {
+                        ui.add_space(4.0);
+                        egui::Frame::group(ui.style())
+                            .fill(Color32::from_rgb(24, 28, 36))
+                            .inner_margin(8.0)
+                            .show(ui, |ui| {
+                                self.render_timelapse_controls_ui(ui, "dialog");
+                            });
+                    }
                 }
 
                 ui.separator();
@@ -337,7 +785,7 @@ impl RrawApp {
                             ui.radio_value(
                                 &mut self.export_bit_depth,
                                 ExportBitDepth::Bits16,
-                                "16-bit (Studio)",
+                                "16-bit (Studio / Cinéma)",
                             );
                         });
                     }
@@ -407,12 +855,30 @@ impl RrawApp {
                     }
                 });
 
-                ui.horizontal(|ui| {
-                    ui.label("Suffixe de fichier :");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.export_suffix).desired_width(120.0),
-                    );
-                });
+                if self.export_target_mode == ExportTargetMode::TimelapseSequence {
+                    ui.horizontal(|ui| {
+                        ui.label("Préfixe de séquence :");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.timelapse_sequence_prefix)
+                                .desired_width(120.0),
+                        );
+                        let ext = self.export_format.extension();
+                        let sample = rraw_export::format_sequence_filename(
+                            &self.timelapse_sequence_prefix,
+                            1,
+                            ext,
+                        );
+                        ui.label(egui::RichText::new(format!("→ {sample}")).small().monospace());
+                    });
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.label("Suffixe de fichier :");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.export_suffix)
+                                .desired_width(120.0),
+                        );
+                    });
+                }
 
                 if let Some((msg, success)) = &self.export_status {
                     ui.add_space(6.0);
@@ -430,17 +896,17 @@ impl RrawApp {
                     if ui.button("Annuler").clicked() {
                         close_dialog = true;
                     }
-                    let export_btn_text = if self.export_batch_selection {
-                        "🚀 Exporter le lot"
-                    } else {
-                        "🚀 Exporter l'image"
+                    let export_btn_text = match self.export_target_mode {
+                        ExportTargetMode::CurrentPhoto => "🚀 Exporter l'image",
+                        ExportTargetMode::BatchSelection => "🚀 Exporter le lot",
+                        ExportTargetMode::TimelapseSequence => {
+                            "🎬 Assembler & Exporter le Timelapse"
+                        }
                     };
                     if ui
                         .add(
-                            egui::Button::new(
-                                egui::RichText::new(export_btn_text).strong(),
-                            )
-                            .fill(Color32::from_rgb(30, 110, 210)),
+                            egui::Button::new(egui::RichText::new(export_btn_text).strong())
+                                .fill(Color32::from_rgb(30, 110, 210)),
                         )
                         .clicked()
                     {
@@ -458,17 +924,22 @@ impl RrawApp {
             match self.execute_export() {
                 Ok(path) => {
                     let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("image");
-                    let status_txt = if self.export_batch_selection {
-                        format!(
+                    let status_txt = match self.export_target_mode {
+                        ExportTargetMode::CurrentPhoto => {
+                            format!("✅ Export réussi : {file_name}")
+                        }
+                        ExportTargetMode::BatchSelection => format!(
                             "✅ Export par lot réussi ({} fichier(s))",
                             self.selected_photos.len().max(1)
-                        )
-                    } else {
-                        format!("✅ Export réussi : {file_name}")
+                        ),
+                        ExportTargetMode::TimelapseSequence => format!(
+                            "✅ Séquence Timelapse exportée ({} images @ {} fps + manifeste JSON)",
+                            self.timelapse_candidate_paths().len(),
+                            self.timelapse_fps.fps()
+                        ),
                     };
                     self.status_message = status_txt.clone();
                     self.export_status = Some((status_txt, true));
-                    // Automatically close dialog on success as requested by user
                     self.show_export_dialog = false;
                 }
                 Err(err) => {

@@ -165,6 +165,15 @@ pub enum ParallelToolPhase {
     DrawingLine2,
 }
 
+/// Export target scope selected in the export dialog.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ExportTargetMode {
+    #[default]
+    CurrentPhoto,
+    BatchSelection,
+    TimelapseSequence,
+}
+
 /// Supported export raster formats with user-selectable compression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExportFormatChoice {
@@ -234,6 +243,7 @@ pub enum DarkroomSection {
     ToneCurves,
     WhiteBalanceColor,
     SoftProofing,
+    Timelapse,
     Crop,
     Straighten,
     Geometry,
@@ -244,11 +254,12 @@ pub enum DarkroomSection {
 }
 
 impl DarkroomSection {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::ExposureTone,
         Self::AiSemanticMasks,
         Self::WhiteBalanceColor,
         Self::SoftProofing,
+        Self::Timelapse,
         Self::Crop,
         Self::Straighten,
         Self::Geometry,
@@ -264,6 +275,7 @@ impl DarkroomSection {
             Self::ToneCurves => "📈 Courbes de tonalité",
             Self::WhiteBalanceColor => "🎨 Balance des blancs & Couleur",
             Self::SoftProofing => "🖨️ Épreuvage écran & Hors-Gamut (ICC)",
+            Self::Timelapse => "🎬 Timelapse & Anti-Flicker (Holy Grail)",
             Self::Crop => "✂️ Recadrer (Crop)",
             Self::Straighten => "📐 Redresser (Rotation / Horizon)",
             Self::Geometry => "🏛️ Géométrie (Perspective)",

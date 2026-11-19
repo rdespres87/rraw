@@ -950,6 +950,82 @@ fn test_soft_proofing_and_gamut_warning_in_preview_and_sidecar(
 }
 
 #[test]
+fn test_timelapse_sequence_grading_pipeline_deflickers_and_ramps_keyframes(
+) -> Result<(), rraw_core::CoreError> {
+    use rraw_app::app::{prepare_timelapse_frame_gradings, ExportTargetMode};
+    use rraw_core::{BayerOrigin, CfaPattern, SignedCfaBuffer};
+    use rraw_export::TimelapseDeflickerConfig;
+
+    assert_eq!(ExportTargetMode::default(), ExportTargetMode::CurrentPhoto);
+
+    let width = 16;
+    let height = 16;
+    let pattern = CfaPattern::Bayer(BayerOrigin::Rggb);
+
+    // 5 frames with artificial exposure flicker on frame 2 (+0.30 EV brightness spike in sensor samples)
+    let jitter_mults = [1.0_f32, 1.0, 1.231, 1.0, 1.0];
+    let mut previews = Vec::with_capacity(5);
+    for &mult in &jitter_mults {
+        let samples = vec![(0.18 * mult).clamp(0.0, 1.0); width * height];
+        let cfa = SignedCfaBuffer::new(width, height, pattern, samples)?;
+        let base = app::BaseRgbPreview::from_cfa_with_color(&cfa, [1.0, 1.0, 1.0], None);
+        previews.push(base);
+    }
+
+    // Frame 0 is Daylight (0.0 EV, 5600K), Frame 4 is Sunset/Night (+1.0 EV, 3600K)
+    let g_start = DarkroomGradingState {
+        exposure_ev: 0.0,
+        kelvin: 5600.0,
+        ..Default::default()
+    };
+    let g_mid = DarkroomGradingState::default();
+    let g_end = DarkroomGradingState {
+        exposure_ev: 1.0,
+        kelvin: 3600.0,
+        ..Default::default()
+    };
+
+    let frames = vec![
+        (&previews[0], g_start),
+        (&previews[1], g_mid.clone()),
+        (&previews[2], g_mid.clone()),
+        (&previews[3], g_mid),
+        (&previews[4], g_end),
+    ];
+
+    let deflicker_cfg = TimelapseDeflickerConfig {
+        enabled: true,
+        window_radius: 2,
+        strength: 1.0,
+        max_correction_ev: 1.5,
+    };
+
+    let (final_gradings, offsets_ev) =
+        prepare_timelapse_frame_gradings(&frames, true, &deflicker_cfg);
+
+    assert_eq!(final_gradings.len(), 5);
+    assert_eq!(offsets_ev.len(), 5);
+
+    // Midpoint (frame 2) Kelvin must be ramped to 4600K
+    assert!(
+        (final_gradings[2].kelvin - 4600.0).abs() < 1.0,
+        "Keyframe ramping must interpolate Kelvin at midpoint to 4600K, got {}",
+        final_gradings[2].kelvin
+    );
+
+    // Frame 2 had a +0.30 EV sensor brightness spike -> deflicker offset must be negative
+    assert!(
+        offsets_ev[2] < -0.10,
+        "Frame 2 brightness spike must be countered by negative deflicker EV offset, got {}",
+        offsets_ev[2]
+    );
+    // Final exposure on frame 2 is ramped base (0.5 EV) + negative deflicker offset (< 0.40 EV)
+    assert!(final_gradings[2].exposure_ev < 0.42);
+
+    Ok(())
+}
+
+#[test]
 fn test_full_resolution_1_to_1_export_preserves_exact_sensor_dimensions(
 ) -> Result<(), rraw_core::CoreError> {
     use rraw_core::{BayerOrigin, CfaPattern, SignedCfaBuffer};
