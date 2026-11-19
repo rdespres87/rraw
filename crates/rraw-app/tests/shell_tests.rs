@@ -825,3 +825,34 @@ fn test_portrait_exif_orientation_rotation_and_dimensions() {
         (20, 40)
     );
 }
+
+#[test]
+fn test_live_directory_polling_detects_added_and_removed_photos(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let temp_dir = std::env::temp_dir().join("rraw_test_live_dir_poll");
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    std::fs::create_dir_all(&temp_dir)?;
+
+    let p1 = temp_dir.join("IMG_001.DNG");
+    std::fs::write(&p1, b"dummy1")?;
+
+    let mut entries = app::scan_directory_for_images(&temp_dir);
+    assert_eq!(entries.len(), 1);
+
+    // Add a second photo while directory is already open
+    let p2 = temp_dir.join("IMG_002.DNG");
+    std::fs::write(&p2, b"dummy2")?;
+
+    let updated = app::sync_directory_entries(&temp_dir, &mut entries);
+    assert!(
+        updated,
+        "sync_directory_entries must report true when a new photo is added"
+    );
+    assert_eq!(entries.len(), 2);
+
+    // Second call with no changes must report false
+    assert!(!app::sync_directory_entries(&temp_dir, &mut entries));
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    Ok(())
+}

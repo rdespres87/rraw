@@ -1464,6 +1464,18 @@ pub fn scan_directory_for_images(dir: &Path) -> Vec<PathBuf> {
     entries
 }
 
+/// Re-scans `dir` and updates `current_entries` in-place if files were added or removed.
+/// Returns `true` when the list of images changed.
+pub fn sync_directory_entries(dir: &Path, current_entries: &mut Vec<PathBuf>) -> bool {
+    let latest = scan_directory_for_images(dir);
+    if latest != *current_entries {
+        *current_entries = latest;
+        true
+    } else {
+        false
+    }
+}
+
 /// Cached photo entry kept in memory for instantaneous (< 0.1 ms) switching between photos.
 #[derive(Debug, Clone)]
 pub struct CachedPhotoEntry {

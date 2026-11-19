@@ -61,12 +61,12 @@ impl RrawApp {
                     let sel_count = self.selected_photos.len();
                     let sel_text = if sel_count > 0 {
                         format!(
-                            "☑ {} sélectionnée{}",
+                            "Lot d'export : ☑ {} cochée{}",
                             sel_count,
                             if sel_count > 1 { "s" } else { "" }
                         )
                     } else {
-                        "0 sélection".to_string()
+                        "Lot d'export : 0 cochée".to_string()
                     };
                     ui.label(
                         egui::RichText::new(sel_text)
@@ -306,18 +306,22 @@ impl RrawApp {
                                         );
                                     }
 
-                                    // Selection checkbox (top-right of thumbnail)
+                                    // Selection checkbox (top-right of thumbnail) for batch export
                                     let chk_rect = egui::Rect::from_min_size(
-                                        egui::pos2(thumb_rect.max.x - 22.0, thumb_rect.min.y + 3.0),
-                                        egui::vec2(18.0, 18.0),
+                                        egui::pos2(thumb_rect.max.x - 23.0, thumb_rect.min.y + 2.0),
+                                        egui::vec2(20.0, 20.0),
                                     );
-                                    let chk_id = ui.auto_id_with(("chk_thumb", entry));
-                                    let chk_resp =
-                                        ui.interact(chk_rect, chk_id, egui::Sense::click());
-                                    if chk_resp.hovered() {
+                                    let pointer_pos = ui.input(|i| i.pointer.interact_pos());
+                                    let hovered_chk = ui
+                                        .input(|i| i.pointer.hover_pos())
+                                        .is_some_and(|p| chk_rect.expand(2.0).contains(p));
+                                    if hovered_chk {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
-                                    let mut toggle_select = chk_resp.clicked();
+                                    let clicked_chk = response.clicked()
+                                        && pointer_pos
+                                            .is_some_and(|p| chk_rect.expand(3.0).contains(p));
+                                    let mut toggle_select = clicked_chk;
 
                                     if is_multi_selected {
                                         painter.circle_filled(
@@ -333,7 +337,7 @@ impl RrawApp {
                                             Color32::WHITE,
                                         );
                                     } else {
-                                        let circle_col = if chk_resp.hovered() {
+                                        let circle_col = if hovered_chk {
                                             Color32::from_rgba_premultiplied(50, 130, 230, 220)
                                         } else {
                                             Color32::from_rgba_premultiplied(0, 0, 0, 140)
@@ -374,6 +378,7 @@ impl RrawApp {
                                     let star_start_x = rect.center().x - (2.0 * star_spacing);
 
                                     let mut hovered_star = None;
+                                    let hover_pos = ui.input(|i| i.pointer.hover_pos());
                                     for s in 1..=5 {
                                         let star_pos = egui::pos2(
                                             star_start_x + (s as f32 - 1.0) * star_spacing,
@@ -383,15 +388,14 @@ impl RrawApp {
                                             star_pos,
                                             egui::vec2(14.0, 14.0),
                                         );
-                                        let star_id = ui.auto_id_with(("filmstrip_star", entry, s));
-                                        let star_resp =
-                                            ui.interact(star_rect, star_id, egui::Sense::click());
-                                        if star_resp.hovered() {
+                                        if hover_pos.is_some_and(|p| star_rect.contains(p)) {
                                             hovered_star = Some(s);
                                             ui.ctx()
                                                 .set_cursor_icon(egui::CursorIcon::PointingHand);
                                         }
-                                        if star_resp.clicked() {
+                                        if response.clicked()
+                                            && pointer_pos.is_some_and(|p| star_rect.contains(p))
+                                        {
                                             let new_r = if rating == s { 0 } else { s };
                                             star_change = Some((entry.clone(), new_r));
                                         }
@@ -422,11 +426,8 @@ impl RrawApp {
                                         );
                                     }
 
-                                    // Classical mouse selection: Click, Cmd/Ctrl+Click, Shift+Click
-                                    if response.clicked()
-                                        && star_change.is_none()
-                                        && !chk_resp.clicked()
-                                    {
+                                    // Classical mouse selection: Click opens photo, Cmd/Ctrl+Click or Checkbox toggles batch selection, Shift+Click selects range
+                                    if response.clicked() && star_change.is_none() && !clicked_chk {
                                         if ui.input(|i| i.modifiers.shift) {
                                             let anchor = self.last_selected_index.unwrap_or(0);
                                             let min_i = anchor.min(entry_idx);
@@ -443,8 +444,6 @@ impl RrawApp {
                                             toggle_select = true;
                                             self.last_selected_index = Some(entry_idx);
                                         } else {
-                                            self.selected_photos.clear();
-                                            self.selected_photos.insert(entry.clone());
                                             self.last_selected_index = Some(entry_idx);
                                             file_to_open = Some(entry.clone());
                                         }
