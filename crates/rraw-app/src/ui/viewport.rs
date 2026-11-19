@@ -157,6 +157,18 @@ impl RrawApp {
                 i.key_down(egui::Key::P) || i.key_down(egui::Key::Backslash)
             });
 
+            if ui.input(|i| i.key_pressed(egui::Key::O)) {
+                if self.grading.show_local_mask_overlay.is_some() {
+                    self.grading.show_local_mask_overlay = None;
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                } else if !self.grading.local_masks.is_empty() {
+                    self.grading.show_local_mask_overlay = Some(0);
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+            }
+
             let is_holding_left_fit = ui.input(|i| {
                 i.pointer.button_down(egui::PointerButton::Primary)
                     && i.pointer
@@ -254,6 +266,33 @@ impl RrawApp {
                     5.0,
                     egui::Stroke::new(1.0, egui::Color32::from_rgb(90, 210, 145)),
                     egui::StrokeKind::Outside,
+                );
+                painter.galley(hud_pos + egui::vec2(8.0, 4.0), galley, egui::Color32::WHITE);
+            }
+
+            // Active Local Mask Overlay HUD Badge
+            if let Some(mask_idx) = self.grading.show_local_mask_overlay {
+                let mask_name = self
+                    .grading
+                    .local_masks
+                    .get(mask_idx)
+                    .map_or("Masque", |m| m.name.as_str());
+                let hud_text = format!("🎭 Incrustation : {mask_name} (Touche O ou 👁 pour masquer)");
+                let hud_pos =
+                    egui::pos2(available_rect.left() + 18.0, available_rect.top() + 48.0);
+                let galley = painter.layout_no_wrap(
+                    hud_text,
+                    egui::FontId::proportional(12.0),
+                    egui::Color32::from_rgb(255, 235, 240),
+                );
+                let badge_rect = egui::Rect::from_min_size(
+                    hud_pos,
+                    galley.size() + egui::vec2(16.0, 8.0),
+                );
+                painter.rect_filled(
+                    badge_rect,
+                    5.0,
+                    egui::Color32::from_rgba_unmultiplied(180, 25, 75, 230),
                 );
                 painter.galley(hud_pos + egui::vec2(8.0, 4.0), galley, egui::Color32::WHITE);
             }
