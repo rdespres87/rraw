@@ -2,11 +2,13 @@
 
 //! 4-tier optical aberration correction resolver and Stage 3/4 reference kernels.
 
+pub mod defringe;
 pub mod lut;
 pub mod model;
 pub mod resolver;
 pub mod rl;
 
+pub use defringe::{defringe_rgb, DefringeConfig};
 pub use lut::{UvLutGenerator, UvLutTable};
 pub use model::{DistortionPoly, LateralTca, OpticalCorrectionModel, RadialVignette};
 pub use resolver::OpticalResolver;

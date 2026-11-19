@@ -3627,6 +3627,7 @@ dependencies = [
 name = "rraw-optics"
 version = "0.1.0"
 dependencies = [
+ "rayon",
  "rraw-core",
  "rraw-decode",
  "rraw-gpu",

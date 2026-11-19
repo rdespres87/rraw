@@ -374,11 +374,12 @@ pub enum GradingPreset {
     FujiVelvia50,
     KodakTriX400,
     IlfordHp5,
+    SepiaVintage,
     Custom,
 }
 
 impl GradingPreset {
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::AsShot,
         Self::DaylightPunch,
         Self::PortraitSoft,
@@ -396,6 +397,7 @@ impl GradingPreset {
         Self::FujiVelvia50,
         Self::KodakTriX400,
         Self::IlfordHp5,
+        Self::SepiaVintage,
         Self::Custom,
     ];
 
@@ -419,6 +421,7 @@ impl GradingPreset {
             Self::FujiVelvia50 => "Fujifilm Velvia 50",
             Self::KodakTriX400 => "Kodak Tri-X 400 (N&B)",
             Self::IlfordHp5 => "Ilford HP5 Plus (N&B)",
+            Self::SepiaVintage => "Sépia Vintage (Virage chaud)",
             Self::Custom => "Custom",
         }
     }
@@ -457,6 +460,9 @@ impl GradingPreset {
             Self::IlfordHp5 => {
                 "Noir & blanc argentique à grande latitude, modelé doux et dégradés subtils"
             }
+            Self::SepiaVintage => {
+                "Virage au sulfure d'époque : ombres chaudes brun-chocolat & hautes lumières ambrées"
+            }
             Self::Custom => "Réglages personnalisés par l'utilisateur",
         }
     }
@@ -481,6 +487,7 @@ impl GradingPreset {
             Self::FujiVelvia50 => "FujiVelvia50",
             Self::KodakTriX400 => "KodakTriX400",
             Self::IlfordHp5 => "IlfordHp5",
+            Self::SepiaVintage => "SepiaVintage",
             Self::Custom => "Custom",
         }
     }
@@ -505,6 +512,7 @@ impl GradingPreset {
             "FujiVelvia50" => Some(Self::FujiVelvia50),
             "KodakTriX400" => Some(Self::KodakTriX400),
             "IlfordHp5" => Some(Self::IlfordHp5),
+            "SepiaVintage" => Some(Self::SepiaVintage),
             "Custom" => Some(Self::Custom),
             _ => None,
         }
@@ -738,6 +746,28 @@ impl GradingPreset {
                 grading.tone_curves.luma =
                     curve_from_points(&[(0.0, 0.02), (0.5, 0.51), (1.0, 0.985)]);
             }
+            Self::SepiaVintage => {
+                grading.exposure_ev = 0.20;
+                grading.contrast = 22.0;
+                grading.highlights = -15.0;
+                grading.shadows = 15.0;
+                grading.blacks = 5.0;
+                grading.saturation = -35.0;
+                grading.vibrance = 10.0;
+                grading.kelvin = 6800.0;
+                grading.tint = 8.0;
+                grading.display_transform = DisplayTransform::AgX;
+                grading.vignette_amount = 30.0;
+                grading.vignette_correction = true;
+                grading.creative_vignette_amount = -35.0;
+                grading.is_monochrome = false;
+                grading.tone_curves.luma =
+                    curve_from_points(&[(0.0, 0.04), (0.35, 0.32), (0.75, 0.78), (1.0, 0.98)]);
+                grading.tone_curves.red =
+                    curve_from_points(&[(0.0, 0.05), (0.50, 0.54), (1.0, 1.0)]);
+                grading.tone_curves.blue =
+                    curve_from_points(&[(0.0, 0.01), (0.50, 0.44), (1.0, 0.92)]);
+            }
             Self::Custom => {}
         }
     }
@@ -762,6 +792,7 @@ impl GradingPreset {
             Self::FujiVelvia50,
             Self::KodakTriX400,
             Self::IlfordHp5,
+            Self::SepiaVintage,
         ] {
             let mut test = DarkroomGradingState::default();
             preset.apply(&mut test);
@@ -917,8 +948,14 @@ pub struct DarkroomGradingState {
     pub distortion_correction: bool,
     pub distortion_amount: f32,
     pub chromatic_aberration_correction: bool,
+    pub defringe_purple_amount: f32,
+    pub defringe_green_amount: f32,
     pub vignette_correction: bool,
     pub vignette_amount: f32,
+    pub creative_vignette_amount: f32,
+    pub creative_vignette_midpoint: f32,
+    pub creative_vignette_feather: f32,
+    pub creative_vignette_roundness: f32,
     pub is_monochrome: bool,
 
     // Crop settings
@@ -1026,8 +1063,14 @@ impl Default for DarkroomGradingState {
             distortion_correction: true,
             distortion_amount: 0.0,
             chromatic_aberration_correction: true,
+            defringe_purple_amount: 0.0,
+            defringe_green_amount: 0.0,
             vignette_correction: true,
             vignette_amount: 50.0,
+            creative_vignette_amount: 0.0,
+            creative_vignette_midpoint: 50.0,
+            creative_vignette_feather: 50.0,
+            creative_vignette_roundness: 0.0,
             is_monochrome: false,
             crop_enabled: false,
             crop_aspect: CropAspectRatio::Free,
@@ -1064,6 +1107,14 @@ const fn default_color_denoise() -> f32 {
     25.0
 }
 
+const fn default_midpoint() -> f32 {
+    50.0
+}
+
+const fn default_feather() -> f32 {
+    50.0
+}
+
 /// Serialized recipe saved into adjacent `<photo>.rraw.json` sidecar.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SidecarRecipe {
@@ -1092,8 +1143,20 @@ pub struct SidecarRecipe {
     pub distortion_correction: bool,
     pub distortion_amount: f32,
     pub chromatic_aberration_correction: bool,
+    #[serde(default)]
+    pub defringe_purple_amount: f32,
+    #[serde(default)]
+    pub defringe_green_amount: f32,
     pub vignette_correction: bool,
     pub vignette_amount: f32,
+    #[serde(default)]
+    pub creative_vignette_amount: f32,
+    #[serde(default = "default_midpoint")]
+    pub creative_vignette_midpoint: f32,
+    #[serde(default = "default_feather")]
+    pub creative_vignette_feather: f32,
+    #[serde(default)]
+    pub creative_vignette_roundness: f32,
     pub is_monochrome: bool,
     pub rating: u8,
     #[serde(default)]
@@ -1158,8 +1221,14 @@ impl SidecarRecipe {
             distortion_correction: grading.distortion_correction,
             distortion_amount: grading.distortion_amount,
             chromatic_aberration_correction: grading.chromatic_aberration_correction,
+            defringe_purple_amount: grading.defringe_purple_amount,
+            defringe_green_amount: grading.defringe_green_amount,
             vignette_correction: grading.vignette_correction,
             vignette_amount: grading.vignette_amount,
+            creative_vignette_amount: grading.creative_vignette_amount,
+            creative_vignette_midpoint: grading.creative_vignette_midpoint,
+            creative_vignette_feather: grading.creative_vignette_feather,
+            creative_vignette_roundness: grading.creative_vignette_roundness,
             is_monochrome: grading.is_monochrome,
             rating,
             crop_enabled: grading.crop_enabled,
@@ -1207,8 +1276,14 @@ impl SidecarRecipe {
         grading.distortion_correction = self.distortion_correction;
         grading.distortion_amount = self.distortion_amount;
         grading.chromatic_aberration_correction = self.chromatic_aberration_correction;
+        grading.defringe_purple_amount = self.defringe_purple_amount;
+        grading.defringe_green_amount = self.defringe_green_amount;
         grading.vignette_correction = self.vignette_correction;
         grading.vignette_amount = self.vignette_amount;
+        grading.creative_vignette_amount = self.creative_vignette_amount;
+        grading.creative_vignette_midpoint = self.creative_vignette_midpoint;
+        grading.creative_vignette_feather = self.creative_vignette_feather;
+        grading.creative_vignette_roundness = self.creative_vignette_roundness;
         grading.is_monochrome = self.is_monochrome;
         grading.tone_curves = self.tone_curves.clone();
         grading.semantic_masks = self.semantic_masks.clone();

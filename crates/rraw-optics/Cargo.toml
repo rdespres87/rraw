@@ -7,6 +7,7 @@ authors.workspace = true
 description = "4-tier optical correction resolver, UV LUT generator, and Richardson-Lucy deconvolution"
 
 [dependencies]
+rayon.workspace = true
 rraw-core.workspace = true
 rraw-decode.workspace = true
 

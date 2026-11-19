@@ -82,6 +82,7 @@ pub fn denoise_rgb_with_wb(
         let radius: isize = if chroma_str > 0.5 { 2 } else { 1 };
         let spatial_sigma_sq = (radius as f32 * 0.8).powi(2).max(0.5);
         let luma_sigma_sq = (0.025 + 0.045 * chroma_str).powi(2);
+        let edge_cutoff_sq = (0.12_f32).powi(2);
 
         let mut out_chroma = vec![[0.0_f32; 2]; width * height];
 
@@ -110,19 +111,20 @@ pub fn denoise_rgb_with_wb(
                             let neighbor_y = y_plane[neighbor_idx];
                             let luma_diff_sq = (neighbor_y - center_y).powi(2);
 
+                            // Anti-bleed guard: completely drop weight across sharp contrast edges
+                            if luma_diff_sq > edge_cutoff_sq {
+                                continue;
+                            }
+                            // Highlight guard: prevent bright skies from absorbing color from dark branches
+                            if center_y > 0.82 && neighbor_y < center_y - 0.05 {
+                                continue;
+                            }
+
                             let spatial_dist_sq = (dx * dx + dy * dy) as f32;
                             let w_spatial = (-spatial_dist_sq / (2.0 * spatial_sigma_sq)).exp();
-                            // Continuous photometric weight with tight sigma preventing edge bleed
                             let w_luma = (-luma_diff_sq / (2.0 * luma_sigma_sq)).exp();
 
-                            // Smooth highlight suppression to prevent bleeding from saturated edges into midtones
-                            let w_hl = if center_y > 0.80 {
-                                (1.0 - (neighbor_y - center_y).abs() * 5.0).clamp(0.0, 1.0)
-                            } else {
-                                1.0
-                            };
-
-                            let w = w_spatial * w_luma * w_hl;
+                            let w = w_spatial * w_luma;
                             w_sum += w;
                             u_sum += w * u_plane[neighbor_idx];
                             v_sum += w * v_plane[neighbor_idx];
