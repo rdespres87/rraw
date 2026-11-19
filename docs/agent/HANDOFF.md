@@ -2,6 +2,15 @@
 
 ## Last Completed Milestone
 
+- **Phase 9.1 — Local Retouching & Masking Suite (Linear/Radial Gradients & Overlays) (`rraw-app`)**:
+  - Implemented `LocalMaskKind` (`LinearGradient`, `RadialGradient`) and `LocalMaskLayer` with safe analytical continuous weight evaluation in `crates/rraw-app/src/state.rs`.
+  - Multi-layer mask accumulation in preview (`render_preview_from_base`) and export (`render_export_image`) pipelines covering Exposure EV, Contrast, Saturation, and Color Temperature.
+  - Interactive UI controls in `DarkroomSection::AiSemanticMasks` allowing unlimited gradient layering (`+ Dégradé linéaire`, `+ Dégradé radial`), coordinates tuning, feathering, inversion, and deletion.
+  - Ruby-pink mask overlay HUD with 'O' keyboard shortcut and explicit viewport notification badge (overlay off by default upon mask creation).
+  - Sidecar recipe persistence in `.rraw.json` (`SidecarRecipe`).
+  - Commit: `94ea97d`.
+  - Verified with 146 unit and integration tests passing across 43 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit.
+
 - **Phase 8.1 — Optical Defringe, Creative Post-Crop Vignetting & Sepia Vintage (`rraw-optics`, `rraw-app`)**:
   - Implemented pure safe Rust optical defringing engine in `crates/rraw-optics/src/defringe.rs` (`#![forbid(unsafe_code)]`, zero unwrap/panic) detecting and neutralizing purple ($R > G \land B > G$) and green ($G > R \land G > B$) chromatic aberration fringes along high-contrast luminance edges ($3\times 3$ window) with Rayon multithreading.
   - Implemented continuous **Creative Vignetting (Post-Crop / Artistic)** with configurable amount ($-100 \dots +100$), midpoint ($10 \dots 90$), smoothstep feather ($10 \dots 90$), and shape roundness (continuous ellipse $\leftrightarrow$ circle $\leftrightarrow$ rectangle).
@@ -68,19 +77,18 @@
   - Implemented live In/Out percentage coordinate readout and vertical hairline cursor guide.
   - Added dynamic activity dot indicator on modified curve channel selector tabs.
 
-## Next Logical Action: Phase 9.1 — Local Retouching & Masking Suite (Linear/Radial Gradients & Brush)
+## Next Logical Action: Phase 9.2 — Local Adjustment Brush & Freehand Masking
 
-- **Objective**: Implement interactive local masking (linear graduated filter, radial ellipse filter, adjustment brush) with local exposure, contrast, temperature, and tint controls.
+- **Objective**: Implement interactive brush painting (freehand drawing mask with radius, flow, and feather) on the viewport canvas to touch up fine details.
 - **Deliverables**:
-  1. Parametric linear gradient & radial gradient mask evaluators with rotatable angle, feather, and inversion.
-  2. Interactive mouse gizmos on the viewport canvas to drag, rotate, and scale gradient handles.
-  3. Local grading controls (Exposure, Contrast, Highlights, Shadows, Temp, Tint) per mask layer.
-  4. Integration with GPU Stage 6 mask shader and CPU preview rendering.
-  5. Unit and integration tests verifying parametric gradient mask weights and sidecar persistence.
+  1. Raster stroke accumulator or quadtree mask tile for freehand brush strokes.
+  2. Viewport mouse brush interaction (size adjusting with wheel/bracket keys, flow, opacity).
+  3. Integration into `LocalMaskLayer` and Stage 6 GPU pipeline.
+  4. Unit and integration tests.
 
 ## Repository Completion State
 
-All planned deliverables across Phases 0–7 and Task 8.1 are implemented, verified by adversarial TDD, and passing all pre-commit formatting and clippy gates. Phase 9 is the active development horizon.
+All planned deliverables across Phases 0–8 and Phase 9.1 are implemented, verified by adversarial TDD, and passing all pre-commit formatting and clippy gates. Phase 9.2 is the active development horizon.
 
 ### Summary of Completed Workspace Milestones
 1. **Phase 0**: Repository governance, `#![forbid(unsafe_code)]` / audited EDR isolation, 11 crates.
