@@ -2,13 +2,17 @@
 
 ## Last Completed Milestone
 
-- **Phase 6.1 — Interactive PCHIP Tone Curves & Preview Acceleration (`64921a7`, `d75eafc`)**:
+- **Phase 6.1 — Interactive PCHIP Tone Curves & Mathematical Hardening (`64921a7`, `d75eafc`, `00ab991`, `99bd8a7`)**:
   - Implemented Fritsch-Carlson Monotone Cubic Hermite Spline (PCHIP) evaluator and 1024-entry LUT evaluation in `rraw-color` and `rraw-core`.
-  - Added interactive multi-channel tone curve canvas with live histogram underlay in `rraw-app`, positioned in the left panel right above the live waveform histogram for cohesive tonal scopes.
+  - Hardened PCHIP derivative formulation using Brodlie / Fritsch-Carlson weighted harmonic mean for non-uniform knot spacing, preventing overshoot or gradient reversals on tight control points.
+  - Precompiled 5-spline `PchipSpline` structure, dropping heap allocations from 12,288 to 0 in the 1D LUT evaluation loop.
+  - Refactored Rayon row preview evaluation in `preview.rs` to write directly in-place via `par_chunks_exact_mut`, eliminating all `preview_h` per-row `Vec` allocations.
+  - Fixed tone curve UI interaction to immediately grab newly inserted points into active drag state on click/press, allowing continuous placement without re-clicking, and added double-click point deletion.
   - Multi-threaded preview evaluation via `rayon` across CPU cores with identity-geometry fast path and `opt-level = 3` in dev profile for silky-smooth 60-120 FPS slider and curve scrubbing.
   - Added native JPEG and PNG raster loading with on-the-fly sRGB linear conversion and thumbnails.
   - Implemented instant untouched raw A/B inspection via 0 ms GPU texture swapping on photo click-and-hold or `\` key.
   - Mapped vertical mouse wheel deltas to horizontal scrolling over the filmstrip.
+  - GitHub Actions CI workflow configured on `macos-13`.
   - 95 unit/integration tests passing workspace-wide.
 
 ## Next Logical Action: Phase 6.2 — Extended Film Emulation & Creative Presets
