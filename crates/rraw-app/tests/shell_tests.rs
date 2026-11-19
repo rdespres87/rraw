@@ -81,6 +81,74 @@ fn grading_presets_modify_parameters_correctly() {
 }
 
 #[test]
+fn film_simulation_presets_configure_curves_and_parameters() {
+    use app::GradingPreset;
+
+    for preset in [
+        GradingPreset::FujiClassicChrome,
+        GradingPreset::KodakPortra400,
+        GradingPreset::FujiVelvia50,
+        GradingPreset::KodakTriX400,
+        GradingPreset::IlfordHp5,
+    ] {
+        let mut grading = DarkroomGradingState::default();
+        preset.apply(&mut grading);
+
+        // All film presets must embed custom non-identity tone curves
+        assert!(
+            !grading.tone_curves.is_identity(),
+            "{preset:?} should configure non-identity tone curves"
+        );
+
+        // Identification roundtrip
+        assert_eq!(
+            GradingPreset::from_id_str(preset.id_str()),
+            Some(preset),
+            "ID string roundtrip failed for {preset:?}"
+        );
+
+        // Detect preset recovery
+        assert_eq!(
+            GradingPreset::detect_preset(&grading),
+            preset,
+            "detect_preset failed to recognize {preset:?}"
+        );
+    }
+
+    // Specific characteristic checks
+    let mut chrome = DarkroomGradingState::default();
+    GradingPreset::FujiClassicChrome.apply(&mut chrome);
+    assert!(
+        chrome.saturation < -10.0,
+        "Classic Chrome should have muted saturation"
+    );
+    assert!(!chrome.is_monochrome);
+
+    let mut portra = DarkroomGradingState::default();
+    GradingPreset::KodakPortra400.apply(&mut portra);
+    assert!(portra.shadows > 10.0, "Portra 400 should lift shadows");
+    assert!(!portra.is_monochrome);
+
+    let mut velvia = DarkroomGradingState::default();
+    GradingPreset::FujiVelvia50.apply(&mut velvia);
+    assert!(
+        velvia.saturation > 20.0,
+        "Velvia 50 should boost saturation"
+    );
+    assert!(!velvia.is_monochrome);
+
+    let mut tri_x = DarkroomGradingState::default();
+    GradingPreset::KodakTriX400.apply(&mut tri_x);
+    assert!(tri_x.is_monochrome, "Tri-X 400 must be monochrome");
+    assert!(tri_x.contrast > 30.0, "Tri-X 400 must have high contrast");
+
+    let mut hp5 = DarkroomGradingState::default();
+    GradingPreset::IlfordHp5.apply(&mut hp5);
+    assert!(hp5.is_monochrome, "Ilford HP5 must be monochrome");
+    assert!(hp5.shadows > 10.0, "HP5 should preserve shadow latitude");
+}
+
+#[test]
 fn directory_scanner_filters_images() {
     let entries = app::scan_directory_for_images(Path::new("tests"));
     // Directory may or may not exist, should not panic

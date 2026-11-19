@@ -351,11 +351,16 @@ pub enum GradingPreset {
     StreetContrastBW,
     VintageFilm,
     NightAstro,
+    FujiClassicChrome,
+    KodakPortra400,
+    FujiVelvia50,
+    KodakTriX400,
+    IlfordHp5,
     Custom,
 }
 
 impl GradingPreset {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 18] = [
         Self::AsShot,
         Self::DaylightPunch,
         Self::PortraitSoft,
@@ -368,6 +373,11 @@ impl GradingPreset {
         Self::StreetContrastBW,
         Self::VintageFilm,
         Self::NightAstro,
+        Self::FujiClassicChrome,
+        Self::KodakPortra400,
+        Self::FujiVelvia50,
+        Self::KodakTriX400,
+        Self::IlfordHp5,
         Self::Custom,
     ];
 
@@ -386,6 +396,11 @@ impl GradingPreset {
             Self::StreetContrastBW => "Street Contrast B&W (Monochrome)",
             Self::VintageFilm => "Vintage Film (+0.15 EV, 5800K)",
             Self::NightAstro => "Night & Astro (+0.75 EV, 4200K)",
+            Self::FujiClassicChrome => "Fujifilm Classic Chrome",
+            Self::KodakPortra400 => "Kodak Portra 400",
+            Self::FujiVelvia50 => "Fujifilm Velvia 50",
+            Self::KodakTriX400 => "Kodak Tri-X 400 (N&B)",
+            Self::IlfordHp5 => "Ilford HP5 Plus (N&B)",
             Self::Custom => "Custom",
         }
     }
@@ -409,6 +424,21 @@ impl GradingPreset {
             Self::StreetContrastBW => "Noir & blanc urbain percutant, micro-contraste élevé",
             Self::VintageFilm => "Grain et patine argentique vintage, vignetage marqué",
             Self::NightAstro => "Ciel nocturne clarifié (4200K), débruitage ondelettes renforcé",
+            Self::FujiClassicChrome => {
+                "Rendu documentaire feutré, ombres denses, saturation atténuée et bleus cyan"
+            }
+            Self::KodakPortra400 => {
+                "Couleurs pastel, tons chair flatteurs, ombres décollées et hautes lumières soyeuses"
+            }
+            Self::FujiVelvia50 => {
+                "Diapositive mythique à saturation éclatante, noirs d'encre et ciels profonds"
+            }
+            Self::KodakTriX400 => {
+                "Noir & blanc photojournalisme classique, contraste affirmé et noirs profonds"
+            }
+            Self::IlfordHp5 => {
+                "Noir & blanc argentique à grande latitude, modelé doux et dégradés subtils"
+            }
             Self::Custom => "Réglages personnalisés par l'utilisateur",
         }
     }
@@ -428,6 +458,11 @@ impl GradingPreset {
             Self::StreetContrastBW => "StreetContrastBW",
             Self::VintageFilm => "VintageFilm",
             Self::NightAstro => "NightAstro",
+            Self::FujiClassicChrome => "FujiClassicChrome",
+            Self::KodakPortra400 => "KodakPortra400",
+            Self::FujiVelvia50 => "FujiVelvia50",
+            Self::KodakTriX400 => "KodakTriX400",
+            Self::IlfordHp5 => "IlfordHp5",
             Self::Custom => "Custom",
         }
     }
@@ -447,6 +482,11 @@ impl GradingPreset {
             "StreetContrastBW" => Some(Self::StreetContrastBW),
             "VintageFilm" => Some(Self::VintageFilm),
             "NightAstro" => Some(Self::NightAstro),
+            "FujiClassicChrome" => Some(Self::FujiClassicChrome),
+            "KodakPortra400" => Some(Self::KodakPortra400),
+            "FujiVelvia50" => Some(Self::FujiVelvia50),
+            "KodakTriX400" => Some(Self::KodakTriX400),
+            "IlfordHp5" => Some(Self::IlfordHp5),
             "Custom" => Some(Self::Custom),
             _ => None,
         }
@@ -454,6 +494,7 @@ impl GradingPreset {
 
     pub fn apply(self, grading: &mut DarkroomGradingState) {
         grading.preset = self;
+        grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();
         match self {
             Self::AsShot => {
                 let p = grading.preset;
@@ -594,6 +635,88 @@ impl GradingPreset {
                 grading.vignette_correction = true;
                 grading.is_monochrome = false;
             }
+            Self::FujiClassicChrome => {
+                grading.exposure_ev = 0.0;
+                grading.contrast = 14.0;
+                grading.highlights = -10.0;
+                grading.shadows = 6.0;
+                grading.blacks = -8.0;
+                grading.saturation = -18.0;
+                grading.vibrance = -6.0;
+                grading.kelvin = 5400.0;
+                grading.tint = -2.0;
+                grading.display_transform = DisplayTransform::AgX;
+                grading.vignette_amount = 25.0;
+                grading.vignette_correction = true;
+                grading.is_monochrome = false;
+                grading.tone_curves.luma =
+                    curve_from_points(&[(0.0, 0.0), (0.25, 0.22), (0.75, 0.77), (1.0, 1.0)]);
+                grading.tone_curves.red =
+                    curve_from_points(&[(0.0, 0.0), (0.70, 0.68), (1.0, 0.98)]);
+                grading.tone_curves.blue =
+                    curve_from_points(&[(0.0, 0.0), (0.65, 0.67), (1.0, 1.0)]);
+            }
+            Self::KodakPortra400 => {
+                grading.exposure_ev = 0.25;
+                grading.contrast = -6.0;
+                grading.highlights = -16.0;
+                grading.shadows = 18.0;
+                grading.blacks = 8.0;
+                grading.saturation = 4.0;
+                grading.vibrance = 10.0;
+                grading.kelvin = 5800.0;
+                grading.tint = 4.0;
+                grading.display_transform = DisplayTransform::AgX;
+                grading.vignette_amount = 20.0;
+                grading.vignette_correction = true;
+                grading.is_monochrome = false;
+                grading.tone_curves.luma =
+                    curve_from_points(&[(0.0, 0.025), (0.5, 0.52), (1.0, 0.98)]);
+                grading.tone_curves.red = curve_from_points(&[(0.0, 0.0), (0.5, 0.53), (1.0, 1.0)]);
+            }
+            Self::FujiVelvia50 => {
+                grading.exposure_ev = -0.1;
+                grading.contrast = 28.0;
+                grading.highlights = 8.0;
+                grading.shadows = -14.0;
+                grading.blacks = -15.0;
+                grading.saturation = 28.0;
+                grading.vibrance = 20.0;
+                grading.kelvin = 5600.0;
+                grading.tint = 0.0;
+                grading.display_transform = DisplayTransform::AgX;
+                grading.vignette_amount = 35.0;
+                grading.vignette_correction = true;
+                grading.is_monochrome = false;
+                grading.tone_curves.luma =
+                    curve_from_points(&[(0.0, 0.0), (0.25, 0.20), (0.75, 0.80), (1.0, 1.0)]);
+            }
+            Self::KodakTriX400 => {
+                grading.exposure_ev = 0.15;
+                grading.contrast = 36.0;
+                grading.highlights = 12.0;
+                grading.shadows = -18.0;
+                grading.blacks = -15.0;
+                grading.capture_sharpening_amount = 0.8;
+                grading.vignette_amount = 40.0;
+                grading.vignette_correction = true;
+                grading.is_monochrome = true;
+                grading.tone_curves.luma =
+                    curve_from_points(&[(0.0, 0.0), (0.30, 0.24), (0.70, 0.78), (1.0, 1.0)]);
+            }
+            Self::IlfordHp5 => {
+                grading.exposure_ev = 0.2;
+                grading.contrast = 10.0;
+                grading.highlights = -12.0;
+                grading.shadows = 16.0;
+                grading.blacks = 5.0;
+                grading.capture_sharpening_amount = 0.5;
+                grading.vignette_amount = 25.0;
+                grading.vignette_correction = true;
+                grading.is_monochrome = true;
+                grading.tone_curves.luma =
+                    curve_from_points(&[(0.0, 0.02), (0.5, 0.51), (1.0, 0.985)]);
+            }
             Self::Custom => {}
         }
     }
@@ -613,6 +736,11 @@ impl GradingPreset {
             Self::StreetContrastBW,
             Self::VintageFilm,
             Self::NightAstro,
+            Self::FujiClassicChrome,
+            Self::KodakPortra400,
+            Self::FujiVelvia50,
+            Self::KodakTriX400,
+            Self::IlfordHp5,
         ] {
             let mut test = DarkroomGradingState::default();
             preset.apply(&mut test);
@@ -620,15 +748,29 @@ impl GradingPreset {
                 && (grading.contrast - test.contrast).abs() < 1e-4
                 && (grading.highlights - test.highlights).abs() < 1e-4
                 && (grading.shadows - test.shadows).abs() < 1e-4
+                && (grading.blacks - test.blacks).abs() < 1e-4
+                && (grading.saturation - test.saturation).abs() < 1e-4
+                && (grading.vibrance - test.vibrance).abs() < 1e-4
                 && (grading.kelvin - test.kelvin).abs() < 1e-4
                 && (grading.tint - test.tint).abs() < 1e-4
                 && grading.display_transform == test.display_transform
                 && grading.is_monochrome == test.is_monochrome
+                && grading.tone_curves == test.tone_curves
             {
                 return preset;
             }
         }
         Self::Custom
+    }
+}
+
+/// Helper creating a `ChannelCurve` from static slice coordinates.
+fn curve_from_points(pts: &[(f32, f32)]) -> rraw_core::curves::ChannelCurve {
+    rraw_core::curves::ChannelCurve {
+        points: pts
+            .iter()
+            .map(|&(x, y)| rraw_core::curves::CurvePoint { x, y })
+            .collect(),
     }
 }
 
