@@ -3,7 +3,7 @@
 //! Interactive multi-channel PCHIP parametric tone curve widget.
 
 use egui::{Color32, Pos2, Stroke, Vec2};
-use rraw_color::curves::evaluate_channel_curve_pchip;
+use rraw_color::curves::PchipSpline;
 use rraw_core::curves::{ChannelCurve, CurvePoint};
 
 use crate::app::RrawApp;
@@ -121,14 +121,14 @@ impl RrawApp {
             }
 
             // 3. Draw the spline curve
-            let curve = self.active_curve().clone();
+            let spline = PchipSpline::new(self.active_curve());
             let curve_color = self.active_curve_color();
             let steps = 100;
             let mut prev_pos: Option<Pos2> = None;
 
             for s in 0..=steps {
                 let x_norm = s as f32 / steps as f32;
-                let y_norm = evaluate_channel_curve_pchip(&curve, x_norm);
+                let y_norm = spline.evaluate(x_norm);
 
                 let canvas_x = rect.left() + x_norm * rect.width();
                 let canvas_y = rect.bottom() - y_norm * rect.height();
@@ -141,7 +141,9 @@ impl RrawApp {
             }
 
             // 4. Draw control points and handle mouse drag / click interactions
-            let pointer_pos = response.interact_pointer_pos();
+            let pointer_pos = response
+                .interact_pointer_pos()
+                .or_else(|| ui.input(|i| i.pointer.interact_pos()));
             let mut point_to_remove: Option<usize> = None;
             let mut modified = false;
 
@@ -166,8 +168,12 @@ impl RrawApp {
                 painter.circle_filled(pt_canvas, radius, fill);
                 painter.circle_stroke(pt_canvas, radius, Stroke::new(1.5, curve_color));
 
-                // Right-click to remove interior point
-                if is_hovered && response.secondary_clicked() && idx > 0 && idx < pts.len() - 1 {
+                // Right-click or double-click to remove interior point
+                if is_hovered
+                    && (response.secondary_clicked() || response.double_clicked())
+                    && idx > 0
+                    && idx < pts.len() - 1
+                {
                     point_to_remove = Some(idx);
                 }
             }
@@ -179,38 +185,46 @@ impl RrawApp {
                 modified = true;
             }
 
-            // Handle start dragging
-            if response.drag_started() {
+            // Handle pointer press / drag start on canvas
+            let primary_pressed = ui.input(|i| i.pointer.primary_pressed());
+            let primary_down = ui.input(|i| i.pointer.primary_down());
+
+            if (response.drag_started() || (response.hovered() && primary_pressed))
+                && self.dragging_curve_point.is_none()
+            {
                 if let Some(pos) = pointer_pos {
-                    let mut closest_idx = None;
-                    let mut closest_dist = 12.0_f32;
+                    if rect.contains(pos) {
+                        let mut closest_idx = None;
+                        let mut closest_dist = 14.0_f32;
 
-                    for (idx, pt) in self.active_curve().points.iter().enumerate() {
-                        let px = rect.left() + pt.x * rect.width();
-                        let py = rect.bottom() - pt.y * rect.height();
-                        let dist = pos.distance(Pos2::new(px, py));
-                        if dist < closest_dist {
-                            closest_dist = dist;
-                            closest_idx = Some(idx);
+                        for (idx, pt) in self.active_curve().points.iter().enumerate() {
+                            let px = rect.left() + pt.x * rect.width();
+                            let py = rect.bottom() - pt.y * rect.height();
+                            let dist = pos.distance(Pos2::new(px, py));
+                            if dist < closest_dist {
+                                closest_dist = dist;
+                                closest_idx = Some(idx);
+                            }
                         }
-                    }
 
-                    if let Some(idx) = closest_idx {
-                        self.dragging_curve_point = Some(idx);
-                    } else if rect.contains(pos) {
-                        // Clicked on empty canvas: add new control point
-                        let new_x = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
-                        let new_y = ((rect.bottom() - pos.y) / rect.height()).clamp(0.0, 1.0);
-                        if let Ok(new_pt) = CurvePoint::new(new_x, new_y) {
-                            self.active_curve_mut().add_point(new_pt);
-                            modified = true;
+                        if let Some(idx) = closest_idx {
+                            self.dragging_curve_point = Some(idx);
+                        } else {
+                            // Clicked/pressed on empty canvas: add new control point and immediately grab it
+                            let new_x = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                            let new_y = ((rect.bottom() - pos.y) / rect.height()).clamp(0.0, 1.0);
+                            if let Ok(new_pt) = CurvePoint::new(new_x, new_y) {
+                                let inserted_idx = self.active_curve_mut().add_point(new_pt);
+                                self.dragging_curve_point = Some(inserted_idx);
+                                modified = true;
+                            }
                         }
                     }
                 }
             }
 
             // Handle ongoing dragging
-            if response.dragged() {
+            if (response.dragged() || primary_down) && self.dragging_curve_point.is_some() {
                 if let (Some(drag_idx), Some(pos)) = (self.dragging_curve_point, pointer_pos) {
                     let len = self.active_curve().points.len();
                     if drag_idx < len {
@@ -223,10 +237,16 @@ impl RrawApp {
                         } else if is_last {
                             1.0
                         } else {
-                            let min_x = self.active_curve().points[drag_idx - 1].x + 0.01;
-                            let max_x = self.active_curve().points[drag_idx + 1].x - 0.01;
+                            let prev_x = self.active_curve().points[drag_idx - 1].x;
+                            let next_x = self.active_curve().points[drag_idx + 1].x;
+                            let min_x = (prev_x + 0.002).min(1.0);
+                            let max_x = (next_x - 0.002).max(min_x);
                             let raw_x = (pos.x - rect.left()) / rect.width();
-                            raw_x.clamp(min_x, max_x)
+                            if min_x < max_x {
+                                raw_x.clamp(min_x, max_x)
+                            } else {
+                                self.active_curve().points[drag_idx].x
+                            }
                         };
 
                         if let Ok(pt) = CurvePoint::new(new_x, new_y) {
@@ -238,7 +258,7 @@ impl RrawApp {
             }
 
             // Stop dragging on release
-            if response.drag_stopped() {
+            if response.drag_stopped() || ui.input(|i| i.pointer.primary_released()) {
                 self.dragging_curve_point = None;
             }
 

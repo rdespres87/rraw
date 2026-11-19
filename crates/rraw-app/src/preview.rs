@@ -467,8 +467,7 @@ pub fn render_preview_from_base(
         (mapped * 255.0).clamp(0.0, 255.0) as u8
     };
 
-    struct RowEvaluation {
-        pixels: Vec<Color32>,
+    struct RowHistogram {
         hist_r: [u32; 256],
         hist_g: [u32; 256],
         hist_b: [u32; 256],
@@ -477,10 +476,12 @@ pub fn render_preview_from_base(
         highlight_clipped: u32,
     }
 
-    let rows: Vec<RowEvaluation> = (0..preview_h)
-        .into_par_iter()
-        .map(|py| {
-            let mut row_pixels = Vec::with_capacity(preview_w);
+    let mut color_pixels = vec![Color32::TRANSPARENT; preview_w * preview_h];
+
+    let row_histograms: Vec<RowHistogram> = color_pixels
+        .par_chunks_exact_mut(preview_w)
+        .enumerate()
+        .map(|(py, row_pixels)| {
             let mut row_r = [0_u32; 256];
             let mut row_g = [0_u32; 256];
             let mut row_b = [0_u32; 256];
@@ -491,7 +492,7 @@ pub fn render_preview_from_base(
             let raw_dy = (py as f32 - cy) * flip_y;
             let row_identity_offset = py * preview_w;
 
-            for px in 0..preview_w {
+            for (px, out_pixel) in row_pixels.iter_mut().enumerate() {
                 let (sample_idx, v_mult) = if is_identity_geom {
                     let s_idx =
                         (row_identity_offset + px).min(base.samples_rgb.len().saturating_sub(1));
@@ -646,11 +647,10 @@ pub fn render_preview_from_base(
                     row_hc += 1;
                 }
 
-                row_pixels.push(Color32::from_rgb(u8_r, u8_g, u8_b));
+                *out_pixel = Color32::from_rgb(u8_r, u8_g, u8_b);
             }
 
-            RowEvaluation {
-                pixels: row_pixels,
+            RowHistogram {
                 hist_r: row_r,
                 hist_g: row_g,
                 hist_b: row_b,
@@ -661,7 +661,6 @@ pub fn render_preview_from_base(
         })
         .collect();
 
-    let mut color_pixels = Vec::with_capacity(preview_w * preview_h);
     let mut hist_r = [0_u32; 256];
     let mut hist_g = [0_u32; 256];
     let mut hist_b = [0_u32; 256];
@@ -669,8 +668,7 @@ pub fn render_preview_from_base(
     let mut shadow_clipped = 0_u32;
     let mut highlight_clipped = 0_u32;
 
-    for row in rows {
-        color_pixels.extend_from_slice(&row.pixels);
+    for row in row_histograms {
         for i in 0..256 {
             hist_r[i] += row.hist_r[i];
             hist_g[i] += row.hist_g[i];
