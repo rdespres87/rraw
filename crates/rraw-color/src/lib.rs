@@ -6,6 +6,7 @@ use rraw_core::{ChannelSaturation, CoreError, WhiteBalanceMultipliers};
 use thiserror::Error;
 
 pub mod cct;
+pub mod clut;
 pub mod colorchecker;
 pub mod curves;
 pub mod drt;
@@ -14,6 +15,7 @@ pub mod matrix;
 pub mod pipeline;
 
 pub use cct::*;
+pub use clut::*;
 pub use colorchecker::*;
 pub use curves::*;
 pub use drt::*;
@@ -30,6 +32,15 @@ pub enum ColorError {
     /// Mired interpolation input was `NaN` or infinite.
     #[error("invalid mired input for `{field}`: {value}")]
     InvalidMired { field: &'static str, value: f64 },
+    /// Invalid 3D LUT dimension (expected between 2 and 65).
+    #[error("invalid 3D LUT size {size}, expected between 2 and 65")]
+    InvalidLutSize { size: usize },
+    /// 3D LUT data length does not match expected size^3.
+    #[error("3D LUT data length {actual} does not match expected size^3 ({expected})")]
+    LutDataLengthMismatch { actual: usize, expected: usize },
+    /// Failed to parse `.cube` 3D LUT format.
+    #[error("failed to parse .cube LUT: {reason}")]
+    InvalidCubeFile { reason: String },
     /// Propagated invariant error from `rraw-core`.
     #[error(transparent)]
     Core(#[from] CoreError),

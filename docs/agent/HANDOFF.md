@@ -2,42 +2,34 @@
 
 ## Last Completed Milestone
 
-- **Phase 6.1b.2 — WGSL Stage 5 GPU Tone Curve Pipeline Integration**:
+- **Phase 6.2 — Extended Film Emulation & Creative Presets**:
+  - Implemented 3D CLUT (`ColorLut3d`) in `rraw-color` (`crates/rraw-color/src/clut.rs`) with zero-allocation tetrahedral and trilinear interpolation.
+  - Implemented `.cube` file parser (`from_cube_str`) and exporter (`to_cube_str`) adhering to Adobe / DaVinci Resolve specification.
+  - Built algorithmic spectral film profile generators (`FilmSimulationProfile`): *Fujifilm Classic Chrome*, *Kodak Portra 400*, *Fujifilm Velvia 50*, *Kodak Tri-X 400*, and *Ilford HP5 Plus*.
+  - Added new film simulation presets to `GradingPreset` in `rraw-app`:
+    - Full parameter configurations and custom PCHIP tone curves for each film profile.
+    - Preserved identity reset on preset switch, round-trip ID string serialization, and bidirectional `detect_preset` recognition.
+  - Added adversarial tests across `rraw-color` and `rraw-app`, verifying numerical exactness, neutral axis preservation, finite bounds, and preset activation.
+  - Verified with 102 unit/integration tests passing workspace-wide and zero clippy warnings.
+  - Verified by adversarial local audit (Qwen 3.6 35B via `execute_local_task`, 0 cloud tokens).
+
+- **Phase 6.1b.2 — WGSL Stage 5 GPU Tone Curve Pipeline Integration (`e084390`)**:
   - Bound 1024-entry 1D tone curves LUT storage buffer (`array<vec4<f32>>`) to Stage 5 compute shader (`stage5_color_laplacian.wgsl`).
   - Implemented WGSL `sample_lut_channel` with linear interpolation and strictly guarded array index bounds (`min(u32(floor(x)), 1022u)`).
   - Ported ACEScg AP1 luma preservation and Gamut Guard into WGSL Stage 5b.
   - Extended `Stage5Params` with `tone_curves_lut: Option<Box<[[f32; 4]; 1024]>>` and zero-cost allocation path.
   - Verified numerical equivalence with CPU reference via `test_stage5_gpu_tone_curves_matches_cpu_reference` (RMSE < 1e-4).
-  - 97 unit/integration tests passing workspace-wide.
 
 - **Phase 6.1b.1 — Tone Curve Ergonomics, Sqrt Histogram Underlay & In/Out Readout (`4b0c724`)**:
   - Implemented square-root scaled, channel-tinted live histogram underlay in tone curve canvas (`tone_curves.rs`).
   - Added master Combined RGB ghost curve displayed when editing individual color channels or luma.
   - Implemented live In/Out percentage coordinate readout and vertical hairline cursor guide.
   - Added dynamic activity dot indicator on modified curve channel selector tabs.
-  - Added unit test verifying curve channel isolation and activity detection.
-  - 96 unit/integration tests passing workspace-wide.
 
-- **Phase 6.1 — Interactive PCHIP Tone Curves & Mathematical Hardening (`64921a7`, `d75eafc`, `00ab991`, `99bd8a7`)**:
-  - Implemented Fritsch-Carlson Monotone Cubic Hermite Spline (PCHIP) evaluator and 1024-entry LUT evaluation in `rraw-color` and `rraw-core`.
-  - Hardened PCHIP derivative formulation using Brodlie / Fritsch-Carlson weighted harmonic mean for non-uniform knot spacing, preventing overshoot or gradient reversals on tight control points.
-  - Precompiled 5-spline `PchipSpline` structure, dropping heap allocations from 12,288 to 0 in the 1D LUT evaluation loop.
-  - Refactored Rayon row preview evaluation in `preview.rs` to write directly in-place via `par_chunks_exact_mut`, eliminating all `preview_h` per-row `Vec` allocations.
-  - Fixed tone curve UI interaction to immediately grab newly inserted points into active drag state on click/press, allowing continuous placement without re-clicking, and added double-click point deletion.
-  - Multi-threaded preview evaluation via `rayon` across CPU cores with identity-geometry fast path and `opt-level = 3` in dev profile for silky-smooth 60-120 FPS slider and curve scrubbing.
-  - Added native JPEG and PNG raster loading with on-the-fly sRGB linear conversion and thumbnails.
-  - Implemented instant untouched raw A/B inspection via 0 ms GPU texture swapping on photo click-and-hold or `\` key.
-  - Mapped vertical mouse wheel deltas to horizontal scrolling over the filmstrip.
-  - GitHub Actions CI workflow configured on `macos-13`.
-  - 95 unit/integration tests passing workspace-wide.
+## Next Logical Action: Gate 3 Validation & Interactive Testing
 
-## Next Logical Action: Phase 6.2 — Extended Film Emulation & Creative Presets
-
-- **Target crates**: `rraw-color`, `rraw-core`, `rraw-app`
-- **Scope**:
-  1. Define 3D CLUT / parametric creative film profile recipes (e.g. Classic Chrome, Portra, Tri-X 400).
-  2. Implement tetrahedral 3D LUT interpolation in `rraw-color`.
-  3. Wire creative profiles into `rraw-app` preset selector and sidecars.
+- Present Gate 3 to user with unified diff, test protocol, and commit proposal.
+- Await user approval for atomic commit and push.
 
 ## Repository Completion State
 

@@ -4,7 +4,7 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 6 — Advanced Color & Tone Architecture (Phase 6.1 Complete)
+- **Active Phase**: Phase 6 — Advanced Color & Tone Architecture (Phase 6.2 Complete)
 - **Active Tasks**:
   - Task 0.1 & Task 0.2: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized)
   - Task 1.1 (`rraw-core`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `acedebb`)
@@ -28,7 +28,8 @@
   - Tone Curves Mathematical Hardening & Zero-Allocation LUT: **Complete** (Inquisitor APPROVED, commit `00ab991`)
   - App In-Place Preview Slicing & Continuous Drag UX: **Complete** (Inquisitor APPROVED, commit `99bd8a7`)
   - Phase 6.1b.1 Tone Curves Ergonomics, Sqrt Histogram & Readout: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `4b0c724`)
-  - Phase 6.1b.2 WGSL Stage 5 GPU Tone Curves Integration: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized)
+  - Phase 6.1b.2 WGSL Stage 5 GPU Tone Curves Integration: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `e084390`)
+  - Phase 6.2 Extended Film Emulation & Creative Presets: **Complete** (Inquisitor APPROVED, CI green, Gate 3 pending)
 - **Git Branch**: `main`
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
 - **Last Approved Gate**: Gate 3 (Authorized on 2026-11-19)
