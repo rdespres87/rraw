@@ -12,7 +12,7 @@ env:
 jobs:
   check-format-clippy:
     name: Code Formatting & Strict Clippy Lints
-    runs-on: macos-13
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
 
   test-workspace:
     name: Workspace Unit & Integration Tests (macOS)
-    runs-on: macos-13
+    runs-on: macos-latest
     needs: check-format-clippy
     steps:
       - name: Checkout repository
