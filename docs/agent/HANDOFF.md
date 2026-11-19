@@ -7,11 +7,23 @@
   - Extended `DarkroomSection::ALL` to 11 modules, repatriating parametric `ToneCurves` into the right darkroom panel under the `Light` family alongside Exposure and Contrast.
   - Implemented `section_matches_search` text filter with keyword aliasing for instant tool lookup.
   - Added `is_section_active` and `reset_section` enabling visual modified status indicators (`●`) and per-module `↺` defaults reset.
-  - Redesigned `render_darkroom_panel` with category tabs, search input, clear button `✕`, active-only toggle (`☑ Modifiés`), and soft rounded card containers (`#14161b`).
+  - Redesigned `render_darkroom_panel` with category tabs, search input, clear button `✕`, active-only toggle (`✓ Modifiés`), and soft rounded card containers (`#14161b`).
   - Redesigned `render_left_panel` with the reference RGB/Luma Waveform Histogram pinned prominently at the top, followed by scrollable folder explorer, styles, and EXIF inspectors.
   - Sanitized entire git commit history across all 68 ancestor commits to eliminate third-party trademarked names at origin.
   - Local commit: `c4487d9` (`feat(rraw-app): implement darkroom palette categories, active filter, and search`).
   - Verified with 151 unit and integration tests passing across 44 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit APPROVED.
+
+- **UI Overhaul Step 1 Refinements: Ergonomics, Dimension Locking & Layout Persistence (`rraw-app`)**:
+  - Fixed-size panel enforcement: `"darkroom_panel_fixed"` (360px) and `"left_panel_fixed"` (320px) with `.resizable(false)` and `.exact_size(...)` eliminating resize cursors and cached collapsed state.
+  - Dynamic tool unrolling: selecting any specific category automatically opens all sections belonging to that family via `CollapsingState`.
+  - Multi-line controls stacking:
+    - Geometry: `Straighten` 90° CCW/CW stacked above Mirror H/V.
+    - Masks: Brush Radius stacked above Flow; AI Mask Feather stacked above Opacity; Gradient coordinates stacked.
+    - Color & Proofing: Full-width stacked ComboBoxes with label on line 1, dropdown on line 2, preventing horizontal scroll clipping.
+  - Glyph tofu box fix: Replaced unsupported Unicode `☐`/`☑` characters with `✓` and clean text labels.
+  - Layout state persistence: `active_tool_family` and `active_tools_only` saved and restored across app restarts via `~/.config/rraw/layout.json`.
+  - Local commit: `80e97a4` (`fix(rraw-app): lock panel dimensions, prevent layout truncation and refine inspector ergonomics`).
+  - Verified with 152 unit and integration tests passing across 44 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit APPROVED.
 
 ## Next Logical Action: UI Overhaul Step 2 — Pro Viewport, Canvas Overlays & Top Bar Decluttering
 
