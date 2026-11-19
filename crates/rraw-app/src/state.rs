@@ -271,7 +271,7 @@ impl DarkroomSection {
     pub const fn title(self) -> &'static str {
         match self {
             Self::ExposureTone => "☀️ Exposition & Tonalité",
-            Self::AiSemanticMasks => "🎭 Masques IA (CoreML)",
+            Self::AiSemanticMasks => "🎭 Masquage & Retouche locale (Dégradés & IA)",
             Self::ToneCurves => "📈 Courbes de tonalité",
             Self::WhiteBalanceColor => "🎨 Balance des blancs & Couleur",
             Self::SoftProofing => "🖨️ Épreuvage écran & Hors-Gamut (ICC)",
@@ -918,6 +918,152 @@ impl SemanticMaskLayer {
     }
 }
 
+/// Kind and geometric coordinates of a local retouching mask.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LocalMaskKind {
+    /// Linear directional gradient in normalized `[0, 1]²` coordinates.
+    LinearGradient { start: [f32; 2], end: [f32; 2] },
+    /// Radial elliptical gradient in normalized `[0, 1]²` coordinates.
+    RadialGradient {
+        center: [f32; 2],
+        radius: [f32; 2],
+        rotation_deg: f32,
+    },
+}
+
+/// Local adjustment mask layer (Linear Gradient, Radial Gradient).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LocalMaskLayer {
+    pub id: String,
+    pub name: String,
+    pub kind: LocalMaskKind,
+    pub enabled: bool,
+    pub invert: bool,
+    pub feather: f32,
+    pub opacity: f32,
+    pub exposure_ev: f32,
+    pub contrast: f32,
+    pub saturation: f32,
+    pub temperature_shift: f32,
+}
+
+impl LocalMaskLayer {
+    /// Creates a new linear gradient mask layer.
+    pub fn new_linear(name: impl Into<String>, start: [f32; 2], end: [f32; 2]) -> Self {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis());
+        Self {
+            id: format!("lmask_lin_{ts}"),
+            name: name.into(),
+            kind: LocalMaskKind::LinearGradient { start, end },
+            enabled: true,
+            invert: false,
+            feather: 0.5,
+            opacity: 1.0,
+            exposure_ev: 0.0,
+            contrast: 0.0,
+            saturation: 0.0,
+            temperature_shift: 0.0,
+        }
+    }
+
+    /// Creates a new radial gradient mask layer.
+    pub fn new_radial(name: impl Into<String>, center: [f32; 2], radius: [f32; 2]) -> Self {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis());
+        Self {
+            id: format!("lmask_rad_{ts}"),
+            name: name.into(),
+            kind: LocalMaskKind::RadialGradient {
+                center,
+                radius,
+                rotation_deg: 0.0,
+            },
+            enabled: true,
+            invert: false,
+            feather: 0.5,
+            opacity: 1.0,
+            exposure_ev: 0.0,
+            contrast: 0.0,
+            saturation: 0.0,
+            temperature_shift: 0.0,
+        }
+    }
+
+    /// Returns true if this mask contributes zero effective changes.
+    #[must_use]
+    pub fn is_neutral(&self) -> bool {
+        !self.enabled
+            || self.opacity <= 1e-4
+            || (self.exposure_ev.abs() < 1e-4
+                && self.contrast.abs() < 1e-3
+                && self.saturation.abs() < 1e-3
+                && self.temperature_shift.abs() < 1e-3)
+    }
+
+    /// Evaluates the normalized mask weight at normalized coordinates `(u, v) \in [0, 1]²`.
+    #[must_use]
+    pub fn evaluate_weight(&self, u: f32, v: f32) -> f32 {
+        if !self.enabled || self.opacity <= 1e-4 {
+            return 0.0;
+        }
+
+        let raw_w = match &self.kind {
+            LocalMaskKind::LinearGradient { start, end } => {
+                let dx = end[0] - start[0];
+                let dy = end[1] - start[1];
+                let len_sq = (dx * dx + dy * dy).max(1e-12);
+                let proj = ((u - start[0]) * dx + (v - start[1]) * dy) / len_sq;
+                let t = proj.clamp(0.0, 1.0);
+                let f = self.feather.clamp(0.05, 1.0);
+                if f > 0.95 {
+                    t
+                } else {
+                    t * t * (3.0 - 2.0 * t)
+                }
+            }
+            LocalMaskKind::RadialGradient {
+                center,
+                radius,
+                rotation_deg,
+            } => {
+                let rad = rotation_deg.to_radians();
+                let cos_r = rad.cos();
+                let sin_r = rad.sin();
+                let dx = u - center[0];
+                let dy = v - center[1];
+                let rx = (dx * cos_r + dy * sin_r) / radius[0].max(1e-4);
+                let ry = (-dx * sin_r + dy * cos_r) / radius[1].max(1e-4);
+                let dist = (rx * rx + ry * ry).sqrt();
+
+                let f = self.feather.clamp(0.05, 1.0);
+                let inner = (1.0 - f).max(0.0);
+                if dist <= inner {
+                    1.0
+                } else if dist >= 1.0 {
+                    0.0
+                } else {
+                    let t = (dist - inner) / (1.0 - inner).max(1e-4);
+                    let s = t * t * (3.0 - 2.0 * t);
+                    1.0 - s
+                }
+            }
+        };
+
+        let w = if self.invert {
+            (1.0 - raw_w).clamp(0.0, 1.0)
+        } else {
+            raw_w.clamp(0.0, 1.0)
+        };
+
+        w * self.opacity.clamp(0.0, 1.0)
+    }
+}
+
 /// Active custom 3D CLUT state.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CustomClutState {
@@ -989,6 +1135,11 @@ pub struct DarkroomGradingState {
     /// Optional active semantic category overlay displayed in ruby-magenta over the viewport.
     pub show_semantic_mask_overlay: Option<rraw_core::SemanticMaskCategory>,
 
+    // Local Retouching & Masking (Linear, Radial)
+    pub local_masks: Vec<LocalMaskLayer>,
+    /// Optional index of the active local mask to overlay in ruby red on the viewport.
+    pub show_local_mask_overlay: Option<usize>,
+
     // Color Management & Soft Proofing (Task 6.4)
     pub soft_proof: rraw_color::SoftProofConfig,
 }
@@ -1020,13 +1171,41 @@ impl DarkroomGradingState {
         }
     }
 
-    /// Converts all configured semantic mask layers into `rraw_core::Stage6MasksParams` for GPU Stage 6.
+    /// Converts all configured local and semantic mask layers into `rraw_core::Stage6MasksParams` for GPU Stage 6.
     #[must_use]
     pub fn to_stage6_masks_params(&self) -> rraw_core::Stage6MasksParams {
-        let masks = self
-            .semantic_masks
-            .iter()
-            .map(|layer| rraw_core::GeometricMask {
+        let mut masks = Vec::new();
+        for mask in &self.local_masks {
+            if !mask.enabled {
+                continue;
+            }
+            let kind = match &mask.kind {
+                LocalMaskKind::LinearGradient { start, end } => {
+                    rraw_core::MaskKind::LinearGradient {
+                        start: *start,
+                        end: *end,
+                    }
+                }
+                LocalMaskKind::RadialGradient {
+                    center,
+                    radius,
+                    rotation_deg,
+                } => rraw_core::MaskKind::RadialGradient {
+                    center: *center,
+                    radius: *radius,
+                    rotation_deg: *rotation_deg,
+                },
+            };
+            masks.push(rraw_core::GeometricMask {
+                id: mask.id.clone(),
+                kind,
+                exposure_offset_ev: mask.exposure_ev,
+                opacity: mask.opacity,
+                enabled: mask.enabled,
+            });
+        }
+        for layer in &self.semantic_masks {
+            masks.push(rraw_core::GeometricMask {
                 id: format!("ai_{}", layer.category.id_str()),
                 kind: rraw_core::MaskKind::SemanticAi {
                     category: layer.category,
@@ -1036,8 +1215,8 @@ impl DarkroomGradingState {
                 exposure_offset_ev: layer.exposure_ev,
                 opacity: layer.opacity,
                 enabled: layer.enabled,
-            })
-            .collect();
+            });
+        }
         rraw_core::Stage6MasksParams { masks }
     }
 }
@@ -1090,6 +1269,8 @@ impl Default for DarkroomGradingState {
             custom_clut: None,
             semantic_masks: Vec::new(),
             show_semantic_mask_overlay: None,
+            local_masks: Vec::new(),
+            show_local_mask_overlay: None,
             soft_proof: rraw_color::SoftProofConfig::default(),
         }
     }
@@ -1192,6 +1373,8 @@ pub struct SidecarRecipe {
     #[serde(default)]
     pub semantic_masks: Vec<SemanticMaskLayer>,
     #[serde(default)]
+    pub local_masks: Vec<LocalMaskLayer>,
+    #[serde(default)]
     pub soft_proof: rraw_color::SoftProofConfig,
 }
 
@@ -1250,6 +1433,7 @@ impl SidecarRecipe {
                 .and_then(|c| c.path.as_ref().map(|p| p.to_string_lossy().to_string())),
             custom_lut_strength: grading.custom_clut.as_ref().map_or(1.0, |c| c.strength),
             semantic_masks: grading.semantic_masks.clone(),
+            local_masks: grading.local_masks.clone(),
             soft_proof: grading.soft_proof,
         }
     }
@@ -1288,6 +1472,8 @@ impl SidecarRecipe {
         grading.tone_curves = self.tone_curves.clone();
         grading.semantic_masks = self.semantic_masks.clone();
         grading.show_semantic_mask_overlay = None;
+        grading.local_masks = self.local_masks.clone();
+        grading.show_local_mask_overlay = None;
         grading.soft_proof = self.soft_proof;
         grading.preset = if let Some(p_str) = &self.preset {
             GradingPreset::from_id_str(p_str)

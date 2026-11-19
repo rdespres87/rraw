@@ -203,12 +203,260 @@ impl RrawApp {
                 }
             }
             DarkroomSection::AiSemanticMasks => {
+                let mut changed = false;
+
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("Masques géométriques :").strong());
+                    if ui
+                        .small_button("+ Dégradé linéaire")
+                        .on_hover_text("Ajouter un dégradé linéaire (ex. ciel ou premier plan)")
+                        .clicked()
+                    {
+                        let count = self.grading.local_masks.len() + 1;
+                        self.grading.local_masks.push(LocalMaskLayer::new_linear(
+                            format!("Dégradé linéaire {count}"),
+                            [0.5, 0.0],
+                            [0.5, 0.45],
+                        ));
+                        self.grading.show_local_mask_overlay = None;
+                        changed = true;
+                    }
+                    if ui
+                        .small_button("+ Dégradé radial")
+                        .on_hover_text("Ajouter un masque radial (ex. sujet, visage ou projecteur)")
+                        .clicked()
+                    {
+                        let count = self.grading.local_masks.len() + 1;
+                        self.grading.local_masks.push(LocalMaskLayer::new_radial(
+                            format!("Dégradé radial {count}"),
+                            [0.5, 0.5],
+                            [0.3, 0.3],
+                        ));
+                        self.grading.show_local_mask_overlay = None;
+                        changed = true;
+                    }
+                });
+
+                let mut local_mask_to_remove: Option<usize> = None;
+                let mut active_local_overlay = self.grading.show_local_mask_overlay;
+
+                for (idx, mask) in self.grading.local_masks.iter_mut().enumerate() {
+                    ui.add_space(3.0);
+                    egui::Frame::group(ui.style())
+                        .fill(Color32::from_rgb(30, 34, 40))
+                        .inner_margin(6.0)
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let icon = match &mask.kind {
+                                    LocalMaskKind::LinearGradient { .. } => "📏",
+                                    LocalMaskKind::RadialGradient { .. } => "⭕",
+                                };
+                                if ui
+                                    .checkbox(
+                                        &mut mask.enabled,
+                                        egui::RichText::new(format!("{icon} {}", mask.name))
+                                            .strong(),
+                                    )
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+
+                                let is_overlay = active_local_overlay == Some(idx);
+                                if ui
+                                    .selectable_label(is_overlay, "👁")
+                                    .on_hover_text("Afficher l'overlay du masque en rubis")
+                                    .clicked()
+                                {
+                                    active_local_overlay =
+                                        if is_overlay { None } else { Some(idx) };
+                                    changed = true;
+                                }
+
+                                if ui
+                                    .checkbox(&mut mask.invert, "Inverser")
+                                    .on_hover_text("Inverser la zone du masque (1 - w)")
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui
+                                            .small_button("✖")
+                                            .on_hover_text("Supprimer ce masque")
+                                            .clicked()
+                                        {
+                                            local_mask_to_remove = Some(idx);
+                                        }
+                                    },
+                                );
+                            });
+
+                            if mask.enabled {
+                                ui.horizontal(|ui| {
+                                    ui.label("Exposition (EV)");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(&mut mask.exposure_ev, -3.0..=3.0)
+                                                .step_by(0.05)
+                                                .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("Contraste");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(&mut mask.contrast, -100.0..=100.0)
+                                                .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("Saturation");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(&mut mask.saturation, -100.0..=100.0)
+                                                .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("Température");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(
+                                                &mut mask.temperature_shift,
+                                                -100.0..=100.0,
+                                            )
+                                            .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("Adoucissement");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(&mut mask.feather, 0.05..=1.0)
+                                                .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+                                });
+
+                                // Coordinates controls
+                                match &mut mask.kind {
+                                    LocalMaskKind::LinearGradient { start, end } => {
+                                        ui.horizontal(|ui| {
+                                            ui.label("Départ Y :");
+                                            if ui
+                                                .add(
+                                                    egui::Slider::new(&mut start[1], 0.0..=1.0)
+                                                        .show_value(true),
+                                                )
+                                                .changed()
+                                            {
+                                                changed = true;
+                                            }
+                                            ui.label("Arrivée Y :");
+                                            if ui
+                                                .add(
+                                                    egui::Slider::new(&mut end[1], 0.0..=1.0)
+                                                        .show_value(true),
+                                                )
+                                                .changed()
+                                            {
+                                                changed = true;
+                                            }
+                                        });
+                                    }
+                                    LocalMaskKind::RadialGradient {
+                                        center,
+                                        radius,
+                                        rotation_deg: _,
+                                    } => {
+                                        ui.horizontal(|ui| {
+                                            ui.label("Centre X/Y :");
+                                            if ui
+                                                .add(
+                                                    egui::Slider::new(&mut center[0], 0.0..=1.0)
+                                                        .show_value(true),
+                                                )
+                                                .changed()
+                                            {
+                                                changed = true;
+                                            }
+                                            if ui
+                                                .add(
+                                                    egui::Slider::new(&mut center[1], 0.0..=1.0)
+                                                        .show_value(true),
+                                                )
+                                                .changed()
+                                            {
+                                                changed = true;
+                                            }
+                                        });
+                                        ui.horizontal(|ui| {
+                                            ui.label("Rayons X/Y :");
+                                            if ui
+                                                .add(
+                                                    egui::Slider::new(&mut radius[0], 0.05..=1.0)
+                                                        .show_value(true),
+                                                )
+                                                .changed()
+                                            {
+                                                changed = true;
+                                            }
+                                            if ui
+                                                .add(
+                                                    egui::Slider::new(&mut radius[1], 0.05..=1.0)
+                                                        .show_value(true),
+                                                )
+                                                .changed()
+                                            {
+                                                changed = true;
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                        });
+                }
+
+                if let Some(remove_idx) = local_mask_to_remove {
+                    if remove_idx < self.grading.local_masks.len() {
+                        self.grading.local_masks.remove(remove_idx);
+                        if active_local_overlay == Some(remove_idx) {
+                            active_local_overlay = None;
+                        }
+                        changed = true;
+                    }
+                }
+                self.grading.show_local_mask_overlay = active_local_overlay;
+
+                ui.separator();
+                ui.label(egui::RichText::new("Masques IA CoreML (Segmentation)").strong());
                 ui.label(
-                    egui::RichText::new(
-                        "Segmentation sémantique IA CoreML (Sujet, Ciel, Arrière-plan, Portrait)",
-                    )
-                    .small()
-                    .color(Color32::GRAY),
+                    egui::RichText::new("Sujet, Ciel, Arrière-plan, Portrait")
+                        .small()
+                        .color(Color32::GRAY),
                 );
                 ui.horizontal_wrapped(|ui| {
                     for cat in rraw_core::SemanticMaskCategory::ALL {
@@ -249,7 +497,6 @@ impl RrawApp {
                 });
 
                 let mut category_to_remove: Option<rraw_core::SemanticMaskCategory> = None;
-                let mut changed = false;
                 let mut active_overlay = self.grading.show_semantic_mask_overlay;
 
                 for layer in &mut self.grading.semantic_masks {

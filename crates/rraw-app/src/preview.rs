@@ -440,11 +440,12 @@ fn infer_preview_semantic_masks(
     std::sync::Arc::new(masks)
 }
 
-/// Evaluates accumulated local semantic mask offsets `(ev, contrast, saturation, temp_shift)` at `(u, v)`.
+/// Evaluates accumulated local (semantic + geometric gradients) mask offsets `(ev, contrast, saturation, temp_shift)` at `(u, v)`.
 #[inline]
-fn eval_semantic_mask_adjustments(
+fn eval_all_mask_adjustments(
     masks_set: &rraw_ai::SemanticMaskSet,
-    layers: &[SemanticMaskLayer],
+    semantic_layers: &[SemanticMaskLayer],
+    local_masks: &[LocalMaskLayer],
     u: f32,
     v: f32,
 ) -> (f32, f32, f32, f32) {
@@ -453,7 +454,7 @@ fn eval_semantic_mask_adjustments(
     let mut sat = 0.0_f32;
     let mut temp = 0.0_f32;
 
-    for layer in layers {
+    for layer in semantic_layers {
         if layer.is_neutral() {
             continue;
         }
@@ -466,6 +467,20 @@ fn eval_semantic_mask_adjustments(
             temp += w * layer.temperature_shift;
         }
     }
+
+    for mask in local_masks {
+        if mask.is_neutral() {
+            continue;
+        }
+        let w = mask.evaluate_weight(u, v);
+        if w > 1e-4 {
+            ev += w * mask.exposure_ev;
+            contrast += w * mask.contrast;
+            sat += w * mask.saturation;
+            temp += w * mask.temperature_shift;
+        }
+    }
+
     (ev, contrast, sat, temp)
 }
 
@@ -1046,10 +1061,11 @@ pub fn render_preview_from_base(
                 let v_norm = (py as f32 + 0.5) / (preview_h.max(1) as f32);
 
                 let (sem_ev, sem_contrast, sem_sat, sem_temp) =
-                    if !grading.semantic_masks.is_empty() {
-                        eval_semantic_mask_adjustments(
+                    if !grading.semantic_masks.is_empty() || !grading.local_masks.is_empty() {
+                        eval_all_mask_adjustments(
                             &base.semantic_masks,
                             &grading.semantic_masks,
+                            &grading.local_masks,
                             u_norm,
                             v_norm,
                         )
@@ -1185,6 +1201,20 @@ pub fn render_preview_from_base(
                             as u8;
                         u8_b = ((u8_b as f32) * (1.0 - mask_w) + 115.0 * mask_w).clamp(0.0, 255.0)
                             as u8;
+                    }
+                }
+
+                if let Some(mask_idx) = grading.show_local_mask_overlay {
+                    if let Some(m) = grading.local_masks.get(mask_idx) {
+                        let mask_w = m.evaluate_weight(u_norm, v_norm) * 0.65;
+                        if mask_w > 1e-3 {
+                            u8_r = ((u8_r as f32) * (1.0 - mask_w) + 255.0 * mask_w)
+                                .clamp(0.0, 255.0) as u8;
+                            u8_g = ((u8_g as f32) * (1.0 - mask_w) + 40.0 * mask_w)
+                                .clamp(0.0, 255.0) as u8;
+                            u8_b = ((u8_b as f32) * (1.0 - mask_w) + 115.0 * mask_w)
+                                .clamp(0.0, 255.0) as u8;
+                        }
                     }
                 }
 
@@ -1493,16 +1523,18 @@ pub fn render_export_image(
 
             let u_norm = (orig_x / (preview_w.max(1) as f32)).clamp(0.0, 1.0);
             let v_norm = (orig_y / (preview_h.max(1) as f32)).clamp(0.0, 1.0);
-            let (sem_ev, sem_contrast, sem_sat, sem_temp) = if !grading.semantic_masks.is_empty() {
-                eval_semantic_mask_adjustments(
-                    &base.semantic_masks,
-                    &grading.semantic_masks,
-                    u_norm,
-                    v_norm,
-                )
-            } else {
-                (0.0, 0.0, 0.0, 0.0)
-            };
+            let (sem_ev, sem_contrast, sem_sat, sem_temp) =
+                if !grading.semantic_masks.is_empty() || !grading.local_masks.is_empty() {
+                    eval_all_mask_adjustments(
+                        &base.semantic_masks,
+                        &grading.semantic_masks,
+                        &grading.local_masks,
+                        u_norm,
+                        v_norm,
+                    )
+                } else {
+                    (0.0, 0.0, 0.0, 0.0)
+                };
 
             let (r_sem, g_sem, b_sem) = if sem_ev.abs() > 1e-4 || sem_temp.abs() > 1e-3 {
                 let g_ev = 2.0_f32.powf(sem_ev);
