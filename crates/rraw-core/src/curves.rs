@@ -69,12 +69,15 @@ impl ChannelCurve {
     }
 
     /// Adds or updates a control point while preserving strictly sorted x order.
-    pub fn add_point(&mut self, point: CurvePoint) {
+    /// Returns the index of the added or updated point.
+    pub fn add_point(&mut self, point: CurvePoint) -> usize {
         let idx = self.points.partition_point(|p| p.x < point.x);
         if idx < self.points.len() && (self.points[idx].x - point.x).abs() < 1e-4 {
             self.points[idx] = point;
+            idx
         } else {
             self.points.insert(idx, point);
+            idx
         }
     }
 
