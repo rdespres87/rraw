@@ -375,7 +375,7 @@ impl RrawApp {
 
         match section {
             DarkroomSection::ExposureTone => {
-                ui.label("Exposure (EV)");
+                ui.label("Exposition (IL)");
                 let r1 = ui.add(
                     egui::Slider::new(&mut self.grading.exposure_ev, -5.0..=5.0).show_value(true),
                 );
@@ -386,7 +386,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Contrast");
+                ui.label("Contraste");
                 let r2 = ui.add(
                     egui::Slider::new(&mut self.grading.contrast, -100.0..=100.0).show_value(true),
                 );
@@ -397,7 +397,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Highlights");
+                ui.label("Hautes lumières");
                 let r3 = ui.add(
                     egui::Slider::new(&mut self.grading.highlights, -100.0..=100.0)
                         .show_value(true),
@@ -409,7 +409,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Shadows");
+                ui.label("Ombres");
                 let r4 = ui.add(
                     egui::Slider::new(&mut self.grading.shadows, -100.0..=100.0).show_value(true),
                 );
@@ -420,7 +420,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Noirs / Blacks");
+                ui.label("Noirs");
                 let r5 = ui.add(
                     egui::Slider::new(&mut self.grading.blacks, -100.0..=100.0).show_value(true),
                 );
@@ -431,7 +431,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                if ui.button("Reset Tones").clicked() {
+                if ui.button("Réinitialiser la tonalité").clicked() {
                     self.grading.exposure_ev = 0.0;
                     self.grading.contrast = 0.0;
                     self.grading.highlights = 0.0;
@@ -444,7 +444,7 @@ impl RrawApp {
                 }
             }
             DarkroomSection::WhiteBalanceColor => {
-                ui.label("Temperature (Kelvin)");
+                ui.label("Température (Kelvin)");
                 let r_k = ui.add(
                     egui::Slider::new(&mut self.grading.kelvin, 2000.0..=12000.0).show_value(true),
                 );
@@ -455,7 +455,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Tint");
+                ui.label("Teinte");
                 let r_t = ui
                     .add(egui::Slider::new(&mut self.grading.tint, -50.0..=50.0).show_value(true));
                 if r_t.changed() {
@@ -497,7 +497,7 @@ impl RrawApp {
                         let c1 = ui.selectable_value(
                             &mut self.grading.display_transform,
                             DisplayTransform::AgX,
-                            "AgX (Default)",
+                            "AgX (Par défaut)",
                         );
                         let c2 = ui.selectable_value(
                             &mut self.grading.display_transform,
@@ -512,7 +512,7 @@ impl RrawApp {
                         }
                     });
 
-                let c_mono = ui.checkbox(&mut self.grading.is_monochrome, "Monochrome (B&W)");
+                let c_mono = ui.checkbox(&mut self.grading.is_monochrome, "Noir et Blanc (Monochrome)");
                 if c_mono.changed() {
                     self.grading.preset = GradingPreset::Custom;
                     self.current_preset = GradingPreset::Custom;
@@ -520,7 +520,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                if ui.button("Reset Color").clicked() {
+                if ui.button("Réinitialiser la couleur").clicked() {
                     self.grading.kelvin = 5500.0;
                     self.grading.tint = 0.0;
                     self.grading.vibrance = 0.0;
@@ -1077,7 +1077,7 @@ impl RrawApp {
                                     }
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.label("Contour (Feather)");
+                                    ui.label("Contour progressif :");
                                     if ui
                                         .add(
                                             egui::Slider::new(&mut layer.feather, 0.02..=0.50)
@@ -1393,7 +1393,7 @@ impl RrawApp {
                 }
 
                 ui.horizontal(|ui| {
-                    if ui.button("↺ 90° CCW").clicked() {
+                    if ui.button("↺ 90° Gauche").clicked() {
                         self.grading.rotation_degrees =
                             (self.grading.rotation_degrees - 90.0).clamp(-45.0, 45.0);
                         self.grading.preset = GradingPreset::Custom;
@@ -1401,7 +1401,7 @@ impl RrawApp {
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
-                    if ui.button("↻ 90° CW").clicked() {
+                    if ui.button("↻ 90° Droite").clicked() {
                         self.grading.rotation_degrees =
                             (self.grading.rotation_degrees + 90.0).clamp(-45.0, 45.0);
                         self.grading.preset = GradingPreset::Custom;
@@ -1456,7 +1456,7 @@ impl RrawApp {
                         }
                     }
 
-                    ui.label("Keystone Vertical (Perspective verticale)");
+                    ui.label("Perspective verticale");
                     let r_kv = ui.add(
                         egui::Slider::new(&mut self.grading.keystone_vertical, -50.0..=50.0)
                             .step_by(0.5)
@@ -1469,7 +1469,7 @@ impl RrawApp {
                         ui.ctx().request_repaint();
                     }
 
-                    ui.label("Keystone Horizontal (Perspective horizontale)");
+                    ui.label("Perspective horizontale");
                     let r_kh = ui.add(
                         egui::Slider::new(&mut self.grading.keystone_horizontal, -50.0..=50.0)
                             .step_by(0.5)
@@ -1551,7 +1551,7 @@ impl RrawApp {
                 }
 
                 ui.add_space(4.0);
-                ui.label("🔍 Accentuation des détails (Sharpening)");
+                ui.label("🔍 Accentuation des détails (Netteté)");
                 let r_s = ui.add(
                     egui::Slider::new(&mut self.grading.capture_sharpening_amount, 0.0..=2.0)
                         .show_value(true),
@@ -1577,14 +1577,14 @@ impl RrawApp {
             DarkroomSection::OpticalCorrections => {
                 let c_dist = ui.checkbox(
                     &mut self.grading.distortion_correction,
-                    "Geometric Distortion (Lensfun/MakerNote)",
+                    "Distorsion géométrique (Profil optique)",
                 );
                 if c_dist.changed() {
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Manual Distortion");
+                ui.label("Distorsion manuelle");
                 let r_da = ui.add(
                     egui::Slider::new(&mut self.grading.distortion_amount, -50.0..=50.0)
                         .show_value(true),
@@ -1598,14 +1598,14 @@ impl RrawApp {
 
                 let c_ca = ui.checkbox(
                     &mut self.grading.chromatic_aberration_correction,
-                    "Lateral Chromatic Aberration",
+                    "Aberrations chromatiques latérales",
                 );
                 if c_ca.changed() {
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Suppression franges violettes (Defringe)");
+                ui.label("Suppression des franges violettes");
                 let r_dp = ui.add(
                     egui::Slider::new(&mut self.grading.defringe_purple_amount, 0.0..=100.0)
                         .show_value(true)
@@ -1616,7 +1616,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Suppression franges vertes (Defringe)");
+                ui.label("Suppression des franges vertes");
                 let r_dg = ui.add(
                     egui::Slider::new(&mut self.grading.defringe_green_amount, 0.0..=100.0)
                         .show_value(true)
@@ -1676,7 +1676,7 @@ impl RrawApp {
                         ui.ctx().request_repaint();
                     }
 
-                    ui.label("Progressivité (Feather)");
+                    ui.label("Progressivité du contour");
                     let r_cvf = ui.add(
                         egui::Slider::new(&mut self.grading.creative_vignette_feather, 10.0..=90.0)
                             .show_value(true),
@@ -1700,7 +1700,7 @@ impl RrawApp {
                     }
                 }
 
-                if ui.button("Reset Optics & Vignette").clicked() {
+                if ui.button("Réinitialiser Optique & Vignettage").clicked() {
                     self.grading.distortion_correction = true;
                     self.grading.distortion_amount = 0.0;
                     self.grading.defringe_purple_amount = 0.0;

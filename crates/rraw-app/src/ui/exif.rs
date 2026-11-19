@@ -204,7 +204,7 @@ impl RrawApp {
                     photo.shutter_str, photo.aperture_str, photo.iso
                 ));
                 if !photo.exposure_bias.is_empty() {
-                    ui.label(format!("Bias: {}", photo.exposure_bias));
+                    ui.label(format!("Biais : {}", photo.exposure_bias));
                 }
                 if !photo.date_time.is_empty() {
                     ui.label(
@@ -216,18 +216,19 @@ impl RrawApp {
 
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    if ui.button("Full EXIF Tab 📋").clicked() {
+                    if ui.button("Onglet EXIF complet 📋").clicked() {
                         self.left_panel_tab = LeftPanelTab::Exif;
                     }
-                    if ui.button("Copy JSON").clicked() {
+                    if ui.button("Copier JSON").clicked() {
                         ui.ctx().copy_text(photo.export_exif_json());
-                        self.status_message = "EXIF metadata copied to clipboard!".to_string();
+                        self.status_message =
+                            "Métadonnées EXIF copiées dans le presse-papier !".to_string();
                     }
                 });
             });
         } else {
             ui.label(
-                egui::RichText::new("No photo loaded.")
+                egui::RichText::new("Aucune photo chargée.")
                     .italics()
                     .color(Color32::GRAY),
             );
@@ -239,7 +240,7 @@ impl RrawApp {
         let Some(photo) = self.loaded_photo.clone() else {
             ui.add_space(20.0);
             ui.label(
-                egui::RichText::new("No RAW photograph loaded.")
+                egui::RichText::new("Aucune photo RAW chargée.")
                     .italics()
                     .color(Color32::GRAY),
             );
@@ -247,7 +248,7 @@ impl RrawApp {
         };
 
         ui.vertical(|ui| {
-            ui.heading("EXIF & Photo Metadata");
+            ui.heading("Métadonnées EXIF & Prise de vue");
             ui.label(
                 egui::RichText::new(photo.path.display().to_string())
                     .small()
@@ -258,26 +259,30 @@ impl RrawApp {
             // Export Actions
             ui.horizontal(|ui| {
                 if ui
-                    .button("📥 Export EXIF (JSON)")
-                    .on_hover_text("Save complete EXIF to .exif.json next to RAW file")
+                    .button("📥 Exporter EXIF (.json)")
+                    .on_hover_text(
+                        "Enregistrer l'intégralité des métadonnées EXIF dans un fichier .exif.json",
+                    )
                     .clicked()
                 {
                     let out_path = photo.path.with_extension("exif.json");
                     let json = photo.export_exif_json();
                     if std::fs::write(&out_path, json).is_ok() {
-                        self.status_message = format!("Exported EXIF to {}", out_path.display());
+                        self.status_message = format!("EXIF exporté vers {}", out_path.display());
                     } else {
-                        self.status_message = "Failed to write EXIF file.".to_string();
+                        self.status_message = "Échec d'écriture du fichier EXIF.".to_string();
                     }
                 }
 
                 if ui
-                    .button("📋 Copy to Clipboard")
-                    .on_hover_text("Copy EXIF JSON to system clipboard")
+                    .button("📋 Copier au presse-papier")
+                    .on_hover_text(
+                        "Copier les métadonnées EXIF au format JSON dans le presse-papier système",
+                    )
                     .clicked()
                 {
                     ui.ctx().copy_text(photo.export_exif_json());
-                    self.status_message = "EXIF JSON copied to clipboard!".to_string();
+                    self.status_message = "JSON EXIF copié dans le presse-papier !".to_string();
                 }
             });
 
@@ -288,24 +293,24 @@ impl RrawApp {
                 .striped(true)
                 .min_col_width(140.0)
                 .show(ui, |ui| {
-                    ui.label(egui::RichText::new("Camera Make:").strong().size(13.0));
+                    ui.label(egui::RichText::new("Marque :").strong().size(13.0));
                     ui.label(egui::RichText::new(&photo.camera_make).size(13.0));
                     ui.end_row();
 
-                    ui.label(egui::RichText::new("Camera Model:").strong().size(13.0));
+                    ui.label(egui::RichText::new("Modèle :").strong().size(13.0));
                     ui.label(egui::RichText::new(&photo.camera_model).size(13.0));
                     ui.end_row();
 
                     if !photo.lens_model.is_empty() {
-                        ui.label(egui::RichText::new("Lens:").strong().size(13.0));
+                        ui.label(egui::RichText::new("Objectif :").strong().size(13.0));
                         ui.label(egui::RichText::new(&photo.lens_model).size(13.0));
                         ui.end_row();
                     }
 
-                    ui.label(egui::RichText::new("Dimensions:").strong().size(13.0));
+                    ui.label(egui::RichText::new("Dimensions :").strong().size(13.0));
                     ui.label(
                         egui::RichText::new(format!(
-                            "{} x {} ({:.1} MP)",
+                            "{} × {} ({:.1} MP)",
                             photo.dimensions.0,
                             photo.dimensions.1,
                             (photo.dimensions.0 as f32 * photo.dimensions.1 as f32) / 1_000_000.0
@@ -314,32 +319,36 @@ impl RrawApp {
                     );
                     ui.end_row();
 
-                    ui.label(egui::RichText::new("Shutter Speed:").strong().size(13.0));
+                    ui.label(egui::RichText::new("Vitesse :").strong().size(13.0));
                     ui.label(egui::RichText::new(&photo.shutter_str).size(13.0));
                     ui.end_row();
 
-                    ui.label(egui::RichText::new("Aperture:").strong().size(13.0));
+                    ui.label(egui::RichText::new("Ouverture :").strong().size(13.0));
                     ui.label(egui::RichText::new(&photo.aperture_str).size(13.0));
                     ui.end_row();
 
-                    ui.label(egui::RichText::new("ISO Sensitivity:").strong().size(13.0));
+                    ui.label(egui::RichText::new("Sensibilité ISO :").strong().size(13.0));
                     ui.label(egui::RichText::new(photo.iso.to_string()).size(13.0));
                     ui.end_row();
 
                     if !photo.focal_length_str.is_empty() {
-                        ui.label(egui::RichText::new("Focal Length:").strong().size(13.0));
+                        ui.label(egui::RichText::new("Focale :").strong().size(13.0));
                         ui.label(egui::RichText::new(&photo.focal_length_str).size(13.0));
                         ui.end_row();
                     }
 
                     if !photo.exposure_bias.is_empty() {
-                        ui.label(egui::RichText::new("Exposure Bias:").strong().size(13.0));
+                        ui.label(
+                            egui::RichText::new("Biais d'exposition :")
+                                .strong()
+                                .size(13.0),
+                        );
                         ui.label(egui::RichText::new(&photo.exposure_bias).size(13.0));
                         ui.end_row();
                     }
 
                     if !photo.date_time.is_empty() {
-                        ui.label(egui::RichText::new("Capture Date:").strong().size(13.0));
+                        ui.label(egui::RichText::new("Date de capture :").strong().size(13.0));
                         ui.label(egui::RichText::new(&photo.date_time).size(13.0));
                         ui.end_row();
                     }
@@ -347,7 +356,7 @@ impl RrawApp {
 
             ui.add_space(10.0);
             ui.label(
-                egui::RichText::new("All Decoded EXIF Tags:")
+                egui::RichText::new("Tous les tags EXIF décodés :")
                     .strong()
                     .size(14.0),
             );

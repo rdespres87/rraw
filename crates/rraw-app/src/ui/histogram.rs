@@ -1,17 +1,21 @@
 #![forbid(unsafe_code)]
 
-//! Live RGB waveform and luminance histogram widget.
+//! Live RGB and luminance histogram widget.
 
 use egui::Color32;
 
 use crate::app::RrawApp;
 
 impl RrawApp {
-    /// Renders an embellished live RGB / Luminance histogram waveform widget inside `ui`.
+    /// Renders an embellished live RGB / Luminance histogram widget inside `ui`.
     pub fn render_histogram_widget(&self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("📊 Waveform RGB").strong().size(11.0));
+                ui.label(
+                    egui::RichText::new("📊 Histogramme RGB")
+                        .strong()
+                        .size(11.0),
+                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if self.histogram.out_of_gamut_count > 0
                         && (self.grading.soft_proof.enabled

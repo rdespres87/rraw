@@ -833,13 +833,13 @@ impl eframe::App for RrawApp {
                 ui.horizontal(|ui| {
                     ui.heading("RRAW");
                     ui.label(
-                        egui::RichText::new("120Hz EDR Darkroom")
+                        egui::RichText::new("Chambre noire 120Hz EDR")
                             .color(egui::Color32::from_rgb(100, 180, 255)),
                     );
 
                     ui.separator();
 
-                    if ui.button("📂 Open Image...").clicked() {
+                    if ui.button("📂 Ouvrir image...").clicked() {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter(
                                 "Supported Images",
@@ -854,7 +854,7 @@ impl eframe::App for RrawApp {
                         }
                     }
 
-                    if ui.button("📁 Open Folder...").clicked() {
+                    if ui.button("📁 Ouvrir dossier...").clicked() {
                         if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                             self.open_directory(&folder);
                             if let Some(first_file) = self.directory_entries.first().cloned() {
@@ -863,7 +863,7 @@ impl eframe::App for RrawApp {
                         }
                     }
 
-                    if ui.button("💾 Export...").clicked() {
+                    if ui.button("💾 Exporter...").clicked() {
                         self.show_export_dialog = true;
                         self.export_status = None;
                     }
@@ -886,12 +886,12 @@ impl eframe::App for RrawApp {
                     // Live EDR Headroom Badge
                     let headroom_label = if headroom > 1.05 {
                         egui::RichText::new(format!(
-                            "⚡ EDR Headroom: {:.1}x (Apple XDR Active)",
+                            "⚡ Headroom EDR : {:.1}x (Apple XDR)",
                             headroom
                         ))
                         .color(egui::Color32::from_rgb(255, 200, 50))
                     } else {
-                        egui::RichText::new(format!("📺 SDR Display: {:.1}x", headroom))
+                        egui::RichText::new(format!("📺 Écran SDR : {:.1}x", headroom))
                             .color(egui::Color32::LIGHT_GRAY)
                     };
                     ui.label(headroom_label);
@@ -955,8 +955,8 @@ impl eframe::App for RrawApp {
                     }
 
                     ui.separator();
-                    ui.label(egui::RichText::new("Zoom:").size(12.0));
-                    if ui.selectable_label(self.zoom_level <= 0.0, "Fit").clicked() {
+                    ui.label(egui::RichText::new("Zoom :").size(12.0));
+                    if ui.selectable_label(self.zoom_level <= 0.0, "Ajuster").clicked() {
                         self.zoom_level = 0.0;
                         self.pan_offset = egui::Vec2::ZERO;
                     }
@@ -983,7 +983,7 @@ impl eframe::App for RrawApp {
                         }
                     }
                     let zoom_pct_str = if self.zoom_level <= 0.0 {
-                        "Fit (100%)".to_string()
+                        "Ajusté".to_string()
                     } else {
                         format!("{}%", ((self.zoom_level / fit_s) * 100.0).round() as u32)
                     };
@@ -1145,7 +1145,7 @@ impl eframe::App for RrawApp {
         // 3. Bottom Filmstrip Panel
         self.render_filmstrip_panel(ui);
 
-        // 4. Left Sidebar Panel (Histogram Waveform + Explorer + Presets + EXIF)
+        // 4. Left Sidebar Panel (Histogram + Explorer + Presets + EXIF)
         self.render_left_panel(ui);
 
         // 5. Right Darkroom Inspector Panel (Categorized Palettes + Active Filter + Collapsible Cards)
