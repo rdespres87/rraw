@@ -179,6 +179,47 @@ fn app_layout_config_serialization_roundtrips() {
 }
 
 #[test]
+fn test_tool_family_categorization_and_palette_grouping() {
+    use app::{DarkroomSection, ToolFamily};
+
+    // DarkroomSection::ALL must contain exactly 11 modules including ToneCurves
+    assert_eq!(DarkroomSection::ALL.len(), 11);
+    assert!(DarkroomSection::ALL.contains(&DarkroomSection::ToneCurves));
+    assert!(DarkroomSection::ALL.contains(&DarkroomSection::ExposureTone));
+
+    // Verify family mapping
+    assert_eq!(DarkroomSection::ExposureTone.family(), ToolFamily::Light);
+    assert_eq!(DarkroomSection::ToneCurves.family(), ToolFamily::Light);
+    assert_eq!(
+        DarkroomSection::WhiteBalanceColor.family(),
+        ToolFamily::Color
+    );
+    assert_eq!(DarkroomSection::SoftProofing.family(), ToolFamily::Color);
+    assert_eq!(DarkroomSection::DetailDenoise.family(), ToolFamily::Detail);
+    assert_eq!(DarkroomSection::Crop.family(), ToolFamily::Geometry);
+    assert_eq!(DarkroomSection::Straighten.family(), ToolFamily::Geometry);
+    assert_eq!(DarkroomSection::Geometry.family(), ToolFamily::Geometry);
+    assert_eq!(
+        DarkroomSection::OpticalCorrections.family(),
+        ToolFamily::Geometry
+    );
+    assert_eq!(
+        DarkroomSection::AiSemanticMasks.family(),
+        ToolFamily::LocalMasks
+    );
+    assert_eq!(DarkroomSection::Timelapse.family(), ToolFamily::Timelapse);
+
+    // Verify ToolFamily labels and constants
+    assert_eq!(ToolFamily::ALL.len(), 6);
+    assert_eq!(ToolFamily::Light.label(), "☀️ Lumière");
+    assert_eq!(ToolFamily::Color.label(), "🎨 Couleur");
+    assert_eq!(ToolFamily::Detail.label(), "🔍 Détail");
+    assert_eq!(ToolFamily::Geometry.label(), "📐 Géométrie");
+    assert_eq!(ToolFamily::LocalMasks.label(), "🖌️ Masques");
+    assert_eq!(ToolFamily::All.label(), "Tous");
+}
+
+#[test]
 fn sidecar_saving_and_loading_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let temp_dir = std::env::temp_dir().join("rraw_test_sidecars");
     std::fs::create_dir_all(&temp_dir)?;

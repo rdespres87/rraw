@@ -505,8 +505,10 @@ impl RrawApp {
                         });
                     });
             });
+    }
 
-        // 4. Left Panel: Presets (Dropdown) + EXIF at a glance + Folder Explorer + Live Waveform Histogram at Bottom
+    /// Renders the left sidebar panel containing the reference histogram waveform, folder explorer, styles, and EXIF.
+    pub fn render_left_panel(&mut self, ui: &mut egui::Ui) {
         egui::Panel::left("left_panel")
             .resizable(true)
             .default_size(320.0)
@@ -518,102 +520,54 @@ impl RrawApp {
             .show(ui, |ui| {
                 ui.add_space(4.0);
 
-                let available_h = ui.available_height();
-                let hist_area_h = 135.0;
-                let content_h = (available_h - hist_area_h - 12.0).max(120.0);
-
-                ui.allocate_ui(egui::vec2(ui.available_width(), content_h), |ui| {
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            // 1. Explorateur de dossiers (EN HAUT)
-                            egui::CollapsingHeader::new(
-                                egui::RichText::new("📁 Explorateur de dossiers")
-                                    .strong()
-                                    .size(13.0)
-                                    .color(Color32::from_rgb(230, 235, 245)),
-                            )
-                            .default_open(true)
-                            .show(ui, |ui| {
-                                self.render_explorer_tab(ui);
-                            });
-
-                            ui.separator();
-
-                            // 2. Préréglages avec liste déroulante (PUIS LES PRESETS)
-                            egui::CollapsingHeader::new(
-                                egui::RichText::new("🎨 Styles & Préréglages")
-                                    .strong()
-                                    .size(13.0)
-                                    .color(Color32::from_rgb(230, 235, 245)),
-                            )
-                            .default_open(true)
-                            .show(ui, |ui| {
-                                self.render_presets_section(ui);
-                            });
-
-                            ui.separator();
-
-                            // 3. Données EXIF bien présentées (PUIS LES EXIFS)
-                            egui::CollapsingHeader::new(
-                                egui::RichText::new("📋 Données EXIF")
-                                    .strong()
-                                    .size(13.0)
-                                    .color(Color32::from_rgb(230, 235, 245)),
-                            )
-                            .default_open(false)
-                            .show(ui, |ui| {
-                                self.render_exif_panel(ui);
-                            });
-
-                            ui.separator();
-
-                            // 4. Courbes de tonalité (AVANT L'HISTOGRAMME)
-                            egui::CollapsingHeader::new(
-                                egui::RichText::new("📈 Courbes de tonalité")
-                                    .strong()
-                                    .size(13.0)
-                                    .color(Color32::from_rgb(230, 235, 245)),
-                            )
-                            .default_open(true)
-                            .show(ui, |ui| {
-                                self.render_tone_curves_section(ui);
-                            });
-                        });
-                });
-
-                ui.separator();
+                // 1. Reference Histogram Waveform pinned prominently at the very top of the sidebar
                 self.render_histogram_widget(ui);
-            });
 
-        // 5. Right Darkroom Inspector Panel with Reorderable Sections
-        let order = self.layout_config.section_order.clone();
-
-        egui::Panel::right("darkroom_panel")
-            .resizable(true)
-            .default_size(360.0)
-            .min_size(320.0)
-            .max_size(600.0)
-            .frame(
-                egui::Frame::side_top_panel(ui.style()).fill(egui::Color32::from_rgb(26, 28, 33)),
-            )
-            .show(ui, |ui| {
-                ui.add_space(4.0);
-                ui.heading("🛠️ Réglages de développement");
                 ui.separator();
 
+                // 2. Scrollable contextual modules: Explorer, Presets, and EXIF
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        for (idx, section) in order.iter().enumerate() {
-                            self.render_darkroom_section(ui, *section, idx);
-                        }
+                        // 2.1 Explorateur de dossiers
+                        egui::CollapsingHeader::new(
+                            egui::RichText::new("📁 Explorateur de dossiers")
+                                .strong()
+                                .size(13.0)
+                                .color(Color32::from_rgb(230, 235, 245)),
+                        )
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            self.render_explorer_tab(ui);
+                        });
 
-                        ui.add_space(8.0);
-                        if ui.button("Reset Panel Layout").clicked() {
-                            self.layout_config = AppLayoutConfig::default();
-                            self.layout_config.save();
-                        }
+                        ui.separator();
+
+                        // 2.2 Styles & Préréglages
+                        egui::CollapsingHeader::new(
+                            egui::RichText::new("🎨 Styles & Préréglages")
+                                .strong()
+                                .size(13.0)
+                                .color(Color32::from_rgb(230, 235, 245)),
+                        )
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            self.render_presets_section(ui);
+                        });
+
+                        ui.separator();
+
+                        // 2.3 Données EXIF
+                        egui::CollapsingHeader::new(
+                            egui::RichText::new("📋 Données EXIF")
+                                .strong()
+                                .size(13.0)
+                                .color(Color32::from_rgb(230, 235, 245)),
+                        )
+                        .default_open(false)
+                        .show(ui, |ui| {
+                            self.render_exif_panel(ui);
+                        });
                     });
             });
     }
