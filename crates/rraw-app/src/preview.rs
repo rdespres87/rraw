@@ -714,6 +714,62 @@ impl BaseRgbPreview {
     }
 }
 
+/// Extracts a cropped, downscaled thumbnail `egui::ColorImage` from an existing rendered preview image.
+#[must_use]
+pub fn create_thumbnail_from_preview(
+    preview: &egui::ColorImage,
+    grading: &DarkroomGradingState,
+    max_w: usize,
+    max_h: usize,
+) -> egui::ColorImage {
+    let src_w = preview.size[0];
+    let src_h = preview.size[1];
+    if src_w == 0 || src_h == 0 {
+        return egui::ColorImage::example();
+    }
+
+    let (u_min, u_max, v_min, v_max) = if grading.crop_enabled {
+        (
+            grading.crop_left.clamp(0.0, 0.95),
+            grading.crop_right.clamp(0.05, 1.0),
+            grading.crop_top.clamp(0.0, 0.95),
+            grading.crop_bottom.clamp(0.05, 1.0),
+        )
+    } else {
+        (0.0, 1.0, 0.0, 1.0)
+    };
+
+    let crop_w = (u_max - u_min).max(0.01);
+    let crop_h = (v_max - v_min).max(0.01);
+    let aspect = (crop_w * src_w as f32) / (crop_h * src_h as f32).max(1.0);
+
+    let (dst_w, dst_h) = if aspect >= (max_w as f32 / max_h as f32) {
+        let w = max_w.max(10);
+        let h = ((w as f32 / aspect).round() as usize).clamp(10, max_h);
+        (w, h)
+    } else {
+        let h = max_h.max(10);
+        let w = ((h as f32 * aspect).round() as usize).clamp(10, max_w);
+        (w, h)
+    };
+
+    let mut pixels = Vec::with_capacity(dst_w * dst_h);
+    for dy in 0..dst_h {
+        let frac_y = (dy as f32 + 0.5) / dst_h as f32;
+        let v = (v_min + frac_y * crop_h).clamp(0.0, 1.0);
+        let sy = ((v * src_h as f32).floor() as usize).min(src_h - 1);
+        let row_start = sy * src_w;
+        for dx in 0..dst_w {
+            let frac_x = (dx as f32 + 0.5) / dst_w as f32;
+            let u = (u_min + frac_x * crop_w).clamp(0.0, 1.0);
+            let sx = ((u * src_w as f32).floor() as usize).min(src_w - 1);
+            pixels.push(preview.pixels[row_start + sx]);
+        }
+    }
+
+    egui::ColorImage::new([dst_w, dst_h], pixels)
+}
+
 /// Generates a fast ~140px RGB thumbnail image from a RAW or raster file applying its sidecar grading if available.
 #[must_use]
 pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
@@ -730,9 +786,46 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
             let oriented = apply_exif_orientation_dyn_image(dyn_img, header_orient);
             let thumb = oriented.thumbnail(140, 100).to_rgb8();
             let (w, h) = thumb.dimensions();
+            let raw_bytes = thumb.into_raw();
+            let (grading_opt, _) = load_photo_sidecars(path);
+            if let Some(grading) = grading_opt {
+                let samples_rgb = raw_bytes
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .map(|c| {
+                        [
+                            (c[0] as f32 / 255.0).powf(2.2),
+                            (c[1] as f32 / 255.0).powf(2.2),
+                            (c[2] as f32 / 255.0).powf(2.2),
+                        ]
+                    })
+                    .collect();
+                let base = BaseRgbPreview {
+                    width: w as usize,
+                    height: h as usize,
+                    samples_rgb,
+                    as_shot_wb: [1.0, 1.0, 1.0],
+                    cam_to_srgb: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+                    semantic_masks: std::sync::Arc::new(rraw_ai::SemanticMaskSet {
+                        width: w as usize,
+                        height: h as usize,
+                        subject: vec![0.0; w as usize * h as usize],
+                        sky: vec![0.0; w as usize * h as usize],
+                        background: vec![0.0; w as usize * h as usize],
+                        portrait: vec![0.0; w as usize * h as usize],
+                    }),
+                    exif_orientation: 1,
+                };
+                let (preview, _) = render_preview_from_base(&base, &grading);
+                if grading.crop_enabled {
+                    return Some(create_thumbnail_from_preview(&preview, &grading, 140, 100));
+                }
+                return Some(preview);
+            }
             return Some(egui::ColorImage::from_rgb(
                 [w as usize, h as usize],
-                &thumb.into_raw(),
+                &raw_bytes,
             ));
         }
     }
@@ -760,7 +853,11 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
     .with_exif_orientation(orient);
 
     let (preview, _) = render_preview_from_base(&base, &grading);
-    Some(preview)
+    if grading.crop_enabled {
+        Some(create_thumbnail_from_preview(&preview, &grading, 140, 100))
+    } else {
+        Some(preview)
+    }
 }
 
 /// Evaluates darkroom grading, optical distortion, vignetting, and histogram from `BaseRgbPreview`.
