@@ -6,13 +6,42 @@ use std::sync::mpsc;
 use wgpu::util::DeviceExt;
 
 /// Parameters for Stage 5 GPU colorimetry and Laplacian pyramid local contrast.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Stage5Params {
     pub width: u32,
     pub height: u32,
     pub mipmap_level: u8,
     pub base_octaves: u8,
     pub local_contrast_strength: f32,
+    pub tone_curves_lut: Option<Box<[[f32; 4]; 1024]>>,
+}
+
+impl Stage5Params {
+    /// Constructs parameters with tone curves disabled.
+    #[must_use]
+    pub const fn new(
+        width: u32,
+        height: u32,
+        mipmap_level: u8,
+        base_octaves: u8,
+        local_contrast_strength: f32,
+    ) -> Self {
+        Self {
+            width,
+            height,
+            mipmap_level,
+            base_octaves,
+            local_contrast_strength,
+            tone_curves_lut: None,
+        }
+    }
+
+    /// Attaches precomputed 1D tone curves LUT for direct GPU VRAM evaluation.
+    #[must_use]
+    pub fn with_tone_curves(mut self, lut: Box<[[f32; 4]; 1024]>) -> Self {
+        self.tone_curves_lut = Some(lut);
+        self
+    }
 }
 
 #[repr(C)]
@@ -23,9 +52,9 @@ struct Stage5UniformsGpu {
     mipmap_level: u32,
     effective_octaves: u32,
     local_contrast_strength: f32,
+    enable_tone_curves: u32,
     _pad0: f32,
     _pad1: f32,
-    _pad2: f32,
 }
 
 /// Headless GPU compute pipeline for Stage 5.
@@ -81,6 +110,16 @@ impl Stage5Pipeline {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                 });
 
@@ -127,15 +166,20 @@ impl Stage5Pipeline {
         let effective_octaves =
             effective_laplacian_octaves(params.base_octaves, params.mipmap_level);
 
+        let (enable_tone_curves, lut_bytes): (u32, &[u8]) = match params.tone_curves_lut.as_ref() {
+            Some(lut) => (1, bytemuck::cast_slice(lut.as_slice())),
+            None => (0, bytemuck::cast_slice(&[0.0_f32; 4096])),
+        };
+
         let uniforms = Stage5UniformsGpu {
             width: params.width,
             height: params.height,
             mipmap_level: u32::from(params.mipmap_level),
             effective_octaves: u32::from(effective_octaves),
             local_contrast_strength: params.local_contrast_strength,
+            enable_tone_curves,
             _pad0: 0.0,
             _pad1: 0.0,
-            _pad2: 0.0,
         };
 
         let uniform_buffer = ctx
@@ -151,6 +195,14 @@ impl Stage5Pipeline {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("stage5_rgb_input_buffer"),
                 contents: bytemuck::cast_slice(rgb_in),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+
+        let lut_buffer = ctx
+            .device()
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("stage5_tone_curves_lut_buffer"),
+                contents: lut_bytes,
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
@@ -185,6 +237,10 @@ impl Stage5Pipeline {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: output_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: lut_buffer.as_entire_binding(),
                 },
             ],
         });

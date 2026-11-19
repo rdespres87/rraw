@@ -2,6 +2,14 @@
 
 ## Last Completed Milestone
 
+- **Phase 6.1b.2 — WGSL Stage 5 GPU Tone Curve Pipeline Integration**:
+  - Bound 1024-entry 1D tone curves LUT storage buffer (`array<vec4<f32>>`) to Stage 5 compute shader (`stage5_color_laplacian.wgsl`).
+  - Implemented WGSL `sample_lut_channel` with linear interpolation and strictly guarded array index bounds (`min(u32(floor(x)), 1022u)`).
+  - Ported ACEScg AP1 luma preservation and Gamut Guard into WGSL Stage 5b.
+  - Extended `Stage5Params` with `tone_curves_lut: Option<Box<[[f32; 4]; 1024]>>` and zero-cost allocation path.
+  - Verified numerical equivalence with CPU reference via `test_stage5_gpu_tone_curves_matches_cpu_reference` (RMSE < 1e-4).
+  - 97 unit/integration tests passing workspace-wide.
+
 - **Phase 6.1b.1 — Tone Curve Ergonomics, Sqrt Histogram Underlay & In/Out Readout (`4b0c724`)**:
   - Implemented square-root scaled, channel-tinted live histogram underlay in tone curve canvas (`tone_curves.rs`).
   - Added master Combined RGB ghost curve displayed when editing individual color channels or luma.
@@ -23,13 +31,13 @@
   - GitHub Actions CI workflow configured on `macos-13`.
   - 95 unit/integration tests passing workspace-wide.
 
-## Next Logical Action: Phase 6.1b.2 — WGSL Stage 5 GPU Tone Curve Pipeline Integration
+## Next Logical Action: Phase 6.2 — Extended Film Emulation & Creative Presets
 
-- **Target crates**: `rraw-gpu`, `rraw-app`
+- **Target crates**: `rraw-color`, `rraw-core`, `rraw-app`
 - **Scope**:
-  1. Add 1D tone curve LUT uniform/storage buffer binding to WGSL Stage 5 compute shader.
-  2. Evaluate tone curve directly on GPU texture in VRAM for real-time EDR display at 120 FPS.
-  3. Wire GPU pipeline dispatch in `rraw-app` when GPU compute path is active.
+  1. Define 3D CLUT / parametric creative film profile recipes (e.g. Classic Chrome, Portra, Tri-X 400).
+  2. Implement tetrahedral 3D LUT interpolation in `rraw-color`.
+  3. Wire creative profiles into `rraw-app` preset selector and sidecars.
 
 ## Repository Completion State
 

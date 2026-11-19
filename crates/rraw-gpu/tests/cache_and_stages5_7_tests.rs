@@ -104,6 +104,7 @@ fn test_scale_invariance_rmse_between_levels() {
         mipmap_level: 0,
         base_octaves: 6,
         local_contrast_strength: 0.2,
+        tone_curves_lut: None,
     };
 
     let params_l2 = Stage5Params {
@@ -112,6 +113,7 @@ fn test_scale_invariance_rmse_between_levels() {
         mipmap_level: 2,
         base_octaves: 6,
         local_contrast_strength: 0.2,
+        tone_curves_lut: None,
     };
 
     let res_l0 = pipeline.execute(&ctx, &rgb_in, &params_l0);
@@ -198,4 +200,85 @@ fn test_gpu_histogram_and_clipping_reduction() {
 
     let total_hist_samples: u32 = histogram.iter().sum();
     assert_eq!(total_hist_samples, count as u32);
+}
+
+#[test]
+fn test_stage5_gpu_tone_curves_matches_cpu_reference() {
+    let ctx = match GpuContext::new_headless() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Skipping GPU test (no adapter available): {e}");
+            return;
+        }
+    };
+
+    let pipeline_res = Stage5Pipeline::new(&ctx);
+    assert!(pipeline_res.is_ok());
+    let pipeline = match pipeline_res {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+
+    let width = 32_u32;
+    let height = 32_u32;
+    let count = (width * height) as usize;
+    let mut rgb_in = vec![0.0_f32; count * 3];
+
+    for i in 0..count {
+        let t = i as f32 / count as f32;
+        rgb_in[i * 3] = t;
+        rgb_in[i * 3 + 1] = t * 0.8;
+        rgb_in[i * 3 + 2] = (1.0 - t).max(0.0);
+    }
+
+    // Create an S-curve contrast recipe
+    let mut recipe = rraw_core::curves::ToneCurvesRecipe::default();
+    if let Ok(p1) = rraw_core::curves::CurvePoint::new(0.25, 0.15) {
+        recipe.combined_rgb.add_point(p1);
+    }
+    if let Ok(p2) = rraw_core::curves::CurvePoint::new(0.75, 0.85) {
+        recipe.combined_rgb.add_point(p2);
+    }
+    let lut = rraw_color::curves::generate_1d_lut_1024(&recipe);
+
+    // Compute CPU reference
+    let mut cpu_out = vec![0.0_f32; count * 3];
+    for i in 0..count {
+        let in_pix = glam::Vec3::new(rgb_in[i * 3], rgb_in[i * 3 + 1], rgb_in[i * 3 + 2]);
+        let out_pix = rraw_color::curves::apply_tone_curves_lut(in_pix, &lut);
+        cpu_out[i * 3] = out_pix.x;
+        cpu_out[i * 3 + 1] = out_pix.y;
+        cpu_out[i * 3 + 2] = out_pix.z;
+    }
+
+    // Execute GPU with local_contrast_strength = 0.0 to isolate tone curves
+    let params = Stage5Params {
+        width,
+        height,
+        mipmap_level: 0,
+        base_octaves: 0,
+        local_contrast_strength: 0.0,
+        tone_curves_lut: Some(lut),
+    };
+
+    let gpu_res = pipeline.execute(&ctx, &rgb_in, &params);
+    assert!(gpu_res.is_ok());
+    let gpu_out = match gpu_res {
+        Ok(res) => res,
+        Err(_) => return,
+    };
+
+    assert_eq!(gpu_out.len(), count * 3);
+
+    // Verify GPU and CPU match within float tolerance (< 1e-4 RMSE)
+    let mut sse = 0.0_f64;
+    for i in 0..(count * 3) {
+        let diff = (gpu_out[i] - cpu_out[i]) as f64;
+        sse += diff * diff;
+    }
+    let rmse = (sse / (count * 3) as f64).sqrt();
+    assert!(
+        rmse < 1e-4,
+        "GPU vs CPU tone curve RMSE must be < 1e-4 (measured: {rmse:e})"
+    );
 }
