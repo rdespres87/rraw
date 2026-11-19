@@ -2,6 +2,14 @@
 
 ## Last Completed Milestone
 
+- **Live Filmstrip Thumbnail Synchronization & Crop Matching (`rraw-app`)**:
+  - Implemented `create_thumbnail_from_preview` in `crates/rraw-app/src/preview.rs` to extract downscaled 140px thumbnails from rendered previews with exact crop bounding box support.
+  - Live in-place texture update (`tex.set`) in `crates/rraw-app/src/app.rs` (`update_preview_textures`) so moving any grading slider (exposure, WB, curves, sepia, B&W, vignettes, local masks, crop) updates the filmstrip thumbnail in real time (<0.1ms).
+  - Background thumbnail worker race condition prevention: skips overwriting active photo with stale background decodes.
+  - Sidecar grading and crop support for raster formats (JPEG/PNG/TIFF) in `generate_fast_thumbnail`.
+  - Added unit tests in `crates/rraw-app/tests/thumbnail_tests.rs`.
+  - Verified with 150 unit and integration tests passing across 44 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit.
+
 - **Phase 9.2 — Freehand Adjustment Brush Mask, Zoom Support & Viewport Pan Navigation (`rraw-app`)**:
   - Implemented `BrushDab` vector stroke model in `crates/rraw-app/src/state.rs` (`pos [f32; 2]`, `radius`, `flow`, `erase`) and `LocalMaskKind::FreehandBrush` with continuous smoothstep feather falloff, additive/subtractive blending, spatial deduplication (`(radius * 0.25)^2`), and `.rraw.json` sidecar persistence.
   - Interactive Viewport tooling in `crates/rraw-app/src/ui/viewport.rs`:

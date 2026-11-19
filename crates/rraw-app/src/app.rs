@@ -275,6 +275,22 @@ impl RrawApp {
     pub fn update_preview_textures(&mut self, ctx: &egui::Context) {
         if let Some(base) = &self.base_preview {
             let (preview, hist) = render_preview_from_base(base, &self.grading);
+
+            // Dynamically update the active filmstrip thumbnail with live grading and crop
+            if let Some(photo) = &self.loaded_photo {
+                let thumb_img = create_thumbnail_from_preview(&preview, &self.grading, 140, 100);
+                if let Some(tex) = self.thumbnail_textures.get_mut(&photo.path) {
+                    tex.set(thumb_img, egui::TextureOptions::LINEAR);
+                } else {
+                    let tex = ctx.load_texture(
+                        format!("thumb_{}", photo.path.display()),
+                        thumb_img,
+                        egui::TextureOptions::LINEAR,
+                    );
+                    self.thumbnail_textures.insert(photo.path.clone(), tex);
+                }
+            }
+
             if let Some(tex) = &mut self.preview_texture {
                 tex.set(preview, egui::TextureOptions::LINEAR);
             } else {
@@ -758,12 +774,19 @@ impl eframe::App for RrawApp {
         // Drain completed thumbnail images from background workers
         while let Ok((path, img)) = self.thumbnail_receiver.try_recv() {
             self.thumbnail_pending.remove(&path);
-            let tex = ui.ctx().load_texture(
-                format!("thumb_{}", path.display()),
-                img,
-                egui::TextureOptions::LINEAR,
-            );
-            self.thumbnail_textures.insert(path, tex);
+            let is_currently_active = self.loaded_photo.as_ref().is_some_and(|p| p.path == path);
+            if !is_currently_active {
+                if let Some(tex) = self.thumbnail_textures.get_mut(&path) {
+                    tex.set(img, egui::TextureOptions::LINEAR);
+                } else {
+                    let tex = ui.ctx().load_texture(
+                        format!("thumb_{}", path.display()),
+                        img,
+                        egui::TextureOptions::LINEAR,
+                    );
+                    self.thumbnail_textures.insert(path, tex);
+                }
+            }
         }
 
         if !self.thumbnail_pending.is_empty() {

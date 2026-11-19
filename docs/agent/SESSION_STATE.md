@@ -40,7 +40,8 @@
   - Chroma Denoise Color-Bleed & WB Barrier Fix: **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 137 tests across 41 suites, commit `3b07b4a`)
   - Task 8.1 Optical Defringe, Creative Vignetting & Sepia Vintage (`rraw-optics` & `rraw-app`): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 142 tests across 42 suites, commit `165ba90`)
   - Phase 9.1 Local Retouching & Masking Suite (Linear/Radial Gradients & Overlays): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 146 tests across 43 suites, commit `94ea97d`)
-  - Phase 9.2 Freehand Adjustment Brush Mask (Vector Dabs, Zoom Retouching & Viewport Pan): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 148 tests across 43 suites)
+  - Phase 9.2 Freehand Adjustment Brush Mask (Vector Dabs, Zoom Retouching & Viewport Pan): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 148 tests across 43 suites, commit `d15a0f1`)
+  - Live Filmstrip Thumbnail Synchronization & Crop Matching: **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 150 tests across 44 suites)
 - **Git Branch**: `main`
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
 - **Last Approved Gate**: Gate 3 (Authorized on 2026-11-19)
