@@ -588,16 +588,30 @@ pub fn render_preview_from_base(
                     (r_toned, g_toned, b_toned)
                 };
 
+                let (r_lut, g_lut, b_lut) = if let Some(clut) = &grading.custom_clut {
+                    let out = clut
+                        .lut
+                        .sample_tetrahedral(glam::Vec3::new(r_curved, g_curved, b_curved));
+                    let w = clut.strength.clamp(0.0, 1.0);
+                    (
+                        r_curved * (1.0 - w) + out.x * w,
+                        g_curved * (1.0 - w) + out.y * w,
+                        b_curved * (1.0 - w) + out.z * w,
+                    )
+                } else {
+                    (r_curved, g_curved, b_curved)
+                };
+
                 let (r_drt, g_drt, b_drt) = match grading.display_transform {
                     DisplayTransform::AgX => (
-                        apply_agx_edr(r_curved, 1.0),
-                        apply_agx_edr(g_curved, 1.0),
-                        apply_agx_edr(b_curved, 1.0),
+                        apply_agx_edr(r_lut, 1.0),
+                        apply_agx_edr(g_lut, 1.0),
+                        apply_agx_edr(b_lut, 1.0),
                     ),
                     DisplayTransform::OpenDrt => (
-                        apply_opendrt(r_curved, 1.0),
-                        apply_opendrt(g_curved, 1.0),
-                        apply_opendrt(b_curved, 1.0),
+                        apply_opendrt(r_lut, 1.0),
+                        apply_opendrt(g_lut, 1.0),
+                        apply_opendrt(b_lut, 1.0),
                     ),
                 };
 
@@ -879,16 +893,30 @@ pub fn render_export_image(
                 (r_toned, g_toned, b_toned)
             };
 
+            let (r_lut, g_lut, b_lut) = if let Some(clut) = &grading.custom_clut {
+                let out = clut
+                    .lut
+                    .sample_tetrahedral(glam::Vec3::new(r_toned, g_toned, b_toned));
+                let w = clut.strength.clamp(0.0, 1.0);
+                (
+                    r_toned * (1.0 - w) + out.x * w,
+                    g_toned * (1.0 - w) + out.y * w,
+                    b_toned * (1.0 - w) + out.z * w,
+                )
+            } else {
+                (r_toned, g_toned, b_toned)
+            };
+
             let (r_drt, g_drt, b_drt) = match grading.display_transform {
                 DisplayTransform::AgX => (
-                    apply_agx_edr(r_toned, 1.0),
-                    apply_agx_edr(g_toned, 1.0),
-                    apply_agx_edr(b_toned, 1.0),
+                    apply_agx_edr(r_lut, 1.0),
+                    apply_agx_edr(g_lut, 1.0),
+                    apply_agx_edr(b_lut, 1.0),
                 ),
                 DisplayTransform::OpenDrt => (
-                    apply_opendrt(r_toned, 1.0),
-                    apply_opendrt(g_toned, 1.0),
-                    apply_opendrt(b_toned, 1.0),
+                    apply_opendrt(r_lut, 1.0),
+                    apply_opendrt(g_lut, 1.0),
+                    apply_opendrt(b_lut, 1.0),
                 ),
             };
 

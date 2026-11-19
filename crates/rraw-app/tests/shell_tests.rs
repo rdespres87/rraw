@@ -540,3 +540,100 @@ fn test_tone_curves_channel_isolation_and_activity() -> Result<(), Box<dyn std::
 
     Ok(())
 }
+
+#[test]
+fn test_user_cube_loading_and_sidecar_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_color::ColorLut3d;
+    use std::sync::Arc;
+
+    // Create a 2x2x2 tint LUT in .cube format
+    let cube_str = "TITLE \"Test Tint\"\nLUT_3D_SIZE 2\n0.0 0.0 0.0\n1.0 0.2 0.2\n0.2 1.0 0.2\n1.0 1.0 0.3\n0.1 0.1 1.0\n1.0 0.3 1.0\n0.3 1.0 1.0\n1.0 1.0 1.0\n";
+    let lut = ColorLut3d::from_cube_str(cube_str)?;
+    assert_eq!(lut.size(), 2);
+
+    let mut grading = DarkroomGradingState {
+        custom_clut: Some(CustomClutState {
+            name: "Test Tint".to_string(),
+            path: Some(std::path::PathBuf::from("/tmp/test_tint.cube")),
+            lut: Arc::new(lut),
+            strength: 0.75,
+        }),
+        ..Default::default()
+    };
+
+    let sidecar = SidecarRecipe::from_state(&grading, 4);
+    assert_eq!(sidecar.rating, 4);
+    assert_eq!(
+        sidecar.custom_lut_path.as_deref(),
+        Some("/tmp/test_tint.cube")
+    );
+    assert!((sidecar.custom_lut_strength - 0.75).abs() < 1e-5);
+
+    // Applying preset clears custom_clut
+    GradingPreset::AsShot.apply(&mut grading);
+    assert!(grading.custom_clut.is_none());
+
+    Ok(())
+}
+
+#[test]
+fn test_user_cube_preview_rendering_and_blend_strength() -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_color::{ColorLut3d, FilmSimulationProfile};
+    use std::sync::Arc;
+
+    let mut rgb_img = image::RgbImage::new(32, 32);
+    for pixel in rgb_img.pixels_mut() {
+        *pixel = image::Rgb([128, 128, 128]);
+    }
+    let base = BaseRgbPreview::from_rgb_image(&rgb_img, 32);
+
+    let state_neutral = DarkroomGradingState::default();
+    let (preview_neutral, _) = app::render_preview_from_base(&base, &state_neutral);
+
+    // Velvia 50 high saturation LUT
+    let velvia = ColorLut3d::generate_film_profile(FilmSimulationProfile::Velvia50, 17)?;
+    let mut state_lut = DarkroomGradingState {
+        custom_clut: Some(CustomClutState {
+            name: "Velvia 50".to_string(),
+            path: None,
+            lut: Arc::new(velvia.clone()),
+            strength: 1.0,
+        }),
+        ..Default::default()
+    };
+
+    let (preview_velvia, _) = app::render_preview_from_base(&base, &state_lut);
+    assert_eq!(preview_neutral.size, preview_velvia.size);
+    // Velvia should modify pixel values
+    assert_ne!(
+        preview_neutral.pixels[0], preview_velvia.pixels[0],
+        "Velvia 3D CLUT must alter pixel values"
+    );
+
+    // Test 0% strength produces exactly neutral output
+    state_lut.custom_clut = Some(CustomClutState {
+        name: "Velvia 50".to_string(),
+        path: None,
+        lut: Arc::new(velvia),
+        strength: 0.0,
+    });
+    let (preview_zero, _) = app::render_preview_from_base(&base, &state_lut);
+    assert_eq!(
+        preview_neutral.pixels[0], preview_zero.pixels[0],
+        "0% LUT strength must match neutral preview"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_corrupted_cube_handling() {
+    use rraw_color::ColorLut3d;
+
+    // Syntax error
+    assert!(ColorLut3d::from_cube_str("INVALID CONTENT").is_err());
+    // Mismatched node count
+    assert!(ColorLut3d::from_cube_str("LUT_3D_SIZE 2\n0.0 0.0 0.0\n").is_err());
+    // NaN coordinate
+    assert!(ColorLut3d::from_cube_str("LUT_3D_SIZE 2\nNaN 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n").is_err());
+}

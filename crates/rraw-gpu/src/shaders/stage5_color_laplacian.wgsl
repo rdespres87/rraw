@@ -5,14 +5,16 @@ struct Stage5Uniforms {
     effective_octaves: u32,
     local_contrast_strength: f32,
     enable_tone_curves: u32,
-    _pad0: f32,
-    _pad1: f32,
+    enable_clut_3d: u32,
+    clut_3d_strength: f32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Stage5Uniforms;
 @group(0) @binding(1) var<storage, read> rgb_input: array<f32>;
 @group(0) @binding(2) var<storage, read_write> rgb_output: array<f32>;
 @group(0) @binding(3) var<storage, read> tone_curves_lut: array<vec4<f32>>;
+@group(0) @binding(4) var clut_3d_texture: texture_3d<f32>;
+@group(0) @binding(5) var clut_3d_sampler: sampler;
 
 fn sample_pixel(x: i32, y: i32) -> vec3<f32> {
     let cx = u32(clamp(x, 0, i32(uniforms.width) - 1));
@@ -60,6 +62,15 @@ fn apply_tone_curves(rgb: vec3<f32>) -> vec3<f32> {
     return vec3<f32>(r * luma_scale, g * luma_scale, b * luma_scale);
 }
 
+fn sample_clut_3d(rgb: vec3<f32>) -> vec3<f32> {
+    let dims = vec3<f32>(textureDimensions(clut_3d_texture));
+    let clamped = clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0));
+    // Half-texel offset for exact boundary alignment
+    let uvw = (clamped * (dims - vec3<f32>(1.0)) + vec3<f32>(0.5)) / dims;
+    let sampled = textureSampleLevel(clut_3d_texture, clut_3d_sampler, uvw, 0.0);
+    return sampled.rgb;
+}
+
 @compute @workgroup_size(16, 16, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let x = global_id.x;
@@ -98,6 +109,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Stage 5b: PCHIP Tone Curves evaluation in VRAM
     if (uniforms.enable_tone_curves != 0u) {
         current_rgb = apply_tone_curves(current_rgb);
+        current_rgb = max(current_rgb, vec3<f32>(0.0));
+    }
+
+    // Stage 5c: 3D CLUT evaluation in VRAM (120 FPS hardware trilinear interpolation)
+    if (uniforms.enable_clut_3d != 0u && uniforms.clut_3d_strength > 0.0) {
+        let lut_rgb = sample_clut_3d(current_rgb);
+        current_rgb = mix(current_rgb, lut_rgb, uniforms.clut_3d_strength);
         current_rgb = max(current_rgb, vec3<f32>(0.0));
     }
 

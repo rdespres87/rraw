@@ -105,6 +105,8 @@ fn test_scale_invariance_rmse_between_levels() {
         base_octaves: 6,
         local_contrast_strength: 0.2,
         tone_curves_lut: None,
+        clut_3d: None,
+        clut_3d_strength: 1.0,
     };
 
     let params_l2 = Stage5Params {
@@ -114,6 +116,8 @@ fn test_scale_invariance_rmse_between_levels() {
         base_octaves: 6,
         local_contrast_strength: 0.2,
         tone_curves_lut: None,
+        clut_3d: None,
+        clut_3d_strength: 1.0,
     };
 
     let res_l0 = pipeline.execute(&ctx, &rgb_in, &params_l0);
@@ -259,6 +263,8 @@ fn test_stage5_gpu_tone_curves_matches_cpu_reference() {
         base_octaves: 0,
         local_contrast_strength: 0.0,
         tone_curves_lut: Some(lut),
+        clut_3d: None,
+        clut_3d_strength: 1.0,
     };
 
     let gpu_res = pipeline.execute(&ctx, &rgb_in, &params);
@@ -281,4 +287,89 @@ fn test_stage5_gpu_tone_curves_matches_cpu_reference() {
         rmse < 1e-4,
         "GPU vs CPU tone curve RMSE must be < 1e-4 (measured: {rmse:e})"
     );
+}
+
+#[test]
+fn test_stage5_gpu_3d_clut_matches_cpu_reference() -> Result<(), Box<dyn std::error::Error>> {
+    let ctx = match GpuContext::new_headless() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Skipping GPU test (no adapter available): {e}");
+            return Ok(());
+        }
+    };
+
+    let pipeline_res = Stage5Pipeline::new(&ctx);
+    assert!(pipeline_res.is_ok());
+    let pipeline = match pipeline_res {
+        Ok(p) => p,
+        Err(_) => return Ok(()),
+    };
+
+    let width = 32_u32;
+    let height = 32_u32;
+    let count = (width * height) as usize;
+    let mut rgb_in = vec![0.0_f32; count * 3];
+
+    for i in 0..count {
+        let u = (i % width as usize) as f32 / (width as f32 - 1.0);
+        let v = (i / width as usize) as f32 / (height as f32 - 1.0);
+        rgb_in[i * 3] = u;
+        rgb_in[i * 3 + 1] = v;
+        rgb_in[i * 3 + 2] = (1.0 - u * 0.5 - v * 0.5).clamp(0.0, 1.0);
+    }
+
+    // Generate a 17x17x17 Classic Chrome 3D CLUT
+    let clut = rraw_color::ColorLut3d::generate_film_profile(
+        rraw_color::FilmSimulationProfile::ClassicChrome,
+        17,
+    )?;
+
+    // Compute CPU reference using trilinear interpolation
+    let mut cpu_out = vec![0.0_f32; count * 3];
+    for i in 0..count {
+        let in_pix = glam::Vec3::new(rgb_in[i * 3], rgb_in[i * 3 + 1], rgb_in[i * 3 + 2]);
+        let out_pix = clut.sample_trilinear(in_pix);
+        cpu_out[i * 3] = out_pix.x;
+        cpu_out[i * 3 + 1] = out_pix.y;
+        cpu_out[i * 3 + 2] = out_pix.z;
+    }
+
+    // Execute GPU with local_contrast_strength = 0.0 to isolate 3D CLUT
+    let params = Stage5Params::new(width, height, 0, 0, 0.0).with_clut_3d(clut.clone(), 1.0);
+
+    let gpu_res = pipeline.execute(&ctx, &rgb_in, &params);
+    assert!(gpu_res.is_ok());
+    let gpu_out = match gpu_res {
+        Ok(res) => res,
+        Err(_) => return Ok(()),
+    };
+
+    assert_eq!(gpu_out.len(), count * 3);
+
+    // Verify GPU and CPU match within float tolerance (< 2e-3 RMSE due to half-float precision)
+    let mut sse = 0.0_f64;
+    for i in 0..(count * 3) {
+        let diff = (gpu_out[i] - cpu_out[i]) as f64;
+        sse += diff * diff;
+    }
+    let rmse = (sse / (count * 3) as f64).sqrt();
+    assert!(
+        rmse < 2e-3,
+        "GPU vs CPU 3D CLUT RMSE must be < 2e-3 (measured: {rmse:e})"
+    );
+
+    // Test with strength = 0.5 (blended 50%)
+    let params_half = Stage5Params::new(width, height, 0, 0, 0.0).with_clut_3d(clut, 0.5);
+    let gpu_half = pipeline.execute(&ctx, &rgb_in, &params_half)?;
+    for i in 0..(count * 3) {
+        let expected = rgb_in[i] * 0.5 + cpu_out[i] * 0.5;
+        let diff = (gpu_half[i] - expected).abs();
+        assert!(
+            diff < 3e-3,
+            "Index {i}: diff {diff} exceeds tolerance at 50% blend"
+        );
+    }
+
+    Ok(())
 }
