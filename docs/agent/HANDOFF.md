@@ -2,7 +2,34 @@
 
 ## Last Completed Milestone
 
-- **Live Filmstrip Thumbnail Synchronization & Crop Matching (`rraw-app`)**:
+- **UI Overhaul Step 1: Darkroom Palette Categorization, Search & Clean Sidebar Architecture (`rraw-app`)**:
+  - Implemented `ToolFamily` categorization (`All`, `Light`, `Color`, `Detail`, `Geometry`, `LocalMasks`, `Timelapse`) with label and short-label mappings.
+  - Extended `DarkroomSection::ALL` to 11 modules, repatriating parametric `ToneCurves` into the right darkroom panel under the `Light` family alongside Exposure and Contrast.
+  - Implemented `section_matches_search` text filter with keyword aliasing for instant tool lookup.
+  - Added `is_section_active` and `reset_section` enabling visual modified status indicators (`●`) and per-module `↺` defaults reset.
+  - Redesigned `render_darkroom_panel` with category tabs, search input, clear button `✕`, active-only toggle (`☑ Modifiés`), and soft rounded card containers (`#14161b`).
+  - Redesigned `render_left_panel` with the reference RGB/Luma Waveform Histogram pinned prominently at the top, followed by scrollable folder explorer, styles, and EXIF inspectors.
+  - Sanitized entire git commit history across all 68 ancestor commits to eliminate third-party trademarked names at origin.
+  - Local commit: `c4487d9` (`feat(rraw-app): implement darkroom palette categories, active filter, and search`).
+  - Verified with 151 unit and integration tests passing across 44 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit APPROVED.
+
+## Next Logical Action: UI Overhaul Step 2 — Pro Viewport, Canvas Overlays & Top Bar Decluttering
+
+- **Objective**: Declutter the top toolbar, move shooting metadata and star ratings to a non-intrusive canvas HUD, implement split-screen before/after comparison, and add clipping zebra overlays.
+- **Deliverables**:
+  1. **Top Bar Decluttering**:
+     - Remove raw technical EXIF text and 5-star rating widget from top bar.
+     - Move shooting parameters (`24mm · f/2.8 · 1/500s · ISO 100`) and stars to a discreet translucent HUD overlay in the viewport.
+     - Focus the top bar strictly on mode switches, interactive canvas tools (`Pan`, `Crop`, `Straighten`, `WB Pipette`, `Brush`), compact zoom, and Export CTA.
+  2. **Before / After Comparison**:
+     - Instant toggle mode: hold `D` key to view untouched linear RAW base image.
+     - Split-screen comparison: interactive draggable vertical divider showing Before (left) and After (right).
+  3. **Canvas Clipping Overlays (Zébrures)**:
+     - Under-histogram toggle icons: ⬛ (shadow clipping blue mask) and ⬜ (highlight blowout red mask).
+  4. **Collapsible Filmstrip**:
+     - Add `F9` shortcut and collapse button to hide the bottom filmstrip for 100% vertical canvas immersion.
+  5. **TDD Validation & Tests**:
+     - Unit tests for comparison splitting and clipping math; clippy clean; local adversarial audit.
   - Implemented `create_thumbnail_from_preview` in `crates/rraw-app/src/preview.rs` to extract downscaled 140px thumbnails from rendered previews with exact crop bounding box support.
   - Live in-place texture update (`tex.set`) in `crates/rraw-app/src/app.rs` (`update_preview_textures`) so moving any grading slider (exposure, WB, curves, sepia, B&W, vignettes, local masks, crop) updates the filmstrip thumbnail in real time (<0.1ms).
   - Background thumbnail worker race condition prevention: skips overwriting active photo with stale background decodes.
