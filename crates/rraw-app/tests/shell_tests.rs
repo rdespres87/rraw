@@ -443,3 +443,32 @@ fn test_before_after_untouched_original_state() {
     assert!(mod_preview.pixels[0].r() > orig_preview.pixels[0].r());
     assert_ne!(orig_hist.lum, mod_hist.lum);
 }
+
+#[test]
+fn test_tone_curves_channel_isolation_and_activity() -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_core::curves::{ChannelCurve, CurvePoint, ToneCurvesRecipe};
+
+    let mut curves = ToneCurvesRecipe::default();
+    assert!(curves.is_identity());
+    assert!(curves.combined_rgb.is_identity());
+    assert!(curves.red.is_identity());
+    assert!(curves.green.is_identity());
+    assert!(curves.blue.is_identity());
+    assert!(curves.luma.is_identity());
+
+    // Add a point only to the red channel
+    curves.red.add_point(CurvePoint::new(0.5, 0.7)?);
+    assert!(!curves.is_identity());
+    assert!(!curves.red.is_identity());
+    assert!(curves.combined_rgb.is_identity());
+    assert!(curves.green.is_identity());
+    assert!(curves.blue.is_identity());
+    assert!(curves.luma.is_identity());
+
+    // Resetting red channel restores identity
+    curves.red = ChannelCurve::new_linear();
+    assert!(curves.red.is_identity());
+    assert!(curves.is_identity());
+
+    Ok(())
+}

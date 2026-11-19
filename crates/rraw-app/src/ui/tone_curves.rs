@@ -43,14 +43,31 @@ impl RrawApp {
         }
     }
 
+    /// Checks whether a specific channel's curve is modified from identity.
+    fn is_channel_modified(&self, ch: CurveChannel) -> bool {
+        match ch {
+            CurveChannel::CombinedRgb => !self.grading.tone_curves.combined_rgb.is_identity(),
+            CurveChannel::Red => !self.grading.tone_curves.red.is_identity(),
+            CurveChannel::Green => !self.grading.tone_curves.green.is_identity(),
+            CurveChannel::Blue => !self.grading.tone_curves.blue.is_identity(),
+            CurveChannel::Luma => !self.grading.tone_curves.luma.is_identity(),
+        }
+    }
+
     /// Renders the tone curves inspector section with interactive spline canvas.
     pub fn render_tone_curves_section(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-            // 1. Channel selector tabs
+            // 1. Channel selector tabs with activity indicator
             ui.horizontal(|ui| {
                 for ch in CurveChannel::ALL {
                     let is_active = self.active_curve_channel == ch;
-                    if ui.selectable_label(is_active, ch.label()).clicked() {
+                    let is_mod = self.is_channel_modified(ch);
+                    let label = if is_mod {
+                        format!("{} •", ch.label())
+                    } else {
+                        ch.label().to_string()
+                    };
+                    if ui.selectable_label(is_active, label).clicked() {
                         self.active_curve_channel = ch;
                         self.dragging_curve_point = None;
                     }
@@ -99,20 +116,36 @@ impl RrawApp {
                 Stroke::new(1.0, Color32::from_rgb(45, 50, 60)),
             );
 
-            // Live histogram underlay in background
-            let hist_bins = match self.active_curve_channel {
-                CurveChannel::Red => &self.histogram.r[..],
-                CurveChannel::Green => &self.histogram.g[..],
-                CurveChannel::Blue => &self.histogram.b[..],
-                _ => &self.histogram.lum[..],
+            // Live sqrt-scaled histogram underlay in background (tinted to active channel)
+            let (hist_bins, hist_color) = match self.active_curve_channel {
+                CurveChannel::Red => (
+                    &self.histogram.r[..],
+                    Color32::from_rgba_unmultiplied(225, 80, 80, 48),
+                ),
+                CurveChannel::Green => (
+                    &self.histogram.g[..],
+                    Color32::from_rgba_unmultiplied(75, 205, 95, 48),
+                ),
+                CurveChannel::Blue => (
+                    &self.histogram.b[..],
+                    Color32::from_rgba_unmultiplied(75, 150, 235, 48),
+                ),
+                CurveChannel::CombinedRgb => (
+                    &self.histogram.lum[..],
+                    Color32::from_rgba_unmultiplied(160, 165, 185, 45),
+                ),
+                CurveChannel::Luma => (
+                    &self.histogram.lum[..],
+                    Color32::from_rgba_unmultiplied(235, 200, 70, 48),
+                ),
             };
-            let max_bin = self.histogram.max_count.max(1) as f32;
-            let hist_color = Color32::from_rgba_unmultiplied(100, 110, 130, 45);
+            let max_c = (self.histogram.max_count as f32).sqrt().max(1.0);
+            let bin_denom = hist_bins.len().saturating_sub(1).max(1) as f32;
 
             for (i, &count) in hist_bins.iter().enumerate() {
-                let bin_frac = i as f32 / 255.0;
+                let bin_frac = i as f32 / bin_denom;
                 let bx = rect.left() + bin_frac * rect.width();
-                let bh = (count as f32 / max_bin).clamp(0.0, 1.0) * rect.height() * 0.75;
+                let bh = ((count as f32).sqrt() / max_c).clamp(0.0, 1.0) * rect.height() * 0.82;
                 let by = rect.bottom() - bh;
                 painter.line_segment(
                     [Pos2::new(bx, rect.bottom()), Pos2::new(bx, by)],
@@ -120,15 +153,35 @@ impl RrawApp {
                 );
             }
 
-            // 3. Draw the spline curve
+            let steps = 100;
+
+            // Ghost curve: show master Combined RGB curve in faint opacity when editing other channels
+            if self.active_curve_channel != CurveChannel::CombinedRgb {
+                let master_spline = PchipSpline::new(&self.grading.tone_curves.combined_rgb);
+                let ghost_color = Color32::from_rgba_unmultiplied(200, 205, 220, 50);
+                let mut prev_ghost_pos: Option<Pos2> = None;
+                for s in 0..=steps {
+                    let gx_norm = s as f32 / steps as f32;
+                    let gy_norm = master_spline.evaluate(gx_norm).clamp(0.0, 1.0);
+                    let g_pos = Pos2::new(
+                        rect.left() + gx_norm * rect.width(),
+                        rect.bottom() - gy_norm * rect.height(),
+                    );
+                    if let Some(prev) = prev_ghost_pos {
+                        painter.line_segment([prev, g_pos], Stroke::new(1.2, ghost_color));
+                    }
+                    prev_ghost_pos = Some(g_pos);
+                }
+            }
+
+            // 3. Draw the active spline curve
             let spline = PchipSpline::new(self.active_curve());
             let curve_color = self.active_curve_color();
-            let steps = 100;
             let mut prev_pos: Option<Pos2> = None;
 
             for s in 0..=steps {
                 let x_norm = s as f32 / steps as f32;
-                let y_norm = spline.evaluate(x_norm);
+                let y_norm = spline.evaluate(x_norm).clamp(0.0, 1.0);
 
                 let canvas_x = rect.left() + x_norm * rect.width();
                 let canvas_y = rect.bottom() - y_norm * rect.height();
@@ -146,6 +199,8 @@ impl RrawApp {
                 .or_else(|| ui.input(|i| i.pointer.interact_pos()));
             let mut point_to_remove: Option<usize> = None;
             let mut modified = false;
+            let mut readout_coords: Option<(f32, f32)> = None;
+            let mut is_point_readout = false;
 
             let pts = self.active_curve().points.clone();
             for (idx, pt) in pts.iter().enumerate() {
@@ -155,6 +210,11 @@ impl RrawApp {
 
                 let is_dragging = self.dragging_curve_point == Some(idx);
                 let is_hovered = pointer_pos.is_some_and(|pos| pos.distance(pt_canvas) < 8.0);
+
+                if is_dragging || is_hovered {
+                    readout_coords = Some((pt.x, pt.y));
+                    is_point_readout = true;
+                }
 
                 let fill = if is_dragging {
                     Color32::WHITE
@@ -175,6 +235,35 @@ impl RrawApp {
                     && idx < pts.len() - 1
                 {
                     point_to_remove = Some(idx);
+                }
+            }
+
+            // Cursor guide & curve readout when hovering on canvas without selecting a point
+            if readout_coords.is_none() {
+                if let Some(pos) = pointer_pos {
+                    if rect.contains(pos) {
+                        let cursor_x = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                        let eval_y = spline.evaluate(cursor_x).clamp(0.0, 1.0);
+                        readout_coords = Some((cursor_x, eval_y));
+
+                        // Draw vertical hairline guide and point marker on the curve
+                        let marker_pos = Pos2::new(
+                            rect.left() + cursor_x * rect.width(),
+                            rect.bottom() - eval_y * rect.height(),
+                        );
+                        painter.line_segment(
+                            [
+                                Pos2::new(marker_pos.x, rect.top()),
+                                Pos2::new(marker_pos.x, rect.bottom()),
+                            ],
+                            Stroke::new(1.0, Color32::from_rgba_unmultiplied(120, 130, 150, 40)),
+                        );
+                        painter.circle_filled(
+                            marker_pos,
+                            3.0,
+                            Color32::from_rgba_unmultiplied(220, 225, 235, 160),
+                        );
+                    }
                 }
             }
 
@@ -266,9 +355,35 @@ impl RrawApp {
                 self.needs_preview_update = true;
             }
 
-            ui.add_space(6.0);
+            ui.add_space(3.0);
 
-            // 5. Action controls (Reset buttons)
+            // 5. In/Out numerical readout bar
+            ui.horizontal(|ui| {
+                if let Some((in_val, out_val)) = readout_coords {
+                    let prefix = if is_point_readout { "Point" } else { "Courbe" };
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "{} • Entrée: {:>4.1}%  Sortie: {:>4.1}%",
+                            prefix,
+                            in_val * 100.0,
+                            out_val * 100.0
+                        ))
+                        .monospace()
+                        .size(11.0)
+                        .color(Color32::from_rgb(205, 215, 230)),
+                    );
+                } else {
+                    ui.label(
+                        egui::RichText::new("Survolez ou glissez pour ajuster")
+                            .small()
+                            .color(Color32::from_rgb(120, 128, 142)),
+                    );
+                }
+            });
+
+            ui.add_space(4.0);
+
+            // 6. Action controls (Reset buttons)
             ui.horizontal(|ui| {
                 if ui
                     .button("↺ Réinitialiser canal")
