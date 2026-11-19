@@ -1781,3 +1781,69 @@ pub fn decode_photo_file_payload(
     })
 }
 
+/// Computes per-frame grading states for a timelapse sequence, applying optional Holy Grail
+/// keyframe ramping (between first and last frame) and temporal exposure deflicker (`ΔEV`).
+#[must_use]
+pub fn prepare_timelapse_frame_gradings(
+    frames: &[(&BaseRgbPreview, DarkroomGradingState)],
+    keyframe_ramping_enabled: bool,
+    deflicker_config: &rraw_export::TimelapseDeflickerConfig,
+) -> (Vec<DarkroomGradingState>, Vec<f32>) {
+    let n = frames.len();
+    if n == 0 {
+        return (Vec::new(), Vec::new());
+    }
+
+    let mut gradings: Vec<DarkroomGradingState> = frames.iter().map(|(_, g)| g.clone()).collect();
+
+    if keyframe_ramping_enabled && n >= 2 {
+        let g_first = &gradings[0];
+        let g_last = &gradings[n - 1];
+        let kfs = [
+            rraw_export::TimelapseKeyframe {
+                frame_index: 0,
+                exposure_ev: g_first.exposure_ev,
+                kelvin: g_first.kelvin,
+                tint: g_first.tint,
+                contrast: g_first.contrast,
+                saturation: g_first.saturation,
+            },
+            rraw_export::TimelapseKeyframe {
+                frame_index: n - 1,
+                exposure_ev: g_last.exposure_ev,
+                kelvin: g_last.kelvin,
+                tint: g_last.tint,
+                contrast: g_last.contrast,
+                saturation: g_last.saturation,
+            },
+        ];
+
+        let interpolated = rraw_export::interpolate_keyframes(n, &kfs);
+        for (g, kf) in gradings.iter_mut().zip(interpolated.iter()) {
+            g.exposure_ev = kf.exposure_ev;
+            g.kelvin = kf.kelvin;
+            g.tint = kf.tint;
+            g.contrast = kf.contrast;
+            g.saturation = kf.saturation;
+        }
+    }
+
+    let mut measured_log_lumas = Vec::with_capacity(n);
+    for ((base, _), g) in frames.iter().zip(gradings.iter()) {
+        let flat_rgb: Vec<f32> = base
+            .samples_rgb
+            .iter()
+            .flat_map(|px| [px[0], px[1], px[2]])
+            .collect();
+        let sensor_log_y = rraw_export::compute_frame_log_luminance(&flat_rgb);
+        measured_log_lumas.push(sensor_log_y + g.exposure_ev);
+    }
+
+    let offsets_ev =
+        rraw_export::compute_deflicker_ev_offsets(&measured_log_lumas, deflicker_config);
+    for (g, &delta_ev) in gradings.iter_mut().zip(offsets_ev.iter()) {
+        g.exposure_ev = (g.exposure_ev + delta_ev).clamp(-5.0, 5.0);
+    }
+
+    (gradings, offsets_ev)
+}

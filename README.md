@@ -45,10 +45,11 @@
   - Deterministic `.rraw.json` recipe DAG recording all adjustment parameters.
   - Lossless, non-destructive `.xmp` sidecar synchronization, strictly preserving third-party namespaces (e.g. Adobe Lightroom, Darktable).
 
-### 7. Next-Generation HDR Batch Export
+### 7. Next-Generation HDR Batch & Timelapse Export
 - **Multi-Threaded Queue**: Asynchronous background export preserving full bit depth.
 - **Supported Formats**: 16-bit TIFF, 16-bit PNG, full-quality JPEG, AVIF (pure-Rust `rav1e`), and JPEG XL (`libjxl`).
 - **ISO 21496-1 HDR Gain Maps**: Embeds standardized gain maps into AVIF, JPEG XL, and JPEG files, providing universal backward compatibility on standard SDR displays while unlocking full HDR luminance on supported devices.
+- **RAW Timelapse & Temporal Deflicker Engine**: High-bit-depth numbered sequence assembly (`<prefix>_00001.<ext>`), weighted local-linear temporal log2 luminance deflickering (`ΔEV`) eliminating mechanical aperture jitter, Holy Grail day-to-night keyframe ramping (interpolating Exposure, Kelvin, Tint, Contrast, and Saturation), and `timelapse_sequence.json` manifest generation with ready-to-run FFmpeg ProRes 422 HQ / 10-bit HEVC assembly commands.
 
 ---
 

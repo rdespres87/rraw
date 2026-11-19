@@ -872,6 +872,24 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
             }
+            DarkroomSection::Timelapse => {
+                self.render_timelapse_controls_ui(ui, "inspector");
+                ui.add_space(4.0);
+                if ui
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("🎬 Exporter la séquence Timelapse...").strong(),
+                        )
+                        .fill(Color32::from_rgb(30, 110, 210)),
+                    )
+                    .clicked()
+                {
+                    self.export_target_mode = ExportTargetMode::TimelapseSequence;
+                    self.export_subfolder = "Timelapse".to_string();
+                    self.show_export_dialog = true;
+                    self.export_status = None;
+                }
+            }
             DarkroomSection::LegacyOther => {}
         }
 

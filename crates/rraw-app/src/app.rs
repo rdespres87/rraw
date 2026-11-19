@@ -124,6 +124,16 @@ pub struct RrawApp {
     pub export_suffix: String,
     /// Whether export applies to all selected photos in batch or current photo.
     pub export_batch_selection: bool,
+    /// Target export mode (Single photo, Batch selection, or Timelapse sequence).
+    pub export_target_mode: ExportTargetMode,
+    /// Frame rate for timelapse sequence export.
+    pub timelapse_fps: rraw_export::TimelapseFrameRate,
+    /// Temporal exposure deflicker configuration for timelapse export.
+    pub timelapse_deflicker: rraw_export::TimelapseDeflickerConfig,
+    /// Whether to interpolate exposure & white balance keyframes across the sequence.
+    pub timelapse_keyframe_ramping: bool,
+    /// Base filename prefix for numbered timelapse sequence output (`<prefix>_00001.<ext>`).
+    pub timelapse_sequence_prefix: String,
     /// Last selected index in filmstrip for Shift-range selection.
     pub last_selected_index: Option<usize>,
     /// Search query for filtering EXIF metadata tags table.
@@ -235,6 +245,11 @@ impl RrawApp {
             export_subfolder: "Export".to_string(),
             export_suffix: "_rraw".to_string(),
             export_batch_selection: false,
+            export_target_mode: ExportTargetMode::CurrentPhoto,
+            timelapse_fps: rraw_export::TimelapseFrameRate::Fps24,
+            timelapse_deflicker: rraw_export::TimelapseDeflickerConfig::default(),
+            timelapse_keyframe_ramping: true,
+            timelapse_sequence_prefix: "timelapse".to_string(),
             last_selected_index: None,
             exif_search_query: String::new(),
             active_curve_channel: CurveChannel::CombinedRgb,
@@ -808,6 +823,19 @@ impl eframe::App for RrawApp {
                     }
 
                     if ui.button("💾 Export...").clicked() {
+                        self.show_export_dialog = true;
+                        self.export_status = None;
+                    }
+
+                    if ui
+                        .button("🎬 Timelapse...")
+                        .on_hover_text(
+                            "Assembler une séquence RAW en Timelapse avec anti-scintillement (Deflicker) et interpolation Jour→Nuit",
+                        )
+                        .clicked()
+                    {
+                        self.export_target_mode = ExportTargetMode::TimelapseSequence;
+                        self.export_subfolder = "Timelapse".to_string();
                         self.show_export_dialog = true;
                         self.export_status = None;
                     }
