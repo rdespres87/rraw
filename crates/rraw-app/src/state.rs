@@ -107,7 +107,7 @@ impl CropAspectRatio {
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
-            Self::Free => "Libre (Free)",
+            Self::Free => "Libre",
             Self::Original => "Original",
             Self::Square1x1 => "1:1 (Carré)",
             Self::Ratio3x2 => "3:2 (35mm)",
@@ -341,10 +341,10 @@ impl DarkroomSection {
             Self::ToneCurves => "📈 Courbes de tonalité",
             Self::WhiteBalanceColor => "🎨 Balance des blancs & Couleur",
             Self::SoftProofing => "🖨️ Épreuvage écran & Hors-Gamut (ICC)",
-            Self::Timelapse => "🎬 Timelapse & Anti-Flicker (Holy Grail)",
-            Self::Crop => "✂️ Recadrer (Crop)",
-            Self::Straighten => "📐 Redresser (Rotation / Horizon)",
-            Self::Geometry => "🏛️ Géométrie (Perspective)",
+            Self::Timelapse => "🎬 Timelapse & Anti-scintillement",
+            Self::Crop => "✂️ Recadrage",
+            Self::Straighten => "📐 Redressement & Horizon",
+            Self::Geometry => "🏛️ Géométrie & Perspective",
             Self::DetailDenoise => "🔍 Détails & Débruitage",
             Self::OpticalCorrections => "📷 Corrections optiques",
             Self::LegacyOther => "Autre",
@@ -478,7 +478,7 @@ impl GradingPreset {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
-            Self::AsShot => "Default / As Shot",
+            Self::AsShot => "À la prise de vue (D'origine)",
             Self::DaylightPunch => "Daylight Punch (+0.3 EV, 5600K)",
             Self::PortraitSoft => "Portrait Soft (+0.6 EV, 5200K)",
             Self::CinematicAgX => "Cinematic AgX (+0.2 EV, 6000K)",
@@ -496,7 +496,7 @@ impl GradingPreset {
             Self::KodakTriX400 => "Kodak Tri-X 400 (N&B)",
             Self::IlfordHp5 => "Ilford HP5 Plus (N&B)",
             Self::SepiaVintage => "Sépia Vintage (Virage chaud)",
-            Self::Custom => "Custom",
+            Self::Custom => "Personnalisé",
         }
     }
 

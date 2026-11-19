@@ -1096,7 +1096,7 @@ impl RrawApp {
             painter.text(
                 available_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "Decoding RAW file in background...",
+                "Décodage du fichier RAW en arrière-plan...",
                 egui::FontId::proportional(18.0),
                 egui::Color32::from_rgb(100, 180, 255),
             );
@@ -1105,7 +1105,7 @@ impl RrawApp {
             painter.text(
                 available_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "No RAW image loaded.\nClick 'Open RAW...' or pick a file in Library & Files.",
+                "Aucune image RAW chargée.\nCliquez sur « Ouvrir image... » ou choisissez un fichier dans l'explorateur.",
                 egui::FontId::proportional(16.0),
                 egui::Color32::from_rgb(140, 145, 155),
             );

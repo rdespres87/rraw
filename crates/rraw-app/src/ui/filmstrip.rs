@@ -21,9 +21,9 @@ impl RrawApp {
             .show(ui, |ui| {
                 // Filmstrip Toolbar: Rating Filter Chips & Quick Navigation
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Filter:").strong().size(12.0));
+                    ui.label(egui::RichText::new("Filtre :").strong().size(12.0));
 
-                    let all_label = format!("All ({})", self.directory_entries.len());
+                    let all_label = format!("Toutes ({})", self.directory_entries.len());
                     if ui
                         .selectable_label(self.rating_filter == RatingFilter::All, all_label)
                         .clicked()
@@ -124,20 +124,20 @@ impl RrawApp {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .button("▶")
-                            .on_hover_text("Next Photo (Right Arrow)")
+                            .on_hover_text("Photo suivante (Flèche droite)")
                             .clicked()
                         {
                             self.navigate_relative(1);
                         }
                         if ui
                             .button("◀")
-                            .on_hover_text("Previous Photo (Left Arrow)")
+                            .on_hover_text("Photo précédente (Flèche gauche)")
                             .clicked()
                         {
                             self.navigate_relative(-1);
                         }
                         ui.label(
-                            egui::RichText::new("Keys: ◀/▶ (Switch) | 0-5 (Rate)")
+                            egui::RichText::new("Raccourcis : ◀/▶ (Naviguer) | 0-5 (Noter)")
                                 .small()
                                 .color(Color32::GRAY),
                         );
@@ -507,7 +507,7 @@ impl RrawApp {
             });
     }
 
-    /// Renders the left sidebar panel containing the reference histogram waveform, folder explorer, styles, and EXIF.
+    /// Renders the left sidebar panel containing the reference histogram, folder explorer, styles, and EXIF.
     pub fn render_left_panel(&mut self, ui: &mut egui::Ui) {
         egui::Panel::left("left_panel_fixed")
             .resizable(false)
@@ -518,7 +518,7 @@ impl RrawApp {
             .show(ui, |ui| {
                 ui.add_space(4.0);
 
-                // 1. Reference Histogram Waveform pinned prominently at the very top of the sidebar
+                // 1. Reference Histogram pinned prominently at the very top of the sidebar
                 self.render_histogram_widget(ui);
 
                 ui.separator();
