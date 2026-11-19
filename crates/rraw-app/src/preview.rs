@@ -160,6 +160,227 @@ pub struct BaseRgbPreview {
     pub cam_to_srgb: [f32; 9],
     /// Pre-inferred 4-class CoreML AI semantic segmentation probability maps.
     pub semantic_masks: std::sync::Arc<rraw_ai::SemanticMaskSet>,
+    /// Applied EXIF TIFF orientation code (`1..=8`).
+    pub exif_orientation: u16,
+}
+
+/// Returns upright `(width, height)` after applying EXIF orientation (`5..=8` transpose dimensions).
+#[must_use]
+pub const fn oriented_dimensions(width: u32, height: u32, orientation: u16) -> (u32, u32) {
+    if matches!(orientation, 5..=8) {
+        (height, width)
+    } else {
+        (width, height)
+    }
+}
+
+/// Transforms a row-major RGB buffer according to standard EXIF Orientation (`1..=8`).
+#[must_use]
+pub fn apply_exif_orientation_rgb(
+    samples: &[[f32; 3]],
+    width: usize,
+    height: usize,
+    orientation: u16,
+) -> (usize, usize, Vec<[f32; 3]>) {
+    if width == 0 || height == 0 || samples.len() < width.saturating_mul(height) {
+        return (width, height, samples.to_vec());
+    }
+    match orientation {
+        2 => {
+            // Mirror Horizontal
+            let mut out = vec![[0.0_f32; 3]; width * height];
+            for y in 0..height {
+                for x in 0..width {
+                    out[y * width + x] = samples[y * width + (width - 1 - x)];
+                }
+            }
+            (width, height, out)
+        }
+        3 => {
+            // Rotate 180°
+            let mut out = vec![[0.0_f32; 3]; width * height];
+            for y in 0..height {
+                for x in 0..width {
+                    out[y * width + x] = samples[(height - 1 - y) * width + (width - 1 - x)];
+                }
+            }
+            (width, height, out)
+        }
+        4 => {
+            // Mirror Vertical
+            let mut out = vec![[0.0_f32; 3]; width * height];
+            for y in 0..height {
+                for x in 0..width {
+                    out[y * width + x] = samples[(height - 1 - y) * width + x];
+                }
+            }
+            (width, height, out)
+        }
+        5 => {
+            // Transpose: Mirror Horizontal + Rotate 270° CW -> (out_w, out_h) = (height, width)
+            let out_w = height;
+            let out_h = width;
+            let mut out = vec![[0.0_f32; 3]; out_w * out_h];
+            for dy in 0..out_h {
+                for dx in 0..out_w {
+                    out[dy * out_w + dx] = samples[dx * width + dy];
+                }
+            }
+            (out_w, out_h, out)
+        }
+        6 => {
+            // Rotate 90° CW (Standard Portrait) -> (out_w, out_h) = (height, width)
+            let out_w = height;
+            let out_h = width;
+            let mut out = vec![[0.0_f32; 3]; out_w * out_h];
+            for dy in 0..out_h {
+                for dx in 0..out_w {
+                    let sx = dy;
+                    let sy = height - 1 - dx;
+                    out[dy * out_w + dx] = samples[sy * width + sx];
+                }
+            }
+            (out_w, out_h, out)
+        }
+        7 => {
+            // Transverse: Mirror Horizontal + Rotate 90° CW -> (out_w, out_h) = (height, width)
+            let out_w = height;
+            let out_h = width;
+            let mut out = vec![[0.0_f32; 3]; out_w * out_h];
+            for dy in 0..out_h {
+                for dx in 0..out_w {
+                    let sx = width - 1 - dy;
+                    let sy = height - 1 - dx;
+                    out[dy * out_w + dx] = samples[sy * width + sx];
+                }
+            }
+            (out_w, out_h, out)
+        }
+        8 => {
+            // Rotate 270° CW / 90° CCW (Portrait) -> (out_w, out_h) = (height, width)
+            let out_w = height;
+            let out_h = width;
+            let mut out = vec![[0.0_f32; 3]; out_w * out_h];
+            for dy in 0..out_h {
+                for dx in 0..out_w {
+                    let sx = width - 1 - dy;
+                    let sy = dx;
+                    out[dy * out_w + dx] = samples[sy * width + sx];
+                }
+            }
+            (out_w, out_h, out)
+        }
+        _ => (width, height, samples.to_vec()),
+    }
+}
+
+/// Applies EXIF Orientation (`1..=8`) to a `DynamicImage`.
+#[must_use]
+pub fn apply_exif_orientation_dyn_image(
+    img: image::DynamicImage,
+    orientation: u16,
+) -> image::DynamicImage {
+    match orientation {
+        2 => img.fliph(),
+        3 => img.rotate180(),
+        4 => img.flipv(),
+        5 => img.rotate270().fliph(),
+        6 => img.rotate90(),
+        7 => img.rotate90().fliph(),
+        8 => img.rotate270(),
+        _ => img,
+    }
+}
+
+fn parse_tiff_ifd0_orientation(tiff: &[u8]) -> Option<u16> {
+    if tiff.len() < 8 {
+        return None;
+    }
+    let is_le = match &tiff[0..4] {
+        [b'I', b'I', 42, 0] => true,
+        [b'M', b'M', 0, 42] => false,
+        _ => return None,
+    };
+    let read_u16 = |off: usize| -> Option<u16> {
+        let slice = tiff.get(off..off + 2)?;
+        Some(if is_le {
+            u16::from_le_bytes([slice[0], slice[1]])
+        } else {
+            u16::from_be_bytes([slice[0], slice[1]])
+        })
+    };
+    let read_u32 = |off: usize| -> Option<u32> {
+        let slice = tiff.get(off..off + 4)?;
+        Some(if is_le {
+            u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]])
+        } else {
+            u32::from_be_bytes([slice[0], slice[1], slice[2], slice[3]])
+        })
+    };
+
+    let ifd_offset = read_u32(4)? as usize;
+    let entry_count = read_u16(ifd_offset)? as usize;
+    let entries_base = ifd_offset.checked_add(2)?;
+
+    for i in 0..entry_count.min(128) {
+        let entry_off = entries_base.checked_add(i * 12)?;
+        let tag = read_u16(entry_off)?;
+        if tag == 0x0112 {
+            let val = read_u16(entry_off + 8)?;
+            if (1..=8).contains(&val) {
+                return Some(val);
+            }
+        }
+    }
+    None
+}
+
+/// Reads the EXIF `Orientation` tag (`0x0112`, values `1..=8`) from a JPEG or TIFF/RAW file header.
+#[must_use]
+pub fn read_exif_orientation(path: &Path) -> u16 {
+    use std::io::Read;
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return 1;
+    };
+    let mut buf = vec![0_u8; 65536];
+    let Ok(n) = file.read(&mut buf) else {
+        return 1;
+    };
+    let data = &buf[..n];
+    if data.len() < 4 {
+        return 1;
+    }
+
+    // 1. Direct TIFF / DNG / RAW container
+    if let Some(orient) = parse_tiff_ifd0_orientation(data) {
+        return orient;
+    }
+
+    // 2. JPEG container (0xFFD8 followed by APP markers)
+    if data[0] == 0xFF && data[1] == 0xD8 {
+        let mut pos = 2_usize;
+        while pos + 4 <= data.len() && data[pos] == 0xFF {
+            let marker = data[pos + 1];
+            if marker == 0xDA || marker == 0xD9 {
+                break;
+            }
+            let seg_len = u16::from_be_bytes([data[pos + 2], data[pos + 3]]) as usize;
+            if seg_len < 2 || pos + 2 + seg_len > data.len() {
+                break;
+            }
+            if marker == 0xE1 && seg_len >= 8 {
+                let payload = &data[pos + 4..pos + 2 + seg_len];
+                if payload.starts_with(b"Exif\0\0") {
+                    if let Some(orient) = parse_tiff_ifd0_orientation(&payload[6..]) {
+                        return orient;
+                    }
+                }
+            }
+            pos += 2 + seg_len;
+        }
+    }
+
+    1
 }
 
 fn infer_preview_semantic_masks(
@@ -286,6 +507,7 @@ impl BaseRgbPreview {
                 as_shot_wb,
                 cam_to_srgb,
                 semantic_masks,
+                exif_orientation: 1,
             };
         }
 
@@ -372,6 +594,7 @@ impl BaseRgbPreview {
             as_shot_wb,
             cam_to_srgb,
             semantic_masks,
+            exif_orientation: 1,
         }
     }
 
@@ -415,7 +638,37 @@ impl BaseRgbPreview {
             as_shot_wb,
             cam_to_srgb,
             semantic_masks,
+            exif_orientation: 1,
         }
+    }
+
+    /// Rotates/flips the base RGB preview according to EXIF Orientation (`1..=8`) and updates semantic masks.
+    #[must_use]
+    pub fn with_exif_orientation(mut self, orientation: u16) -> Self {
+        self.exif_orientation = if (1..=8).contains(&orientation) {
+            orientation
+        } else {
+            1
+        };
+        if matches!(self.exif_orientation, 2..=8) {
+            let (new_w, new_h, new_samples) = apply_exif_orientation_rgb(
+                &self.samples_rgb,
+                self.width,
+                self.height,
+                self.exif_orientation,
+            );
+            self.width = new_w;
+            self.height = new_h;
+            self.samples_rgb = new_samples;
+            self.semantic_masks = infer_preview_semantic_masks(
+                &self.samples_rgb,
+                self.width,
+                self.height,
+                self.as_shot_wb,
+                self.cam_to_srgb,
+            );
+        }
+        self
     }
 }
 
@@ -428,9 +681,12 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
         .map(|s| s.to_ascii_lowercase())
         .unwrap_or_default();
 
+    let header_orient = read_exif_orientation(path);
+
     if matches!(ext_lower.as_str(), "jpg" | "jpeg" | "png" | "tif" | "tiff") {
         if let Ok(dyn_img) = image::open(path) {
-            let thumb = dyn_img.thumbnail(140, 100).to_rgb8();
+            let oriented = apply_exif_orientation_dyn_image(dyn_img, header_orient);
+            let thumb = oriented.thumbnail(140, 100).to_rgb8();
             let (w, h) = thumb.dimensions();
             return Some(egui::ColorImage::from_rgb(
                 [w as usize, h as usize],
@@ -441,6 +697,11 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
 
     let decoder = PureRustRawDecoder::new();
     let decoded = decoder.decode_file(path).ok()?;
+    let orient = if decoded.orientation > 1 {
+        decoded.orientation
+    } else {
+        header_orient
+    };
     let (grading_opt, _) = load_photo_sidecars(path);
     let grading = grading_opt.unwrap_or_default();
 
@@ -453,7 +714,8 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
         ],
         decoded.color_matrix.as_ref(),
         140,
-    );
+    )
+    .with_exif_orientation(orient);
 
     let (preview, _) = render_preview_from_base(&base, &grading);
     Some(preview)
@@ -1231,11 +1493,15 @@ pub fn decode_photo_file_payload(
         .map(|s| s.to_ascii_lowercase())
         .unwrap_or_default();
 
+    let header_orient = read_exif_orientation(target_path);
+
     if matches!(ext_lower.as_str(), "jpg" | "jpeg" | "png" | "tif" | "tiff") {
         if let Ok(dyn_img) = image::open(target_path) {
             let rgb = dyn_img.to_rgb8();
-            let (orig_w, orig_h) = rgb.dimensions();
-            let base = BaseRgbPreview::from_rgb_image(&rgb, 1600);
+            let (raw_w, raw_h) = rgb.dimensions();
+            let (orig_w, orig_h) = oriented_dimensions(raw_w, raw_h, header_orient);
+            let base =
+                BaseRgbPreview::from_rgb_image(&rgb, 1600).with_exif_orientation(header_orient);
             let dummy_cfa = SignedCfaBuffer::default();
 
             let file_name = target_path
@@ -1260,6 +1526,7 @@ pub fn decode_photo_file_payload(
                 exif_tags: vec![
                     ("Format".to_string(), ext_lower.to_ascii_uppercase()),
                     ("Dimensions".to_string(), format!("{orig_w}x{orig_h}")),
+                    ("Orientation".to_string(), format!("{header_orient}")),
                 ],
             };
 
@@ -1275,6 +1542,11 @@ pub fn decode_photo_file_payload(
 
     let decoder = PureRustRawDecoder::new();
     let decoded = decoder.decode_file(target_path).ok()?;
+    let orient = if decoded.orientation > 1 {
+        decoded.orientation
+    } else {
+        header_orient
+    };
     let meta = decoded.metadata;
     let make = meta.camera_make.clone();
     let model = meta.camera_model.clone();
@@ -1318,12 +1590,14 @@ pub fn decode_photo_file_payload(
         .map(|(_, v)| v.clone())
         .unwrap_or_default();
 
+    let upright_dims = oriented_dimensions(meta.width as u32, meta.height as u32, orient);
+
     let photo_view = LoadedPhotoView {
         path: target_path.to_path_buf(),
         camera_make: make,
         camera_model: camera,
         lens_model: lens_str,
-        dimensions: (meta.width as u32, meta.height as u32),
+        dimensions: upright_dims,
         iso,
         shutter_str,
         aperture_str,
@@ -1342,7 +1616,8 @@ pub fn decode_photo_file_payload(
             decoded.wb_coeffs[2],
         ],
         decoded.color_matrix.as_ref(),
-    );
+    )
+    .with_exif_orientation(orient);
 
     Some(BackgroundDecodePayload {
         path: target_path.to_path_buf(),

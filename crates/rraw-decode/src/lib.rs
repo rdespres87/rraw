@@ -34,6 +34,8 @@ pub struct DecodedRaw {
     pub wb_coeffs: [f32; 4],
     pub color_matrix: Option<[f32; 9]>,
     pub exif_tags: Vec<(String, String)>,
+    /// Standard EXIF TIFF Orientation code (`1..=8`, where `6` = 90° CW Portrait, `8` = 270° CW Portrait).
+    pub orientation: u16,
 }
 
 /// Pure-Rust contract for read-only RAW file decoding.
@@ -146,6 +148,11 @@ impl RawDecoder for PureRustRawDecoder {
             ),
         ));
 
+        let mut orientation = match raw_image.orientation.to_u16() {
+            code @ 1..=8 => code,
+            _ => 1,
+        };
+
         // Read complete EXIF tags using rawler's IFD parser
         if let Ok(rawsource) = rawler::rawsource::RawSource::new(path) {
             if let Ok(decoder) = rawler::get_decoder(&rawsource) {
@@ -153,6 +160,12 @@ impl RawDecoder for PureRustRawDecoder {
                     decoder.raw_metadata(&rawsource, &rawler::decoders::RawDecodeParams::default())
                 {
                     let exif = &rmeta.exif;
+
+                    if let Some(eo) = exif.orientation {
+                        if (1..=8).contains(&eo) && orientation == 1 {
+                            orientation = eo;
+                        }
+                    }
 
                     if let Some(focal) = &exif.focal_length {
                         if focal.d != 0 {
@@ -446,12 +459,26 @@ impl RawDecoder for PureRustRawDecoder {
         let estimated_noise = estimate_noise_profile_wavelet_mad(&signed_cfa)?;
         dummy_meta.noise_profile = estimated_noise;
 
+        let orient_str = match orientation {
+            1 => "1 - Horizontal (Normal)",
+            2 => "2 - Mirror Horizontal",
+            3 => "3 - Rotate 180°",
+            4 => "4 - Mirror Vertical",
+            5 => "5 - Mirror Horizontal & Rotate 270° CW (Portrait)",
+            6 => "6 - Rotate 90° CW (Portrait)",
+            7 => "7 - Mirror Horizontal & Rotate 90° CW (Portrait)",
+            8 => "8 - Rotate 270° CW / 90° CCW (Portrait)",
+            _ => "1 - Normal",
+        };
+        exif_tags.push(("Orientation".to_string(), orient_str.to_string()));
+
         Ok(DecodedRaw {
             metadata: dummy_meta,
             cfa_signed: signed_cfa,
             wb_coeffs,
             color_matrix,
             exif_tags,
+            orientation,
         })
     }
 }
