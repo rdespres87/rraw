@@ -25,6 +25,12 @@
   - Local commit: `80e97a4` (`fix(rraw-app): lock panel dimensions, prevent layout truncation and refine inspector ergonomics`).
   - Verified with 152 unit and integration tests passing across 44 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit APPROVED.
 
+- **French UI Terminology Harmonization (`rraw-app`)**:
+  - Replaced "Waveform RGB" with "Histogramme RGB" across UI widgets and documentation.
+  - Complete French photographic nomenclature across top bar, filmstrip, inspector sliders, and EXIF tables.
+  - Local commit: `b55d6d3` (`fix(rraw-app): harmonize user interface terminology and labels in French`).
+  - Verified with 152 unit and integration tests passing across 44 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit APPROVED.
+
 ## Next Logical Action: UI Overhaul Step 2 — Pro Viewport, Canvas Overlays & Top Bar Decluttering
 
 - **Objective**: Declutter the top toolbar, move shooting metadata and star ratings to a non-intrusive canvas HUD, implement split-screen before/after comparison, and add clipping zebra overlays.

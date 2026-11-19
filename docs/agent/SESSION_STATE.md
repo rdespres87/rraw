@@ -42,6 +42,7 @@
   - Phase 9 Local Retouching & Masking Suite (Linear/Radial Gradients & Freehand Brush): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 150 tests across 44 suites, commits `94ea97d`, `d15a0f1`, `669b748`)
   - UI Overhaul Step 1 (Darkroom Palette Categories, Active Filter, Real-time Search & Clean Sidebar Panels): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 151 tests across 44 suites, zero third-party brands in history, commit `c4487d9`)
   - UI Overhaul Step 1 Refinements (Panel Width Locking 360px/320px, Auto-Unrolling, Multi-line Controls Stacking, Glyph Tofu Fix & Layout Persistence): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 152 tests across 44 suites, commit `80e97a4`)
+  - French Terminology Harmonization (Histogram RGB, Complete French Photography Nomenclature & Label Consistency): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 152 tests across 44 suites, commit `b55d6d3`)
   - Task 8.1 Optical Defringe, Creative Vignetting & Sepia Vintage (`rraw-optics` & `rraw-app`): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 142 tests across 42 suites, commit `165ba90`)
   - Phase 9.1 Local Retouching & Masking Suite (Linear/Radial Gradients & Overlays): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 146 tests across 43 suites, commit `94ea97d`)
   - Phase 9.2 Freehand Adjustment Brush Mask (Vector Dabs, Zoom Retouching & Viewport Pan): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 148 tests across 43 suites, commit `d15a0f1`)
