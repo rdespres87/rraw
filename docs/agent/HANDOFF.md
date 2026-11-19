@@ -2,6 +2,20 @@
 
 ## Last Completed Milestone
 
+- **Phase 9.2 — Freehand Adjustment Brush Mask, Zoom Support & Viewport Pan Navigation (`rraw-app`)**:
+  - Implemented `BrushDab` vector stroke model in `crates/rraw-app/src/state.rs` (`pos [f32; 2]`, `radius`, `flow`, `erase`) and `LocalMaskKind::FreehandBrush` with continuous smoothstep feather falloff, additive/subtractive blending, spatial deduplication (`(radius * 0.25)^2`), and `.rraw.json` sidecar persistence.
+  - Interactive Viewport tooling in `crates/rraw-app/src/ui/viewport.rs`:
+    - Screen-to-UV mapping normalized across display zoom and pan offsets.
+    - Mouse wheel / trackpad scroll zooming under brush cursor while in brush mode.
+    - Holding `Space` or middle mouse button temporarily engages the Hand Tool (`Grab` / `Grabbing` cursor) to pan around the zoomed image without painting dabs.
+    - Reserved `Space` in darkroom mode to avoid toggling photo selection while brushing.
+    - Adaptive radius steps for bracket shortcuts `[` / `]` (`0.001` for ultra-fine, `0.002` for intermediate, `0.01` for coarse).
+    - Fixed double-click collision (`!is_tool_active` guard) preventing rapid brush dabbing from resetting zoom to Fit.
+    - Live circular cursor ring preview with inner feather ring and center dot.
+    - Active brush HUD badge displaying brush name, mode (Peindre/Gomme), zoom percentage, and navigation hints.
+  - Inspector UI in `crates/rraw-app/src/ui/inspector.rs` with `+ Pinceau`, `🖌️ Peindre` activation toggle, ultra-fine radius slider (0.001 to 0.35), flow slider, Paint/Erase mode switch, stroke count, and clear strokes button.
+  - Verified with 148 unit and integration tests passing across 43 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit.
+
 - **Phase 9.1 — Local Retouching & Masking Suite (Linear/Radial Gradients & Overlays) (`rraw-app`)**:
   - Implemented `LocalMaskKind` (`LinearGradient`, `RadialGradient`) and `LocalMaskLayer` with safe analytical continuous weight evaluation in `crates/rraw-app/src/state.rs`.
   - Multi-layer mask accumulation in preview (`render_preview_from_base`) and export (`render_export_image`) pipelines covering Exposure EV, Contrast, Saturation, and Color Temperature.

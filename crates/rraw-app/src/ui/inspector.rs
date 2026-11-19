@@ -233,12 +233,32 @@ impl RrawApp {
                             [0.3, 0.3],
                         ));
                         self.grading.show_local_mask_overlay = None;
+                        self.grading.active_brush_mask_idx = None;
+                        changed = true;
+                    }
+                    if ui
+                        .small_button("+ Pinceau")
+                        .on_hover_text(
+                            "Ajouter un pinceau de retouche libre à peindre sur la photo",
+                        )
+                        .clicked()
+                    {
+                        let count = self.grading.local_masks.len() + 1;
+                        self.grading.local_masks.push(LocalMaskLayer::new_brush(
+                            format!("Pinceau {count}"),
+                            0.08,
+                            0.65,
+                        ));
+                        let new_idx = self.grading.local_masks.len() - 1;
+                        self.grading.show_local_mask_overlay = None;
+                        self.grading.active_brush_mask_idx = Some(new_idx);
                         changed = true;
                     }
                 });
 
                 let mut local_mask_to_remove: Option<usize> = None;
                 let mut active_local_overlay = self.grading.show_local_mask_overlay;
+                let mut active_brush_idx = self.grading.active_brush_mask_idx;
 
                 for (idx, mask) in self.grading.local_masks.iter_mut().enumerate() {
                     ui.add_space(3.0);
@@ -250,6 +270,7 @@ impl RrawApp {
                                 let icon = match &mask.kind {
                                     LocalMaskKind::LinearGradient { .. } => "📏",
                                     LocalMaskKind::RadialGradient { .. } => "⭕",
+                                    LocalMaskKind::FreehandBrush { .. } => "🖌️",
                                 };
                                 if ui
                                     .checkbox(
@@ -260,6 +281,18 @@ impl RrawApp {
                                     .changed()
                                 {
                                     changed = true;
+                                }
+
+                                if matches!(mask.kind, LocalMaskKind::FreehandBrush { .. }) {
+                                    let is_painting = active_brush_idx == Some(idx);
+                                    if ui
+                                        .selectable_label(is_painting, "🖌️ Peindre")
+                                        .on_hover_text("Activer le pinceau à la souris sur la photo")
+                                        .clicked()
+                                    {
+                                        active_brush_idx =
+                                            if is_painting { None } else { Some(idx) };
+                                    }
                                 }
 
                                 let is_overlay = active_local_overlay == Some(idx);
@@ -435,6 +468,88 @@ impl RrawApp {
                                             }
                                         });
                                     }
+                                    LocalMaskKind::FreehandBrush {
+                                        dabs,
+                                        brush_radius,
+                                        brush_flow,
+                                        erase_mode,
+                                    } => {
+                                        ui.horizontal(|ui| {
+                                            ui.label("Rayon :");
+                                            if ui
+                                                .add(
+                                                    egui::Slider::new(brush_radius, 0.001..=0.35)
+                                                        .step_by(0.001)
+                                                        .show_value(true)
+                                                        .custom_formatter(|n, _| {
+                                                            if n < 0.01 {
+                                                                format!("{:.2}%", n * 100.0)
+                                                            } else {
+                                                                format!("{:.1}%", n * 100.0)
+                                                            }
+                                                        }),
+                                                )
+                                                .on_hover_text(
+                                                    "Taille du pinceau (raccourcis : [ et ] dans la vue)",
+                                                )
+                                                .changed()
+                                            {
+                                                changed = true;
+                                            }
+                                            ui.label("Débit :");
+                                            if ui
+                                                .add(
+                                                    egui::Slider::new(brush_flow, 0.05..=1.0)
+                                                        .step_by(0.05)
+                                                        .show_value(true)
+                                                        .custom_formatter(|n, _| {
+                                                            format!("{:.0}%", n * 100.0)
+                                                        }),
+                                                )
+                                                .on_hover_text(
+                                                    "Intensité de chaque coup de pinceau",
+                                                )
+                                                .changed()
+                                            {
+                                                changed = true;
+                                            }
+                                        });
+                                        ui.horizontal(|ui| {
+                                            let is_erase = *erase_mode;
+                                            if ui
+                                                .selectable_label(!is_erase, "🖌️ Peindre")
+                                                .on_hover_text(
+                                                    "Mode application : ajoute de la matière au masque",
+                                                )
+                                                .clicked()
+                                            {
+                                                *erase_mode = false;
+                                            }
+                                            if ui
+                                                .selectable_label(is_erase, "🧹 Gommer")
+                                                .on_hover_text(
+                                                    "Mode gomme : soustrait du masque",
+                                                )
+                                                .clicked()
+                                            {
+                                                *erase_mode = true;
+                                            }
+                                            ui.add_space(8.0);
+                                            let dab_count = dabs.len();
+                                            ui.label(format!("({dab_count} traits)"));
+                                            if dab_count > 0
+                                                && ui
+                                                    .small_button("🗑️ Vider")
+                                                    .on_hover_text(
+                                                        "Effacer tous les traits de ce pinceau",
+                                                    )
+                                                    .clicked()
+                                            {
+                                                dabs.clear();
+                                                changed = true;
+                                            }
+                                        });
+                                    }
                                 }
                             }
                         });
@@ -446,10 +561,18 @@ impl RrawApp {
                         if active_local_overlay == Some(remove_idx) {
                             active_local_overlay = None;
                         }
+                        if active_brush_idx == Some(remove_idx) {
+                            active_brush_idx = None;
+                        } else if let Some(b_idx) = active_brush_idx {
+                            if b_idx > remove_idx {
+                                active_brush_idx = Some(b_idx - 1);
+                            }
+                        }
                         changed = true;
                     }
                 }
                 self.grading.show_local_mask_overlay = active_local_overlay;
+                self.grading.active_brush_mask_idx = active_brush_idx;
 
                 ui.separator();
                 ui.label(egui::RichText::new("Masques IA CoreML (Segmentation)").strong());

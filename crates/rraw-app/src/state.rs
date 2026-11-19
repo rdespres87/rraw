@@ -918,6 +918,15 @@ impl SemanticMaskLayer {
     }
 }
 
+/// Single brush dab painted along a freehand stroke in normalized `[0, 1]²` coordinates.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct BrushDab {
+    pub pos: [f32; 2],
+    pub radius: f32,
+    pub flow: f32,
+    pub erase: bool,
+}
+
 /// Kind and geometric coordinates of a local retouching mask.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LocalMaskKind {
@@ -928,6 +937,13 @@ pub enum LocalMaskKind {
         center: [f32; 2],
         radius: [f32; 2],
         rotation_deg: f32,
+    },
+    /// Freehand adjustment brush mask composed of vector dabs.
+    FreehandBrush {
+        dabs: Vec<BrushDab>,
+        brush_radius: f32,
+        brush_flow: f32,
+        erase_mode: bool,
     },
 }
 
@@ -994,6 +1010,90 @@ impl LocalMaskLayer {
         }
     }
 
+    /// Creates a new freehand adjustment brush mask layer.
+    pub fn new_brush(name: impl Into<String>, brush_radius: f32, brush_flow: f32) -> Self {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis());
+        Self {
+            id: format!("lmask_brush_{ts}"),
+            name: name.into(),
+            kind: LocalMaskKind::FreehandBrush {
+                dabs: Vec::new(),
+                brush_radius: brush_radius.clamp(0.001, 0.5),
+                brush_flow: brush_flow.clamp(0.05, 1.0),
+                erase_mode: false,
+            },
+            enabled: true,
+            invert: false,
+            feather: 0.65,
+            opacity: 1.0,
+            exposure_ev: 0.0,
+            contrast: 0.0,
+            saturation: 0.0,
+            temperature_shift: 0.0,
+        }
+    }
+
+    /// Appends a brush dab at `(u, v)` if sufficiently spaced from the previous dab.
+    pub fn add_brush_dab(&mut self, u: f32, v: f32) -> bool {
+        if let LocalMaskKind::FreehandBrush {
+            dabs,
+            brush_radius,
+            brush_flow,
+            erase_mode,
+        } = &mut self.kind
+        {
+            let r = brush_radius.clamp(0.001, 0.5);
+            let min_dist_sq = (r * 0.25).powi(2);
+            if let Some(last) = dabs.last() {
+                let dx = u - last.pos[0];
+                let dy = v - last.pos[1];
+                if dx * dx + dy * dy < min_dist_sq && last.erase == *erase_mode {
+                    return false;
+                }
+            }
+            dabs.push(BrushDab {
+                pos: [u.clamp(0.0, 1.0), v.clamp(0.0, 1.0)],
+                radius: r,
+                flow: brush_flow.clamp(0.05, 1.0),
+                erase: *erase_mode,
+            });
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Forces adding a brush dab at `(u, v)` without spacing deduplication.
+    pub fn add_brush_dab_forced(&mut self, u: f32, v: f32) -> bool {
+        if let LocalMaskKind::FreehandBrush {
+            dabs,
+            brush_radius,
+            brush_flow,
+            erase_mode,
+        } = &mut self.kind
+        {
+            dabs.push(BrushDab {
+                pos: [u.clamp(0.0, 1.0), v.clamp(0.0, 1.0)],
+                radius: brush_radius.clamp(0.001, 0.5),
+                flow: brush_flow.clamp(0.05, 1.0),
+                erase: *erase_mode,
+            });
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Sets the brush erase mode if this layer is a freehand brush.
+    pub fn set_brush_erase_mode(&mut self, erase: bool) {
+        if let LocalMaskKind::FreehandBrush { erase_mode, .. } = &mut self.kind {
+            *erase_mode = erase;
+        }
+    }
+
     /// Returns true if this mask contributes zero effective changes.
     #[must_use]
     pub fn is_neutral(&self) -> bool {
@@ -1050,6 +1150,38 @@ impl LocalMaskLayer {
                     let t = (dist - inner) / (1.0 - inner).max(1e-4);
                     let s = t * t * (3.0 - 2.0 * t);
                     1.0 - s
+                }
+            }
+            LocalMaskKind::FreehandBrush { dabs, .. } => {
+                if dabs.is_empty() {
+                    0.0
+                } else {
+                    let f = self.feather.clamp(0.05, 1.0);
+                    let inner_ratio = (1.0 - f).max(0.0);
+                    let mut acc = 0.0_f32;
+                    for dab in dabs {
+                        let r = dab.radius.max(1e-4);
+                        let dx = u - dab.pos[0];
+                        let dy = v - dab.pos[1];
+                        let dist_sq = dx * dx + dy * dy;
+                        if dist_sq >= r * r {
+                            continue;
+                        }
+                        let dist_norm = dist_sq.sqrt() / r;
+                        let dab_w = if dist_norm <= inner_ratio {
+                            1.0
+                        } else {
+                            let t = (dist_norm - inner_ratio) / (1.0 - inner_ratio).max(1e-4);
+                            1.0 - t * t * (3.0 - 2.0 * t)
+                        };
+                        let contrib = dab_w * dab.flow.clamp(0.05, 1.0);
+                        if dab.erase {
+                            acc = (acc - contrib).max(0.0);
+                        } else {
+                            acc = (acc + contrib).min(1.0);
+                        }
+                    }
+                    acc
                 }
             }
         };
@@ -1135,10 +1267,12 @@ pub struct DarkroomGradingState {
     /// Optional active semantic category overlay displayed in ruby-magenta over the viewport.
     pub show_semantic_mask_overlay: Option<rraw_core::SemanticMaskCategory>,
 
-    // Local Retouching & Masking (Linear, Radial)
+    // Local Retouching & Masking (Linear, Radial, Freehand Brush)
     pub local_masks: Vec<LocalMaskLayer>,
     /// Optional index of the active local mask to overlay in ruby red on the viewport.
     pub show_local_mask_overlay: Option<usize>,
+    /// Optional index of the active freehand brush mask currently painting on the viewport.
+    pub active_brush_mask_idx: Option<usize>,
 
     // Color Management & Soft Proofing (Task 6.4)
     pub soft_proof: rraw_color::SoftProofConfig,
@@ -1179,30 +1313,55 @@ impl DarkroomGradingState {
             if !mask.enabled {
                 continue;
             }
-            let kind = match &mask.kind {
+            match &mask.kind {
                 LocalMaskKind::LinearGradient { start, end } => {
-                    rraw_core::MaskKind::LinearGradient {
-                        start: *start,
-                        end: *end,
-                    }
+                    masks.push(rraw_core::GeometricMask {
+                        id: mask.id.clone(),
+                        kind: rraw_core::MaskKind::LinearGradient {
+                            start: *start,
+                            end: *end,
+                        },
+                        exposure_offset_ev: mask.exposure_ev,
+                        opacity: mask.opacity,
+                        enabled: mask.enabled,
+                    });
                 }
                 LocalMaskKind::RadialGradient {
                     center,
                     radius,
                     rotation_deg,
-                } => rraw_core::MaskKind::RadialGradient {
-                    center: *center,
-                    radius: *radius,
-                    rotation_deg: *rotation_deg,
-                },
-            };
-            masks.push(rraw_core::GeometricMask {
-                id: mask.id.clone(),
-                kind,
-                exposure_offset_ev: mask.exposure_ev,
-                opacity: mask.opacity,
-                enabled: mask.enabled,
-            });
+                } => {
+                    masks.push(rraw_core::GeometricMask {
+                        id: mask.id.clone(),
+                        kind: rraw_core::MaskKind::RadialGradient {
+                            center: *center,
+                            radius: *radius,
+                            rotation_deg: *rotation_deg,
+                        },
+                        exposure_offset_ev: mask.exposure_ev,
+                        opacity: mask.opacity,
+                        enabled: mask.enabled,
+                    });
+                }
+                LocalMaskKind::FreehandBrush { dabs, .. } => {
+                    for (dab_idx, dab) in dabs.iter().enumerate() {
+                        if dab.erase {
+                            continue;
+                        }
+                        masks.push(rraw_core::GeometricMask {
+                            id: format!("{}_{dab_idx}", mask.id),
+                            kind: rraw_core::MaskKind::RadialGradient {
+                                center: dab.pos,
+                                radius: [dab.radius, dab.radius],
+                                rotation_deg: 0.0,
+                            },
+                            exposure_offset_ev: mask.exposure_ev,
+                            opacity: (mask.opacity * dab.flow).clamp(0.0, 1.0),
+                            enabled: mask.enabled,
+                        });
+                    }
+                }
+            }
         }
         for layer in &self.semantic_masks {
             masks.push(rraw_core::GeometricMask {
@@ -1271,6 +1430,7 @@ impl Default for DarkroomGradingState {
             show_semantic_mask_overlay: None,
             local_masks: Vec::new(),
             show_local_mask_overlay: None,
+            active_brush_mask_idx: None,
             soft_proof: rraw_color::SoftProofConfig::default(),
         }
     }
@@ -1474,6 +1634,7 @@ impl SidecarRecipe {
         grading.show_semantic_mask_overlay = None;
         grading.local_masks = self.local_masks.clone();
         grading.show_local_mask_overlay = None;
+        grading.active_brush_mask_idx = None;
         grading.soft_proof = self.soft_proof;
         grading.preset = if let Some(p_str) = &self.preset {
             GradingPreset::from_id_str(p_str)

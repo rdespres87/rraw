@@ -52,8 +52,60 @@ impl RrawApp {
             let preview_rect = egui::Rect::from_center_size(center, display_size);
 
             let resp = ui.allocate_rect(available_rect, egui::Sense::click_and_drag());
+            let is_brush_active = self.grading.active_brush_mask_idx.is_some_and(|idx| {
+                self.grading.local_masks.get(idx).is_some_and(|m| {
+                    matches!(m.kind, LocalMaskKind::FreehandBrush { .. }) && m.enabled
+                })
+            });
             let is_tool_active = self.horizon_tool_active
-                || self.parallel_tool_phase != ParallelToolPhase::Inactive;
+                || self.parallel_tool_phase != ParallelToolPhase::Inactive
+                || is_brush_active;
+
+            if is_brush_active {
+                if ui.input(|i| i.key_pressed(egui::Key::OpenBracket)) {
+                    if let Some(mask_idx) = self.grading.active_brush_mask_idx {
+                        if let Some(mask) = self.grading.local_masks.get_mut(mask_idx) {
+                            if let LocalMaskKind::FreehandBrush { brush_radius, .. } =
+                                &mut mask.kind
+                            {
+                                let step = if *brush_radius > 0.05 {
+                                    0.01
+                                } else if *brush_radius > 0.01 {
+                                    0.002
+                                } else {
+                                    0.001
+                                };
+                                *brush_radius = (*brush_radius - step).max(0.001);
+                                ui.ctx().request_repaint();
+                            }
+                        }
+                    }
+                }
+                if ui.input(|i| i.key_pressed(egui::Key::CloseBracket)) {
+                    if let Some(mask_idx) = self.grading.active_brush_mask_idx {
+                        if let Some(mask) = self.grading.local_masks.get_mut(mask_idx) {
+                            if let LocalMaskKind::FreehandBrush { brush_radius, .. } =
+                                &mut mask.kind
+                            {
+                                let step = if *brush_radius >= 0.05 {
+                                    0.01
+                                } else if *brush_radius >= 0.01 {
+                                    0.002
+                                } else {
+                                    0.001
+                                };
+                                *brush_radius = (*brush_radius + step).min(0.5);
+                                ui.ctx().request_repaint();
+                            }
+                        }
+                    }
+                }
+            }
+
+            let is_holding_space = ui.input(|i| i.key_down(egui::Key::Space));
+            let is_middle_drag = ui.input(|i| i.pointer.button_down(egui::PointerButton::Middle));
+            let is_panning_override =
+                (is_holding_space || is_middle_drag) && self.zoom_level > 0.0;
 
             // Clamping pan offset to ensure image never moves out of viewport
             if self.zoom_level <= 0.0 {
@@ -70,7 +122,7 @@ impl RrawApp {
             }
 
             if resp.dragged()
-                && !is_tool_active
+                && (!is_tool_active || is_panning_override)
                 && self.crop_drag_handle == CropDragHandle::None
                 && self.zoom_level > 0.0
             {
@@ -85,7 +137,7 @@ impl RrawApp {
                 self.pan_offset.y = self.pan_offset.y.clamp(-max_pan_y, max_pan_y);
             }
 
-            if resp.double_clicked() && !self.is_crop_editing {
+            if resp.double_clicked() && !self.is_crop_editing && !is_tool_active {
                 if self.zoom_level <= 0.0 {
                     self.zoom_level = 1.0;
                     self.pan_offset = egui::Vec2::ZERO;
@@ -96,7 +148,11 @@ impl RrawApp {
             }
 
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
-            if scroll.abs() > 0.0 && resp.hovered() && !is_tool_active && !self.is_crop_editing {
+            if scroll.abs() > 0.0
+                && resp.hovered()
+                && (!is_tool_active || is_brush_active)
+                && !self.is_crop_editing
+            {
                 let zoom_factor = (scroll * 0.003).exp();
                 let min_scale = fit_scale;
                 let max_scale = (fit_scale * 20.0).max(10.0);
@@ -295,6 +351,91 @@ impl RrawApp {
                     egui::Color32::from_rgba_unmultiplied(180, 25, 75, 230),
                 );
                 painter.galley(hud_pos + egui::vec2(8.0, 4.0), galley, egui::Color32::WHITE);
+            }
+
+            // Interactive freehand brush painting / erasing
+            if is_brush_active {
+                let is_primary_down = ui.input(|i| i.pointer.primary_down());
+                let pointer_pos = ui.input(|i| i.pointer.interact_pos());
+                if is_primary_down && !is_panning_override {
+                    if let Some(p) = pointer_pos {
+                        if available_rect.contains(p) && preview_rect.contains(p) {
+                            let pw = preview_rect.width();
+                            let ph = preview_rect.height();
+                            if pw > 1.0 && ph > 1.0 {
+                                let frac_x = (p.x - preview_rect.min.x) / pw;
+                                let frac_y = (p.y - preview_rect.min.y) / ph;
+                                let (u, v) = if is_cropped_view {
+                                    (
+                                        self.grading.crop_left
+                                            + frac_x * (self.grading.crop_right - self.grading.crop_left),
+                                        self.grading.crop_top
+                                            + frac_y * (self.grading.crop_bottom - self.grading.crop_top),
+                                    )
+                                } else {
+                                    (frac_x, frac_y)
+                                };
+                                if (0.0..=1.0).contains(&u) && (0.0..=1.0).contains(&v) {
+                                    if let Some(mask_idx) = self.grading.active_brush_mask_idx {
+                                        if let Some(mask) = self.grading.local_masks.get_mut(mask_idx) {
+                                            if mask.add_brush_dab(u, v) {
+                                                self.needs_preview_update = true;
+                                                ui.ctx().request_repaint();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if resp.drag_stopped() {
+                    self.save_current_photo_sidecar();
+                }
+            }
+
+            // Active Brush HUD Badge
+            if is_brush_active {
+                if let Some(mask_idx) = self.grading.active_brush_mask_idx {
+                    if let Some(mask) = self.grading.local_masks.get(mask_idx) {
+                        let (mode_str, badge_color) = if let LocalMaskKind::FreehandBrush {
+                            erase_mode: true,
+                            ..
+                        } = mask.kind
+                        {
+                            ("Gomme 🧹", egui::Color32::from_rgba_unmultiplied(160, 40, 40, 230))
+                        } else {
+                            ("Peindre 🖌️", egui::Color32::from_rgba_unmultiplied(30, 90, 160, 230))
+                        };
+                        let top_y = if self.grading.show_local_mask_overlay.is_some() {
+                            82.0
+                        } else {
+                            48.0
+                        };
+                        let zoom_str = if self.zoom_level > 0.0 {
+                            format!(" | Zoom {:.0}% (Espace pour glisser)", self.zoom_level * 100.0)
+                        } else {
+                            String::new()
+                        };
+                        let hud_text = format!(
+                            "🖌️ Pinceau : {} [{}]{} (Glisser pour peindre, [ / ] taille, Échap pour quitter)",
+                            mask.name, mode_str, zoom_str
+                        );
+                        let hud_pos =
+                            egui::pos2(available_rect.left() + 18.0, available_rect.top() + top_y);
+                        let galley = painter.layout_no_wrap(
+                            hud_text,
+                            egui::FontId::proportional(12.0),
+                            egui::Color32::from_rgb(240, 245, 255),
+                        );
+                        let badge_rect = egui::Rect::from_min_size(
+                            hud_pos,
+                            galley.size() + egui::vec2(16.0, 8.0),
+                        );
+                        painter.rect_filled(badge_rect, 5.0, badge_color);
+                        painter.galley(hud_pos + egui::vec2(8.0, 4.0), galley, egui::Color32::WHITE);
+                    }
+                }
             }
 
             // Interactive mouse cropping with locked aspect ratio and dimmed mask
@@ -899,6 +1040,56 @@ impl RrawApp {
                     }
                     self.horizon_start_point = None;
                     self.horizon_tool_active = false;
+                }
+            }
+
+            // Brush cursor ring indicator preview
+            if is_brush_active {
+                if is_panning_override {
+                    ui.ctx().set_cursor_icon(if resp.dragged() {
+                        egui::CursorIcon::Grabbing
+                    } else {
+                        egui::CursorIcon::Grab
+                    });
+                } else if let Some(hover_p) = ui.input(|i| i.pointer.hover_pos()) {
+                    if available_rect.contains(hover_p) && preview_rect.contains(hover_p) {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+                        if let Some(mask_idx) = self.grading.active_brush_mask_idx {
+                            if let Some(mask) = self.grading.local_masks.get(mask_idx) {
+                                if let LocalMaskKind::FreehandBrush {
+                                    brush_radius,
+                                    erase_mode,
+                                    ..
+                                } = mask.kind
+                                {
+                                    let r_screen = brush_radius * preview_rect.width();
+                                    let stroke_col = if erase_mode {
+                                        egui::Color32::from_rgb(255, 80, 80)
+                                    } else {
+                                        egui::Color32::from_rgb(80, 200, 255)
+                                    };
+                                    painter.circle_stroke(
+                                        hover_p,
+                                        r_screen,
+                                        egui::Stroke::new(1.5, stroke_col),
+                                    );
+                                    let f = mask.feather.clamp(0.05, 1.0);
+                                    let r_inner = r_screen * (1.0 - f).max(0.0);
+                                    if r_inner > 2.0 {
+                                        painter.circle_stroke(
+                                            hover_p,
+                                            r_inner,
+                                            egui::Stroke::new(
+                                                1.0,
+                                                stroke_col.gamma_multiply(0.4),
+                                            ),
+                                        );
+                                    }
+                                    painter.circle_filled(hover_p, 1.5, stroke_col);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         } else if self.is_decoding {
