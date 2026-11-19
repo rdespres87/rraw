@@ -100,3 +100,44 @@ fn test_luma_denoise_smoothes_noisy_flat_patch() {
         "Luma variance was not suppressed: initial {initial_luma_var}, final {final_luma_var}"
     );
 }
+
+#[test]
+fn test_chroma_denoise_preserves_high_contrast_edge_without_color_bleed() {
+    let width = 16;
+    let height = 16;
+    let mut samples = vec![[0.0_f32; 3]; width * height];
+
+    // Left is dark branch (Y ~ 0.1). Columns 0..=5 are neutral dark [0.10, 0.10, 0.10].
+    // Column 6 and 7 have a 1-2px purple fringe [0.22, 0.08, 0.22].
+    // Right (columns 8..16) is bright sky [0.85, 0.85, 0.85].
+    for y in 0..height {
+        for x in 0..width {
+            if x <= 5 {
+                samples[y * width + x] = [0.10, 0.10, 0.10];
+            } else if x <= 7 {
+                samples[y * width + x] = [0.22, 0.08, 0.22];
+            } else {
+                samples[y * width + x] = [0.85, 0.85, 0.85];
+            }
+        }
+    }
+
+    let config = DenoiseConfig {
+        chroma_amount: 1.0, // Pushed to 100%
+        luma_amount: 0.0,
+    };
+
+    denoise_rgb(&mut samples, width, height, &config);
+
+    // Columns 0..=4 were neutral dark. They MUST NOT bleed purple (< 0.02 chroma delta)
+    for y in 2..(height - 2) {
+        let branch_interior = samples[y * width + 4];
+        let chroma_delta = (branch_interior[0] - branch_interior[1])
+            .abs()
+            .max((branch_interior[2] - branch_interior[1]).abs());
+        assert!(
+            chroma_delta < 0.025,
+            "Purple fringe bled inwards to x=4: {branch_interior:?}, delta {chroma_delta}"
+        );
+    }
+}
