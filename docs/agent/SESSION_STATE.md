@@ -27,6 +27,7 @@
   - GitHub Actions CI Workflow: **Complete** (`macos-13` runner, commit `551db83`)
   - Tone Curves Mathematical Hardening & Zero-Allocation LUT: **Complete** (Inquisitor APPROVED, commit `00ab991`)
   - App In-Place Preview Slicing & Continuous Drag UX: **Complete** (Inquisitor APPROVED, commit `99bd8a7`)
+  - Phase 6.1b.1 Tone Curves Ergonomics, Sqrt Histogram & Readout: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `4b0c724`)
 - **Git Branch**: `main`
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
 - **Last Approved Gate**: Gate 3 (Authorized on 2026-11-19)

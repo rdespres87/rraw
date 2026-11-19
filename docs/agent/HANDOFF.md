@@ -2,6 +2,14 @@
 
 ## Last Completed Milestone
 
+- **Phase 6.1b.1 — Tone Curve Ergonomics, Sqrt Histogram Underlay & In/Out Readout (`4b0c724`)**:
+  - Implemented square-root scaled, channel-tinted live histogram underlay in tone curve canvas (`tone_curves.rs`).
+  - Added master Combined RGB ghost curve displayed when editing individual color channels or luma.
+  - Implemented live In/Out percentage coordinate readout and vertical hairline cursor guide.
+  - Added dynamic activity dot indicator on modified curve channel selector tabs.
+  - Added unit test verifying curve channel isolation and activity detection.
+  - 96 unit/integration tests passing workspace-wide.
+
 - **Phase 6.1 — Interactive PCHIP Tone Curves & Mathematical Hardening (`64921a7`, `d75eafc`, `00ab991`, `99bd8a7`)**:
   - Implemented Fritsch-Carlson Monotone Cubic Hermite Spline (PCHIP) evaluator and 1024-entry LUT evaluation in `rraw-color` and `rraw-core`.
   - Hardened PCHIP derivative formulation using Brodlie / Fritsch-Carlson weighted harmonic mean for non-uniform knot spacing, preventing overshoot or gradient reversals on tight control points.
@@ -15,13 +23,13 @@
   - GitHub Actions CI workflow configured on `macos-13`.
   - 95 unit/integration tests passing workspace-wide.
 
-## Next Logical Action: Phase 6.2 — Extended Film Emulation & Creative Presets
+## Next Logical Action: Phase 6.1b.2 — WGSL Stage 5 GPU Tone Curve Pipeline Integration
 
-- **Target crates**: `rraw-color`, `rraw-core`, `rraw-app`
+- **Target crates**: `rraw-gpu`, `rraw-app`
 - **Scope**:
-  1. Define 3D CLUT / parametric creative film profile recipes (e.g. Classic Chrome, Portra, Tri-X 400).
-  2. Implement tetrahedral 3D LUT interpolation in `rraw-color`.
-  3. Wire creative profiles into `rraw-app` preset selector and sidecars.
+  1. Add 1D tone curve LUT uniform/storage buffer binding to WGSL Stage 5 compute shader.
+  2. Evaluate tone curve directly on GPU texture in VRAM for real-time EDR display at 120 FPS.
+  3. Wire GPU pipeline dispatch in `rraw-app` when GPU compute path is active.
 
 ## Repository Completion State
 
