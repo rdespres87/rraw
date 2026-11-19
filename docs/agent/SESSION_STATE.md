@@ -4,7 +4,7 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 6 — Advanced Color & Tone Architecture (Phase 6.3 Complete)
+- **Active Phase**: Phase 6 — Advanced Color & Tone Architecture (Phase 6.4 Complete)
 - **Active Tasks**:
   - Task 0.1 & Task 0.2: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized)
   - Task 1.1 (`rraw-core`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `acedebb`)
@@ -31,7 +31,8 @@
   - Phase 6.1b.2 WGSL Stage 5 GPU Tone Curves Integration: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `e084390`)
   - Phase 6.2 Extended Film Emulation & Creative Presets: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `a607876`)
   - Phase 6.2b GPU WGSL 3D CLUT & User `.cube` Import: **Complete** (Inquisitor APPROVED, CI green 106 tests, Gate 3 authorized, commit `bd55977`)
-  - Phase 6.3 CoreML AI Semantic Segmentation Masks: **Complete** (Inquisitor APPROVED, CI green 115 tests across 37 suites)
+  - Phase 6.3 CoreML AI Semantic Segmentation Masks: **Complete** (Inquisitor APPROVED, CI green 117 tests across 37 suites, commits `8dc9095`, `245aa56`, `af92b80`)
+  - Phase 6.4 Color Management & Soft Proofing (ICC Profiles & Out-of-Gamut Alerts): **Complete** (Inquisitor APPROVED, CI green 122 tests across 38 suites)
 - **Git Branch**: `main`
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
 - **Last Approved Gate**: Gate 3 (Authorized on 2026-11-19)
@@ -63,7 +64,7 @@
     - Embellished Histogram: OLED rounded card, sqrt scaling to reveal midtones, glowing RGB curves, quartile zone guides (Noirs, Ombres, Exposition, Hautes Lum.), clipping badges.
     - Crop & Geometry: 120 FPS vector overlay, aspect ratio presets, Enter/double-click commit, independent enable/disable toggles.
     - Batch Export: configurable subfolder (`Export`), suffix (`_rraw`), formats (JPEG quality, PNG 8/16, TIFF 8/16), auto-closing dialog.
-- Total tests: 95 unit/integration tests passing cleanly.
+- Total tests: 122 unit/integration tests passing cleanly across 38 test suites.
 
 ## Last Observed Verification Run
 

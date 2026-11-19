@@ -233,6 +233,7 @@ pub enum DarkroomSection {
     AiSemanticMasks,
     ToneCurves,
     WhiteBalanceColor,
+    SoftProofing,
     Crop,
     Straighten,
     Geometry,
@@ -243,10 +244,11 @@ pub enum DarkroomSection {
 }
 
 impl DarkroomSection {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::ExposureTone,
         Self::AiSemanticMasks,
         Self::WhiteBalanceColor,
+        Self::SoftProofing,
         Self::Crop,
         Self::Straighten,
         Self::Geometry,
@@ -261,6 +263,7 @@ impl DarkroomSection {
             Self::AiSemanticMasks => "🎭 Masques IA (CoreML)",
             Self::ToneCurves => "📈 Courbes de tonalité",
             Self::WhiteBalanceColor => "🎨 Balance des blancs & Couleur",
+            Self::SoftProofing => "🖨️ Épreuvage écran & Hors-Gamut (ICC)",
             Self::Crop => "✂️ Recadrer (Crop)",
             Self::Straighten => "📐 Redresser (Rotation / Horizon)",
             Self::Geometry => "🏛️ Géométrie (Perspective)",
@@ -790,6 +793,8 @@ pub struct HistogramData {
     pub max_count: u32,
     pub shadow_clipped: u32,
     pub highlight_clipped: u32,
+    /// Number of pixels exceeding the active Soft Proof target profile gamut.
+    pub out_of_gamut_count: u32,
 }
 
 impl Default for HistogramData {
@@ -802,6 +807,7 @@ impl Default for HistogramData {
             max_count: 1,
             shadow_clipped: 0,
             highlight_clipped: 0,
+            out_of_gamut_count: 0,
         }
     }
 }
@@ -931,6 +937,9 @@ pub struct DarkroomGradingState {
     pub semantic_masks: Vec<SemanticMaskLayer>,
     /// Optional active semantic category overlay displayed in ruby-magenta over the viewport.
     pub show_semantic_mask_overlay: Option<rraw_core::SemanticMaskCategory>,
+
+    // Color Management & Soft Proofing (Task 6.4)
+    pub soft_proof: rraw_color::SoftProofConfig,
 }
 
 impl DarkroomGradingState {
@@ -1022,6 +1031,7 @@ impl Default for DarkroomGradingState {
             custom_clut: None,
             semantic_masks: Vec::new(),
             show_semantic_mask_overlay: None,
+            soft_proof: rraw_color::SoftProofConfig::default(),
         }
     }
 }
@@ -1094,6 +1104,8 @@ pub struct SidecarRecipe {
     pub custom_lut_strength: f32,
     #[serde(default)]
     pub semantic_masks: Vec<SemanticMaskLayer>,
+    #[serde(default)]
+    pub soft_proof: rraw_color::SoftProofConfig,
 }
 
 impl SidecarRecipe {
@@ -1143,6 +1155,7 @@ impl SidecarRecipe {
                 .and_then(|c| c.path.as_ref().map(|p| p.to_string_lossy().to_string())),
             custom_lut_strength: grading.custom_clut.as_ref().map_or(1.0, |c| c.strength),
             semantic_masks: grading.semantic_masks.clone(),
+            soft_proof: grading.soft_proof,
         }
     }
 
@@ -1172,6 +1185,7 @@ impl SidecarRecipe {
         grading.tone_curves = self.tone_curves.clone();
         grading.semantic_masks = self.semantic_masks.clone();
         grading.show_semantic_mask_overlay = None;
+        grading.soft_proof = self.soft_proof;
         grading.preset = if let Some(p_str) = &self.preset {
             GradingPreset::from_id_str(p_str)
                 .unwrap_or_else(|| GradingPreset::detect_preset(grading))

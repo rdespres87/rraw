@@ -847,6 +847,7 @@ pub fn render_preview_from_base(
         hist_lum: [u32; 256],
         shadow_clipped: u32,
         highlight_clipped: u32,
+        out_of_gamut_count: u32,
     }
 
     let mut color_pixels = vec![Color32::TRANSPARENT; preview_w * preview_h];
@@ -861,6 +862,7 @@ pub fn render_preview_from_base(
             let mut row_lum = [0_u32; 256];
             let mut row_sc = 0_u32;
             let mut row_hc = 0_u32;
+            let mut row_oog = 0_u32;
 
             let raw_dy = (py as f32 - cy) * flip_y;
             let row_identity_offset = py * preview_w;
@@ -1035,19 +1037,51 @@ pub fn render_preview_from_base(
                     * (1.0 + (base_vibrance + user_vibrance) * vib_weight))
                     .max(0.0);
 
-                let r_s = (lum_c + (r_c - lum_c) * eff_sat).max(0.0);
-                let g_s = (lum_c + (g_c - lum_c) * eff_sat).max(0.0);
-                let b_s = (lum_c + (b_c - lum_c) * eff_sat).max(0.0);
+                let r_s = lum_c + (r_c - lum_c) * eff_sat;
+                let g_s = lum_c + (g_c - lum_c) * eff_sat;
+                let b_s = lum_c + (b_c - lum_c) * eff_sat;
+
+                let sp_res = rraw_color::evaluate_soft_proof(
+                    glam::Vec3::new(r_s, g_s, b_s),
+                    &grading.soft_proof,
+                );
+                if sp_res.is_out_of_gamut {
+                    row_oog += 1;
+                }
+
+                let (r_post, g_post, b_post) = if grading.soft_proof.enabled {
+                    (
+                        sp_res.proofed_rgb.x,
+                        sp_res.proofed_rgb.y,
+                        sp_res.proofed_rgb.z,
+                    )
+                } else {
+                    (r_s.max(0.0), g_s.max(0.0), b_s.max(0.0))
+                };
 
                 let (mut u8_r, mut u8_g, mut u8_b) = if grading.is_monochrome {
-                    let lum_val = ((to_u8_fast(r_s) as u32 * 54
-                        + to_u8_fast(g_s) as u32 * 183
-                        + to_u8_fast(b_s) as u32 * 19)
+                    let lum_val = ((to_u8_fast(r_post) as u32 * 54
+                        + to_u8_fast(g_post) as u32 * 183
+                        + to_u8_fast(b_post) as u32 * 19)
                         >> 8) as u8;
                     (lum_val, lum_val, lum_val)
                 } else {
-                    (to_u8_fast(r_s), to_u8_fast(g_s), to_u8_fast(b_s))
+                    (to_u8_fast(r_post), to_u8_fast(g_post), to_u8_fast(b_post))
                 };
+
+                if grading.soft_proof.show_gamut_warning && sp_res.is_out_of_gamut {
+                    let w = (0.55 + sp_res.gamut_excursion * 1.6).clamp(0.55, 0.88);
+                    // High-contrast electric magenta/cyan zebra warning
+                    let is_stripe = ((px + py) & 2) == 0;
+                    let (alert_r, alert_g, alert_b) = if is_stripe {
+                        (255.0_f32, 0.0_f32, 220.0_f32)
+                    } else {
+                        (0.0_f32, 245.0_f32, 255.0_f32)
+                    };
+                    u8_r = ((u8_r as f32) * (1.0 - w) + alert_r * w).clamp(0.0, 255.0) as u8;
+                    u8_g = ((u8_g as f32) * (1.0 - w) + alert_g * w).clamp(0.0, 255.0) as u8;
+                    u8_b = ((u8_b as f32) * (1.0 - w) + alert_b * w).clamp(0.0, 255.0) as u8;
+                }
 
                 if let Some(overlay_cat) = grading.show_semantic_mask_overlay {
                     let (inv, fth) = grading
@@ -1094,6 +1128,7 @@ pub fn render_preview_from_base(
                 hist_lum: row_lum,
                 shadow_clipped: row_sc,
                 highlight_clipped: row_hc,
+                out_of_gamut_count: row_oog,
             }
         })
         .collect();
@@ -1104,6 +1139,7 @@ pub fn render_preview_from_base(
     let mut hist_lum = [0_u32; 256];
     let mut shadow_clipped = 0_u32;
     let mut highlight_clipped = 0_u32;
+    let mut out_of_gamut_count = 0_u32;
 
     for row in row_histograms {
         for i in 0..256 {
@@ -1114,6 +1150,7 @@ pub fn render_preview_from_base(
         }
         shadow_clipped += row.shadow_clipped;
         highlight_clipped += row.highlight_clipped;
+        out_of_gamut_count += row.out_of_gamut_count;
     }
 
     let max_count = hist_lum[1..255].iter().copied().max().unwrap_or(1).max(1);
@@ -1126,6 +1163,7 @@ pub fn render_preview_from_base(
         max_count,
         shadow_clipped,
         highlight_clipped,
+        out_of_gamut_count,
     };
 
     (

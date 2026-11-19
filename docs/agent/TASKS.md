@@ -37,6 +37,6 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 - [x] **Task 6.2 (`rraw-color` & `rraw-app`)**: Extended Film Emulation & 3D CLUT / Creative Presets library (tetrahedral & trilinear CLUT, `.cube` parser/exporter, film profiles & grading presets, commit `a607876`)
 - [x] **Task 6.2b (`rraw-gpu` & `rraw-app`)**: GPU WGSL 3D CLUT & User `.cube` Import (hardware trilinear `texture_3d<f32>` in Stage 5 at 120 FPS, UI `.cube` file import, intensity slider, sidecar persistence)
 - [x] **Task 6.3 (`rraw-core`, `rraw-ai`, `rraw-gpu` & `rraw-app`)**: CoreML AI Semantic Segmentation Masks (`Subject`, `Sky`, `Background`, `Portrait` with edge-aware guided refinement, WGSL Stage 6 bilinear evaluation, live viewport overlay & local grading)
-- [ ] **Task 6.4 (`rraw-color` & `rraw-app`)**: Color Management & Soft Proofing (ICC printer profiles, out-of-gamut alerts)
+- [x] **Task 6.4 (`rraw-color` & `rraw-app`)**: Color Management & Soft Proofing (ICC display/printer profiles, Perceptual & Relative Colorimetric intents, paper white & black ink simulation, out-of-gamut zebra alerts)
 - [ ] **Task 6.5 (`rraw-export`)**: Timelapse & High-Bitrate Video Exporter (ProRes 4444 XQ / AV1 HDR from DNG sequence)
 

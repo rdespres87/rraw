@@ -13,6 +13,7 @@ pub mod drt;
 pub mod gamut_guard;
 pub mod matrix;
 pub mod pipeline;
+pub mod soft_proof;
 
 pub use cct::*;
 pub use clut::*;
@@ -22,6 +23,7 @@ pub use drt::*;
 pub use gamut_guard::*;
 pub use matrix::*;
 pub use pipeline::*;
+pub use soft_proof::*;
 
 /// Typed errors returned by `rraw-color`.
 #[derive(Debug, Clone, PartialEq, Error)]
