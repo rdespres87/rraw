@@ -815,7 +815,13 @@ pub fn render_preview_from_base(
     };
     let denoised_samples = if denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4 {
         let mut s = base.samples_rgb.clone();
-        rraw_core::denoise_rgb(&mut s, preview_w, preview_h, &denoise_cfg);
+        rraw_core::denoise_rgb_with_wb(
+            &mut s,
+            preview_w,
+            preview_h,
+            &denoise_cfg,
+            Some([eff_wb_r, eff_wb_g, eff_wb_b]),
+        );
         Some(s)
     } else {
         None
@@ -1304,7 +1310,13 @@ pub fn render_export_image(
     };
     let denoised_samples = if denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4 {
         let mut s = base.samples_rgb.clone();
-        rraw_core::denoise_rgb(&mut s, preview_w, preview_h, &denoise_cfg);
+        rraw_core::denoise_rgb_with_wb(
+            &mut s,
+            preview_w,
+            preview_h,
+            &denoise_cfg,
+            Some([eff_wb_r, eff_wb_g, eff_wb_b]),
+        );
         Some(s)
     } else {
         None

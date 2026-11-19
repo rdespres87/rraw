@@ -30,6 +30,20 @@ impl Default for DenoiseConfig {
 
 /// Applies guided chrominance and luminance noise reduction in-place to an RGB image buffer.
 pub fn denoise_rgb(samples: &mut [[f32; 3]], width: usize, height: usize, config: &DenoiseConfig) {
+    denoise_rgb_with_wb(samples, width, height, config, None);
+}
+
+/// Applies guided chrominance and luminance noise reduction in-place, calibrated by optional white balance multipliers.
+///
+/// Incorporates strict anti-color-bleed thresholding to prevent high-contrast edge contamination
+/// (e.g. purple fringing on backlit branches bleeding into bright sky).
+pub fn denoise_rgb_with_wb(
+    samples: &mut [[f32; 3]],
+    width: usize,
+    height: usize,
+    config: &DenoiseConfig,
+    wb_multipliers: Option<[f32; 3]>,
+) {
     if width < 3 || height < 3 {
         return;
     }
@@ -40,26 +54,34 @@ pub fn denoise_rgb(samples: &mut [[f32; 3]], width: usize, height: usize, config
     let chroma_str = config.chroma_amount.clamp(0.0, 1.0);
     let luma_str = config.luma_amount.clamp(0.0, 1.0);
 
-    // Step 1: Precompute Y, U, V planes across the image in contiguous RAM
+    let [wb_r, wb_g, wb_b] = wb_multipliers.unwrap_or([1.0, 1.0, 1.0]);
+    let inv_wb_r = if wb_r > 1e-4 { 1.0 / wb_r } else { 1.0 };
+    let inv_wb_g = if wb_g > 1e-4 { 1.0 / wb_g } else { 1.0 };
+    let inv_wb_b = if wb_b > 1e-4 { 1.0 / wb_b } else { 1.0 };
+
+    // Step 1: Precompute balanced Y, U, V planes across the image in contiguous RAM
     // where U = B - Y (blue-yellow chroma) and V = R - Y (red-cyan chroma)
     let mut y_plane = vec![0.0_f32; width * height];
     let mut u_plane = vec![0.0_f32; width * height];
     let mut v_plane = vec![0.0_f32; width * height];
 
     for (i, &[r, g, b]) in samples.iter().enumerate() {
-        let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        let u = b - y;
-        let v = r - y;
+        let r_bal = r * wb_r;
+        let g_bal = g * wb_g;
+        let b_bal = b * wb_b;
+        let y = 0.2126 * r_bal + 0.7152 * g_bal + 0.0722 * b_bal;
+        let u = b_bal - y;
+        let v = r_bal - y;
         y_plane[i] = y;
         u_plane[i] = u;
         v_plane[i] = v;
     }
 
-    // Step 2: Denoise Chrominance (U, V) using Luminance-Guided Bilateral Filter
+    // Step 2: Denoise Chrominance (U, V) using Luminance-Guided Bilateral Filter with Anti-Bleed Barrier
     let filtered_uv = if chroma_str > 1e-4 {
         let radius: isize = if chroma_str > 0.5 { 2 } else { 1 };
         let spatial_sigma_sq = (radius as f32 * 0.8).powi(2).max(0.5);
-        let luma_sigma_sq = (0.05 + 0.15 * chroma_str).powi(2);
+        let luma_sigma_sq = (0.025 + 0.045 * chroma_str).powi(2);
 
         let mut out_chroma = vec![[0.0_f32; 2]; width * height];
 
@@ -85,15 +107,22 @@ pub fn denoise_rgb(samples: &mut [[f32; 3]], width: usize, height: usize, config
                         for dx in -radius..=radius {
                             let nx = (ix + dx).clamp(0, width as isize - 1) as usize;
                             let neighbor_idx = row_off + nx;
+                            let neighbor_y = y_plane[neighbor_idx];
+                            let luma_diff_sq = (neighbor_y - center_y).powi(2);
 
                             let spatial_dist_sq = (dx * dx + dy * dy) as f32;
                             let w_spatial = (-spatial_dist_sq / (2.0 * spatial_sigma_sq)).exp();
-
-                            let neighbor_y = y_plane[neighbor_idx];
-                            let luma_diff_sq = (neighbor_y - center_y).powi(2);
+                            // Continuous photometric weight with tight sigma preventing edge bleed
                             let w_luma = (-luma_diff_sq / (2.0 * luma_sigma_sq)).exp();
 
-                            let w = w_spatial * w_luma;
+                            // Smooth highlight suppression to prevent bleeding from saturated edges into midtones
+                            let w_hl = if center_y > 0.80 {
+                                (1.0 - (neighbor_y - center_y).abs() * 5.0).clamp(0.0, 1.0)
+                            } else {
+                                1.0
+                            };
+
+                            let w = w_spatial * w_luma * w_hl;
                             w_sum += w;
                             u_sum += w * u_plane[neighbor_idx];
                             v_sum += w * v_plane[neighbor_idx];
@@ -173,7 +202,7 @@ pub fn denoise_rgb(samples: &mut [[f32; 3]], width: usize, height: usize, config
         None
     };
 
-    // Step 4: Recombine back into in-place RGB samples
+    // Step 4: Recombine back into in-place RGB samples and un-balance
     samples
         .par_chunks_mut(width)
         .enumerate()
@@ -196,9 +225,14 @@ pub fn denoise_rgb(samples: &mut [[f32; 3]], width: usize, height: usize, config
                 // R = Y + V
                 // B = Y + U
                 // G = Y - (0.2126 / 0.7152)*V - (0.0722 / 0.7152)*U
-                let r = y_val + v_val;
-                let b = y_val + u_val;
-                let g = y_val - 0.2972595 * v_val - 0.1009508 * u_val;
+                let r_bal = y_val + v_val;
+                let b_bal = y_val + u_val;
+                let g_bal = y_val - 0.2972595 * v_val - 0.1009508 * u_val;
+
+                // Restore camera space by dividing by WB multipliers
+                let r = r_bal * inv_wb_r;
+                let g = g_bal * inv_wb_g;
+                let b = b_bal * inv_wb_b;
 
                 *px = [r, g, b];
             }
