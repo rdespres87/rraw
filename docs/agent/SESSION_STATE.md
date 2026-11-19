@@ -30,7 +30,7 @@
   - Phase 6.1b.1 Tone Curves Ergonomics, Sqrt Histogram & Readout: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `4b0c724`)
   - Phase 6.1b.2 WGSL Stage 5 GPU Tone Curves Integration: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `e084390`)
   - Phase 6.2 Extended Film Emulation & Creative Presets: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `a607876`)
-  - Phase 6.2b GPU WGSL 3D CLUT & User `.cube` Import: **Complete** (Inquisitor APPROVED, CI green 106 tests, Gate 3 pending)
+  - Phase 6.2b GPU WGSL 3D CLUT & User `.cube` Import: **Complete** (Inquisitor APPROVED, CI green 106 tests, Gate 3 authorized, commit `bd55977`)
 - **Git Branch**: `main`
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
 - **Last Approved Gate**: Gate 3 (Authorized on 2026-11-19)
