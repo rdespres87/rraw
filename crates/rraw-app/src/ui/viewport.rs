@@ -117,12 +117,25 @@ impl RrawApp {
                 }
             }
 
-            // Draw image with dark background frame and subtle shadow
-            painter.rect_filled(
-                preview_rect.expand(2.0),
-                4.0,
-                egui::Color32::from_rgb(10, 10, 12),
-            );
+            // Draw image with background frame (paper-white pass-partout frame when Soft Proofing paper simulation is active)
+            if self.grading.soft_proof.enabled && self.grading.soft_proof.simulate_paper_and_ink {
+                let paper_col = match self.grading.soft_proof.profile {
+                    rraw_color::SoftProofProfile::FineArtMattePaper => {
+                        egui::Color32::from_rgb(244, 240, 230)
+                    }
+                    rraw_color::SoftProofProfile::GlossyBarytaPaper => {
+                        egui::Color32::from_rgb(249, 247, 243)
+                    }
+                    _ => egui::Color32::from_rgb(248, 248, 246),
+                };
+                painter.rect_filled(preview_rect.expand(10.0), 3.0, paper_col);
+            } else {
+                painter.rect_filled(
+                    preview_rect.expand(2.0),
+                    4.0,
+                    egui::Color32::from_rgb(10, 10, 12),
+                );
+            }
 
             let uv = if is_cropped_view {
                 egui::Rect::from_min_max(
@@ -159,6 +172,52 @@ impl RrawApp {
                 egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 65, 75)),
                 egui::StrokeKind::Outside,
             );
+
+            // Live Soft Proofing HUD Badge at top-left of viewport
+            if self.grading.soft_proof.enabled || self.grading.soft_proof.show_gamut_warning {
+                let intent_str = match self.grading.soft_proof.intent {
+                    rraw_color::SoftProofRenderingIntent::Perceptual => "Perceptuel",
+                    rraw_color::SoftProofRenderingIntent::RelativeColorimetric => "Relatif",
+                };
+                let paper_str = if self.grading.soft_proof.simulate_paper_and_ink {
+                    " | Papier & Encre (Dmin/Dmax)"
+                } else {
+                    ""
+                };
+                let oog_str = format!(
+                    " | Hors-Gamut: {} px",
+                    self.histogram.out_of_gamut_count
+                );
+                let hud_text = format!(
+                    "🖨️ ÉPREUVAGE : {} ({}{}){}",
+                    self.grading.soft_proof.profile.label(),
+                    intent_str,
+                    paper_str,
+                    oog_str
+                );
+                let hud_pos = egui::pos2(available_rect.left() + 18.0, available_rect.top() + 14.0);
+                let galley = painter.layout_no_wrap(
+                    hud_text,
+                    egui::FontId::proportional(12.5),
+                    egui::Color32::from_rgb(235, 245, 240),
+                );
+                let badge_rect = egui::Rect::from_min_size(
+                    hud_pos,
+                    galley.size() + egui::vec2(16.0, 8.0),
+                );
+                painter.rect_filled(
+                    badge_rect,
+                    5.0,
+                    egui::Color32::from_rgba_unmultiplied(18, 22, 26, 220),
+                );
+                painter.rect_stroke(
+                    badge_rect,
+                    5.0,
+                    egui::Stroke::new(1.0, egui::Color32::from_rgb(90, 210, 145)),
+                    egui::StrokeKind::Outside,
+                );
+                painter.galley(hud_pos + egui::vec2(8.0, 4.0), galley, egui::Color32::WHITE);
+            }
 
             // Interactive mouse cropping with locked aspect ratio and dimmed mask
             if self.grading.crop_enabled && self.is_crop_editing {

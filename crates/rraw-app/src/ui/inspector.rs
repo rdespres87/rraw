@@ -411,6 +411,129 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
             }
+            DarkroomSection::SoftProofing => {
+                let mut sp_changed = false;
+
+                ui.horizontal(|ui| {
+                    if ui
+                        .checkbox(
+                            &mut self.grading.soft_proof.enabled,
+                            egui::RichText::new("Activer l'épreuvage écran (Soft Proofing)")
+                                .strong(),
+                        )
+                        .changed()
+                    {
+                        sp_changed = true;
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Profil cible :");
+                    egui::ComboBox::from_id_salt("soft_proof_profile_combo")
+                        .selected_text(self.grading.soft_proof.profile.label())
+                        .show_ui(ui, |ui| {
+                            for prof in rraw_color::SoftProofProfile::ALL {
+                                if ui
+                                    .selectable_value(
+                                        &mut self.grading.soft_proof.profile,
+                                        prof,
+                                        prof.label(),
+                                    )
+                                    .changed()
+                                {
+                                    // Auto-enable paper & ink simulation when choosing a physical paper profile
+                                    if prof.is_print_medium() {
+                                        self.grading.soft_proof.simulate_paper_and_ink = true;
+                                    }
+                                    sp_changed = true;
+                                }
+                            }
+                        });
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Intention :");
+                    egui::ComboBox::from_id_salt("soft_proof_intent_combo")
+                        .selected_text(self.grading.soft_proof.intent.label())
+                        .show_ui(ui, |ui| {
+                            for intent in rraw_color::SoftProofRenderingIntent::ALL {
+                                if ui
+                                    .selectable_value(
+                                        &mut self.grading.soft_proof.intent,
+                                        intent,
+                                        intent.label(),
+                                    )
+                                    .changed()
+                                {
+                                    sp_changed = true;
+                                }
+                            }
+                        });
+                });
+
+                if ui
+                    .checkbox(
+                        &mut self.grading.soft_proof.simulate_paper_and_ink,
+                        "Simuler le blanc du papier et l'encre noire (Dmin / Dmax)",
+                    )
+                    .on_hover_text(
+                        "Simule la teinte chaude du papier coton/baryté et la réflectance minimale de l'encre noire",
+                    )
+                    .changed()
+                {
+                    sp_changed = true;
+                }
+
+                ui.horizontal(|ui| {
+                    let alert_label = if self.grading.soft_proof.show_gamut_warning {
+                        egui::RichText::new("⚠️ Alerte Hors-Gamut (Zébrures Magenta/Cyan)")
+                            .color(Color32::from_rgb(255, 110, 230))
+                    } else {
+                        egui::RichText::new("Afficher l'alerte Hors-Gamut (Zébrures Magenta/Cyan)")
+                    };
+                    if ui
+                        .checkbox(&mut self.grading.soft_proof.show_gamut_warning, alert_label)
+                        .on_hover_text(
+                            "Affiche en magenta/cyan les pixels qui dépassent l'espace colorimétrique cible",
+                        )
+                        .changed()
+                    {
+                        sp_changed = true;
+                    }
+                });
+
+                let oog_count = self.histogram.out_of_gamut_count;
+                let status_text = if oog_count > 0 {
+                    egui::RichText::new(format!(
+                        "⚠️ {oog_count} pixels hors-gamut ({})",
+                        self.grading.soft_proof.profile.short_label()
+                    ))
+                    .small()
+                    .color(Color32::from_rgb(255, 130, 220))
+                } else {
+                    egui::RichText::new(format!(
+                        "✓ 100% dans le gamut ({})",
+                        self.grading.soft_proof.profile.short_label()
+                    ))
+                    .small()
+                    .color(Color32::from_rgb(110, 220, 145))
+                };
+                ui.label(status_text);
+
+                if (self.grading.soft_proof.enabled
+                    || self.grading.soft_proof.show_gamut_warning
+                    || self.grading.soft_proof.simulate_paper_and_ink)
+                    && ui.button("↺ Réinitialiser Épreuvage").clicked()
+                {
+                    self.grading.soft_proof = rraw_color::SoftProofConfig::default();
+                    sp_changed = true;
+                }
+
+                if sp_changed {
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+            }
             DarkroomSection::ToneCurves => {
                 self.render_tone_curves_section(ui);
             }

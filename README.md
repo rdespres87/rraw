@@ -30,7 +30,8 @@
 - **Dual-Illuminant Spectral Calibration**: Continuous mired interpolation between D50 and D65 calibration illuminants, Bradford chromatic adaptation, and an identity-core Gamut Guard.
 - **Modern Tone Mapping**: `AgX` and `OpenDRT` transforms parameterizing highlight rolloff based on real-time display capabilities.
 - **Native Liquid Retina XDR / Pro Display XDR (up to 1600 nits)**: Direct zero-copy composition on `CAMetalLayer` in `extendedLinearDisplayP3` (`Rgba16Float`), rendering true specular highlights without premature SDR tone compression.
-- **Real-Time GPU Diagnostic Scopes**: Workgroup-reduced GPU histogram, RGB parade, and real-time clipping zebra overlays (SDR clipping $> 1.0$ and live EDR headroom clipping $> H_{\text{active}}$).
+- **Color Management & Soft Proofing (ICC)**: Real-time display and print profile simulation (*sRGB IEC61966-2.1*, *Apple Display P3*, *Adobe RGB 1998*, *Fine Art Matte Cotton Paper*, *Glossy Baryta Photo Paper*) with *Perceptual* and *Relative Colorimetric* rendering intents, paper white & black ink (`Dmin`/`Dmax`) reflectance simulation, and high-contrast magenta/cyan out-of-gamut warning zebras.
+- **Real-Time GPU Diagnostic Scopes**: Workgroup-reduced GPU histogram, RGB parade, out-of-gamut pixel counter, and real-time clipping zebra overlays (SDR clipping $> 1.0$ and live EDR headroom clipping $> H_{\text{active}}$).
 
 ### 5. Local Adjustments, Parametric & CoreML AI Semantic Masking
 - **Geometric Masks**: Normalized $[0, 1]^2$ linear and radial gradients computed post-warp.

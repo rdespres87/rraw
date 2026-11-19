@@ -2,6 +2,11 @@
 
 ## Last Completed Milestone
 
+- **Phase 6.4 — Color Management & Soft Proofing (`rraw-color`, `rraw-app`)**:
+  - Implemented `SoftProofProfile` (`SrgbIec61966`, `DisplayP3`, `AdobeRgb1998`, `FineArtMattePaper`, `GlossyBarytaPaper`), `SoftProofRenderingIntent` (`Perceptual`, `RelativeColorimetric`), `SoftProofConfig`, `SoftProofResult`, `is_out_of_gamut`, and `evaluate_soft_proof` in `crates/rraw-color/src/soft_proof.rs`.
+  - Integrated `DarkroomSection::SoftProofing` (`🖨️ Épreuvage écran & Hors-Gamut (ICC)`) in `rraw-app` right inspector (`inspector.rs`), quick top-bar toggles (`🖨️ Épreuvage` & `⚠️ Hors-Gamut`), live out-of-gamut pixel counter in `HistogramData` and `histogram.rs`, high-visibility magenta/cyan zebra warning overlay in `preview.rs`, and `.rraw.json` sidecar persistence in `state.rs`.
+  - Verified with 122 unit and integration tests passing across 38 test suites and 0 clippy warnings.
+
 - **Phase 6.3 — CoreML AI Semantic Segmentation Masks (`rraw-core`, `rraw-ai`, `rraw-gpu`, `rraw-app`)**:
   - Added `SemanticMaskCategory` (`Subject`, `Sky`, `Background`, `Portrait`) and `MaskKind::SemanticAi` to `rraw-core`.
   - Implemented `SemanticMaskSet`, `SemanticSegmenter`, and `CoreMlSemanticSegmenter` in `rraw-ai` (`segmentation.rs`) with edge-preserving 3x3 bilateral luminance guidance, partition-of-unity invariant (`subject + background == 1.0`), bilinear feather sampling, and 4-channel RGBA interleaved GPU packing.
@@ -41,13 +46,9 @@
   - Implemented live In/Out percentage coordinate readout and vertical hairline cursor guide.
   - Added dynamic activity dot indicator on modified curve channel selector tabs.
 
-## Next Logical Action: Task 6.3 — AI Semantic Segmentation Masks (`rraw-ai` & `rraw-app`)
+## Next Logical Action: Task 6.5 — Timelapse & High-Bitrate Video Exporter (`rraw-export` & `rraw-app`)
 
-- Implement Semantic Segmentation contracts and inference pipelines in `rraw-ai`:
-  - Neural mask models / estimators for Subject, Sky, Background, and Portrait.
-  - Integration with `Stage6MasksParams` and `MaskKind` (bitmap / neural mask feeding post-warp evaluation).
-  - UI interaction in `rraw-app` (Masks inspector panel with one-click "Select Subject", "Select Sky", "Select Background").
-- Await user approval for remote push of commit `a607876` (`origin/main`).
+- Implement sequence assembly and anti-flicker temporal exposure/WB smoothing in `rraw-export` for timelapse / high-bitrate DNG sequence rendering.
 
 ## Repository Completion State
 

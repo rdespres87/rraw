@@ -13,6 +13,19 @@ impl RrawApp {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new("📊 Waveform RGB").strong().size(11.0));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if self.histogram.out_of_gamut_count > 0
+                        && (self.grading.soft_proof.enabled
+                            || self.grading.soft_proof.show_gamut_warning)
+                    {
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "⚠️ Gamut ({})",
+                                self.histogram.out_of_gamut_count
+                            ))
+                            .small()
+                            .color(Color32::from_rgb(255, 110, 230)),
+                        );
+                    }
                     if self.histogram.highlight_clipped > 0 {
                         ui.label(
                             egui::RichText::new(format!(

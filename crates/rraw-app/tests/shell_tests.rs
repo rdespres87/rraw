@@ -856,3 +856,95 @@ fn test_live_directory_polling_detects_added_and_removed_photos(
     let _ = std::fs::remove_dir_all(&temp_dir);
     Ok(())
 }
+
+#[test]
+fn test_soft_proofing_and_gamut_warning_in_preview_and_sidecar(
+) -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_color::{SoftProofConfig, SoftProofProfile, SoftProofRenderingIntent};
+
+    // Create a vivid saturated test image with high chroma green/cyan and dark shadow regions
+    let mut rgb_img = image::RgbImage::new(32, 32);
+    for (x, y, pixel) in rgb_img.enumerate_pixels_mut() {
+        if y < 16 {
+            // Hyper-saturated emerald-cyan
+            *pixel = image::Rgb([5, 250, 220]);
+        } else if x < 16 {
+            // Pure black shadow
+            *pixel = image::Rgb([2, 2, 2]);
+        } else {
+            // Bright white highlight
+            *pixel = image::Rgb([252, 252, 252]);
+        }
+    }
+    let base = BaseRgbPreview::from_rgb_image(&rgb_img, 32);
+
+    // 1. Default render (Soft Proofing disabled)
+    let g_default = DarkroomGradingState {
+        saturation: 65.0,
+        ..Default::default()
+    };
+    let (img_normal, hist_normal) = app::render_preview_from_base(&base, &g_default);
+    assert!(
+        hist_normal.out_of_gamut_count > 0,
+        "Hyper-saturated pixels must be counted in out_of_gamut_count even before overlay toggle"
+    );
+
+    // 2. Enable Soft Proofing on Fine Art Matte Paper with Paper & Ink simulation
+    let g_matte_proof = DarkroomGradingState {
+        saturation: 65.0,
+        soft_proof: SoftProofConfig {
+            enabled: true,
+            profile: SoftProofProfile::FineArtMattePaper,
+            intent: SoftProofRenderingIntent::Perceptual,
+            simulate_paper_and_ink: true,
+            show_gamut_warning: false,
+        },
+        ..Default::default()
+    };
+    let (img_matte, hist_matte) = app::render_preview_from_base(&base, &g_matte_proof);
+    assert!(
+        hist_matte.out_of_gamut_count >= hist_normal.out_of_gamut_count,
+        "Fine Art Matte Paper must report at least as many out-of-gamut pixels as default sRGB"
+    );
+
+    // Deep black pixel (y=24, x=4) must be lifted by matte black ink Dmax simulation
+    let black_idx = 24 * base.width + 4;
+    assert!(
+        img_matte.pixels[black_idx].g() > img_normal.pixels[black_idx].g(),
+        "Matte paper simulation must lift deep shadow black floor ({} vs {})",
+        img_matte.pixels[black_idx].g(),
+        img_normal.pixels[black_idx].g()
+    );
+
+    // 3. Enable Out-of-Gamut Warning overlay -> saturated top region (y=4, x=16) gets high-contrast alert color
+    let g_gamut_alert = DarkroomGradingState {
+        soft_proof: SoftProofConfig {
+            show_gamut_warning: true,
+            ..g_matte_proof.soft_proof
+        },
+        ..g_matte_proof.clone()
+    };
+    let (img_alert, _) = app::render_preview_from_base(&base, &g_gamut_alert);
+    let vivid_idx = 4 * base.width + 16;
+    assert_ne!(
+        img_alert.pixels[vivid_idx], img_matte.pixels[vivid_idx],
+        "Gamut warning overlay must highlight out-of-gamut pixels in the viewport"
+    );
+
+    // 4. Verify SidecarRecipe roundtrip preserves SoftProofConfig
+    let sidecar = SidecarRecipe::from_state(&g_matte_proof, 4);
+    let mut restored = DarkroomGradingState::default();
+    sidecar.apply_to(&mut restored);
+    assert!(restored.soft_proof.enabled);
+    assert_eq!(
+        restored.soft_proof.profile,
+        SoftProofProfile::FineArtMattePaper
+    );
+    assert_eq!(
+        restored.soft_proof.intent,
+        SoftProofRenderingIntent::Perceptual
+    );
+    assert!(restored.soft_proof.simulate_paper_and_ink);
+
+    Ok(())
+}

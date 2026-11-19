@@ -935,6 +935,122 @@ impl eframe::App for RrawApp {
                     {
                         self.pan_offset = egui::Vec2::ZERO;
                     }
+
+                    ui.separator();
+                    let sp_active = self.grading.soft_proof.enabled;
+                    let sp_btn_label = if sp_active {
+                        egui::RichText::new("☑ 🖨️ Épreuvage")
+                            .strong()
+                            .color(Color32::from_rgb(120, 230, 165))
+                    } else {
+                        egui::RichText::new("☐ 🖨️ Épreuvage")
+                    };
+                    if ui
+                        .selectable_label(sp_active, sp_btn_label)
+                        .on_hover_text("Activer / Désactiver l'épreuvage écran (Soft Proofing ICC)")
+                        .clicked()
+                    {
+                        self.grading.soft_proof.enabled = !self.grading.soft_proof.enabled;
+                        if !self.grading.soft_proof.enabled {
+                            self.grading.soft_proof.show_gamut_warning = false;
+                        }
+                        self.needs_preview_update = true;
+                        self.save_current_photo_sidecar();
+                        ui.ctx().request_repaint();
+                    }
+
+                    if sp_active {
+                        egui::ComboBox::from_id_salt("top_bar_soft_proof_profile")
+                            .selected_text(self.grading.soft_proof.profile.short_label())
+                            .width(120.0)
+                            .show_ui(ui, |ui| {
+                                for prof in rraw_color::SoftProofProfile::ALL {
+                                    if ui
+                                        .selectable_value(
+                                            &mut self.grading.soft_proof.profile,
+                                            prof,
+                                            prof.label(),
+                                        )
+                                        .changed()
+                                    {
+                                        self.grading.soft_proof.simulate_paper_and_ink =
+                                            prof.is_print_medium();
+                                        self.needs_preview_update = true;
+                                        self.save_current_photo_sidecar();
+                                        ui.ctx().request_repaint();
+                                    }
+                                }
+                            });
+
+                        egui::ComboBox::from_id_salt("top_bar_soft_proof_intent")
+                            .selected_text(match self.grading.soft_proof.intent {
+                                rraw_color::SoftProofRenderingIntent::Perceptual => "Perceptuel",
+                                rraw_color::SoftProofRenderingIntent::RelativeColorimetric => {
+                                    "Relatif"
+                                }
+                            })
+                            .width(90.0)
+                            .show_ui(ui, |ui| {
+                                for intent in rraw_color::SoftProofRenderingIntent::ALL {
+                                    if ui
+                                        .selectable_value(
+                                            &mut self.grading.soft_proof.intent,
+                                            intent,
+                                            intent.label(),
+                                        )
+                                        .changed()
+                                    {
+                                        self.needs_preview_update = true;
+                                        self.save_current_photo_sidecar();
+                                        ui.ctx().request_repaint();
+                                    }
+                                }
+                            });
+
+                        if ui
+                            .checkbox(
+                                &mut self.grading.soft_proof.simulate_paper_and_ink,
+                                "Papier/Encre",
+                            )
+                            .on_hover_text(
+                                "Simuler le blanc chaud du papier (Dmin) et la densité de l'encre noire (Dmax)",
+                            )
+                            .changed()
+                        {
+                            self.needs_preview_update = true;
+                            self.save_current_photo_sidecar();
+                            ui.ctx().request_repaint();
+                        }
+
+                        let oog_active = self.grading.soft_proof.show_gamut_warning;
+                        let oog_count = self.histogram.out_of_gamut_count;
+                        let oog_btn_label = if oog_active {
+                            if oog_count > 0 {
+                                egui::RichText::new(format!("☑ ⚠️ Hors-Gamut ({oog_count})"))
+                                    .strong()
+                                    .color(Color32::from_rgb(255, 110, 230))
+                            } else {
+                                egui::RichText::new("☑ ✓ Gamut OK")
+                                    .strong()
+                                    .color(Color32::from_rgb(120, 230, 165))
+                            }
+                        } else {
+                            egui::RichText::new("☐ Alerte Gamut")
+                        };
+                        if ui
+                            .selectable_label(oog_active, oog_btn_label)
+                            .on_hover_text(
+                                "Afficher / Masquer l'alerte de dépassement de gamut (Zébrures Magenta/Cyan)",
+                            )
+                            .clicked()
+                        {
+                            self.grading.soft_proof.show_gamut_warning =
+                                !self.grading.soft_proof.show_gamut_warning;
+                            self.needs_preview_update = true;
+                            self.save_current_photo_sidecar();
+                            ui.ctx().request_repaint();
+                        }
+                    }
                 });
             });
 
