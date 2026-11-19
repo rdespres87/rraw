@@ -2,6 +2,14 @@
 
 ## Last Completed Milestone
 
+- **Phase 8.1 — Optical Defringe, Creative Post-Crop Vignetting & Sepia Vintage (`rraw-optics`, `rraw-app`)**:
+  - Implemented pure safe Rust optical defringing engine in `crates/rraw-optics/src/defringe.rs` (`#![forbid(unsafe_code)]`, zero unwrap/panic) detecting and neutralizing purple ($R > G \land B > G$) and green ($G > R \land G > B$) chromatic aberration fringes along high-contrast luminance edges ($3\times 3$ window) with Rayon multithreading.
+  - Implemented continuous **Creative Vignetting (Post-Crop / Artistic)** with configurable amount ($-100 \dots +100$), midpoint ($10 \dots 90$), smoothstep feather ($10 \dots 90$), and shape roundness (continuous ellipse $\leftrightarrow$ circle $\leftrightarrow$ rectangle).
+  - Added **`GradingPreset::SepiaVintage`** (*"Sépia Vintage (Virage chaud)"*) emulating antique sulfured prints with warm chocolate shadows, golden cream highlights, 6800K white balance, customized PCHIP curves, and subtle creative vignette.
+  - Added UI controls in `DarkroomSection::OpticalCorrections` and full sidecar serialization (`.rraw.json`).
+  - Commit: `165ba90`.
+  - Verified with 142 unit and integration tests passing across 42 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit.
+
 - **Phase 7 — Advanced Demosaicing & Noise Reduction Suite (`rraw-core`, `rraw-app`)**:
   - Implemented `DemosaicMethod::EdgeAwareAdaptive` (directional horizontal/vertical green gradient interpolation with second-order curvature correction and green-guided chrominance difference reconstruction eliminating zippering artifacts along contrast edges) in `crates/rraw-core/src/demosaic.rs`.
   - Implemented guided chrominance and luminance noise reduction engine (`DenoiseConfig`, `denoise_rgb`, `denoise_rgb_with_wb`) in `crates/rraw-core/src/denoise.rs` with Rayon parallelism and exact inverse YUV recombination.
@@ -60,18 +68,19 @@
   - Implemented live In/Out percentage coordinate readout and vertical hairline cursor guide.
   - Added dynamic activity dot indicator on modified curve channel selector tabs.
 
-## Next Logical Action: Task 8.1 — Chromatic Aberration Auto-Detection & Axial/Lateral Defringe (`rraw-optics` & `rraw-app`)
+## Next Logical Action: Phase 9.1 — Local Retouching & Masking Suite (Linear/Radial Gradients & Brush)
 
-- **Objective**: Implement optical defringing to detect and suppress purple and green fringing along high-contrast backlit edges (branches, windows) with customizable edge threshold and hue span controls.
+- **Objective**: Implement interactive local masking (linear graduated filter, radial ellipse filter, adjustment brush) with local exposure, contrast, temperature, and tint controls.
 - **Deliverables**:
-  1. Optical CA fringe detection kernel analyzing radial edge gradients and chromatic overshoot.
-  2. Sub-pixel lateral chromatic aberration color channel re-alignment.
-  3. Interactive sliders in `DarkroomSection::OpticalCorrections` with live 120 FPS feedback and sidecar persistence.
-  4. Unit and integration tests verifying chromatic fringe attenuation on synthetic high-contrast step edges.
+  1. Parametric linear gradient & radial gradient mask evaluators with rotatable angle, feather, and inversion.
+  2. Interactive mouse gizmos on the viewport canvas to drag, rotate, and scale gradient handles.
+  3. Local grading controls (Exposure, Contrast, Highlights, Shadows, Temp, Tint) per mask layer.
+  4. Integration with GPU Stage 6 mask shader and CPU preview rendering.
+  5. Unit and integration tests verifying parametric gradient mask weights and sidecar persistence.
 
 ## Repository Completion State
 
-All planned deliverables across Phases 0–6 and Phase 7 (Tasks 7.1, 7.2, 7.3) are implemented, verified by adversarial TDD, and passing all pre-commit formatting and clippy gates. Phase 8 is the active development horizon.
+All planned deliverables across Phases 0–7 and Task 8.1 are implemented, verified by adversarial TDD, and passing all pre-commit formatting and clippy gates. Phase 9 is the active development horizon.
 
 ### Summary of Completed Workspace Milestones
 1. **Phase 0**: Repository governance, `#![forbid(unsafe_code)]` / audited EDR isolation, 11 crates.
