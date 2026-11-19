@@ -890,15 +890,41 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
+                ui.label("Suppression franges violettes (Defringe)");
+                let r_dp = ui.add(
+                    egui::Slider::new(&mut self.grading.defringe_purple_amount, 0.0..=100.0)
+                        .show_value(true)
+                        .suffix(" %"),
+                );
+                if r_dp.changed() {
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+
+                ui.label("Suppression franges vertes (Defringe)");
+                let r_dg = ui.add(
+                    egui::Slider::new(&mut self.grading.defringe_green_amount, 0.0..=100.0)
+                        .show_value(true)
+                        .suffix(" %"),
+                );
+                if r_dg.changed() {
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+
                 ui.separator();
 
-                let c_vig = ui.checkbox(&mut self.grading.vignette_correction, "Radial Vignetting");
+                ui.label(egui::RichText::new("Vignettage Optique (Objectif)").strong());
+                let c_vig = ui.checkbox(
+                    &mut self.grading.vignette_correction,
+                    "Compensation d'objectif",
+                );
                 if c_vig.changed() {
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Vignette Correction Strength");
+                ui.label("Intensité de correction");
                 let r_va = ui.add(
                     egui::Slider::new(&mut self.grading.vignette_amount, 0.0..=100.0)
                         .show_value(true),
@@ -908,11 +934,68 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                if ui.button("Reset Optics").clicked() {
+                ui.separator();
+
+                ui.label(egui::RichText::new("Vignettage Créatif (Artistique)").strong());
+                ui.label("Gain (Sombre <-> Clair)");
+                let r_cva = ui.add(
+                    egui::Slider::new(&mut self.grading.creative_vignette_amount, -100.0..=100.0)
+                        .show_value(true),
+                );
+                if r_cva.changed() {
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+
+                if self.grading.creative_vignette_amount.abs() > 0.1 {
+                    ui.label("Point médian");
+                    let r_cvm = ui.add(
+                        egui::Slider::new(
+                            &mut self.grading.creative_vignette_midpoint,
+                            10.0..=90.0,
+                        )
+                        .show_value(true),
+                    );
+                    if r_cvm.changed() {
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    ui.label("Progressivité (Feather)");
+                    let r_cvf = ui.add(
+                        egui::Slider::new(&mut self.grading.creative_vignette_feather, 10.0..=90.0)
+                            .show_value(true),
+                    );
+                    if r_cvf.changed() {
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    ui.label("Rondeur");
+                    let r_cvr = ui.add(
+                        egui::Slider::new(
+                            &mut self.grading.creative_vignette_roundness,
+                            -100.0..=100.0,
+                        )
+                        .show_value(true),
+                    );
+                    if r_cvr.changed() {
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+                }
+
+                if ui.button("Reset Optics & Vignette").clicked() {
                     self.grading.distortion_correction = true;
                     self.grading.distortion_amount = 0.0;
+                    self.grading.defringe_purple_amount = 0.0;
+                    self.grading.defringe_green_amount = 0.0;
                     self.grading.vignette_correction = true;
                     self.grading.vignette_amount = 50.0;
+                    self.grading.creative_vignette_amount = 0.0;
+                    self.grading.creative_vignette_midpoint = 50.0;
+                    self.grading.creative_vignette_feather = 50.0;
+                    self.grading.creative_vignette_roundness = 0.0;
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }

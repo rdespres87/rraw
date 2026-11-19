@@ -90,6 +90,7 @@ fn film_simulation_presets_configure_curves_and_parameters() {
         GradingPreset::FujiVelvia50,
         GradingPreset::KodakTriX400,
         GradingPreset::IlfordHp5,
+        GradingPreset::SepiaVintage,
     ] {
         let mut grading = DarkroomGradingState::default();
         preset.apply(&mut grading);
@@ -146,6 +147,16 @@ fn film_simulation_presets_configure_curves_and_parameters() {
     GradingPreset::IlfordHp5.apply(&mut hp5);
     assert!(hp5.is_monochrome, "Ilford HP5 must be monochrome");
     assert!(hp5.shadows > 10.0, "HP5 should preserve shadow latitude");
+
+    let mut sepia = DarkroomGradingState::default();
+    GradingPreset::SepiaVintage.apply(&mut sepia);
+    assert_eq!(sepia.preset, GradingPreset::SepiaVintage);
+    assert!(sepia.kelvin > 6500.0, "Sepia should have warm kelvin");
+    assert!(
+        sepia.creative_vignette_amount < -20.0,
+        "Sepia should have subtle dark creative vignette"
+    );
+    assert!(!sepia.is_monochrome);
 }
 
 #[test]
@@ -181,6 +192,10 @@ fn sidecar_saving_and_loading_roundtrip() -> Result<(), Box<dyn std::error::Erro
         highlights: -15.0,
         shadows: 25.0,
         kelvin: 6200.0,
+        defringe_purple_amount: 45.0,
+        defringe_green_amount: 30.0,
+        creative_vignette_amount: -35.0,
+        creative_vignette_midpoint: 40.0,
         is_monochrome: true,
         ..Default::default()
     };
@@ -217,6 +232,10 @@ fn sidecar_saving_and_loading_roundtrip() -> Result<(), Box<dyn std::error::Erro
     assert!((g.highlights - (-15.0)).abs() < 1e-4);
     assert!((g.shadows - 25.0).abs() < 1e-4);
     assert!((g.kelvin - 6200.0).abs() < 1e-4);
+    assert!((g.defringe_purple_amount - 45.0).abs() < 1e-4);
+    assert!((g.defringe_green_amount - 30.0).abs() < 1e-4);
+    assert!((g.creative_vignette_amount - (-35.0)).abs() < 1e-4);
+    assert!((g.creative_vignette_midpoint - 40.0).abs() < 1e-4);
     assert!(g.is_monochrome);
     assert_eq!(loaded_rating, Some(4));
 

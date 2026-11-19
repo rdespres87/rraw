@@ -813,20 +813,39 @@ pub fn render_preview_from_base(
         chroma_amount: (grading.color_denoise / 100.0).clamp(0.0, 1.0),
         luma_amount: (grading.luma_denoise / 100.0).clamp(0.0, 1.0),
     };
-    let denoised_samples = if denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4 {
+    let defringe_cfg = rraw_optics::DefringeConfig {
+        purple_amount: (grading.defringe_purple_amount / 100.0).clamp(0.0, 1.0),
+        green_amount: (grading.defringe_green_amount / 100.0).clamp(0.0, 1.0),
+        threshold: 0.08,
+    };
+    let need_denoise = denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4;
+    let need_defringe = defringe_cfg.purple_amount > 1e-4 || defringe_cfg.green_amount > 1e-4;
+
+    let processed_samples = if need_denoise || need_defringe {
         let mut s = base.samples_rgb.clone();
-        rraw_core::denoise_rgb_with_wb(
-            &mut s,
-            preview_w,
-            preview_h,
-            &denoise_cfg,
-            Some([eff_wb_r, eff_wb_g, eff_wb_b]),
-        );
+        if need_denoise {
+            rraw_core::denoise_rgb_with_wb(
+                &mut s,
+                preview_w,
+                preview_h,
+                &denoise_cfg,
+                Some([eff_wb_r, eff_wb_g, eff_wb_b]),
+            );
+        }
+        if need_defringe {
+            rraw_optics::defringe_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
+        }
         Some(s)
     } else {
         None
     };
-    let effective_samples = denoised_samples.as_deref().unwrap_or(&base.samples_rgb);
+    let effective_samples = processed_samples.as_deref().unwrap_or(&base.samples_rgb);
+
+    let has_creative_vignette = grading.creative_vignette_amount.abs() > 0.1;
+    let cv_amt = grading.creative_vignette_amount / 100.0;
+    let cv_mid = (grading.creative_vignette_midpoint / 100.0).clamp(0.05, 0.95);
+    let cv_feather = (grading.creative_vignette_feather / 100.0).clamp(0.05, 0.95);
+    let cv_round = (grading.creative_vignette_roundness / 100.0).clamp(-1.0, 1.0);
 
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();
@@ -1087,6 +1106,26 @@ pub fn render_preview_from_base(
                 let g_s = lum_c + (g_c - lum_c) * eff_sat;
                 let b_s = lum_c + (b_c - lum_c) * eff_sat;
 
+                let (r_s, g_s, b_s) = if has_creative_vignette {
+                    let u_rel = (px as f32 - cx) / cx.max(1.0);
+                    let v_rel = (py as f32 - cy) / cy.max(1.0);
+                    let r_ellip = (u_rel * u_rel + v_rel * v_rel).sqrt();
+                    let r_circ = ((px as f32 - cx).powi(2) + (py as f32 - cy).powi(2)).sqrt()
+                        / cx.min(cy).max(1.0);
+                    let r_rect = u_rel.abs().max(v_rel.abs());
+                    let r_dist = if cv_round > 0.0 {
+                        r_ellip * (1.0 - cv_round) + r_circ * cv_round
+                    } else {
+                        r_ellip * (1.0 + cv_round) + r_rect * (-cv_round)
+                    };
+                    let t = ((r_dist - cv_mid) / (cv_feather.max(0.05) * 1.2)).clamp(0.0, 1.0);
+                    let smooth_t = t * t * (3.0 - 2.0 * t);
+                    let cv_mult = (1.0 + cv_amt * smooth_t).max(0.0);
+                    (r_s * cv_mult, g_s * cv_mult, b_s * cv_mult)
+                } else {
+                    (r_s, g_s, b_s)
+                };
+
                 let sp_res = rraw_color::evaluate_soft_proof(
                     glam::Vec3::new(r_s, g_s, b_s),
                     &grading.soft_proof,
@@ -1308,20 +1347,39 @@ pub fn render_export_image(
         chroma_amount: (grading.color_denoise / 100.0).clamp(0.0, 1.0),
         luma_amount: (grading.luma_denoise / 100.0).clamp(0.0, 1.0),
     };
-    let denoised_samples = if denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4 {
+    let defringe_cfg = rraw_optics::DefringeConfig {
+        purple_amount: (grading.defringe_purple_amount / 100.0).clamp(0.0, 1.0),
+        green_amount: (grading.defringe_green_amount / 100.0).clamp(0.0, 1.0),
+        threshold: 0.08,
+    };
+    let need_denoise = denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4;
+    let need_defringe = defringe_cfg.purple_amount > 1e-4 || defringe_cfg.green_amount > 1e-4;
+
+    let processed_samples = if need_denoise || need_defringe {
         let mut s = base.samples_rgb.clone();
-        rraw_core::denoise_rgb_with_wb(
-            &mut s,
-            preview_w,
-            preview_h,
-            &denoise_cfg,
-            Some([eff_wb_r, eff_wb_g, eff_wb_b]),
-        );
+        if need_denoise {
+            rraw_core::denoise_rgb_with_wb(
+                &mut s,
+                preview_w,
+                preview_h,
+                &denoise_cfg,
+                Some([eff_wb_r, eff_wb_g, eff_wb_b]),
+            );
+        }
+        if need_defringe {
+            rraw_optics::defringe_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
+        }
         Some(s)
     } else {
         None
     };
-    let effective_samples = denoised_samples.as_deref().unwrap_or(&base.samples_rgb);
+    let effective_samples = processed_samples.as_deref().unwrap_or(&base.samples_rgb);
+
+    let has_creative_vignette = grading.creative_vignette_amount.abs() > 0.1;
+    let cv_amt = grading.creative_vignette_amount / 100.0;
+    let cv_mid = (grading.creative_vignette_midpoint / 100.0).clamp(0.05, 0.95);
+    let cv_feather = (grading.creative_vignette_feather / 100.0).clamp(0.05, 0.95);
+    let cv_round = (grading.creative_vignette_roundness / 100.0).clamp(-1.0, 1.0);
 
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();
@@ -1497,6 +1555,26 @@ pub fn render_export_image(
             let r_s = (lum_c + (r_c - lum_c) * eff_sat).max(0.0);
             let g_s = (lum_c + (g_c - lum_c) * eff_sat).max(0.0);
             let b_s = (lum_c + (b_c - lum_c) * eff_sat).max(0.0);
+
+            let (r_s, g_s, b_s) = if has_creative_vignette {
+                let u_rel = (orig_x - cx) / cx.max(1.0);
+                let v_rel = (orig_y - cy) / cy.max(1.0);
+                let r_ellip = (u_rel * u_rel + v_rel * v_rel).sqrt();
+                let r_circ =
+                    ((orig_x - cx).powi(2) + (orig_y - cy).powi(2)).sqrt() / cx.min(cy).max(1.0);
+                let r_rect = u_rel.abs().max(v_rel.abs());
+                let r_dist = if cv_round > 0.0 {
+                    r_ellip * (1.0 - cv_round) + r_circ * cv_round
+                } else {
+                    r_ellip * (1.0 + cv_round) + r_rect * (-cv_round)
+                };
+                let t = ((r_dist - cv_mid) / (cv_feather.max(0.05) * 1.2)).clamp(0.0, 1.0);
+                let smooth_t = t * t * (3.0 - 2.0 * t);
+                let cv_mult = (1.0 + cv_amt * smooth_t).max(0.0);
+                (r_s * cv_mult, g_s * cv_mult, b_s * cv_mult)
+            } else {
+                (r_s, g_s, b_s)
+            };
 
             let map_f32 = |x: f32| -> f32 {
                 let clamped = x.clamp(0.0, 1.0);
