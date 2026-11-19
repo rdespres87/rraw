@@ -2,6 +2,15 @@
 
 ## Last Completed Milestone
 
+- **Phase 7 — Advanced Demosaicing & Noise Reduction Suite (`rraw-core`, `rraw-app`)**:
+  - Implemented `DemosaicMethod::EdgeAwareAdaptive` (directional horizontal/vertical green gradient interpolation with second-order curvature correction and green-guided chrominance difference reconstruction eliminating zippering artifacts along contrast edges) in `crates/rraw-core/src/demosaic.rs`.
+  - Implemented guided chrominance and luminance noise reduction engine (`DenoiseConfig`, `denoise_rgb`, `denoise_rgb_with_wb`) in `crates/rraw-core/src/denoise.rs` with Rayon parallelism and exact inverse YUV recombination.
+  - Implemented anti-color-bleed barriers: pre-normalization with white-balance multipliers before YUV estimation, tightened photometric sigma, and continuous highlight attenuation preventing purple fringing bleeding on backlit high-contrast borders.
+  - Added Detail & Denoise section in `rraw-app` with live sliders (`color_denoise` default 25%, `luma_denoise` default 0%) and sidecar serialization.
+  - Enabled right-click (`PointerButton::Secondary`) and shortcut keys (`\`, `P`) in 1:1 zoom view to inspect original unedited image portion with HUD badge without breaking left-click pan/drag navigation.
+  - Commits: `7e81685`, `3b07b4a`.
+  - Verified with 137 unit and integration tests passing across 41 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit.
+
 - **Phase 6.5 — Timelapse, Keyframe Ramping & Temporal Deflicker Engine (`rraw-export`, `rraw-app`)**:
   - Implemented `TimelapseFrameRate` (`Fps24`, `Fps25`, `Fps30`, `Fps60`), `TimelapseKeyframe`, `TimelapseDeflickerConfig`, `compute_frame_log_luminance`, `compute_deflicker_ev_offsets` (weighted local linear regression / Savitzky-Golay degree-1 temporal trend), `interpolate_keyframes`, `format_sequence_filename`, and `write_timelapse_manifest` in `crates/rraw-export/src/timelapse.rs`.
   - Integrated `ExportTargetMode::TimelapseSequence`, `prepare_timelapse_frame_gradings`, top-bar `🎬 Timelapse...` quick action, and full timelapse sequence UI controls (FPS selector, duration readout, sliding-window temporal deflicker, Holy Grail day-to-night keyframe ramping, 5-digit padded sequence export, and `timelapse_sequence.json` manifest) in `rraw-app`.
