@@ -7,7 +7,7 @@ use rraw_core::{MaskKind, Stage6MasksParams};
 use std::sync::mpsc;
 use wgpu::util::DeviceExt;
 
-/// Parameters governing Stage 6 local geometric and parametric masks.
+/// Parameters governing Stage 6 local geometric, parametric, and CoreML AI semantic masks.
 #[derive(Debug, Clone)]
 pub struct Stage6Params {
     pub width: u32,
@@ -21,7 +21,11 @@ struct Stage6UniformsGpu {
     width: u32,
     height: u32,
     mask_count: u32,
-    _pad: u32,
+    sem_width: u32,
+    sem_height: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
 }
 
 #[repr(C)]
@@ -50,7 +54,7 @@ impl Default for GpuMaskData {
     }
 }
 
-/// Headless GPU compute pipeline for Stage 6 local geometric and parametric masks.
+/// Headless GPU compute pipeline for Stage 6 local geometric, parametric, and AI semantic masks.
 pub struct Stage6Pipeline {
     pipeline: wgpu::ComputePipeline,
     bind_group_layout: wgpu::BindGroupLayout,
@@ -111,6 +115,16 @@ impl Stage6Pipeline {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 4,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                 });
 
@@ -139,12 +153,27 @@ impl Stage6Pipeline {
         })
     }
 
-    /// Executes Stage 6 local geometric and parametric masks on the GPU.
+    /// Executes Stage 6 local geometric and parametric masks on the GPU without external semantic maps.
     pub fn execute(
         &self,
         ctx: &GpuContext,
         rgb_in: &[f32],
         params: &Stage6Params,
+    ) -> Result<Vec<f32>, GpuError> {
+        self.execute_with_semantics(ctx, rgb_in, params, None)
+    }
+
+    /// Executes Stage 6 local geometric, parametric, and CoreML AI semantic masks on the GPU.
+    ///
+    /// When `semantic_rgba` is provided as `Some((buffer, sem_width, sem_height))`, `buffer` must
+    /// have length `sem_width * sem_height * 4` storing interleaved `[Subject, Sky, Background, Portrait]`
+    /// probabilities in `[0.0, 1.0]`.
+    pub fn execute_with_semantics(
+        &self,
+        ctx: &GpuContext,
+        rgb_in: &[f32],
+        params: &Stage6Params,
+        semantic_rgba: Option<(&[f32], u32, u32)>,
     ) -> Result<Vec<f32>, GpuError> {
         let count = (params.width as usize)
             .saturating_mul(params.height as usize)
@@ -155,6 +184,19 @@ impl Stage6Pipeline {
                 actual: rgb_in.len(),
             });
         }
+
+        let (sem_slice, sem_width, sem_height) = if let Some((buf, sw, sh)) = semantic_rgba {
+            let expected_sem = (sw as usize).saturating_mul(sh as usize).saturating_mul(4);
+            if buf.len() != expected_sem || sw == 0 || sh == 0 {
+                return Err(GpuError::BufferLengthMismatch {
+                    expected: expected_sem,
+                    actual: buf.len(),
+                });
+            }
+            (buf, sw, sh)
+        } else {
+            (&[0.0_f32; 4][..], 1, 1)
+        };
 
         let mut gpu_masks = Vec::new();
         for mask in &params.masks.masks {
@@ -196,6 +238,19 @@ impl Stage6Pipeline {
                         gm.param_vec2 = [h.min_val, h.max_val, h.feather, 1.0];
                     }
                 }
+                MaskKind::SemanticAi {
+                    category,
+                    invert,
+                    feather,
+                } => {
+                    gm.mask_type = 4;
+                    gm.param_vec0 = [
+                        category.channel_index() as f32,
+                        if *invert { 1.0 } else { 0.0 },
+                        feather.clamp(0.02, 0.5),
+                        0.0,
+                    ];
+                }
             }
             gpu_masks.push(gm);
         }
@@ -209,7 +264,11 @@ impl Stage6Pipeline {
             width: params.width,
             height: params.height,
             mask_count,
-            _pad: 0,
+            sem_width,
+            sem_height,
+            _pad0: 0,
+            _pad1: 0,
+            _pad2: 0,
         };
 
         let uniform_buffer = ctx
@@ -243,6 +302,14 @@ impl Stage6Pipeline {
             mapped_at_creation: false,
         });
 
+        let semantic_buffer = ctx
+            .device()
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("stage6_semantic_rgba_buffer"),
+                contents: bytemuck::cast_slice(sem_slice),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+
         let staging_buffer = ctx.device().create_buffer(&wgpu::BufferDescriptor {
             label: Some("stage6_staging_buffer"),
             size: (count * std::mem::size_of::<f32>()) as u64,
@@ -269,6 +336,10 @@ impl Stage6Pipeline {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: output_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: semantic_buffer.as_entire_binding(),
                 },
             ],
         });

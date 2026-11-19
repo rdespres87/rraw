@@ -224,3 +224,38 @@ fn test_tone_curves_recipe_invariants_and_serialization() -> Result<(), Box<dyn 
     assert_eq!(deserialized.stage5_grading.tone_curves, curves);
     Ok(())
 }
+
+#[test]
+fn test_semantic_ai_mask_serialization_and_hash_invariance(
+) -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_core::recipe::SemanticMaskCategory;
+
+    let base = Recipe::default();
+    let mut recipe = base.clone();
+    for (idx, category) in SemanticMaskCategory::ALL.iter().copied().enumerate() {
+        assert_eq!(category.channel_index(), idx);
+        recipe.stage6_masks.masks.push(GeometricMask {
+            id: format!("ai_{idx}"),
+            kind: MaskKind::SemanticAi {
+                category,
+                invert: idx % 2 == 1,
+                feather: 0.35,
+            },
+            exposure_offset_ev: 0.5,
+            opacity: 0.85,
+            enabled: true,
+        });
+    }
+
+    let json = recipe.to_canonical_json()?;
+    let roundtrip = Recipe::from_canonical_json(&json)?;
+    assert_eq!(roundtrip, recipe);
+
+    // Stage 6 AI mask changes display hash but keeps L0, L1, L2 hashes unchanged
+    let src = "raw_01";
+    assert_eq!(recipe.hash_l0(src), base.hash_l0(src));
+    assert_eq!(recipe.hash_l1(src), base.hash_l1(src));
+    assert_eq!(recipe.hash_l2(), base.hash_l2());
+    assert_ne!(recipe.hash_display(src, 2.0), base.hash_display(src, 2.0));
+    Ok(())
+}

@@ -232,6 +232,64 @@ pub struct ParametricRange {
     pub feather: f32,
 }
 
+/// Semantic category for AI-driven segmentation masks (CoreML / Neural Engine).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SemanticMaskCategory {
+    /// Primary salient foreground subject (person, animal, vehicle, object).
+    #[default]
+    Subject,
+    /// Sky and atmospheric region.
+    Sky,
+    /// Non-subject background environment ($1.0 - \alpha_{\text{subject}}$).
+    Background,
+    /// Portrait skin and facial region for selective skin-tone grading.
+    Portrait,
+}
+
+impl SemanticMaskCategory {
+    /// Ordered list of all 4 supported AI semantic segmentation categories.
+    pub const ALL: [Self; 4] = [Self::Subject, Self::Sky, Self::Background, Self::Portrait];
+
+    /// Packed 4-channel RGBA buffer channel index (`0 = R/Subject`, `1 = G/Sky`, `2 = B/Background`, `3 = A/Portrait`).
+    #[must_use]
+    pub const fn channel_index(self) -> usize {
+        match self {
+            Self::Subject => 0,
+            Self::Sky => 1,
+            Self::Background => 2,
+            Self::Portrait => 3,
+        }
+    }
+
+    /// Canonical short identifier string.
+    #[must_use]
+    pub const fn id_str(self) -> &'static str {
+        match self {
+            Self::Subject => "subject",
+            Self::Sky => "sky",
+            Self::Background => "background",
+            Self::Portrait => "portrait",
+        }
+    }
+
+    /// Parses a semantic category from its identifier string.
+    #[must_use]
+    pub fn from_id_str(s: &str) -> Option<Self> {
+        match s {
+            "subject" | "Subject" => Some(Self::Subject),
+            "sky" | "Sky" => Some(Self::Sky),
+            "background" | "Background" => Some(Self::Background),
+            "portrait" | "Portrait" => Some(Self::Portrait),
+            _ => None,
+        }
+    }
+}
+
+const fn default_half_f32() -> f32 {
+    0.5
+}
+
 /// Geometric mask specification defined in `[0.0, 1.0]²` post-warp coordinates.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -260,6 +318,17 @@ pub enum MaskKind {
         chroma: Option<ParametricRange>,
         /// Hue angle range in degrees ($H \in [0, 360)$).
         hue_deg: Option<ParametricRange>,
+    },
+    /// CoreML AI semantic segmentation mask (Subject, Sky, Background, Portrait).
+    SemanticAi {
+        /// Semantic class to isolate.
+        category: SemanticMaskCategory,
+        /// Whether to invert the semantic probability map ($1.0 - p$).
+        #[serde(default)]
+        invert: bool,
+        /// Edge feathering / soft threshold transition width in `[0.0, 1.0]`.
+        #[serde(default = "default_half_f32")]
+        feather: f32,
     },
 }
 

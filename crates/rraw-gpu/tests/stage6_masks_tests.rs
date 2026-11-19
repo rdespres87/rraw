@@ -191,3 +191,133 @@ fn test_parametric_luminance_mask_weights() {
     let idx_bright = ((32 * width + 50) * 3) as usize;
     assert!((out[idx_bright] - 1.8).abs() < 0.05);
 }
+
+#[test]
+fn test_semantic_ai_mask_gpu_weights_and_invert() {
+    use rraw_core::SemanticMaskCategory;
+
+    let width = 64_u32;
+    let height = 64_u32;
+    let count = (width * height) as usize;
+    let rgb_in = vec![0.4_f32; count * 3];
+
+    let sem_w = 16_u32;
+    let sem_h = 16_u32;
+    let mut sem_rgba = vec![0.0_f32; (sem_w * sem_h * 4) as usize];
+    for sy in 0..sem_h {
+        for sx in 0..sem_w {
+            let idx = ((sy * sem_w + sx) * 4) as usize;
+            if sy < 8 {
+                // Upper half: Sky = 1.0, Background = 1.0
+                sem_rgba[idx] = 0.0; // Subject
+                sem_rgba[idx + 1] = 1.0; // Sky
+                sem_rgba[idx + 2] = 1.0; // Background
+                sem_rgba[idx + 3] = 0.0; // Portrait
+            } else {
+                // Lower half: Subject = 1.0, Portrait = 1.0
+                sem_rgba[idx] = 1.0; // Subject
+                sem_rgba[idx + 1] = 0.0; // Sky
+                sem_rgba[idx + 2] = 0.0; // Background
+                sem_rgba[idx + 3] = 1.0; // Portrait
+            }
+        }
+    }
+
+    let sky_mask = GeometricMask {
+        id: "ai_sky".to_owned(),
+        kind: MaskKind::SemanticAi {
+            category: SemanticMaskCategory::Sky,
+            invert: false,
+            feather: 0.25,
+        },
+        exposure_offset_ev: -1.0, // 0.5x gain on sky -> 0.4 * 0.5 = 0.2
+        opacity: 1.0,
+        enabled: true,
+    };
+
+    let subj_mask = GeometricMask {
+        id: "ai_subject".to_owned(),
+        kind: MaskKind::SemanticAi {
+            category: SemanticMaskCategory::Subject,
+            invert: false,
+            feather: 0.25,
+        },
+        exposure_offset_ev: 1.0, // 2.0x gain on subject -> 0.4 * 2.0 = 0.8
+        opacity: 1.0,
+        enabled: true,
+    };
+
+    let params = Stage6Params {
+        width,
+        height,
+        masks: Stage6MasksParams {
+            masks: vec![sky_mask, subj_mask],
+        },
+    };
+
+    let ctx = match GpuContext::new_headless() {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    let pipeline = match Stage6Pipeline::new(&ctx) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Stage6Pipeline skipped: {e:?}");
+            return;
+        }
+    };
+
+    let out = match pipeline.execute_with_semantics(
+        &ctx,
+        &rgb_in,
+        &params,
+        Some((&sem_rgba, sem_w, sem_h)),
+    ) {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("Stage6 execution skipped: {e:?}");
+            return;
+        }
+    };
+
+    let idx_top = ((10 * width + 32) * 3) as usize;
+    let idx_bot = ((54 * width + 32) * 3) as usize;
+
+    assert!(
+        (out[idx_top] - 0.2).abs() < 0.03,
+        "expected top sky pixel to be darkened to 0.2, got {}",
+        out[idx_top]
+    );
+    assert!(
+        (out[idx_bot] - 0.8).abs() < 0.03,
+        "expected bottom subject pixel to be brightened to 0.8, got {}",
+        out[idx_bot]
+    );
+
+    // Verify inverted mask behavior
+    let inv_sky_mask = GeometricMask {
+        id: "ai_sky_inv".to_owned(),
+        kind: MaskKind::SemanticAi {
+            category: SemanticMaskCategory::Sky,
+            invert: true,
+            feather: 0.25,
+        },
+        exposure_offset_ev: 1.0,
+        opacity: 1.0,
+        enabled: true,
+    };
+    let inv_params = Stage6Params {
+        width,
+        height,
+        masks: Stage6MasksParams {
+            masks: vec![inv_sky_mask],
+        },
+    };
+    if let Ok(out_inv) =
+        pipeline.execute_with_semantics(&ctx, &rgb_in, &inv_params, Some((&sem_rgba, sem_w, sem_h)))
+    {
+        assert!((out_inv[idx_top] - 0.4).abs() < 0.03);
+        assert!((out_inv[idx_bot] - 0.8).abs() < 0.03);
+    }
+}

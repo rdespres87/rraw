@@ -1,18 +1,22 @@
-// Stage 6: Post-Warp [0, 1]² Local Geometric & ACEScg Parametric Masks WGSL Compute Shader
+// Stage 6: Post-Warp [0, 1]² Local Geometric, ACEScg Parametric & CoreML AI Semantic Masks WGSL Compute Shader
 
 struct Uniforms {
     width: u32,
     height: u32,
     mask_count: u32,
-    _pad: u32,
+    sem_width: u32,
+    sem_height: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
 };
 
 struct GpuMaskData {
-    mask_type: u32,          // 0 = Disabled, 1 = Linear, 2 = Radial, 3 = Parametric
+    mask_type: u32,          // 0 = Disabled, 1 = Linear, 2 = Radial, 3 = Parametric, 4 = SemanticAi
     exposure_offset_ev: f32, // EV offset
     opacity: f32,            // [0.0, 1.0]
     _pad0: f32,
-    param_vec0: vec4<f32>,   // Linear: [start.x, start.y, end.x, end.y], Radial: [cx, cy, rx, ry], Param: [lum_min, lum_max, lum_feather, has_lum]
+    param_vec0: vec4<f32>,   // Linear: [start.x, start.y, end.x, end.y], Radial: [cx, cy, rx, ry], Param: [lum_min, lum_max, lum_feather, has_lum], SemanticAi: [cat_idx, invert, feather, 0]
     param_vec1: vec4<f32>,   // Radial: [rot_rad, 0, 0, 0], Param: [chroma_min, chroma_max, chroma_feather, has_chroma]
     param_vec2: vec4<f32>,   // Param: [hue_min, hue_max, hue_feather, has_hue]
 };
@@ -21,6 +25,54 @@ struct GpuMaskData {
 @group(0) @binding(1) var<storage, read> masks: array<GpuMaskData>;
 @group(0) @binding(2) var<storage, read> rgb_in: array<f32>;
 @group(0) @binding(3) var<storage, read_write> rgb_out: array<f32>;
+@group(0) @binding(4) var<storage, read> semantic_rgba: array<vec4<f32>>;
+
+fn extract_channel(v: vec4<f32>, c: u32) -> f32 {
+    if (c == 0u) {
+        return v.x;
+    } else if (c == 1u) {
+        return v.y;
+    } else if (c == 2u) {
+        return v.z;
+    } else {
+        return v.w;
+    }
+}
+
+fn sample_semantic_bilinear(pos: vec2<f32>, cat_idx: u32, invert: bool, feather: f32) -> f32 {
+    if (params.sem_width == 0u || params.sem_height == 0u) {
+        return 0.0;
+    }
+    let sw = f32(params.sem_width);
+    let sh = f32(params.sem_height);
+    let fx = max(clamp(pos.x, 0.0, 1.0) * (sw - 1.0), 0.0);
+    let fy = max(clamp(pos.y, 0.0, 1.0) * (sh - 1.0), 0.0);
+
+    let x0 = min(u32(floor(fx)), params.sem_width - 1u);
+    let y0 = min(u32(floor(fy)), params.sem_height - 1u);
+    let x1 = min(x0 + 1u, params.sem_width - 1u);
+    let y1 = min(y0 + 1u, params.sem_height - 1u);
+
+    let tx = fx - f32(x0);
+    let ty = fy - f32(y0);
+
+    let p00 = extract_channel(semantic_rgba[y0 * params.sem_width + x0], cat_idx);
+    let p10 = extract_channel(semantic_rgba[y0 * params.sem_width + x1], cat_idx);
+    let p01 = extract_channel(semantic_rgba[y1 * params.sem_width + x0], cat_idx);
+    let p11 = extract_channel(semantic_rgba[y1 * params.sem_width + x1], cat_idx);
+
+    let top = mix(p00, p10, tx);
+    let bot = mix(p01, p11, tx);
+    let raw_prob = clamp(mix(top, bot, ty), 0.0, 1.0);
+
+    let half_w = clamp(feather, 0.02, 0.5);
+    let shaped = smoothstep(0.5 - half_w, 0.5 + half_w, raw_prob);
+    if (invert) {
+        return clamp(1.0 - shaped, 0.0, 1.0);
+    } else {
+        return clamp(shaped, 0.0, 1.0);
+    }
+}
 
 @compute @workgroup_size(16, 16, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -92,6 +144,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             }
 
             weight = p_weight;
+        } else if (mask.mask_type == 4u) {
+            // CoreML AI semantic segmentation mask
+            let cat_idx = u32(round(mask.param_vec0.x));
+            let invert = mask.param_vec0.y > 0.5;
+            let feather = mask.param_vec0.z;
+            weight = sample_semantic_bilinear(pos, cat_idx, invert, feather);
         }
 
         total_ev = total_ev + (weight * mask.opacity * mask.exposure_offset_ev);

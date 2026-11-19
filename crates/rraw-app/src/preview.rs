@@ -158,6 +158,94 @@ pub struct BaseRgbPreview {
     pub samples_rgb: Vec<[f32; 3]>,
     pub as_shot_wb: [f32; 3],
     pub cam_to_srgb: [f32; 9],
+    /// Pre-inferred 4-class CoreML AI semantic segmentation probability maps.
+    pub semantic_masks: std::sync::Arc<rraw_ai::SemanticMaskSet>,
+}
+
+fn infer_preview_semantic_masks(
+    samples_rgb: &[[f32; 3]],
+    width: usize,
+    height: usize,
+    as_shot_wb: [f32; 3],
+    cam_to_srgb: [f32; 9],
+) -> std::sync::Arc<rraw_ai::SemanticMaskSet> {
+    use rraw_ai::{CoreMlSemanticSegmenter, SemanticMaskSet, SemanticSegmenter};
+
+    if width == 0 || height == 0 || samples_rgb.len() < width.saturating_mul(height) {
+        return std::sync::Arc::new(SemanticMaskSet {
+            width: 1,
+            height: 1,
+            subject: vec![0.0],
+            sky: vec![0.0],
+            background: vec![1.0],
+            portrait: vec![0.0],
+        });
+    }
+
+    let step = (width / 160).max(1);
+    let sem_w = (width / step).max(1);
+    let sem_h = (height / step).max(1);
+    let mut cal_rgb = Vec::with_capacity(sem_w * sem_h);
+
+    for sy in 0..sem_h {
+        let py = (sy * step).min(height - 1);
+        for sx in 0..sem_w {
+            let px = (sx * step).min(width - 1);
+            let [mr, mg, mb] = samples_rgb[py * width + px];
+            let r_wb = mr * as_shot_wb[0];
+            let g_wb = mg * as_shot_wb[1];
+            let b_wb = mb * as_shot_wb[2];
+            let r =
+                (cam_to_srgb[0] * r_wb + cam_to_srgb[1] * g_wb + cam_to_srgb[2] * b_wb).max(0.0);
+            let g =
+                (cam_to_srgb[3] * r_wb + cam_to_srgb[4] * g_wb + cam_to_srgb[5] * b_wb).max(0.0);
+            let b =
+                (cam_to_srgb[6] * r_wb + cam_to_srgb[7] * g_wb + cam_to_srgb[8] * b_wb).max(0.0);
+            cal_rgb.push([r, g, b]);
+        }
+    }
+
+    let segmenter = CoreMlSemanticSegmenter::new();
+    let masks = segmenter
+        .segment_rgb(&cal_rgb, sem_w, sem_h)
+        .unwrap_or_else(|_| SemanticMaskSet {
+            width: 1,
+            height: 1,
+            subject: vec![0.0],
+            sky: vec![0.0],
+            background: vec![1.0],
+            portrait: vec![0.0],
+        });
+    std::sync::Arc::new(masks)
+}
+
+/// Evaluates accumulated local semantic mask offsets `(ev, contrast, saturation, temp_shift)` at `(u, v)`.
+#[inline]
+fn eval_semantic_mask_adjustments(
+    masks_set: &rraw_ai::SemanticMaskSet,
+    layers: &[SemanticMaskLayer],
+    u: f32,
+    v: f32,
+) -> (f32, f32, f32, f32) {
+    let mut ev = 0.0_f32;
+    let mut contrast = 0.0_f32;
+    let mut sat = 0.0_f32;
+    let mut temp = 0.0_f32;
+
+    for layer in layers {
+        if layer.is_neutral() {
+            continue;
+        }
+        let w = masks_set.sample_bilinear(layer.category, u, v, layer.invert, layer.feather)
+            * layer.opacity.clamp(0.0, 1.0);
+        if w > 1e-4 {
+            ev += w * layer.exposure_ev;
+            contrast += w * layer.contrast;
+            sat += w * layer.saturation;
+            temp += w * layer.temperature_shift;
+        }
+    }
+    (ev, contrast, sat, temp)
 }
 
 impl BaseRgbPreview {
@@ -189,12 +277,15 @@ impl BaseRgbPreview {
         let height = cfa.height();
         let cam_to_srgb = compute_cam_to_srgb_matrix(color_matrix, &as_shot_wb);
         if width == 0 || height == 0 {
+            let semantic_masks =
+                infer_preview_semantic_masks(&[[0.0, 0.0, 0.0]], 1, 1, as_shot_wb, cam_to_srgb);
             return Self {
                 width: 1,
                 height: 1,
                 samples_rgb: vec![[0.0, 0.0, 0.0]],
                 as_shot_wb,
                 cam_to_srgb,
+                semantic_masks,
             };
         }
 
@@ -266,12 +357,21 @@ impl BaseRgbPreview {
             }
         }
 
+        let semantic_masks = infer_preview_semantic_masks(
+            &samples_rgb,
+            preview_w,
+            preview_h,
+            as_shot_wb,
+            cam_to_srgb,
+        );
+
         Self {
             width: preview_w,
             height: preview_h,
             samples_rgb,
             as_shot_wb,
             cam_to_srgb,
+            semantic_masks,
         }
     }
 
@@ -298,12 +398,23 @@ impl BaseRgbPreview {
             }
         }
 
+        let as_shot_wb = [1.0, 1.0, 1.0];
+        let cam_to_srgb = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let semantic_masks = infer_preview_semantic_masks(
+            &samples_rgb,
+            preview_w,
+            preview_h,
+            as_shot_wb,
+            cam_to_srgb,
+        );
+
         Self {
             width: preview_w,
             height: preview_h,
             samples_rgb,
-            as_shot_wb: [1.0, 1.0, 1.0],
-            cam_to_srgb: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            as_shot_wb,
+            cam_to_srgb,
+            semantic_masks,
         }
     }
 }
@@ -602,22 +713,52 @@ pub fn render_preview_from_base(
                     (r_curved, g_curved, b_curved)
                 };
 
+                let u_norm = (px as f32 + 0.5) / (preview_w.max(1) as f32);
+                let v_norm = (py as f32 + 0.5) / (preview_h.max(1) as f32);
+
+                let (sem_ev, sem_contrast, sem_sat, sem_temp) =
+                    if !grading.semantic_masks.is_empty() {
+                        eval_semantic_mask_adjustments(
+                            &base.semantic_masks,
+                            &grading.semantic_masks,
+                            u_norm,
+                            v_norm,
+                        )
+                    } else {
+                        (0.0, 0.0, 0.0, 0.0)
+                    };
+
+                let (r_sem, g_sem, b_sem) = if sem_ev.abs() > 1e-4 || sem_temp.abs() > 1e-3 {
+                    let g_ev = 2.0_f32.powf(sem_ev);
+                    let r_t = (1.0 + sem_temp * 0.004).max(0.1);
+                    let b_t = (1.0 - sem_temp * 0.004).max(0.1);
+                    (
+                        (r_lut * g_ev * r_t).max(0.0),
+                        (g_lut * g_ev).max(0.0),
+                        (b_lut * g_ev * b_t).max(0.0),
+                    )
+                } else {
+                    (r_lut, g_lut, b_lut)
+                };
+
                 let (r_drt, g_drt, b_drt) = match grading.display_transform {
                     DisplayTransform::AgX => (
-                        apply_agx_edr(r_lut, 1.0),
-                        apply_agx_edr(g_lut, 1.0),
-                        apply_agx_edr(b_lut, 1.0),
+                        apply_agx_edr(r_sem, 1.0),
+                        apply_agx_edr(g_sem, 1.0),
+                        apply_agx_edr(b_sem, 1.0),
                     ),
                     DisplayTransform::OpenDrt => (
-                        apply_opendrt(r_lut, 1.0),
-                        apply_opendrt(g_lut, 1.0),
-                        apply_opendrt(b_lut, 1.0),
+                        apply_opendrt(r_sem, 1.0),
+                        apply_opendrt(g_sem, 1.0),
+                        apply_opendrt(b_sem, 1.0),
                     ),
                 };
 
-                let r_c = ((r_drt - 0.18) * factor + 0.18).max(0.0);
-                let g_c = ((g_drt - 0.18) * factor + 0.18).max(0.0);
-                let b_c = ((b_drt - 0.18) * factor + 0.18).max(0.0);
+                let eff_factor =
+                    (factor * (1.0 + (sem_contrast / 100.0).clamp(-0.8, 2.0))).max(0.05);
+                let r_c = ((r_drt - 0.18) * eff_factor + 0.18).max(0.0);
+                let g_c = ((g_drt - 0.18) * eff_factor + 0.18).max(0.0);
+                let b_c = ((b_drt - 0.18) * eff_factor + 0.18).max(0.0);
 
                 let lum_c = 0.2126 * r_c + 0.7152 * g_c + 0.0722 * b_c;
                 let max_val = r_c.max(g_c).max(b_c);
@@ -628,7 +769,7 @@ pub fn render_preview_from_base(
                     0.0
                 };
                 let vib_weight = (1.0 - current_sat).clamp(0.0, 1.0);
-                let eff_sat = ((1.0 + user_sat)
+                let eff_sat = ((1.0 + user_sat + (sem_sat / 100.0))
                     * (1.0 + (base_vibrance + user_vibrance) * vib_weight))
                     .max(0.0);
 
@@ -636,7 +777,7 @@ pub fn render_preview_from_base(
                 let g_s = (lum_c + (g_c - lum_c) * eff_sat).max(0.0);
                 let b_s = (lum_c + (b_c - lum_c) * eff_sat).max(0.0);
 
-                let (u8_r, u8_g, u8_b) = if grading.is_monochrome {
+                let (mut u8_r, mut u8_g, mut u8_b) = if grading.is_monochrome {
                     let lum_val = ((to_u8_fast(r_s) as u32 * 54
                         + to_u8_fast(g_s) as u32 * 183
                         + to_u8_fast(b_s) as u32 * 19)
@@ -645,6 +786,26 @@ pub fn render_preview_from_base(
                 } else {
                     (to_u8_fast(r_s), to_u8_fast(g_s), to_u8_fast(b_s))
                 };
+
+                if let Some(overlay_cat) = grading.show_semantic_mask_overlay {
+                    let (inv, fth) = grading
+                        .semantic_masks
+                        .iter()
+                        .find(|m| m.category == overlay_cat)
+                        .map_or((false, 0.35), |m| (m.invert, m.feather));
+                    let mask_w =
+                        base.semantic_masks
+                            .sample_bilinear(overlay_cat, u_norm, v_norm, inv, fth)
+                            * 0.65;
+                    if mask_w > 1e-3 {
+                        u8_r = ((u8_r as f32) * (1.0 - mask_w) + 255.0 * mask_w).clamp(0.0, 255.0)
+                            as u8;
+                        u8_g = ((u8_g as f32) * (1.0 - mask_w) + 40.0 * mask_w).clamp(0.0, 255.0)
+                            as u8;
+                        u8_b = ((u8_b as f32) * (1.0 - mask_w) + 115.0 * mask_w).clamp(0.0, 255.0)
+                            as u8;
+                    }
+                }
 
                 row_r[u8_r as usize] += 1;
                 row_g[u8_g as usize] += 1;
@@ -907,20 +1068,47 @@ pub fn render_export_image(
                 (r_toned, g_toned, b_toned)
             };
 
+            let u_norm = (orig_x / (preview_w.max(1) as f32)).clamp(0.0, 1.0);
+            let v_norm = (orig_y / (preview_h.max(1) as f32)).clamp(0.0, 1.0);
+            let (sem_ev, sem_contrast, sem_sat, sem_temp) = if !grading.semantic_masks.is_empty() {
+                eval_semantic_mask_adjustments(
+                    &base.semantic_masks,
+                    &grading.semantic_masks,
+                    u_norm,
+                    v_norm,
+                )
+            } else {
+                (0.0, 0.0, 0.0, 0.0)
+            };
+
+            let (r_sem, g_sem, b_sem) = if sem_ev.abs() > 1e-4 || sem_temp.abs() > 1e-3 {
+                let g_ev = 2.0_f32.powf(sem_ev);
+                let r_t = (1.0 + sem_temp * 0.004).max(0.1);
+                let b_t = (1.0 - sem_temp * 0.004).max(0.1);
+                (
+                    (r_lut * g_ev * r_t).max(0.0),
+                    (g_lut * g_ev).max(0.0),
+                    (b_lut * g_ev * b_t).max(0.0),
+                )
+            } else {
+                (r_lut, g_lut, b_lut)
+            };
+
             let (r_drt, g_drt, b_drt) = match grading.display_transform {
                 DisplayTransform::AgX => (
-                    apply_agx_edr(r_lut, 1.0),
-                    apply_agx_edr(g_lut, 1.0),
-                    apply_agx_edr(b_lut, 1.0),
+                    apply_agx_edr(r_sem, 1.0),
+                    apply_agx_edr(g_sem, 1.0),
+                    apply_agx_edr(b_sem, 1.0),
                 ),
                 DisplayTransform::OpenDrt => (
-                    apply_opendrt(r_lut, 1.0),
-                    apply_opendrt(g_lut, 1.0),
-                    apply_opendrt(b_lut, 1.0),
+                    apply_opendrt(r_sem, 1.0),
+                    apply_opendrt(g_sem, 1.0),
+                    apply_opendrt(b_sem, 1.0),
                 ),
             };
 
-            let factor = 1.0 + (grading.contrast / 100.0).clamp(-0.8, 2.0);
+            let factor = (1.0 + (grading.contrast / 100.0).clamp(-0.8, 2.0))
+                * (1.0 + (sem_contrast / 100.0).clamp(-0.8, 2.0));
             let r_c = ((r_drt - 0.18) * factor + 0.18).max(0.0);
             let g_c = ((g_drt - 0.18) * factor + 0.18).max(0.0);
             let b_c = ((b_drt - 0.18) * factor + 0.18).max(0.0);
@@ -937,8 +1125,9 @@ pub fn render_export_image(
             let user_vibrance = grading.vibrance / 100.0;
             let user_sat = grading.saturation / 100.0;
             let vib_weight = (1.0 - current_sat).clamp(0.0, 1.0);
-            let eff_sat =
-                ((1.0 + user_sat) * (1.0 + (base_vibrance + user_vibrance) * vib_weight)).max(0.0);
+            let eff_sat = ((1.0 + user_sat + (sem_sat / 100.0))
+                * (1.0 + (base_vibrance + user_vibrance) * vib_weight))
+                .max(0.0);
 
             let r_s = (lum_c + (r_c - lum_c) * eff_sat).max(0.0);
             let g_s = (lum_c + (g_c - lum_c) * eff_sat).max(0.0);
