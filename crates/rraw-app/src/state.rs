@@ -230,6 +230,7 @@ impl ExportScaleMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DarkroomSection {
     ExposureTone,
+    AiSemanticMasks,
     ToneCurves,
     WhiteBalanceColor,
     Crop,
@@ -242,8 +243,9 @@ pub enum DarkroomSection {
 }
 
 impl DarkroomSection {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::ExposureTone,
+        Self::AiSemanticMasks,
         Self::WhiteBalanceColor,
         Self::Crop,
         Self::Straighten,
@@ -256,6 +258,7 @@ impl DarkroomSection {
     pub const fn title(self) -> &'static str {
         match self {
             Self::ExposureTone => "☀️ Exposition & Tonalité",
+            Self::AiSemanticMasks => "🎭 Masques IA (CoreML)",
             Self::ToneCurves => "📈 Courbes de tonalité",
             Self::WhiteBalanceColor => "🎨 Balance des blancs & Couleur",
             Self::Crop => "✂️ Recadrer (Crop)",
@@ -803,6 +806,69 @@ impl Default for HistogramData {
     }
 }
 
+/// Local adjustment layer driven by a CoreML AI semantic segmentation mask.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SemanticMaskLayer {
+    /// Target semantic class (Subject, Sky, Background, Portrait).
+    pub category: rraw_core::SemanticMaskCategory,
+    /// Whether this semantic mask layer is active.
+    pub enabled: bool,
+    /// Whether to invert the semantic mask ($1.0 - p$).
+    pub invert: bool,
+    /// Boundary feather / soft transition width in `[0.02, 0.5]`.
+    pub feather: f32,
+    /// Overall layer opacity in `[0.0, 1.0]`.
+    pub opacity: f32,
+    /// Local exposure offset in EV (`-3.0..=+3.0`).
+    pub exposure_ev: f32,
+    /// Local contrast shift (`-100.0..=+100.0`).
+    pub contrast: f32,
+    /// Local saturation shift (`-100.0..=+100.0`).
+    pub saturation: f32,
+    /// Local temperature shift (`-100.0..=+100.0`).
+    pub temperature_shift: f32,
+}
+
+impl SemanticMaskLayer {
+    /// Creates a new enabled semantic mask layer for `category` with neutral grading offsets.
+    #[must_use]
+    pub const fn new(category: rraw_core::SemanticMaskCategory) -> Self {
+        Self {
+            category,
+            enabled: true,
+            invert: false,
+            feather: 0.35,
+            opacity: 1.0,
+            exposure_ev: 0.0,
+            contrast: 0.0,
+            saturation: 0.0,
+            temperature_shift: 0.0,
+        }
+    }
+
+    /// Returns true if this mask layer contributes no effective color or exposure change.
+    #[must_use]
+    pub fn is_neutral(&self) -> bool {
+        !self.enabled
+            || self.opacity <= 1e-4
+            || (self.exposure_ev.abs() < 1e-4
+                && self.contrast.abs() < 1e-3
+                && self.saturation.abs() < 1e-3
+                && self.temperature_shift.abs() < 1e-3)
+    }
+
+    /// Human-readable French UI label for a semantic category.
+    #[must_use]
+    pub const fn category_label(category: rraw_core::SemanticMaskCategory) -> &'static str {
+        match category {
+            rraw_core::SemanticMaskCategory::Subject => "🧍 Sujet",
+            rraw_core::SemanticMaskCategory::Sky => "☁️ Ciel",
+            rraw_core::SemanticMaskCategory::Background => "🏞️ Arrière-plan",
+            rraw_core::SemanticMaskCategory::Portrait => "👤 Portrait (Peau)",
+        }
+    }
+}
+
 /// Active custom 3D CLUT state.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CustomClutState {
@@ -860,6 +926,60 @@ pub struct DarkroomGradingState {
 
     // 3D CLUT (.cube)
     pub custom_clut: Option<CustomClutState>,
+
+    // CoreML AI Semantic Segmentation Masks (Stage 6)
+    pub semantic_masks: Vec<SemanticMaskLayer>,
+    /// Optional active semantic category overlay displayed in ruby-magenta over the viewport.
+    pub show_semantic_mask_overlay: Option<rraw_core::SemanticMaskCategory>,
+}
+
+impl DarkroomGradingState {
+    /// Returns a mutable reference to the semantic mask layer for `category`, creating it if absent.
+    pub fn upsert_semantic_mask(
+        &mut self,
+        category: rraw_core::SemanticMaskCategory,
+    ) -> &mut SemanticMaskLayer {
+        if let Some(pos) = self
+            .semantic_masks
+            .iter()
+            .position(|m| m.category == category)
+        {
+            &mut self.semantic_masks[pos]
+        } else {
+            self.semantic_masks.push(SemanticMaskLayer::new(category));
+            let last_idx = self.semantic_masks.len() - 1;
+            &mut self.semantic_masks[last_idx]
+        }
+    }
+
+    /// Removes the semantic mask layer for `category` if present.
+    pub fn remove_semantic_mask(&mut self, category: rraw_core::SemanticMaskCategory) {
+        self.semantic_masks.retain(|m| m.category != category);
+        if self.show_semantic_mask_overlay == Some(category) {
+            self.show_semantic_mask_overlay = None;
+        }
+    }
+
+    /// Converts all configured semantic mask layers into `rraw_core::Stage6MasksParams` for GPU Stage 6.
+    #[must_use]
+    pub fn to_stage6_masks_params(&self) -> rraw_core::Stage6MasksParams {
+        let masks = self
+            .semantic_masks
+            .iter()
+            .map(|layer| rraw_core::GeometricMask {
+                id: format!("ai_{}", layer.category.id_str()),
+                kind: rraw_core::MaskKind::SemanticAi {
+                    category: layer.category,
+                    invert: layer.invert,
+                    feather: layer.feather,
+                },
+                exposure_offset_ev: layer.exposure_ev,
+                opacity: layer.opacity,
+                enabled: layer.enabled,
+            })
+            .collect();
+        rraw_core::Stage6MasksParams { masks }
+    }
 }
 
 impl Default for DarkroomGradingState {
@@ -900,6 +1020,8 @@ impl Default for DarkroomGradingState {
             auto_crop_geometry: true,
             tone_curves: rraw_core::curves::ToneCurvesRecipe::default(),
             custom_clut: None,
+            semantic_masks: Vec::new(),
+            show_semantic_mask_overlay: None,
         }
     }
 }
@@ -970,6 +1092,8 @@ pub struct SidecarRecipe {
     pub custom_lut_path: Option<String>,
     #[serde(default = "default_one_f32")]
     pub custom_lut_strength: f32,
+    #[serde(default)]
+    pub semantic_masks: Vec<SemanticMaskLayer>,
 }
 
 impl SidecarRecipe {
@@ -1018,6 +1142,7 @@ impl SidecarRecipe {
                 .as_ref()
                 .and_then(|c| c.path.as_ref().map(|p| p.to_string_lossy().to_string())),
             custom_lut_strength: grading.custom_clut.as_ref().map_or(1.0, |c| c.strength),
+            semantic_masks: grading.semantic_masks.clone(),
         }
     }
 
@@ -1045,6 +1170,8 @@ impl SidecarRecipe {
         grading.vignette_amount = self.vignette_amount;
         grading.is_monochrome = self.is_monochrome;
         grading.tone_curves = self.tone_curves.clone();
+        grading.semantic_masks = self.semantic_masks.clone();
+        grading.show_semantic_mask_overlay = None;
         grading.preset = if let Some(p_str) = &self.preset {
             GradingPreset::from_id_str(p_str)
                 .unwrap_or_else(|| GradingPreset::detect_preset(grading))

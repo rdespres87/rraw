@@ -637,3 +637,143 @@ fn test_corrupted_cube_handling() {
     // NaN coordinate
     assert!(ColorLut3d::from_cube_str("LUT_3D_SIZE 2\nNaN 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n0.0 0.0 0.0\n").is_err());
 }
+
+#[test]
+fn test_ai_semantic_masks_lifecycle_and_sidecar_roundtrip() -> Result<(), Box<dyn std::error::Error>>
+{
+    use rraw_core::{MaskKind, SemanticMaskCategory};
+
+    let temp_dir = std::env::temp_dir().join("rraw_test_ai_semantic_sidecar");
+    std::fs::create_dir_all(&temp_dir)?;
+    let photo_path = temp_dir.join("PORTRAIT_AI.DNG");
+    std::fs::write(&photo_path, b"dummy raw content")?;
+
+    let mut grading = DarkroomGradingState::default();
+    assert!(grading.semantic_masks.is_empty());
+
+    {
+        let sky_layer = grading.upsert_semantic_mask(SemanticMaskCategory::Sky);
+        sky_layer.exposure_ev = -1.25;
+        sky_layer.contrast = 20.0;
+        sky_layer.saturation = 15.0;
+        sky_layer.temperature_shift = -10.0;
+        sky_layer.feather = 0.30;
+        sky_layer.opacity = 0.90;
+    }
+    {
+        let subj_layer = grading.upsert_semantic_mask(SemanticMaskCategory::Subject);
+        subj_layer.exposure_ev = 0.65;
+        subj_layer.invert = true;
+    }
+
+    assert_eq!(grading.semantic_masks.len(), 2);
+
+    let stage6 = grading.to_stage6_masks_params();
+    assert_eq!(stage6.masks.len(), 2);
+    assert!(matches!(
+        stage6.masks[0].kind,
+        MaskKind::SemanticAi {
+            category: SemanticMaskCategory::Sky,
+            invert: false,
+            ..
+        }
+    ));
+
+    app::save_photo_sidecars(&photo_path, &grading, 5);
+    let (loaded_opt, rating_opt) = app::load_photo_sidecars(&photo_path);
+    assert_eq!(rating_opt, Some(5));
+    let loaded = loaded_opt.ok_or("Expected loaded DarkroomGradingState")?;
+    assert_eq!(loaded.semantic_masks.len(), 2);
+    assert_eq!(loaded.semantic_masks, grading.semantic_masks);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    Ok(())
+}
+
+#[test]
+fn test_ai_semantic_masks_preview_and_export_rendering() {
+    use rraw_core::SemanticMaskCategory;
+
+    let mut rgb_img = image::RgbImage::new(64, 64);
+    for (x, y, pixel) in rgb_img.enumerate_pixels_mut() {
+        if y < 24 {
+            // Bright atmospheric blue sky
+            *pixel = image::Rgb([110, 175, 245]);
+        } else if (20..=44).contains(&x) && (26..=52).contains(&y) {
+            // Warm central subject
+            *pixel = image::Rgb([220, 145, 105]);
+        } else {
+            // Muted dark ground
+            *pixel = image::Rgb([70, 95, 65]);
+        }
+    }
+
+    let base = BaseRgbPreview::from_rgb_image(&rgb_img, 64);
+    assert!(base.semantic_masks.sky[6 * base.width + 32] > 0.65);
+    assert!(base.semantic_masks.subject[38 * base.width + 32] > 0.60);
+
+    let neutral = DarkroomGradingState::default();
+    let (preview_neutral, _) = app::render_preview_from_base(&base, &neutral);
+
+    let mut graded = DarkroomGradingState::default();
+    graded
+        .upsert_semantic_mask(SemanticMaskCategory::Sky)
+        .exposure_ev = -1.5;
+    graded
+        .upsert_semantic_mask(SemanticMaskCategory::Subject)
+        .exposure_ev = 1.2;
+
+    let (preview_graded, _) = app::render_preview_from_base(&base, &graded);
+
+    let sky_px = 6 * base.width + 32;
+    let subj_px = 38 * base.width + 32;
+
+    // Sky must be darker than neutral
+    assert!(
+        preview_graded.pixels[sky_px].b() < preview_neutral.pixels[sky_px].b(),
+        "Sky mask with -1.5 EV must darken sky pixels"
+    );
+    // Subject must be brighter than neutral
+    assert!(
+        preview_graded.pixels[subj_px].r() > preview_neutral.pixels[subj_px].r(),
+        "Subject mask with +1.2 EV must brighten subject pixels"
+    );
+
+    // Export image must also reflect semantic mask grading
+    let (_, _, u8_neutral, _) = app::render_export_image(&base, &neutral, 1.0);
+    let (_, _, u8_graded, _) = app::render_export_image(&base, &graded, 1.0);
+    assert!(u8_graded[sky_px * 3 + 2] < u8_neutral[sky_px * 3 + 2]);
+    assert!(u8_graded[subj_px * 3] > u8_neutral[subj_px * 3]);
+}
+
+#[test]
+fn test_ai_semantic_mask_overlay_visualization() {
+    use rraw_core::SemanticMaskCategory;
+
+    let mut rgb_img = image::RgbImage::new(32, 32);
+    for (_x, y, pixel) in rgb_img.enumerate_pixels_mut() {
+        if y < 16 {
+            *pixel = image::Rgb([100, 170, 245]);
+        } else {
+            *pixel = image::Rgb([80, 90, 80]);
+        }
+    }
+    let base = BaseRgbPreview::from_rgb_image(&rgb_img, 32);
+
+    let neutral = DarkroomGradingState::default();
+    let (preview_no_overlay, _) = app::render_preview_from_base(&base, &neutral);
+
+    let mut with_overlay = DarkroomGradingState {
+        show_semantic_mask_overlay: Some(SemanticMaskCategory::Sky),
+        ..Default::default()
+    };
+    let (preview_overlay, _) = app::render_preview_from_base(&base, &with_overlay);
+
+    let sky_px = 4 * base.width + 16;
+    assert!(
+        preview_overlay.pixels[sky_px].r() > preview_no_overlay.pixels[sky_px].r(),
+        "Ruby overlay must boost red channel over detected sky region"
+    );
+
+    with_overlay.show_semantic_mask_overlay = None;
+}

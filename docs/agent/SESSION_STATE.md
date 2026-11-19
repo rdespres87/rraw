@@ -4,7 +4,7 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 6 — Advanced Color & Tone Architecture (Phase 6.2 Complete)
+- **Active Phase**: Phase 6 — Advanced Color & Tone Architecture (Phase 6.3 Complete)
 - **Active Tasks**:
   - Task 0.1 & Task 0.2: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized)
   - Task 1.1 (`rraw-core`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `acedebb`)
@@ -31,6 +31,7 @@
   - Phase 6.1b.2 WGSL Stage 5 GPU Tone Curves Integration: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `e084390`)
   - Phase 6.2 Extended Film Emulation & Creative Presets: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `a607876`)
   - Phase 6.2b GPU WGSL 3D CLUT & User `.cube` Import: **Complete** (Inquisitor APPROVED, CI green 106 tests, Gate 3 authorized, commit `bd55977`)
+  - Phase 6.3 CoreML AI Semantic Segmentation Masks: **Complete** (Inquisitor APPROVED, CI green 115 tests across 37 suites)
 - **Git Branch**: `main`
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
 - **Last Approved Gate**: Gate 3 (Authorized on 2026-11-19)

@@ -32,9 +32,10 @@
 - **Native Liquid Retina XDR / Pro Display XDR (up to 1600 nits)**: Direct zero-copy composition on `CAMetalLayer` in `extendedLinearDisplayP3` (`Rgba16Float`), rendering true specular highlights without premature SDR tone compression.
 - **Real-Time GPU Diagnostic Scopes**: Workgroup-reduced GPU histogram, RGB parade, and real-time clipping zebra overlays (SDR clipping $> 1.0$ and live EDR headroom clipping $> H_{\text{active}}$).
 
-### 5. Local Adjustments & Parametric Masking
+### 5. Local Adjustments, Parametric & CoreML AI Semantic Masking
 - **Geometric Masks**: Normalized $[0, 1]^2$ linear and radial gradients computed post-warp.
 - **Parametric Masks**: High-precision Luminance, Chroma, and Hue masks evaluated at 120 Hz in `ACEScg` color space directly on GPU.
+- **CoreML AI Semantic Segmentation Masks**: Four-class semantic segmentation (`Subject`, `Sky`, `Background`, `Portrait`) with edge-preserving bilateral guided refinement, bilinear WGSL Stage 6 GPU evaluation, smooth feathering, mask inversion, live ruby-magenta viewport overlay, and per-layer local Exposure, Contrast, Saturation, and Temperature grading.
 
 ### 6. Catalog-Free Workflow & Non-Destructive Sidecars
 - **Direct Filesystem Operation**: No proprietary, monolithic catalog databases that risk corruption or lock-in.

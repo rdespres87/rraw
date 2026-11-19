@@ -4,10 +4,12 @@
 
 pub mod conditioning;
 pub mod denoiser;
+pub mod segmentation;
 pub mod tiling;
 
 pub use conditioning::{anscombe_transform, inverse_anscombe_transform, AnscombeParams};
 pub use denoiser::{NeuralTileDenoiser, SimulatedTileDenoiser, SimulationMode};
+pub use segmentation::{CoreMlSemanticSegmenter, SemanticMaskSet, SemanticSegmenter};
 pub use tiling::{TileBlender, TileSlicer};
 
 use rraw_core::{AiError, CfaPattern, Stage0Token, TileGeometry};

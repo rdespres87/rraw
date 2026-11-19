@@ -202,6 +202,215 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
             }
+            DarkroomSection::AiSemanticMasks => {
+                ui.label(
+                    egui::RichText::new(
+                        "Segmentation sémantique IA CoreML (Sujet, Ciel, Arrière-plan, Portrait)",
+                    )
+                    .small()
+                    .color(Color32::GRAY),
+                );
+                ui.horizontal_wrapped(|ui| {
+                    for cat in rraw_core::SemanticMaskCategory::ALL {
+                        let exists = self
+                            .grading
+                            .semantic_masks
+                            .iter()
+                            .any(|m| m.category == cat);
+                        let label = SemanticMaskLayer::category_label(cat);
+                        let btn_text = if exists {
+                            egui::RichText::new(format!("☑ {label}"))
+                                .strong()
+                                .color(Color32::from_rgb(110, 225, 145))
+                        } else {
+                            egui::RichText::new(format!("☐ {label}"))
+                        };
+                        let tooltip = if exists {
+                            "Cliquer pour décocher et retirer ce masque IA"
+                        } else {
+                            "Cliquer pour cocher et activer ce masque IA"
+                        };
+                        if ui
+                            .selectable_label(exists, btn_text)
+                            .on_hover_text(tooltip)
+                            .clicked()
+                        {
+                            if exists {
+                                self.grading.remove_semantic_mask(cat);
+                            } else {
+                                let _ = self.grading.upsert_semantic_mask(cat);
+                            }
+                            self.grading.preset = GradingPreset::Custom;
+                            self.current_preset = GradingPreset::Custom;
+                            self.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
+                    }
+                });
+
+                let mut category_to_remove: Option<rraw_core::SemanticMaskCategory> = None;
+                let mut changed = false;
+                let mut active_overlay = self.grading.show_semantic_mask_overlay;
+
+                for layer in &mut self.grading.semantic_masks {
+                    ui.add_space(4.0);
+                    egui::Frame::group(ui.style())
+                        .fill(Color32::from_rgb(33, 36, 42))
+                        .inner_margin(6.0)
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .checkbox(
+                                        &mut layer.enabled,
+                                        egui::RichText::new(SemanticMaskLayer::category_label(
+                                            layer.category,
+                                        ))
+                                        .strong(),
+                                    )
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+
+                                let is_overlay = active_overlay == Some(layer.category);
+                                if ui
+                                    .selectable_label(is_overlay, "👁 Masque")
+                                    .on_hover_text("Afficher l'overlay sémantique rouge/magenta")
+                                    .clicked()
+                                {
+                                    active_overlay = if is_overlay {
+                                        None
+                                    } else {
+                                        Some(layer.category)
+                                    };
+                                    changed = true;
+                                }
+
+                                if ui
+                                    .checkbox(&mut layer.invert, "Inverser")
+                                    .on_hover_text("Inverser la carte de probabilité (1 - p)")
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui
+                                            .small_button("✖")
+                                            .on_hover_text("Supprimer ce masque IA")
+                                            .clicked()
+                                        {
+                                            category_to_remove = Some(layer.category);
+                                        }
+                                    },
+                                );
+                            });
+
+                            if layer.enabled {
+                                ui.horizontal(|ui| {
+                                    ui.label("Exposition (EV)");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(&mut layer.exposure_ev, -3.0..=3.0)
+                                                .step_by(0.05)
+                                                .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("Contraste");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(&mut layer.contrast, -100.0..=100.0)
+                                                .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("Saturation");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(
+                                                &mut layer.saturation,
+                                                -100.0..=100.0,
+                                            )
+                                            .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("Température");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(
+                                                &mut layer.temperature_shift,
+                                                -100.0..=100.0,
+                                            )
+                                            .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("Contour (Feather)");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(&mut layer.feather, 0.02..=0.50)
+                                                .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+                                    ui.label("Opacité");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(&mut layer.opacity, 0.0..=1.0)
+                                                .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+                                });
+                            }
+                        });
+                }
+
+                self.grading.show_semantic_mask_overlay = active_overlay;
+                if let Some(cat) = category_to_remove {
+                    self.grading.remove_semantic_mask(cat);
+                    changed = true;
+                }
+
+                if !self.grading.semantic_masks.is_empty()
+                    && ui.button("↺ Réinitialiser Masques IA").clicked()
+                {
+                    self.grading.semantic_masks.clear();
+                    self.grading.show_semantic_mask_overlay = None;
+                    changed = true;
+                }
+
+                if changed {
+                    self.grading.preset = GradingPreset::Custom;
+                    self.current_preset = GradingPreset::Custom;
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+            }
             DarkroomSection::ToneCurves => {
                 self.render_tone_curves_section(ui);
             }
