@@ -143,12 +143,18 @@ impl RrawApp {
                             .as_ref()
                             .map(|b| b.as_shot_wb)
                             .unwrap_or([2.0, 1.0, 1.5]);
-                        BaseRgbPreview::from_cfa_with_color_and_target_width(
+                        let exif_orient =
+                            self.base_preview.as_ref().map_or(1, |b| b.exif_orientation);
+                        let mut b = BaseRgbPreview::from_cfa_with_color_and_target_width(
                             cfa,
                             as_shot_wb,
                             None,
                             target_width,
-                        )
+                        );
+                        if let Some(prev) = &self.base_preview {
+                            b.cam_to_srgb = prev.cam_to_srgb;
+                        }
+                        b.with_exif_orientation(exif_orient)
                     }
                     None => match &self.base_preview {
                         Some(b) => b.clone(),

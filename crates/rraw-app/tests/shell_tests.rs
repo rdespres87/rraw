@@ -777,3 +777,51 @@ fn test_ai_semantic_mask_overlay_visualization() {
 
     with_overlay.show_semantic_mask_overlay = None;
 }
+
+#[test]
+fn test_portrait_exif_orientation_rotation_and_dimensions() {
+    // Sensor buffer is 40x20 (landscape in sensor coordinates), but shot in Portrait (EXIF Orientation 6 = 90° CW)
+    let mut rgb_img = image::RgbImage::new(40, 20);
+    // In sensor coordinates before 90° CW rotation, the right side (x >= 30) becomes the bottom,
+    // and the left side (x < 10) becomes the top of the upright portrait image!
+    for (x, _y, pixel) in rgb_img.enumerate_pixels_mut() {
+        if x < 10 {
+            // Left of sensor -> Top of upright 90° CW portrait (blue sky)
+            *pixel = image::Rgb([100, 175, 245]);
+        } else {
+            *pixel = image::Rgb([60, 70, 60]);
+        }
+    }
+
+    let base_landscape = BaseRgbPreview::from_rgb_image(&rgb_img, 40);
+    assert_eq!((base_landscape.width, base_landscape.height), (40, 20));
+
+    // Apply EXIF Orientation 6 (Rotate 90° CW -> Portrait 20x40)
+    let base_portrait_cw = base_landscape.clone().with_exif_orientation(6);
+    assert_eq!(
+        (base_portrait_cw.width, base_portrait_cw.height),
+        (20, 40),
+        "Orientation 6 (90° CW) must transpose 40x20 sensor buffer into 20x40 upright portrait"
+    );
+    assert_eq!(app::oriented_dimensions(6000, 4000, 6), (4000, 6000));
+    assert_eq!(app::oriented_dimensions(6000, 4000, 8), (4000, 6000));
+    assert_eq!(app::oriented_dimensions(6000, 4000, 3), (6000, 4000));
+
+    // Top of upright portrait (x=10, y=2) must now contain the blue sky pixel and high sky AI probability!
+    let top_sample = base_portrait_cw.samples_rgb[2 * base_portrait_cw.width + 10];
+    assert!(
+        top_sample[2] > top_sample[0],
+        "Top of rotated portrait must be the blue sky"
+    );
+    assert!(
+        base_portrait_cw.semantic_masks.sky[2 * base_portrait_cw.width + 10] > 0.65,
+        "AI semantic sky mask must detect sky at the top of the upright portrait"
+    );
+
+    // Apply EXIF Orientation 8 (Rotate 270° CW / 90° CCW -> Portrait 20x40)
+    let base_portrait_ccw = base_landscape.with_exif_orientation(8);
+    assert_eq!(
+        (base_portrait_ccw.width, base_portrait_ccw.height),
+        (20, 40)
+    );
+}
