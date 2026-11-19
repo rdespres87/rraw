@@ -353,15 +353,21 @@ impl DarkroomSection {
 }
 
 /// Persistent user layout preferences saved to disk across sessions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppLayoutConfig {
     pub section_order: Vec<DarkroomSection>,
+    #[serde(default)]
+    pub active_tool_family: ToolFamily,
+    #[serde(default)]
+    pub active_tools_only: bool,
 }
 
 impl Default for AppLayoutConfig {
     fn default() -> Self {
         Self {
             section_order: DarkroomSection::ALL.to_vec(),
+            active_tool_family: ToolFamily::All,
+            active_tools_only: false,
         }
     }
 }
@@ -402,6 +408,8 @@ impl AppLayoutConfig {
         }
         Self {
             section_order: order,
+            active_tool_family: loaded.active_tool_family,
+            active_tools_only: loaded.active_tools_only,
         }
     }
 

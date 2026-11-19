@@ -62,8 +62,6 @@ pub struct RrawApp {
     pub active_tool_family: ToolFamily,
     /// Whether only modified / active tools are displayed in the inspector.
     pub active_tools_only: bool,
-    /// Search query for filtering darkroom tools.
-    pub tool_search_query: String,
     /// Whether the leveling line tool is active.
     pub horizon_tool_active: bool,
     /// Drag start point for leveling line tool.
@@ -197,11 +195,15 @@ impl RrawApp {
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         let default_entries = scan_directory_for_images(&default_dir);
 
+        let layout_config = AppLayoutConfig::load();
+        let active_tool_family = layout_config.active_tool_family;
+        let active_tools_only = layout_config.active_tools_only;
+
         let mut app = Self {
             headroom_provider,
             grading: DarkroomGradingState::default(),
             current_preset: GradingPreset::AsShot,
-            layout_config: AppLayoutConfig::load(),
+            layout_config,
             loaded_photo: None,
             cached_cfa: None,
             base_preview: None,
@@ -218,9 +220,8 @@ impl RrawApp {
             directory_entries: default_entries,
             inspector_tab: InspectorTab::Develop,
             left_panel_tab: LeftPanelTab::Explorer,
-            active_tool_family: ToolFamily::All,
-            active_tools_only: false,
-            tool_search_query: String::new(),
+            active_tool_family,
+            active_tools_only,
             horizon_tool_active: false,
             horizon_start_point: None,
             last_fit_scale: 1.0,
@@ -1007,11 +1008,11 @@ impl eframe::App for RrawApp {
                     ui.separator();
                     let sp_active = self.grading.soft_proof.enabled;
                     let sp_btn_label = if sp_active {
-                        egui::RichText::new("☑ 🖨️ Épreuvage")
+                        egui::RichText::new("✓ 🖨️ Épreuvage")
                             .strong()
                             .color(Color32::from_rgb(120, 230, 165))
                     } else {
-                        egui::RichText::new("☐ 🖨️ Épreuvage")
+                        egui::RichText::new("🖨️ Épreuvage")
                     };
                     if ui
                         .selectable_label(sp_active, sp_btn_label)
@@ -1094,16 +1095,16 @@ impl eframe::App for RrawApp {
                         let oog_count = self.histogram.out_of_gamut_count;
                         let oog_btn_label = if oog_active {
                             if oog_count > 0 {
-                                egui::RichText::new(format!("☑ ⚠️ Hors-Gamut ({oog_count})"))
+                                egui::RichText::new(format!("✓ ⚠️ Hors-Gamut ({oog_count})"))
                                     .strong()
                                     .color(Color32::from_rgb(255, 110, 230))
                             } else {
-                                egui::RichText::new("☑ ✓ Gamut OK")
+                                egui::RichText::new("✓ Gamut OK")
                                     .strong()
                                     .color(Color32::from_rgb(120, 230, 165))
                             }
                         } else {
-                            egui::RichText::new("☐ Alerte Gamut")
+                            egui::RichText::new("Alerte Gamut")
                         };
                         if ui
                             .selectable_label(oog_active, oog_btn_label)
