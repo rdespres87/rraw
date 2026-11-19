@@ -219,5 +219,31 @@ fn test_pchip_monotone_cubic_hermite_spline_properties() -> Result<(), Box<dyn s
     assert!((lut[1023][0] - 1.0).abs() < 1e-4);
     assert!((lut[512][3] - 512.0 / 1023.0).abs() < 1e-4);
 
+    // 4. Adversarial non-uniform knot spacing with clustered points (Brodlie/Fritsch-Carlson test)
+    let mut non_uniform_curve = ChannelCurve::new_linear();
+    non_uniform_curve.add_point(CurvePoint::new(0.02, 0.005)?);
+    non_uniform_curve.add_point(CurvePoint::new(0.05, 0.020)?);
+    non_uniform_curve.add_point(CurvePoint::new(0.12, 0.080)?);
+    non_uniform_curve.add_point(CurvePoint::new(0.70, 0.850)?);
+    non_uniform_curve.add_point(CurvePoint::new(0.95, 0.990)?);
+
+    let spline = rraw_color::curves::PchipSpline::new(&non_uniform_curve);
+    let mut prev_spline_y = -1.0_f32;
+    for i in 0..=2000 {
+        let x = i as f32 / 2000.0;
+        let y = spline.evaluate(x);
+        assert!(
+            (0.0..=1.0).contains(&y),
+            "Non-uniform PCHIP out of bounds: y={y} at x={x}"
+        );
+        if i > 0 {
+            assert!(
+                y >= prev_spline_y - 1e-6,
+                "Non-uniform PCHIP violated monotonicity at x={x}: y={y} < prev={prev_spline_y}"
+            );
+        }
+        prev_spline_y = y;
+    }
+
     Ok(())
 }
