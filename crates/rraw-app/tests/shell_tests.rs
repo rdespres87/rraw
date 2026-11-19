@@ -948,3 +948,34 @@ fn test_soft_proofing_and_gamut_warning_in_preview_and_sidecar(
 
     Ok(())
 }
+
+#[test]
+fn test_full_resolution_1_to_1_export_preserves_exact_sensor_dimensions(
+) -> Result<(), rraw_core::CoreError> {
+    use rraw_core::{BayerOrigin, CfaPattern, SignedCfaBuffer};
+
+    let width = 640;
+    let height = 420;
+    let pattern = CfaPattern::Bayer(BayerOrigin::Rggb);
+    let samples = vec![0.25_f32; width * height];
+    let cfa = SignedCfaBuffer::new(width, height, pattern, samples)?;
+
+    // Requesting full native width (640) must produce 1:1 full-resolution 640x420 output (not half-size 320x210)
+    let base_full = app::BaseRgbPreview::from_cfa_with_color_and_target_width(
+        &cfa,
+        [2.0, 1.0, 1.5],
+        None,
+        width,
+    );
+    assert_eq!(base_full.width, width);
+    assert_eq!(base_full.height, height);
+
+    let grading = DarkroomGradingState::default();
+    let (out_w, out_h, u8_bytes, u16_samples) = app::render_export_image(&base_full, &grading, 1.0);
+    assert_eq!(out_w, width);
+    assert_eq!(out_h, height);
+    assert_eq!(u8_bytes.len(), width * height * 3);
+    assert_eq!(u16_samples.len(), width * height * 3);
+
+    Ok(())
+}
