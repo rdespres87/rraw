@@ -6,6 +6,7 @@ use egui::Color32;
 use std::path::PathBuf;
 
 use crate::app::RrawApp;
+use crate::i18n::Key;
 use crate::state::*;
 
 impl RrawApp {
@@ -125,8 +126,8 @@ impl RrawApp {
                     ui.separator();
                     let has_clip = self.recipe_clipboard.is_some();
                     let copy_btn = ui
-                        .small_button("📋 Copier rendu")
-                        .on_hover_text("Copier le rendu de la photo active dans le presse-papiers (Cmd+Shift+C)");
+                        .small_button(self.t(Key::FilmstripToolbarCopy))
+                        .on_hover_text(self.t(Key::FilmstripToolbarCopyTooltip));
                     if copy_btn.clicked() {
                         self.copy_active_recipe();
                     }
@@ -138,9 +139,9 @@ impl RrawApp {
                             .map(|c| c.summary())
                             .unwrap_or_default();
                         let paste_label = if sel_count > 0 {
-                            format!("📥 Coller sélection ({sel_count})")
+                            format!("{} ({sel_count})", self.t(Key::FilmstripToolbarPasteSelection))
                         } else {
-                            "📥 Coller rendu".to_string()
+                            self.t(Key::FilmstripToolbarPaste).to_string()
                         };
                         let paste_btn = egui::Button::new(
                             egui::RichText::new(paste_label)
@@ -269,7 +270,7 @@ impl RrawApp {
                                     // Contextual right-click menu for batch development & clipboard
                                     response.context_menu(|ui| {
                                         ui.set_min_width(230.0);
-                                        if ui.button("📋 Copier le rendu (Cmd+Shift+C)").clicked() {
+                                        if ui.button(self.t(Key::FilmstripCopyRecipe)).clicked() {
                                             copy_recipe_path = Some(entry.clone());
                                             ui.close();
                                         }
@@ -279,12 +280,12 @@ impl RrawApp {
                                             && self.selected_photos.len() > 1
                                         {
                                             format!(
-                                                "📥 Coller le rendu sur la sélection ({})",
+                                                "{} ({})",
+                                                self.t(Key::FilmstripPasteRecipeSelection),
                                                 self.selected_photos.len()
                                             )
                                         } else {
-                                            "📥 Coller le rendu sur cette photo (Cmd+Shift+V)"
-                                                .to_string()
+                                            self.t(Key::FilmstripPasteRecipeThis).to_string()
                                         };
                                         let paste_btn = egui::Button::new(paste_label);
                                         if ui.add_enabled(has_clipboard, paste_btn).clicked() {
@@ -643,11 +644,12 @@ impl RrawApp {
                     .show(ui, |ui| {
                         // 2.1 Explorateur de dossiers
                         egui::CollapsingHeader::new(
-                            egui::RichText::new("📁 Explorateur de dossiers")
+                            egui::RichText::new(self.t(Key::SidebarExplorerTitle))
                                 .strong()
                                 .size(13.0)
                                 .color(Color32::from_rgb(230, 235, 245)),
                         )
+                        .id_salt("sidebar_explorer_collapsing_header")
                         .default_open(true)
                         .show(ui, |ui| {
                             self.render_explorer_tab(ui);
@@ -657,11 +659,12 @@ impl RrawApp {
 
                         // 2.2 Styles & Préréglages
                         egui::CollapsingHeader::new(
-                            egui::RichText::new("🎨 Styles & Préréglages")
+                            egui::RichText::new(self.t(Key::SidebarPresetsTitle))
                                 .strong()
                                 .size(13.0)
                                 .color(Color32::from_rgb(230, 235, 245)),
                         )
+                        .id_salt("sidebar_presets_collapsing_header")
                         .default_open(true)
                         .show(ui, |ui| {
                             self.render_presets_section(ui);
@@ -671,11 +674,12 @@ impl RrawApp {
 
                         // 2.3 Données EXIF
                         egui::CollapsingHeader::new(
-                            egui::RichText::new("📋 Données EXIF")
+                            egui::RichText::new(self.t(Key::SidebarExifTitle))
                                 .strong()
                                 .size(13.0)
                                 .color(Color32::from_rgb(230, 235, 245)),
                         )
+                        .id_salt("sidebar_exif_collapsing_header")
                         .default_open(false)
                         .show(ui, |ui| {
                             self.render_exif_panel(ui);

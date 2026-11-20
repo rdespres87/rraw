@@ -5,6 +5,7 @@
 use egui::Color32;
 
 use crate::app::RrawApp;
+use crate::i18n::Key;
 use crate::state::*;
 
 impl RrawApp {
@@ -282,7 +283,7 @@ impl RrawApp {
             if show_original {
                 let badge_rect = egui::Rect::from_center_size(
                     egui::pos2(available_rect.center().x, available_rect.top() + 24.0),
-                    egui::vec2(180.0, 28.0),
+                    egui::vec2(220.0, 28.0),
                 );
                 painter.rect_filled(badge_rect, 6.0, egui::Color32::from_black_alpha(220));
                 painter.rect_stroke(
@@ -294,7 +295,7 @@ impl RrawApp {
                 painter.text(
                     badge_rect.center(),
                     egui::Align2::CENTER_CENTER,
-                    "👁️ Original (Avant retouche)",
+                    self.t(Key::ViewportOriginalBadge),
                     egui::FontId::proportional(13.0),
                     egui::Color32::from_rgb(255, 220, 110),
                 );
@@ -1195,7 +1196,7 @@ impl RrawApp {
         let label_y = image_rect.min.y + 14.0;
         if x - image_rect.min.x > 50.0 {
             let galley = painter.layout_no_wrap(
-                "Avant".to_owned(),
+                self.t(Key::ViewportBefore).to_owned(),
                 label_font.clone(),
                 egui::Color32::WHITE,
             );
@@ -1210,8 +1211,11 @@ impl RrawApp {
             );
         }
         if image_rect.max.x - x > 50.0 {
-            let galley =
-                painter.layout_no_wrap("Après".to_owned(), label_font, egui::Color32::WHITE);
+            let galley = painter.layout_no_wrap(
+                self.t(Key::ViewportAfter).to_owned(),
+                label_font,
+                egui::Color32::WHITE,
+            );
             let rect = egui::Align2::LEFT_CENTER
                 .anchor_size(egui::pos2(x + 12.0, label_y), galley.size())
                 .expand2(egui::vec2(6.0, 3.0));

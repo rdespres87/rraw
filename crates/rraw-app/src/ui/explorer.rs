@@ -6,6 +6,7 @@ use egui::Color32;
 use std::path::PathBuf;
 
 use crate::app::RrawApp;
+use crate::i18n::Key;
 
 impl RrawApp {
     /// Renders the folder explorer navigation in the left panel with breadcrumbs and `..` parent navigation.
@@ -18,8 +19,8 @@ impl RrawApp {
                 // Action row: Browse button & photo count
                 ui.horizontal(|ui| {
                     if ui
-                        .button("📂 Parcourir...")
-                        .on_hover_text("Choisir un dossier avec le sélecteur natif macOS")
+                        .button(self.t(Key::SidebarBrowseButton))
+                        .on_hover_text(self.t(Key::SidebarBrowseTooltip))
                         .clicked()
                     {
                         if let Some(folder) = rfd::FileDialog::new().pick_folder() {
@@ -27,13 +28,15 @@ impl RrawApp {
                         }
                     }
                     let count = self.directory_entries.len();
+                    let unit = if count > 1 {
+                        self.t(Key::SidebarPhotosCountPlural)
+                    } else {
+                        self.t(Key::SidebarPhotosCount)
+                    };
                     ui.label(
-                        egui::RichText::new(format!(
-                            "{count} photo{}",
-                            if count > 1 { "s" } else { "" }
-                        ))
-                        .small()
-                        .color(Color32::from_rgb(100, 180, 255)),
+                        egui::RichText::new(format!("{count} {unit}"))
+                            .small()
+                            .color(Color32::from_rgb(100, 180, 255)),
                     );
                 });
 

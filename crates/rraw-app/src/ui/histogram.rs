@@ -5,6 +5,7 @@
 use egui::Color32;
 
 use crate::app::RrawApp;
+use crate::i18n::Key;
 
 impl RrawApp {
     /// Renders an embellished live RGB / Luminance histogram widget inside `ui`.
@@ -12,7 +13,7 @@ impl RrawApp {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label(
-                    egui::RichText::new("📊 Histogramme RGB")
+                    egui::RichText::new(self.t(Key::SidebarHistogramTitle))
                         .strong()
                         .size(11.0),
                 );
@@ -38,7 +39,7 @@ impl RrawApp {
                             .color(Color32::from_rgb(255, 90, 90));
                     if ui
                         .selectable_label(hl_on, hl_text)
-                        .on_hover_text("Afficher les hautes lumières brûlées en rouge sur l'image")
+                        .on_hover_text(self.t(Key::HistogramHighlightClippingTooltip))
                         .clicked()
                     {
                         self.clipping_overlay.highlights = !hl_on;
@@ -51,7 +52,7 @@ impl RrawApp {
                             .color(Color32::from_rgb(80, 160, 255));
                     if ui
                         .selectable_label(sh_on, sh_text)
-                        .on_hover_text("Afficher les ombres bouchées en bleu sur l'image")
+                        .on_hover_text(self.t(Key::HistogramShadowClippingTooltip))
                         .clicked()
                     {
                         self.clipping_overlay.shadows = !sh_on;

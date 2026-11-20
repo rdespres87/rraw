@@ -13,9 +13,9 @@ use rraw_macos_edr::MacOsDisplayHeadroomProvider;
 #[cfg(not(target_os = "macos"))]
 use rraw_macos_edr::SdrFallbackHeadroomProvider;
 
-pub use crate::state::*;
-
+pub use crate::i18n::{Key, Language};
 pub use crate::preview::*;
+pub use crate::state::*;
 
 pub struct RrawApp {
     /// Active macOS EDR headroom provider or SDR fallback.
@@ -376,6 +376,18 @@ impl RrawApp {
             dragging_curve_point: None,
             last_dir_poll: std::time::Instant::now(),
         }
+    }
+
+    /// Returns the currently active application UI language.
+    #[must_use]
+    pub fn lang(&self) -> Language {
+        self.layout_config.language
+    }
+
+    /// Translates a UI text key into the currently active language.
+    #[must_use]
+    pub fn t(&self, key: Key) -> &'static str {
+        key.translate(self.layout_config.language)
     }
 
     /// Queries the current active display headroom (e.g. 1.0 on SDR, up to 4.0 or 16.0 on EDR).
@@ -1208,7 +1220,32 @@ impl eframe::App for RrawApp {
 
                     ui.separator();
 
-                    if ui.button("📂 Ouvrir image...").clicked() {
+                    // Compact FR | EN language toggle
+                    let cur_lang = self.layout_config.language;
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
+                        if ui
+                            .selectable_label(cur_lang == Language::Fr, "FR")
+                            .clicked()
+                            && cur_lang != Language::Fr
+                        {
+                            self.layout_config.language = Language::Fr;
+                            self.layout_config.save();
+                        }
+                        ui.label(egui::RichText::new("|").weak());
+                        if ui
+                            .selectable_label(cur_lang == Language::En, "EN")
+                            .clicked()
+                            && cur_lang != Language::En
+                        {
+                            self.layout_config.language = Language::En;
+                            self.layout_config.save();
+                        }
+                    });
+
+                    ui.separator();
+
+                    if ui.button(self.t(Key::TopBarOpenImage)).clicked() {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter(
                                 "Supported Images",
@@ -1223,7 +1260,7 @@ impl eframe::App for RrawApp {
                         }
                     }
 
-                    if ui.button("📁 Ouvrir dossier...").clicked() {
+                    if ui.button(self.t(Key::TopBarOpenFolder)).clicked() {
                         if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                             self.open_directory(&folder);
                             if let Some(first_file) = self.directory_entries.first().cloned() {
@@ -1232,16 +1269,14 @@ impl eframe::App for RrawApp {
                         }
                     }
 
-                    if ui.button("💾 Exporter...").clicked() {
+                    if ui.button(self.t(Key::TopBarExport)).clicked() {
                         self.show_export_dialog = true;
                         self.export_status = None;
                     }
 
                     if ui
-                        .button("🎬 Timelapse...")
-                        .on_hover_text(
-                            "Assembler une séquence RAW en Timelapse avec anti-scintillement (Deflicker) et interpolation Jour→Nuit",
-                        )
+                        .button(self.t(Key::TopBarTimelapse))
+                        .on_hover_text(self.t(Key::TopBarTimelapseTooltip))
                         .clicked()
                     {
                         self.export_target_mode = ExportTargetMode::TimelapseSequence;
@@ -1255,15 +1290,15 @@ impl eframe::App for RrawApp {
                     // Live EDR Headroom Badge (compact; details on hover)
                     let (headroom_text, headroom_col, headroom_tip) = if headroom > 1.05 {
                         (
-                            format!("⚡ EDR {headroom:.1}x"),
+                            format!("{} {headroom:.1}x", self.t(Key::TopBarEdrHeadroom)),
                             egui::Color32::from_rgb(255, 200, 50),
-                            "Marge EDR disponible sur l'écran (Extended Dynamic Range)",
+                            self.t(Key::TopBarEdrTooltip),
                         )
                     } else {
                         (
-                            format!("SDR {headroom:.1}x"),
+                            format!("{} {headroom:.1}x", self.t(Key::TopBarSdrHeadroom)),
                             egui::Color32::LIGHT_GRAY,
-                            "Écran en plage dynamique standard (SDR)",
+                            self.t(Key::TopBarSdrTooltip),
                         )
                     };
                     ui.label(egui::RichText::new(headroom_text).color(headroom_col))
@@ -1273,13 +1308,19 @@ impl eframe::App for RrawApp {
                     self.render_view_toggles(ui);
 
                     ui.separator();
-                    ui.label(egui::RichText::new("Zoom :").size(12.0));
-                    if ui.selectable_label(self.zoom_level <= 0.0, "Ajuster").clicked() {
+                    ui.label(egui::RichText::new(self.t(Key::TopBarZoom)).size(12.0));
+                    if ui
+                        .selectable_label(self.zoom_level <= 0.0, self.t(Key::TopBarZoomFit))
+                        .clicked()
+                    {
                         self.zoom_level = 0.0;
                         self.pan_offset = egui::Vec2::ZERO;
                     }
                     if ui
-                        .selectable_label((self.zoom_level - 1.0).abs() < 0.01, "1:1")
+                        .selectable_label(
+                            (self.zoom_level - 1.0).abs() < 0.01,
+                            self.t(Key::TopBarZoom11),
+                        )
                         .clicked()
                     {
                         self.zoom_level = 1.0;
@@ -1301,7 +1342,7 @@ impl eframe::App for RrawApp {
                         }
                     }
                     let zoom_pct_str = if self.zoom_level <= 0.0 {
-                        "Ajusté".to_string()
+                        self.t(Key::TopBarZoomFitted).to_string()
                     } else {
                         format!("{}%", ((self.zoom_level / fit_s) * 100.0).round() as u32)
                     };
@@ -1316,8 +1357,8 @@ impl eframe::App for RrawApp {
                         self.zoom_level = new_s;
                     }
                     if ui
-                        .button("↺ Centrer")
-                        .on_hover_text("Réinitialiser le panoramique")
+                        .button(self.t(Key::TopBarCenter))
+                        .on_hover_text(self.t(Key::TopBarCenterTooltip))
                         .clicked()
                     {
                         self.pan_offset = egui::Vec2::ZERO;
@@ -1326,15 +1367,15 @@ impl eframe::App for RrawApp {
                     ui.separator();
                     let sp_active = self.grading.soft_proof.enabled;
                     let sp_btn_label = if sp_active {
-                        egui::RichText::new("✓ 🖨️ Épreuvage")
+                        egui::RichText::new(self.t(Key::TopBarSoftProofActive))
                             .strong()
                             .color(Color32::from_rgb(120, 230, 165))
                     } else {
-                        egui::RichText::new("🖨️ Épreuvage")
+                        egui::RichText::new(self.t(Key::TopBarSoftProofInactive))
                     };
                     if ui
                         .selectable_label(sp_active, sp_btn_label)
-                        .on_hover_text("Activer / Désactiver l'épreuvage écran (Soft Proofing ICC)")
+                        .on_hover_text(self.t(Key::TopBarSoftProofTooltip))
                         .clicked()
                     {
                         self.grading.soft_proof.enabled = !self.grading.soft_proof.enabled;
@@ -1394,14 +1435,14 @@ impl eframe::App for RrawApp {
                                 }
                             });
 
+                        let paper_ink_label = self.t(Key::TopBarPaperInk);
+                        let paper_ink_tip = self.t(Key::TopBarPaperInkTooltip);
                         if ui
                             .checkbox(
                                 &mut self.grading.soft_proof.simulate_paper_and_ink,
-                                "Papier/Encre",
+                                paper_ink_label,
                             )
-                            .on_hover_text(
-                                "Simuler le blanc chaud du papier (Dmin) et la densité de l'encre noire (Dmax)",
-                            )
+                            .on_hover_text(paper_ink_tip)
                             .changed()
                         {
                             self.needs_preview_update = true;
@@ -1417,18 +1458,16 @@ impl eframe::App for RrawApp {
                                     .strong()
                                     .color(Color32::from_rgb(255, 110, 230))
                             } else {
-                                egui::RichText::new("✓ Gamut OK")
+                                egui::RichText::new(self.t(Key::TopBarGamutOk))
                                     .strong()
                                     .color(Color32::from_rgb(120, 230, 165))
                             }
                         } else {
-                            egui::RichText::new("Alerte Gamut")
+                            egui::RichText::new(self.t(Key::TopBarGamutAlert))
                         };
                         if ui
                             .selectable_label(oog_active, oog_btn_label)
-                            .on_hover_text(
-                                "Afficher / Masquer l'alerte de dépassement de gamut (Zébrures Magenta/Cyan)",
-                            )
+                            .on_hover_text(self.t(Key::TopBarGamutTooltip))
                             .clicked()
                         {
                             self.grading.soft_proof.show_gamut_warning =
@@ -1453,9 +1492,7 @@ impl eframe::App for RrawApp {
                     }
                     ui.label(&self.status_message);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            "Surface: Rgba16Float | Color: ExtendedLinearDisplayP3 | 120 Hz Metal",
-                        );
+                        ui.label(self.t(Key::StatusSurfaceInfo));
                     });
                 });
             });

@@ -5,6 +5,7 @@
 use egui::Color32;
 
 use crate::app::RrawApp;
+use crate::i18n::Key;
 use crate::state::*;
 
 impl RrawApp {
@@ -13,7 +14,7 @@ impl RrawApp {
         let Some(photo) = self.loaded_photo.clone() else {
             ui.add_space(4.0);
             ui.label(
-                egui::RichText::new("Aucune photo RAW chargée.")
+                egui::RichText::new(self.t(Key::SidebarNoPhotoLoaded))
                     .small()
                     .italics()
                     .color(Color32::GRAY),
@@ -27,21 +28,37 @@ impl RrawApp {
                 .striped(true)
                 .min_col_width(110.0)
                 .show(ui, |ui| {
-                    ui.label(egui::RichText::new("Appareil :").strong().size(12.0));
+                    ui.label(
+                        egui::RichText::new(self.t(Key::ExifCamera))
+                            .strong()
+                            .size(12.0),
+                    );
                     ui.label(egui::RichText::new(&photo.camera_model).size(12.0));
                     ui.end_row();
 
-                    ui.label(egui::RichText::new("Marque :").strong().size(12.0));
+                    ui.label(
+                        egui::RichText::new(self.t(Key::ExifMake))
+                            .strong()
+                            .size(12.0),
+                    );
                     ui.label(egui::RichText::new(&photo.camera_make).size(12.0));
                     ui.end_row();
 
                     if !photo.lens_model.is_empty() {
-                        ui.label(egui::RichText::new("Objectif :").strong().size(12.0));
+                        ui.label(
+                            egui::RichText::new(self.t(Key::ExifLens))
+                                .strong()
+                                .size(12.0),
+                        );
                         ui.label(egui::RichText::new(&photo.lens_model).size(12.0));
                         ui.end_row();
                     }
 
-                    ui.label(egui::RichText::new("Dimensions :").strong().size(12.0));
+                    ui.label(
+                        egui::RichText::new(self.t(Key::ExifDimensions))
+                            .strong()
+                            .size(12.0),
+                    );
                     ui.label(
                         egui::RichText::new(format!(
                             "{} × {} ({:.1} MP)",
@@ -53,7 +70,11 @@ impl RrawApp {
                     );
                     ui.end_row();
 
-                    ui.label(egui::RichText::new("Vitesse :").strong().size(12.0));
+                    ui.label(
+                        egui::RichText::new(self.t(Key::ExifShutter))
+                            .strong()
+                            .size(12.0),
+                    );
                     ui.label(
                         egui::RichText::new(&photo.shutter_str)
                             .size(12.0)
@@ -61,7 +82,11 @@ impl RrawApp {
                     );
                     ui.end_row();
 
-                    ui.label(egui::RichText::new("Ouverture :").strong().size(12.0));
+                    ui.label(
+                        egui::RichText::new(self.t(Key::ExifAperture))
+                            .strong()
+                            .size(12.0),
+                    );
                     ui.label(
                         egui::RichText::new(&photo.aperture_str)
                             .size(12.0)
@@ -69,7 +94,11 @@ impl RrawApp {
                     );
                     ui.end_row();
 
-                    ui.label(egui::RichText::new("Sensibilité :").strong().size(12.0));
+                    ui.label(
+                        egui::RichText::new(self.t(Key::ExifIso))
+                            .strong()
+                            .size(12.0),
+                    );
                     ui.label(
                         egui::RichText::new(format!("ISO {}", photo.iso))
                             .size(12.0)
@@ -78,7 +107,11 @@ impl RrawApp {
                     ui.end_row();
 
                     if !photo.focal_length_str.is_empty() {
-                        ui.label(egui::RichText::new("Focale :").strong().size(12.0));
+                        ui.label(
+                            egui::RichText::new(self.t(Key::ExifFocalLength))
+                                .strong()
+                                .size(12.0),
+                        );
                         ui.label(egui::RichText::new(&photo.focal_length_str).size(12.0));
                         ui.end_row();
                     }
@@ -94,7 +127,11 @@ impl RrawApp {
                     }
 
                     if !photo.date_time.is_empty() {
-                        ui.label(egui::RichText::new("Date de capture :").strong().size(12.0));
+                        ui.label(
+                            egui::RichText::new(self.t(Key::ExifDate))
+                                .strong()
+                                .size(12.0),
+                        );
                         ui.label(egui::RichText::new(&photo.date_time).size(12.0));
                         ui.end_row();
                     }
@@ -102,11 +139,11 @@ impl RrawApp {
 
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                if ui.small_button("📋 Copier EXIF").clicked() {
+                if ui.small_button(self.t(Key::ExifCopyButton)).clicked() {
                     ui.ctx().copy_text(photo.export_exif_json());
                     self.status_message = "Métadonnées EXIF copiées au presse-papier !".to_string();
                 }
-                if ui.small_button("📥 Exporter (.exif.json)").clicked() {
+                if ui.small_button(self.t(Key::ExifExportButton)).clicked() {
                     let out_path = photo.path.with_extension("exif.json");
                     let json = photo.export_exif_json();
                     if std::fs::write(&out_path, json).is_ok() {
@@ -120,20 +157,23 @@ impl RrawApp {
                 ui.add_space(6.0);
                 egui::CollapsingHeader::new(
                     egui::RichText::new(format!(
-                        "🔍 Tous les tags EXIF détaillés ({})",
+                        "{} ({})",
+                        self.t(Key::ExifAllTagsDetailed),
                         photo.exif_tags.len()
                     ))
                     .strong()
                     .size(12.0)
                     .color(Color32::from_rgb(200, 215, 235)),
                 )
+                .id_salt("exif_detailed_tags_collapsing_header")
                 .default_open(true)
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new("🔎").size(11.0));
+                        let filter_hint = self.t(Key::ExifFilterTags);
                         ui.add(
                             egui::TextEdit::singleline(&mut self.exif_search_query)
-                                .hint_text("Filtrer les tags...")
+                                .hint_text(filter_hint)
                                 .desired_width(140.0),
                         );
                         if !self.exif_search_query.is_empty() && ui.small_button("✖").clicked() {

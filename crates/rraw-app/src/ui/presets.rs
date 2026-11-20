@@ -5,17 +5,23 @@
 use egui::Color32;
 
 use crate::app::RrawApp;
+use crate::i18n::Key;
 use crate::state::*;
 
 impl RrawApp {
     /// Renders the presets dropdown list and quick controls in the left panel.
     pub fn render_presets_section(&mut self, ui: &mut egui::Ui) {
+        let cur_lang = self.lang();
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("Style :").strong().size(12.0));
+                ui.label(
+                    egui::RichText::new(self.t(Key::PresetsStyleLabel))
+                        .strong()
+                        .size(12.0),
+                );
                 let combo_w = (ui.available_width() - 32.0).max(80.0);
                 egui::ComboBox::from_id_salt("left_panel_preset_combo")
-                    .selected_text(self.current_preset.name())
+                    .selected_text(self.current_preset.name_lang(cur_lang))
                     .width(combo_w)
                     .show_ui(ui, |ui| {
                         for preset in GradingPreset::ALL {
@@ -23,7 +29,10 @@ impl RrawApp {
                                 continue;
                             }
                             let is_sel = self.current_preset == preset;
-                            if ui.selectable_label(is_sel, preset.name()).clicked() {
+                            if ui
+                                .selectable_label(is_sel, preset.name_lang(cur_lang))
+                                .clicked()
+                            {
                                 self.current_preset = preset;
                                 preset.apply(&mut self.grading);
                                 self.needs_preview_update = true;
@@ -35,7 +44,7 @@ impl RrawApp {
 
                 if ui
                     .small_button("↺")
-                    .on_hover_text("Réinitialiser au profil boîtier d'origine (As Shot)")
+                    .on_hover_text(self.t(Key::PresetsResetTooltip))
                     .clicked()
                 {
                     GradingPreset::AsShot.apply(&mut self.grading);
@@ -51,7 +60,7 @@ impl RrawApp {
             {
                 ui.add_space(2.0);
                 ui.label(
-                    egui::RichText::new(self.current_preset.description())
+                    egui::RichText::new(self.current_preset.description_lang(cur_lang))
                         .small()
                         .italics()
                         .color(Color32::from_rgb(180, 190, 205)),
@@ -60,12 +69,14 @@ impl RrawApp {
 
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("LUT 3D :").strong().size(12.0));
+                ui.label(
+                    egui::RichText::new(self.t(Key::PresetsLutLabel))
+                        .strong()
+                        .size(12.0),
+                );
                 if ui
-                    .button("📁 Importer .cube...")
-                    .on_hover_text(
-                        "Charger un profil LUT 3D externe (.cube - DaVinci, ARRI, Sony, Creative)",
-                    )
+                    .button(self.t(Key::PresetsImportLut))
+                    .on_hover_text(self.t(Key::PresetsImportLutTooltip))
                     .clicked()
                 {
                     if let Some(path) = rfd::FileDialog::new()

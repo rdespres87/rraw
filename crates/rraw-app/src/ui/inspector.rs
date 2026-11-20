@@ -6,6 +6,7 @@ use egui::Color32;
 use rraw_color::DisplayTransform;
 
 use crate::app::RrawApp;
+use crate::i18n::{Key, Language};
 use crate::state::*;
 
 impl RrawApp {
@@ -138,6 +139,8 @@ impl RrawApp {
 
     /// Renders the complete right-hand darkroom development panel with family filters, search, and active-only toggle.
     pub fn render_darkroom_panel(&mut self, ui: &mut egui::Ui) {
+        let lang = self.lang();
+        let t = |key: Key| key.translate(lang);
         let order = self.layout_config.section_order.clone();
 
         egui::Panel::right("darkroom_panel_fixed")
@@ -151,11 +154,11 @@ impl RrawApp {
 
                 // 1. Header with panel title and layout reset
                 ui.horizontal(|ui| {
-                    ui.heading("🛠️ Développement");
+                    ui.heading(t(Key::DarkroomTitle));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
-                            .small_button("↺ Disposition")
-                            .on_hover_text("Réinitialiser l'ordre des sections")
+                            .small_button(t(Key::DarkroomResetLayout))
+                            .on_hover_text(t(Key::DarkroomResetLayoutTooltip))
                             .clicked()
                         {
                             self.layout_config = AppLayoutConfig::default();
@@ -179,7 +182,7 @@ impl RrawApp {
                     ui.spacing_mut().item_spacing = egui::vec2(4.0, 3.0);
                     for &family in &row1 {
                         let is_sel = self.active_tool_family == family;
-                        let text = egui::RichText::new(family.label()).size(11.0);
+                        let text = egui::RichText::new(family.label_lang(lang)).size(11.0);
                         if ui
                             .add_sized([btn_w, 22.0], egui::Button::new(text).selected(is_sel))
                             .clicked()
@@ -195,7 +198,7 @@ impl RrawApp {
                     ui.spacing_mut().item_spacing = egui::vec2(4.0, 3.0);
                     for &family in &row2 {
                         let is_sel = self.active_tool_family == family;
-                        let text = egui::RichText::new(family.label()).size(11.0);
+                        let text = egui::RichText::new(family.label_lang(lang)).size(11.0);
                         if ui
                             .add_sized([btn_w, 22.0], egui::Button::new(text).selected(is_sel))
                             .clicked()
@@ -211,20 +214,18 @@ impl RrawApp {
 
                 // 3. Active-only toggle full width
                 let active_label = if self.active_tools_only {
-                    egui::RichText::new("✓ N'afficher que les réglages modifiés")
+                    egui::RichText::new(t(Key::DarkroomActiveOnlyActive))
                         .color(egui::Color32::from_rgb(100, 190, 255))
                         .size(11.5)
                 } else {
-                    egui::RichText::new("N'afficher que les réglages modifiés").size(11.5)
+                    egui::RichText::new(t(Key::DarkroomActiveOnly)).size(11.5)
                 };
                 if ui
                     .add_sized(
                         [ui.available_width(), 22.0],
                         egui::Button::new(active_label).selected(self.active_tools_only),
                     )
-                    .on_hover_text(
-                        "Filtrer pour n'afficher que les réglages modifiés sur cette image",
-                    )
+                    .on_hover_text(t(Key::DarkroomActiveOnlyTooltip))
                     .clicked()
                 {
                     self.active_tools_only = !self.active_tools_only;
@@ -261,14 +262,12 @@ impl RrawApp {
                             ui.add_space(20.0);
                             ui.vertical_centered(|ui| {
                                 ui.label(
-                                    egui::RichText::new(
-                                        "Aucun réglage ne correspond aux filtres actifs.",
-                                    )
-                                    .color(egui::Color32::GRAY)
-                                    .italics(),
+                                    egui::RichText::new(t(Key::InspectorNoMatchingTools))
+                                        .color(egui::Color32::GRAY)
+                                        .italics(),
                                 );
                                 if self.active_tools_only
-                                    && ui.button("Afficher tous les outils").clicked()
+                                    && ui.button(t(Key::InspectorShowAllTools)).clicked()
                                 {
                                     self.active_tools_only = false;
                                     self.layout_config.active_tools_only = false;
@@ -302,13 +301,9 @@ impl RrawApp {
         let is_last = idx + 1 == self.layout_config.section_order.len();
         let is_active = self.is_section_active(section);
 
-        let header_title = if is_active {
-            egui::RichText::new(section.title())
-                .color(egui::Color32::from_rgb(120, 200, 255))
-                .strong()
-        } else {
-            egui::RichText::new(section.title()).strong()
-        };
+        let cur_lang = self.lang();
+        let t = |key: Key| key.translate(cur_lang);
+        let header_title = egui::RichText::new(section.title_lang(cur_lang)).strong();
 
         let is_specific_family = self.active_tool_family != ToolFamily::All;
         let default_open = is_specific_family
@@ -340,7 +335,12 @@ impl RrawApp {
                                 egui::RichText::new("●")
                                     .color(egui::Color32::from_rgb(100, 190, 255))
                                     .size(9.0),
-                            );
+                            )
+                            .on_hover_text(if cur_lang == Language::Fr {
+                                "Ce module contient des réglages actifs personnalisés"
+                            } else {
+                                "This module contains active custom adjustments"
+                            });
                         }
                         ui.label(header_title);
 
@@ -348,7 +348,7 @@ impl RrawApp {
                             if !is_last
                                 && ui
                                     .small_button("▼")
-                                    .on_hover_text("Déplacer vers le bas")
+                                    .on_hover_text(t(Key::InspectorMoveDown))
                                     .clicked()
                             {
                                 self.move_section(idx, false);
@@ -356,14 +356,14 @@ impl RrawApp {
                             if !is_first
                                 && ui
                                     .small_button("▲")
-                                    .on_hover_text("Déplacer vers le haut")
+                                    .on_hover_text(t(Key::InspectorMoveUp))
                                     .clicked()
                             {
                                 self.move_section(idx, true);
                             }
                             if ui
                                 .small_button("↺")
-                                .on_hover_text("Réinitialiser ce module aux valeurs par défaut")
+                                .on_hover_text(t(Key::ResetModuleTooltip))
                                 .clicked()
                             {
                                 self.reset_section(section);
@@ -375,7 +375,7 @@ impl RrawApp {
 
         match section {
             DarkroomSection::ExposureTone => {
-                ui.label("Exposition (IL)");
+                ui.label(t(Key::InspectorParamExposure));
                 let r1 = ui.add(
                     egui::Slider::new(&mut self.grading.exposure_ev, -5.0..=5.0).show_value(true),
                 );
@@ -386,7 +386,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Contraste");
+                ui.label(t(Key::InspectorParamContrast));
                 let r2 = ui.add(
                     egui::Slider::new(&mut self.grading.contrast, -100.0..=100.0).show_value(true),
                 );
@@ -397,7 +397,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Hautes lumières");
+                ui.label(t(Key::InspectorParamHighlights));
                 let r3 = ui.add(
                     egui::Slider::new(&mut self.grading.highlights, -100.0..=100.0)
                         .show_value(true),
@@ -409,7 +409,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Ombres");
+                ui.label(t(Key::InspectorParamShadows));
                 let r4 = ui.add(
                     egui::Slider::new(&mut self.grading.shadows, -100.0..=100.0).show_value(true),
                 );
@@ -420,7 +420,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Noirs");
+                ui.label(t(Key::InspectorParamBlacks));
                 let r5 = ui.add(
                     egui::Slider::new(&mut self.grading.blacks, -100.0..=100.0).show_value(true),
                 );
@@ -431,7 +431,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                if ui.button("Réinitialiser la tonalité").clicked() {
+                if ui.button(t(Key::InspectorResetTone)).clicked() {
                     self.grading.exposure_ev = 0.0;
                     self.grading.contrast = 0.0;
                     self.grading.highlights = 0.0;
@@ -444,7 +444,7 @@ impl RrawApp {
                 }
             }
             DarkroomSection::WhiteBalanceColor => {
-                ui.label("Température (Kelvin)");
+                ui.label(t(Key::InspectorParamKelvin));
                 let r_k = ui.add(
                     egui::Slider::new(&mut self.grading.kelvin, 2000.0..=12000.0).show_value(true),
                 );
@@ -455,7 +455,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Teinte");
+                ui.label(t(Key::InspectorParamTint));
                 let r_t = ui
                     .add(egui::Slider::new(&mut self.grading.tint, -50.0..=50.0).show_value(true));
                 if r_t.changed() {
@@ -465,7 +465,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Vibrance");
+                ui.label(t(Key::InspectorParamVibrance));
                 let r_vib = ui.add(
                     egui::Slider::new(&mut self.grading.vibrance, -100.0..=100.0).show_value(true),
                 );
@@ -476,7 +476,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Saturation");
+                ui.label(t(Key::InspectorParamSaturation));
                 let r_sat = ui.add(
                     egui::Slider::new(&mut self.grading.saturation, -100.0..=100.0)
                         .show_value(true),
@@ -488,7 +488,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Rendu couleur (DRT) :");
+                ui.label(t(Key::InspectorParamDrt));
                 let drt_w = (ui.available_width() - 8.0).max(100.0);
                 egui::ComboBox::from_id_salt("drt_select")
                     .selected_text(format!("{:?}", self.grading.display_transform))
@@ -497,12 +497,12 @@ impl RrawApp {
                         let c1 = ui.selectable_value(
                             &mut self.grading.display_transform,
                             DisplayTransform::AgX,
-                            "AgX (Par défaut)",
+                            t(Key::InspectorDrtAgx),
                         );
                         let c2 = ui.selectable_value(
                             &mut self.grading.display_transform,
                             DisplayTransform::OpenDrt,
-                            "OpenDRT",
+                            t(Key::InspectorDrtOpenDrt),
                         );
                         if c1.changed() || c2.changed() {
                             self.grading.preset = GradingPreset::Custom;
@@ -512,7 +512,10 @@ impl RrawApp {
                         }
                     });
 
-                let c_mono = ui.checkbox(&mut self.grading.is_monochrome, "Noir et Blanc (Monochrome)");
+                let c_mono = ui.checkbox(
+                    &mut self.grading.is_monochrome,
+                    t(Key::InspectorParamMonochrome),
+                );
                 if c_mono.changed() {
                     self.grading.preset = GradingPreset::Custom;
                     self.current_preset = GradingPreset::Custom;
@@ -520,7 +523,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                if ui.button("Réinitialiser la couleur").clicked() {
+                if ui.button(t(Key::InspectorResetColor)).clicked() {
                     self.grading.kelvin = 5500.0;
                     self.grading.tint = 0.0;
                     self.grading.vibrance = 0.0;
@@ -535,13 +538,11 @@ impl RrawApp {
             DarkroomSection::AiSemanticMasks => {
                 let mut changed = false;
 
-                ui.label(egui::RichText::new("Masques géométriques :").strong());
-                let btn_w = ((ui.available_width() - 8.0) / 3.0).floor();
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(4.0, 3.0);
+                ui.label(egui::RichText::new(t(Key::InspectorGeometricMasksTitle)).strong());
+                ui.vertical(|ui| {
                     if ui
-                        .add_sized([btn_w, 22.0], egui::Button::new("+ Linéaire"))
-                        .on_hover_text("Ajouter un dégradé linéaire (ex. ciel ou premier plan)")
+                        .button(t(Key::InspectorParamAddLinear))
+                        .on_hover_text(t(Key::InspectorAddLinearTooltip))
                         .clicked()
                     {
                         let count = self.grading.local_masks.len() + 1;
@@ -554,8 +555,8 @@ impl RrawApp {
                         changed = true;
                     }
                     if ui
-                        .add_sized([btn_w, 22.0], egui::Button::new("+ Radial"))
-                        .on_hover_text("Ajouter un masque radial (ex. sujet, visage ou projecteur)")
+                        .button(t(Key::InspectorParamAddRadial))
+                        .on_hover_text(t(Key::InspectorAddRadialTooltip))
                         .clicked()
                     {
                         let count = self.grading.local_masks.len() + 1;
@@ -569,10 +570,8 @@ impl RrawApp {
                         changed = true;
                     }
                     if ui
-                        .add_sized([btn_w, 22.0], egui::Button::new("+ Pinceau"))
-                        .on_hover_text(
-                            "Ajouter un pinceau de retouche libre à peindre sur la photo",
-                        )
+                        .button(t(Key::InspectorParamAddBrush))
+                        .on_hover_text(t(Key::InspectorAddBrushTooltip))
                         .clicked()
                     {
                         let count = self.grading.local_masks.len() + 1;
@@ -618,8 +617,8 @@ impl RrawApp {
                                 if matches!(mask.kind, LocalMaskKind::FreehandBrush { .. }) {
                                     let is_painting = active_brush_idx == Some(idx);
                                     if ui
-                                        .selectable_label(is_painting, "🖌️ Peindre")
-                                        .on_hover_text("Activer le pinceau à la souris sur la photo")
+                                        .selectable_label(is_painting, t(Key::InspectorPaintButton))
+                                        .on_hover_text(t(Key::InspectorPaintTooltip))
                                         .clicked()
                                     {
                                         active_brush_idx =
@@ -630,7 +629,7 @@ impl RrawApp {
                                 let is_overlay = active_local_overlay == Some(idx);
                                 if ui
                                     .selectable_label(is_overlay, "👁")
-                                    .on_hover_text("Afficher l'overlay du masque en rubis")
+                                    .on_hover_text(t(Key::InspectorOverlayTooltip))
                                     .clicked()
                                 {
                                     active_local_overlay =
@@ -639,8 +638,8 @@ impl RrawApp {
                                 }
 
                                 if ui
-                                    .checkbox(&mut mask.invert, "Inverser")
-                                    .on_hover_text("Inverser la zone du masque (1 - w)")
+                                    .checkbox(&mut mask.invert, t(Key::InspectorParamInvertMask))
+                                    .on_hover_text(t(Key::InspectorInvertTooltip))
                                     .changed()
                                 {
                                     changed = true;
@@ -651,7 +650,7 @@ impl RrawApp {
                                     |ui| {
                                         if ui
                                             .small_button("✖")
-                                            .on_hover_text("Supprimer ce masque")
+                                            .on_hover_text(t(Key::InspectorDeleteMaskTooltip))
                                             .clicked()
                                         {
                                             local_mask_to_remove = Some(idx);
@@ -662,7 +661,7 @@ impl RrawApp {
 
                             if mask.enabled {
                                 ui.horizontal(|ui| {
-                                    ui.label("Exposition (EV)");
+                                    ui.label(t(Key::InspectorParamExposure));
                                     if ui
                                         .add(
                                             egui::Slider::new(&mut mask.exposure_ev, -3.0..=3.0)
@@ -675,7 +674,7 @@ impl RrawApp {
                                     }
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.label("Contraste");
+                                    ui.label(t(Key::InspectorParamContrast));
                                     if ui
                                         .add(
                                             egui::Slider::new(&mut mask.contrast, -100.0..=100.0)
@@ -687,7 +686,7 @@ impl RrawApp {
                                     }
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.label("Saturation");
+                                    ui.label(t(Key::InspectorParamSaturation));
                                     if ui
                                         .add(
                                             egui::Slider::new(&mut mask.saturation, -100.0..=100.0)
@@ -699,7 +698,7 @@ impl RrawApp {
                                     }
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.label("Température");
+                                    ui.label(t(Key::InspectorParamKelvin));
                                     if ui
                                         .add(
                                             egui::Slider::new(
@@ -714,7 +713,7 @@ impl RrawApp {
                                     }
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.label("Adoucissement");
+                                    ui.label(t(Key::InspectorSmoothness));
                                     if ui
                                         .add(
                                             egui::Slider::new(&mut mask.feather, 0.05..=1.0)
@@ -730,7 +729,7 @@ impl RrawApp {
                                 match &mut mask.kind {
                                     LocalMaskKind::LinearGradient { start, end } => {
                                         ui.horizontal(|ui| {
-                                            ui.label("Départ Y :");
+                                            ui.label(t(Key::InspectorStartY));
                                             if ui
                                                 .add(
                                                     egui::Slider::new(&mut start[1], 0.0..=1.0)
@@ -742,7 +741,7 @@ impl RrawApp {
                                             }
                                         });
                                         ui.horizontal(|ui| {
-                                            ui.label("Arrivée Y :");
+                                            ui.label(t(Key::InspectorEndY));
                                             if ui
                                                 .add(
                                                     egui::Slider::new(&mut end[1], 0.0..=1.0)
@@ -760,7 +759,7 @@ impl RrawApp {
                                         rotation_deg: _,
                                     } => {
                                         ui.horizontal(|ui| {
-                                            ui.label("Centre X :");
+                                            ui.label(t(Key::InspectorCenterX));
                                             if ui
                                                 .add(
                                                     egui::Slider::new(&mut center[0], 0.0..=1.0)
@@ -772,7 +771,7 @@ impl RrawApp {
                                             }
                                         });
                                         ui.horizontal(|ui| {
-                                            ui.label("Centre Y :");
+                                            ui.label(t(Key::InspectorCenterY));
                                             if ui
                                                 .add(
                                                     egui::Slider::new(&mut center[1], 0.0..=1.0)
@@ -784,7 +783,7 @@ impl RrawApp {
                                             }
                                         });
                                         ui.horizontal(|ui| {
-                                            ui.label("Rayon X :");
+                                            ui.label(t(Key::InspectorRadiusX));
                                             if ui
                                                 .add(
                                                     egui::Slider::new(&mut radius[0], 0.05..=1.0)
@@ -796,7 +795,7 @@ impl RrawApp {
                                             }
                                         });
                                         ui.horizontal(|ui| {
-                                            ui.label("Rayon Y :");
+                                            ui.label(t(Key::InspectorRadiusY));
                                             if ui
                                                 .add(
                                                     egui::Slider::new(&mut radius[1], 0.05..=1.0)
@@ -815,7 +814,7 @@ impl RrawApp {
                                         erase_mode,
                                     } => {
                                         ui.horizontal(|ui| {
-                                            ui.label("Rayon :");
+                                            ui.label(t(Key::InspectorParamBrushRadius));
                                             if ui
                                                 .add(
                                                     egui::Slider::new(brush_radius, 0.001..=0.35)
@@ -830,7 +829,7 @@ impl RrawApp {
                                                         }),
                                                 )
                                                 .on_hover_text(
-                                                    "Taille du pinceau (raccourcis : [ et ] dans la vue)",
+                                                    t(Key::InspectorBrushRadiusTooltip),
                                                 )
                                                 .changed()
                                             {
@@ -838,7 +837,7 @@ impl RrawApp {
                                             }
                                         });
                                         ui.horizontal(|ui| {
-                                            ui.label("Débit :");
+                                            ui.label(t(Key::InspectorParamBrushFlow));
                                             if ui
                                                 .add(
                                                     egui::Slider::new(brush_flow, 0.05..=1.0)
@@ -917,9 +916,9 @@ impl RrawApp {
                 self.grading.active_brush_mask_idx = active_brush_idx;
 
                 ui.separator();
-                ui.label(egui::RichText::new("Masques IA CoreML (Segmentation)").strong());
+                ui.label(egui::RichText::new(t(Key::InspectorAiMasksTitle)).strong());
                 ui.label(
-                    egui::RichText::new("Sujet, Ciel, Arrière-plan, Portrait")
+                    egui::RichText::new(t(Key::InspectorAiMasksSubtitle))
                         .small()
                         .color(Color32::GRAY),
                 );
@@ -930,7 +929,7 @@ impl RrawApp {
                             .semantic_masks
                             .iter()
                             .any(|m| m.category == cat);
-                        let label = SemanticMaskLayer::category_label(cat);
+                        let label = SemanticMaskLayer::category_label_lang(cat, cur_lang);
                         let btn_text = if exists {
                             egui::RichText::new(format!("✓ {label}"))
                                 .strong()
@@ -974,9 +973,7 @@ impl RrawApp {
                                 if ui
                                     .checkbox(
                                         &mut layer.enabled,
-                                        egui::RichText::new(SemanticMaskLayer::category_label(
-                                            layer.category,
-                                        ))
+                                        egui::RichText::new(SemanticMaskLayer::category_label_lang(layer.category, cur_lang))
                                         .strong(),
                                     )
                                     .changed()
@@ -987,7 +984,7 @@ impl RrawApp {
                                 let is_overlay = active_overlay == Some(layer.category);
                                 if ui
                                     .selectable_label(is_overlay, "👁 Masque")
-                                    .on_hover_text("Afficher l'overlay sémantique rouge/magenta")
+                                    .on_hover_text(t(Key::InspectorAiOverlayTooltip))
                                     .clicked()
                                 {
                                     active_overlay = if is_overlay {
@@ -1000,7 +997,7 @@ impl RrawApp {
 
                                 if ui
                                     .checkbox(&mut layer.invert, "Inverser")
-                                    .on_hover_text("Inverser la carte de probabilité (1 - p)")
+                                    .on_hover_text(t(Key::InspectorAiInvertTooltip))
                                     .changed()
                                 {
                                     changed = true;
@@ -1011,7 +1008,7 @@ impl RrawApp {
                                     |ui| {
                                         if ui
                                             .small_button("✖")
-                                            .on_hover_text("Supprimer ce masque IA")
+                                            .on_hover_text(t(Key::InspectorAiDeleteTooltip))
                                             .clicked()
                                         {
                                             category_to_remove = Some(layer.category);
@@ -1022,7 +1019,7 @@ impl RrawApp {
 
                             if layer.enabled {
                                 ui.horizontal(|ui| {
-                                    ui.label("Exposition (EV)");
+                                    ui.label(t(Key::InspectorParamExposure));
                                     if ui
                                         .add(
                                             egui::Slider::new(&mut layer.exposure_ev, -3.0..=3.0)
@@ -1035,7 +1032,7 @@ impl RrawApp {
                                     }
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.label("Contraste");
+                                    ui.label(t(Key::InspectorParamContrast));
                                     if ui
                                         .add(
                                             egui::Slider::new(&mut layer.contrast, -100.0..=100.0)
@@ -1047,7 +1044,7 @@ impl RrawApp {
                                     }
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.label("Saturation");
+                                    ui.label(t(Key::InspectorParamSaturation));
                                     if ui
                                         .add(
                                             egui::Slider::new(
@@ -1062,7 +1059,7 @@ impl RrawApp {
                                     }
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.label("Température");
+                                    ui.label(t(Key::InspectorParamKelvin));
                                     if ui
                                         .add(
                                             egui::Slider::new(
@@ -1077,7 +1074,7 @@ impl RrawApp {
                                     }
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.label("Contour progressif :");
+                                    ui.label(t(Key::InspectorFeather));
                                     if ui
                                         .add(
                                             egui::Slider::new(&mut layer.feather, 0.02..=0.50)
@@ -1089,7 +1086,7 @@ impl RrawApp {
                                     }
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.label("Opacité");
+                                    ui.label(t(Key::InspectorParamMaskOpacity));
                                     if ui
                                         .add(
                                             egui::Slider::new(&mut layer.opacity, 0.0..=1.0)
@@ -1111,7 +1108,7 @@ impl RrawApp {
                 }
 
                 if !self.grading.semantic_masks.is_empty()
-                    && ui.button("↺ Réinitialiser Masques IA").clicked()
+                    && ui.button(t(Key::InspectorResetAiMasks)).clicked()
                 {
                     self.grading.semantic_masks.clear();
                     self.grading.show_semantic_mask_overlay = None;
@@ -1131,7 +1128,7 @@ impl RrawApp {
                 if ui
                     .checkbox(
                         &mut self.grading.soft_proof.enabled,
-                        egui::RichText::new("Activer l'épreuvage écran").strong(),
+                        egui::RichText::new(t(Key::InspectorEnableSoftProof)).strong(),
                     )
                     .changed()
                 {
@@ -1139,7 +1136,7 @@ impl RrawApp {
                 }
 
                 ui.add_space(2.0);
-                ui.label("Profil cible :");
+                ui.label(t(Key::InspectorParamSoftProofProfile));
                 let combo_w = (ui.available_width() - 8.0).max(100.0);
                 egui::ComboBox::from_id_salt("soft_proof_profile_combo")
                     .selected_text(self.grading.soft_proof.profile.label())
@@ -1164,7 +1161,7 @@ impl RrawApp {
                     });
 
                 ui.add_space(2.0);
-                ui.label("Intention de rendu :");
+                ui.label(t(Key::InspectorParamSoftProofIntent));
                 let intent_w = (ui.available_width() - 8.0).max(100.0);
                 egui::ComboBox::from_id_salt("soft_proof_intent_combo")
                     .selected_text(self.grading.soft_proof.intent.label())
@@ -1199,15 +1196,15 @@ impl RrawApp {
                 }
 
                 let alert_label = if self.grading.soft_proof.show_gamut_warning {
-                    egui::RichText::new("⚠️ Alerte Hors-Gamut")
+                    egui::RichText::new(t(Key::InspectorGamutAlertStrong))
                         .color(Color32::from_rgb(255, 110, 230))
                 } else {
-                    egui::RichText::new("Alerte Hors-Gamut")
+                    egui::RichText::new(t(Key::InspectorGamutAlert))
                 };
                 if ui
                     .checkbox(&mut self.grading.soft_proof.show_gamut_warning, alert_label)
                     .on_hover_text(
-                        "Affiche en magenta/cyan les pixels qui dépassent l'espace colorimétrique cible",
+                        t(Key::InspectorGamutAlertTooltip),
                     )
                     .changed()
                 {
@@ -1235,7 +1232,7 @@ impl RrawApp {
                 if (self.grading.soft_proof.enabled
                     || self.grading.soft_proof.show_gamut_warning
                     || self.grading.soft_proof.simulate_paper_and_ink)
-                    && ui.button("↺ Réinitialiser Épreuvage").clicked()
+                    && ui.button(t(Key::InspectorResetSoftProof)).clicked()
                 {
                     self.grading.soft_proof = rraw_color::SoftProofConfig::default();
                     sp_changed = true;
@@ -1250,7 +1247,7 @@ impl RrawApp {
                 self.render_tone_curves_section(ui);
             }
             DarkroomSection::Crop => {
-                let c_crop = ui.checkbox(&mut self.grading.crop_enabled, "Activer le recadrage");
+                let c_crop = ui.checkbox(&mut self.grading.crop_enabled, t(Key::InspectorEnableCrop));
                 if c_crop.changed() {
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
@@ -1258,7 +1255,7 @@ impl RrawApp {
 
                 if self.grading.crop_enabled {
                     ui.horizontal(|ui| {
-                        ui.label("Format / Ratio :");
+                        ui.label(t(Key::InspectorParamCropRatio));
                         egui::ComboBox::from_id_salt("crop_ratio_select")
                             .selected_text(self.grading.crop_aspect.label())
                             .show_ui(ui, |ui| {
@@ -1302,7 +1299,7 @@ impl RrawApp {
                         if self.is_crop_editing {
                             if ui
                                 .button(
-                                    egui::RichText::new("✅ Valider le recadrage")
+                                    egui::RichText::new(t(Key::InspectorValidateCrop))
                                         .strong()
                                         .color(Color32::from_rgb(100, 220, 120)),
                                 )
@@ -1315,7 +1312,7 @@ impl RrawApp {
                             }
                         } else if ui
                             .button(
-                                egui::RichText::new("✂️ Ajuster le recadrage (Souris)").strong(),
+                                egui::RichText::new(t(Key::InspectorAdjustCrop)).strong(),
                             )
                             .clicked()
                         {
@@ -1323,7 +1320,7 @@ impl RrawApp {
                             ui.ctx().request_repaint();
                         }
 
-                        if ui.button("↺ Réinitialiser").clicked() {
+                        if ui.button(t(Key::InspectorResetCrop)).clicked() {
                             self.grading.crop_left = 0.0;
                             self.grading.crop_top = 0.0;
                             self.grading.crop_right = 1.0;
@@ -1338,7 +1335,7 @@ impl RrawApp {
 
                     let c_grid = ui.checkbox(
                         &mut self.grading.crop_show_grid,
-                        "Afficher la grille des tiers",
+                        t(Key::InspectorShowCropGrid),
                     );
                     if c_grid.changed() {
                         ui.ctx().request_repaint();
@@ -1354,46 +1351,29 @@ impl RrawApp {
                 }
             }
             DarkroomSection::Straighten => {
+                ui.label(t(Key::InspectorParamStraightenAngle));
+                let r_rot = ui.add(
+                    egui::Slider::new(&mut self.grading.rotation_degrees, -45.0..=45.0)
+                        .step_by(0.1)
+                        .suffix("°")
+                        .show_value(true),
+                );
+                if r_rot.changed() {
+                    self.grading.preset = GradingPreset::Custom;
+                    self.current_preset = GradingPreset::Custom;
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+
                 ui.horizontal(|ui| {
-                    ui.label("Rotation:");
-                    let r_rot = ui.add(
-                        egui::Slider::new(&mut self.grading.rotation_degrees, -45.0..=45.0)
-                            .step_by(0.1)
-                            .suffix("°")
-                            .show_value(true),
-                    );
-                    if r_rot.changed() {
-                        self.grading.preset = GradingPreset::Custom;
-                        self.current_preset = GradingPreset::Custom;
-                        self.needs_preview_update = true;
-                        ui.ctx().request_repaint();
-                    }
-                    if ui.button("↺ 0°").clicked() {
+                    if ui.button(t(Key::InspectorResetAngle)).clicked() {
                         self.grading.rotation_degrees = 0.0;
                         self.grading.preset = GradingPreset::Custom;
                         self.current_preset = GradingPreset::Custom;
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
-                });
-
-                let horizon_btn_text = if self.horizon_tool_active {
-                    "📍 Horizon actif (Tracez sur la photo)"
-                } else {
-                    "📐 Tracer une ligne d'horizon"
-                };
-                let horizon_btn = ui.selectable_label(self.horizon_tool_active, horizon_btn_text);
-                if horizon_btn.clicked() {
-                    self.horizon_tool_active = !self.horizon_tool_active;
-                    self.horizon_start_point = None;
-                    if self.horizon_tool_active {
-                        self.status_message =
-                            "Glissez sur la photo pour aligner l'horizon".to_string();
-                    }
-                }
-
-                ui.horizontal(|ui| {
-                    if ui.button("↺ 90° Gauche").clicked() {
+                    if ui.button(t(Key::InspectorRotate90Left)).clicked() {
                         self.grading.rotation_degrees =
                             (self.grading.rotation_degrees - 90.0).clamp(-45.0, 45.0);
                         self.grading.preset = GradingPreset::Custom;
@@ -1401,7 +1381,7 @@ impl RrawApp {
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
-                    if ui.button("↻ 90° Droite").clicked() {
+                    if ui.button(t(Key::InspectorRotate90Right)).clicked() {
                         self.grading.rotation_degrees =
                             (self.grading.rotation_degrees + 90.0).clamp(-45.0, 45.0);
                         self.grading.preset = GradingPreset::Custom;
@@ -1411,9 +1391,24 @@ impl RrawApp {
                     }
                 });
 
+                let horizon_btn_text = if self.horizon_tool_active {
+                    t(Key::StraightenHorizonActive)
+                } else {
+                    t(Key::StraightenHorizonDraw)
+                };
+                let horizon_btn = ui.selectable_label(self.horizon_tool_active, horizon_btn_text);
+                if horizon_btn.clicked() {
+                    self.horizon_tool_active = !self.horizon_tool_active;
+                    self.horizon_start_point = None;
+                    if self.horizon_tool_active {
+                        self.status_message =
+                            t(Key::StraightenHorizonStatus).to_string();
+                    }
+                }
+
                 ui.horizontal(|ui| {
-                    let c_fx = ui.checkbox(&mut self.grading.flip_horizontal, "↔ Miroir H");
-                    let c_fy = ui.checkbox(&mut self.grading.flip_vertical, "↕ Miroir V");
+                    let c_fx = ui.checkbox(&mut self.grading.flip_horizontal, t(Key::InspectorParamFlipH));
+                    let c_fy = ui.checkbox(&mut self.grading.flip_vertical, t(Key::InspectorParamFlipV));
                     if c_fx.changed() || c_fy.changed() {
                         self.grading.preset = GradingPreset::Custom;
                         self.current_preset = GradingPreset::Custom;
@@ -1424,7 +1419,7 @@ impl RrawApp {
             }
             DarkroomSection::Geometry => {
                 let c_geom =
-                    ui.checkbox(&mut self.grading.geometry_enabled, "Activer la géométrie");
+                    ui.checkbox(&mut self.grading.geometry_enabled, t(Key::InspectorEnableGeometry));
                 if c_geom.changed() {
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
@@ -1456,7 +1451,7 @@ impl RrawApp {
                         }
                     }
 
-                    ui.label("Perspective verticale");
+                    ui.label(t(Key::InspectorParamKeystoneV));
                     let r_kv = ui.add(
                         egui::Slider::new(&mut self.grading.keystone_vertical, -50.0..=50.0)
                             .step_by(0.5)
@@ -1469,7 +1464,7 @@ impl RrawApp {
                         ui.ctx().request_repaint();
                     }
 
-                    ui.label("Perspective horizontale");
+                    ui.label(t(Key::InspectorParamKeystoneH));
                     let r_kh = ui.add(
                         egui::Slider::new(&mut self.grading.keystone_horizontal, -50.0..=50.0)
                             .step_by(0.5)
@@ -1484,14 +1479,14 @@ impl RrawApp {
 
                     let c_ac = ui.checkbox(
                         &mut self.grading.auto_crop_geometry,
-                        "Recadrage automatique anti-bords",
+                        t(Key::InspectorAutoCrop),
                     );
                     if c_ac.changed() {
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
 
-                    if ui.button("Réinitialiser Géométrie").clicked() {
+                    if ui.button(t(Key::InspectorResetGeometry)).clicked() {
                         self.grading.keystone_vertical = 0.0;
                         self.grading.keystone_horizontal = 0.0;
                         self.grading.rotation_degrees = 0.0;
@@ -1506,7 +1501,7 @@ impl RrawApp {
             }
             DarkroomSection::DetailDenoise => {
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("🎨 Débruitage Couleur (Chrominance)").strong());
+                    ui.label(egui::RichText::new(t(Key::InspectorParamChromaDenoise)).strong());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if (self.grading.color_denoise - 25.0).abs() > 0.1
                             && ui
@@ -1535,7 +1530,7 @@ impl RrawApp {
                 }
 
                 ui.add_space(4.0);
-                ui.label(egui::RichText::new("💡 Débruitage Luminance (Grain)").strong());
+                ui.label(egui::RichText::new(t(Key::InspectorParamLumaDenoise)).strong());
                 let r_ld = ui
                     .add(
                         egui::Slider::new(&mut self.grading.luma_denoise, 0.0..=100.0)
@@ -1551,7 +1546,7 @@ impl RrawApp {
                 }
 
                 ui.add_space(4.0);
-                ui.label("🔍 Accentuation des détails (Netteté)");
+                ui.label(t(Key::InspectorParamCaptureSharpening));
                 let r_s = ui.add(
                     egui::Slider::new(&mut self.grading.capture_sharpening_amount, 0.0..=2.0)
                         .show_value(true),
@@ -1564,7 +1559,7 @@ impl RrawApp {
                 }
 
                 ui.add_space(4.0);
-                if ui.button("Réinitialiser Détails & Débruitage").clicked() {
+                if ui.button(t(Key::InspectorResetDetailDenoise)).clicked() {
                     self.grading.color_denoise = 25.0;
                     self.grading.luma_denoise = 0.0;
                     self.grading.capture_sharpening_amount = 0.5;
@@ -1577,14 +1572,14 @@ impl RrawApp {
             DarkroomSection::OpticalCorrections => {
                 let c_dist = ui.checkbox(
                     &mut self.grading.distortion_correction,
-                    "Distorsion géométrique (Profil optique)",
+                    t(Key::InspectorLensDistortion),
                 );
                 if c_dist.changed() {
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Distorsion manuelle");
+                ui.label(t(Key::InspectorParamDistortion));
                 let r_da = ui.add(
                     egui::Slider::new(&mut self.grading.distortion_amount, -50.0..=50.0)
                         .show_value(true),
@@ -1598,14 +1593,14 @@ impl RrawApp {
 
                 let c_ca = ui.checkbox(
                     &mut self.grading.chromatic_aberration_correction,
-                    "Aberrations chromatiques latérales",
+                    t(Key::InspectorLensCa),
                 );
                 if c_ca.changed() {
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Suppression des franges violettes");
+                ui.label(t(Key::InspectorParamDefringePurple));
                 let r_dp = ui.add(
                     egui::Slider::new(&mut self.grading.defringe_purple_amount, 0.0..=100.0)
                         .show_value(true)
@@ -1616,7 +1611,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Suppression des franges vertes");
+                ui.label(t(Key::InspectorParamDefringeGreen));
                 let r_dg = ui.add(
                     egui::Slider::new(&mut self.grading.defringe_green_amount, 0.0..=100.0)
                         .show_value(true)
@@ -1629,17 +1624,17 @@ impl RrawApp {
 
                 ui.separator();
 
-                ui.label(egui::RichText::new("Vignettage Optique (Objectif)").strong());
+                ui.label(egui::RichText::new(t(Key::InspectorLensVignetteTitle)).strong());
                 let c_vig = ui.checkbox(
                     &mut self.grading.vignette_correction,
-                    "Compensation d'objectif",
+                    t(Key::InspectorLensVignette),
                 );
                 if c_vig.changed() {
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
 
-                ui.label("Intensité de correction");
+                ui.label(t(Key::InspectorCorrectionStrength));
                 let r_va = ui.add(
                     egui::Slider::new(&mut self.grading.vignette_amount, 0.0..=100.0)
                         .show_value(true),
@@ -1651,8 +1646,8 @@ impl RrawApp {
 
                 ui.separator();
 
-                ui.label(egui::RichText::new("Vignettage Créatif (Artistique)").strong());
-                ui.label("Gain (Sombre <-> Clair)");
+                ui.label(egui::RichText::new(t(Key::InspectorCreativeVignetteTitle)).strong());
+                ui.label(t(Key::InspectorParamVignetteAmount));
                 let r_cva = ui.add(
                     egui::Slider::new(&mut self.grading.creative_vignette_amount, -100.0..=100.0)
                         .show_value(true),
@@ -1663,7 +1658,7 @@ impl RrawApp {
                 }
 
                 if self.grading.creative_vignette_amount.abs() > 0.1 {
-                    ui.label("Point médian");
+                    ui.label(t(Key::InspectorParamVignetteMidpoint));
                     let r_cvm = ui.add(
                         egui::Slider::new(
                             &mut self.grading.creative_vignette_midpoint,
@@ -1676,7 +1671,7 @@ impl RrawApp {
                         ui.ctx().request_repaint();
                     }
 
-                    ui.label("Progressivité du contour");
+                    ui.label(t(Key::InspectorParamVignetteFeather));
                     let r_cvf = ui.add(
                         egui::Slider::new(&mut self.grading.creative_vignette_feather, 10.0..=90.0)
                             .show_value(true),
@@ -1686,7 +1681,7 @@ impl RrawApp {
                         ui.ctx().request_repaint();
                     }
 
-                    ui.label("Rondeur");
+                    ui.label(t(Key::InspectorParamVignetteRoundness));
                     let r_cvr = ui.add(
                         egui::Slider::new(
                             &mut self.grading.creative_vignette_roundness,
@@ -1700,7 +1695,7 @@ impl RrawApp {
                     }
                 }
 
-                if ui.button("Réinitialiser Optique & Vignettage").clicked() {
+                if ui.button(t(Key::InspectorResetOptical)).clicked() {
                     self.grading.distortion_correction = true;
                     self.grading.distortion_amount = 0.0;
                     self.grading.defringe_purple_amount = 0.0;
@@ -1721,7 +1716,7 @@ impl RrawApp {
                 if ui
                     .add(
                         egui::Button::new(
-                            egui::RichText::new("🎬 Exporter la séquence Timelapse...").strong(),
+                            egui::RichText::new(t(Key::InspectorTimelapseExport)).strong(),
                         )
                         .fill(Color32::from_rgb(30, 110, 210)),
                     )

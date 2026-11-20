@@ -58,14 +58,15 @@ impl RrawApp {
     pub fn render_tone_curves_section(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             // 1. Channel selector tabs with activity indicator
+            let cur_lang = self.lang();
             ui.horizontal(|ui| {
                 for ch in CurveChannel::ALL {
                     let is_active = self.active_curve_channel == ch;
                     let is_mod = self.is_channel_modified(ch);
                     let label = if is_mod {
-                        format!("{} •", ch.label())
+                        format!("{} •", ch.label_lang(cur_lang))
                     } else {
-                        ch.label().to_string()
+                        ch.label_lang(cur_lang).to_string()
                     };
                     if ui.selectable_label(is_active, label).clicked() {
                         self.active_curve_channel = ch;
