@@ -8,7 +8,7 @@ use crate::app::RrawApp;
 
 impl RrawApp {
     /// Renders an embellished live RGB / Luminance histogram widget inside `ui`.
-    pub fn render_histogram_widget(&self, ui: &mut egui::Ui) {
+    pub fn render_histogram_widget(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label(
@@ -30,25 +30,32 @@ impl RrawApp {
                             .color(Color32::from_rgb(255, 110, 230)),
                         );
                     }
-                    if self.histogram.highlight_clipped > 0 {
-                        ui.label(
-                            egui::RichText::new(format!(
-                                "⬜ HL ({})",
-                                self.histogram.highlight_clipped
-                            ))
+                    // Clickable clipping toggles: paint blown highlights / crushed shadows on canvas
+                    let hl_on = self.clipping_overlay.highlights;
+                    let hl_text =
+                        egui::RichText::new(format!("HL {}", self.histogram.highlight_clipped))
                             .small()
-                            .color(Color32::from_rgb(255, 90, 90)),
-                        );
+                            .color(Color32::from_rgb(255, 90, 90));
+                    if ui
+                        .selectable_label(hl_on, hl_text)
+                        .on_hover_text("Afficher les hautes lumières brûlées en rouge sur l'image")
+                        .clicked()
+                    {
+                        self.clipping_overlay.highlights = !hl_on;
+                        self.needs_preview_update = true;
                     }
-                    if self.histogram.shadow_clipped > 0 {
-                        ui.label(
-                            egui::RichText::new(format!(
-                                "⬛ Noirs ({})",
-                                self.histogram.shadow_clipped
-                            ))
+                    let sh_on = self.clipping_overlay.shadows;
+                    let sh_text =
+                        egui::RichText::new(format!("Noirs {}", self.histogram.shadow_clipped))
                             .small()
-                            .color(Color32::from_rgb(80, 160, 255)),
-                        );
+                            .color(Color32::from_rgb(80, 160, 255));
+                    if ui
+                        .selectable_label(sh_on, sh_text)
+                        .on_hover_text("Afficher les ombres bouchées en bleu sur l'image")
+                        .clicked()
+                    {
+                        self.clipping_overlay.shadows = !sh_on;
+                        self.needs_preview_update = true;
                     }
                 });
             });

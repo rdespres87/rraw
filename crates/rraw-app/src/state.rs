@@ -360,6 +360,16 @@ pub struct AppLayoutConfig {
     pub active_tool_family: ToolFamily,
     #[serde(default)]
     pub active_tools_only: bool,
+    /// Whether the bottom filmstrip is shown (toggled with `F9`).
+    #[serde(default = "default_true")]
+    pub filmstrip_visible: bool,
+    /// Whether the translucent shooting-parameter HUD is painted over the canvas (`I`).
+    #[serde(default = "default_true")]
+    pub show_canvas_hud: bool,
+}
+
+const fn default_true() -> bool {
+    true
 }
 
 impl Default for AppLayoutConfig {
@@ -368,6 +378,8 @@ impl Default for AppLayoutConfig {
             section_order: DarkroomSection::ALL.to_vec(),
             active_tool_family: ToolFamily::All,
             active_tools_only: false,
+            filmstrip_visible: true,
+            show_canvas_hud: true,
         }
     }
 }
@@ -410,6 +422,8 @@ impl AppLayoutConfig {
             section_order: order,
             active_tool_family: loaded.active_tool_family,
             active_tools_only: loaded.active_tools_only,
+            filmstrip_visible: loaded.filmstrip_visible,
+            show_canvas_hud: loaded.show_canvas_hud,
         }
     }
 

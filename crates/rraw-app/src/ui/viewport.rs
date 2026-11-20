@@ -22,6 +22,7 @@ impl RrawApp {
     .show(ui, |ui| {
         let available_rect = ui.available_rect_before_wrap();
         let painter = ui.painter().with_clip_rect(available_rect);
+        let mut split_divider_rect: Option<egui::Rect> = None;
 
         if let Some(texture) = &self.preview_texture {
             let margin = 16.0;
@@ -209,9 +210,12 @@ impl RrawApp {
                         .is_some_and(|p| available_rect.contains(p))
             });
 
-            let is_holding_shortcut_key = ui.input(|i| {
-                i.key_down(egui::Key::P) || i.key_down(egui::Key::Backslash)
-            });
+            let is_holding_shortcut_key = !ui.ctx().egui_wants_keyboard_input()
+                && ui.input(|i| {
+                    i.key_down(egui::Key::P)
+                        || i.key_down(egui::Key::Backslash)
+                        || (i.key_down(egui::Key::D) && !i.modifiers.command && !i.modifiers.ctrl)
+                });
 
             if ui.input(|i| i.key_pressed(egui::Key::O)) {
                 if self.grading.show_local_mask_overlay.is_some() {
@@ -225,12 +229,14 @@ impl RrawApp {
                 }
             }
 
-            let is_holding_left_fit = ui.input(|i| {
-                i.pointer.button_down(egui::PointerButton::Primary)
-                    && i.pointer
-                        .interact_pos()
-                        .is_some_and(|p| preview_rect.contains(p))
-            }) && !is_tool_active
+            let is_holding_left_fit = !self.split_compare
+                && ui.input(|i| {
+                    i.pointer.button_down(egui::PointerButton::Primary)
+                        && i.pointer
+                            .interact_pos()
+                            .is_some_and(|p| preview_rect.contains(p))
+                })
+                && !is_tool_active
                 && self.crop_drag_handle == CropDragHandle::None
                 && self.zoom_level <= 0.0;
 
@@ -245,12 +251,26 @@ impl RrawApp {
                 texture
             };
 
-            painter.image(
-                active_texture.id(),
-                preview_rect,
-                uv,
-                egui::Color32::WHITE,
-            );
+            match (&self.original_texture, self.split_compare && !show_original) {
+                (Some(orig), true) => {
+                    let (before, after) =
+                        crate::view_tools::split_comparison(preview_rect, uv, self.split_position);
+                    if before.screen.width() >= 1.0 {
+                        painter.image(orig.id(), before.screen, before.uv, egui::Color32::WHITE);
+                    }
+                    if after.screen.width() >= 1.0 {
+                        painter.image(texture.id(), after.screen, after.uv, egui::Color32::WHITE);
+                    }
+                }
+                _ => {
+                    painter.image(
+                        active_texture.id(),
+                        preview_rect,
+                        uv,
+                        egui::Color32::WHITE,
+                    );
+                }
+            }
             painter.rect_stroke(
                 preview_rect,
                 0.0,
@@ -1092,6 +1112,9 @@ impl RrawApp {
                     }
                 }
             }
+            if self.split_compare && !show_original && self.original_texture.is_some() {
+                split_divider_rect = Some(preview_rect);
+            }
         } else if self.is_decoding {
             painter.text(
                 available_rect.center(),
@@ -1110,6 +1133,94 @@ impl RrawApp {
                 egui::Color32::from_rgb(140, 145, 155),
             );
         }
+
+        if let Some(image_rect) = split_divider_rect {
+            self.render_split_divider(ui, image_rect);
+        }
+        if let Some(rating) = self.render_canvas_hud(ui, available_rect) {
+            self.set_current_photo_rating(rating);
+        }
     });
+    }
+
+    /// Paints the draggable Before/After divider and updates `split_position` while dragging.
+    fn render_split_divider(&mut self, ui: &egui::Ui, image_rect: egui::Rect) {
+        let x = egui::lerp(
+            image_rect.min.x..=image_rect.max.x,
+            self.split_position.clamp(0.0, 1.0),
+        );
+        let handle = egui::Rect::from_center_size(
+            egui::pos2(x, image_rect.center().y),
+            egui::vec2(28.0, image_rect.height()),
+        );
+        let resp = ui.interact(
+            handle,
+            ui.auto_id_with("split_divider"),
+            egui::Sense::drag(),
+        );
+        if resp.hovered() || resp.dragged() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+        }
+        if let Some(p) = resp.interact_pointer_pos().filter(|_| resp.dragged()) {
+            self.split_position =
+                crate::view_tools::split_from_pointer(image_rect, p.x).clamp(0.0, 1.0);
+        }
+
+        let x = egui::lerp(
+            image_rect.min.x..=image_rect.max.x,
+            self.split_position.clamp(0.0, 1.0),
+        );
+        let painter = ui.painter().with_clip_rect(image_rect);
+        let line_col = egui::Color32::from_white_alpha(220);
+        painter.line_segment(
+            [
+                egui::pos2(x, image_rect.min.y),
+                egui::pos2(x, image_rect.max.y),
+            ],
+            egui::Stroke::new(1.5, line_col),
+        );
+
+        let circle_center = egui::pos2(x, image_rect.center().y);
+        painter.circle_filled(circle_center, 10.0, egui::Color32::from_black_alpha(200));
+        painter.circle_stroke(circle_center, 10.0, egui::Stroke::new(1.5, line_col));
+        painter.text(
+            circle_center,
+            egui::Align2::CENTER_CENTER,
+            "⬌",
+            egui::FontId::proportional(11.0),
+            egui::Color32::WHITE,
+        );
+
+        let label_font = egui::FontId::proportional(12.0);
+        let label_y = image_rect.min.y + 14.0;
+        if x - image_rect.min.x > 50.0 {
+            let galley = painter.layout_no_wrap(
+                "Avant".to_owned(),
+                label_font.clone(),
+                egui::Color32::WHITE,
+            );
+            let rect = egui::Align2::RIGHT_CENTER
+                .anchor_size(egui::pos2(x - 12.0, label_y), galley.size())
+                .expand2(egui::vec2(6.0, 3.0));
+            painter.rect_filled(rect, 4.0, egui::Color32::from_black_alpha(170));
+            painter.galley(
+                rect.min + egui::vec2(6.0, 3.0),
+                galley,
+                egui::Color32::WHITE,
+            );
+        }
+        if image_rect.max.x - x > 50.0 {
+            let galley =
+                painter.layout_no_wrap("Après".to_owned(), label_font, egui::Color32::WHITE);
+            let rect = egui::Align2::LEFT_CENTER
+                .anchor_size(egui::pos2(x + 12.0, label_y), galley.size())
+                .expand2(egui::vec2(6.0, 3.0));
+            painter.rect_filled(rect, 4.0, egui::Color32::from_black_alpha(170));
+            painter.galley(
+                rect.min + egui::vec2(6.0, 3.0),
+                galley,
+                egui::Color32::WHITE,
+            );
+        }
     }
 }
