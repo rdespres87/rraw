@@ -61,3 +61,16 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 - [x] **Task 9.2 (`rraw-app` & `rraw-gpu`)**: Interactive Freehand Brush Masking & Viewport Tooling (Vector dabs, flow, additive/subtractive erase, radius slider down to 0.001, bracket step scaling, scroll wheel zoom, Spacebar/middle-click pan, double-click collision fix)
 - [ ] **Task 9.3 (`rraw-app`)**: Local Mask Layer Stack Inspector & Pipeline Compositor (Layer list, enable/disable, invert, opacity, blend with CoreML AI semantic masks, multi-scale export)
 
+
+---
+
+## Phase 10 — Professional UI Overhaul (Sidebar, Viewport HUD & Comparison)
+- [x] **Task 10.1 (`rraw-app`)**: Step 1 — Fixed-width side panels (320/360 px), category auto-unrolling, multi-line control stacking, glyph fallback cleanup, layout persistence (`layout.json`), French terminology harmonization
+- [x] **Task 10.2 (`rraw-app`)**: Step 2 — Top bar decluttering (EXIF + rating moved out), translucent viewport HUD (focal · aperture · shutter · ISO + rating), Before/After comparison (hold `D` + draggable split divider with edge clamping and conflict-free clicks), shadow/highlight clipping overlays (red blown highlights, blue crushed shadows), collapsible filmstrip (`F9`), keyboard shortcuts modal guide (`F1`)
+
+---
+
+## Phase 11 — Internationalization (i18n)
+- [ ] **Task 11.1 (`rraw-app`)**: Typed, zero-allocation string tables (`Language { Fr, En }` enum + `&'static str` lookup per key, compile-time exhaustiveness via `match`), module `crates/rraw-app/src/i18n/`
+- [ ] **Task 11.2 (`rraw-app`)**: Migrate all hard-coded UI labels (top bar, inspector, filmstrip, EXIF, viewport prompts, histogram) to i18n keys; unit test asserting every key resolves to a non-empty string in every language
+- [ ] **Task 11.3 (`rraw-app`)**: Compact `FR | EN` toggle in the top bar, persisted in `layout.json` (backward-compatible `#[serde(default)]`), live switch without restart

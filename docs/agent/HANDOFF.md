@@ -31,23 +31,23 @@
   - Local commit: `b55d6d3` (`fix(rraw-app): harmonize user interface terminology and labels in French`).
   - Verified with 152 unit and integration tests passing across 44 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit APPROVED.
 
-## Next Logical Action: UI Overhaul Step 2 — Pro Viewport, Canvas Overlays & Top Bar Decluttering
+- **UI Overhaul Step 2: Pro Viewport HUD, Split Comparison, Clipping Overlays, Collapsible Filmstrip & Keyboard Shortcuts Guide (`rraw-app`)**:
+  - Viewport Canvas HUD overlay: bottom-left card with file name, camera & lens, and shooting summary (`focal · aperture · shutter · ISO`); bottom-right interactive rating pill with 5 clickable stars. Toggled with `I`.
+  - Top bar decluttering: technical EXIF parameters and ratings moved out of the top bar into the canvas HUD. Added top-bar display toggles (`Avant | Après`, `Écrêtage`, `Infos`, `Pellicule`, `⌨ Raccourcis`).
+  - Before / After Split Comparison: side-by-side split view with interactive draggable divider (`⬌`), edge boundary clamping, and zero-flicker mesh rendering. Fixed click conflict where dragging divider would trigger fit peeking. Peeking untouched original via holding `D`, `P`, or `\`. Toggled with `Y`.
+  - Canvas Clipping Overlays (Zébrures): photographic clipping detection (blue for crushed shadows `lum <= 1`, red for blown highlights `lum >= 250` or saturated color channels `>= 253`). Rounded `to_u8_fast` (+0.5) to ensure overexposed areas trigger red warnings accurately. Toggled with `J`.
+  - Collapsible Filmstrip: toggled with `F9`, persists in `~/.config/rraw/layout.json` alongside HUD visibility.
+  - Keyboard Shortcuts Guide: modal dialog accessible via `F1` or `⌨ Raccourcis` button in the top bar.
+  - Selection feedback: `Cmd+A` and `Cmd+D` update the bottom status bar with exact feedback.
+  - Local commit: `0428e25` (`feat(rraw-app): add canvas HUD, before/after split view, clipping overlays and keyboard shortcuts guide`).
+  - Verified with 161 unit and integration tests passing across 44 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit APPROVED.
 
-- **Objective**: Declutter the top toolbar, move shooting metadata and star ratings to a non-intrusive canvas HUD, implement split-screen before/after comparison, and add clipping zebra overlays.
-- **Deliverables**:
-  1. **Top Bar Decluttering**:
-     - Remove raw technical EXIF text and 5-star rating widget from top bar.
-     - Move shooting parameters (`24mm · f/2.8 · 1/500s · ISO 100`) and stars to a discreet translucent HUD overlay in the viewport.
-     - Focus the top bar strictly on mode switches, interactive canvas tools (`Pan`, `Crop`, `Straighten`, `WB Pipette`, `Brush`), compact zoom, and Export CTA.
-  2. **Before / After Comparison**:
-     - Instant toggle mode: hold `D` key to view untouched linear RAW base image.
-     - Split-screen comparison: interactive draggable vertical divider showing Before (left) and After (right).
-  3. **Canvas Clipping Overlays (Zébrures)**:
-     - Under-histogram toggle icons: ⬛ (shadow clipping blue mask) and ⬜ (highlight blowout red mask).
-  4. **Collapsible Filmstrip**:
-     - Add `F9` shortcut and collapse button to hide the bottom filmstrip for 100% vertical canvas immersion.
-  5. **TDD Validation & Tests**:
-     - Unit tests for comparison splitting and clipping math; clippy clean; local adversarial audit.
+## Next Logical Action: Phase 11 — Internationalization (i18n)
+
+In priority order:
+1. **Task 11.1 (`rraw-app`)**: Create `crates/rraw-app/src/i18n/` module with typed `Language { Fr, En }` enum and zero-cost compile-time string tables with exhaustive key matching.
+2. **Task 11.2 (`rraw-app`)**: Migrate all hard-coded UI labels across `inspector.rs`, `app.rs`, `filmstrip.rs`, `exif.rs`, `shortcuts.rs`, `canvas_hud.rs`, and `histogram.rs` to i18n references.
+3. **Task 11.3 (`rraw-app`)**: Add compact `FR | EN` toggle button in the top bar, persist `language` in `~/.config/rraw/layout.json`, and verify live instant switching without application restart.
   - Implemented `create_thumbnail_from_preview` in `crates/rraw-app/src/preview.rs` to extract downscaled 140px thumbnails from rendered previews with exact crop bounding box support.
   - Live in-place texture update (`tex.set`) in `crates/rraw-app/src/app.rs` (`update_preview_textures`) so moving any grading slider (exposure, WB, curves, sepia, B&W, vignettes, local masks, crop) updates the filmstrip thumbnail in real time (<0.1ms).
   - Background thumbnail worker race condition prevention: skips overwriting active photo with stale background decodes.
