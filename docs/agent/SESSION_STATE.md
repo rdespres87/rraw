@@ -49,6 +49,7 @@
   - Phase 9.2 Freehand Adjustment Brush Mask (Vector Dabs, Zoom Retouching & Viewport Pan): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 148 tests across 43 suites, commit `d15a0f1`)
   - Live Filmstrip Thumbnail Synchronization & Crop Matching: **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 150 tests across 44 suites)
   - Phase 12 Batch Recipe Clipboard & Multi-Image Development (`rraw-core` & `rraw-app`): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 165 tests across 45 suites, 0 clippy warnings)
+  - Escape Key Modal & Tool Dismissal Hierarchy & Text Input Focus Safety (`rraw-app`): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 169 tests across 46 suites, 0 clippy warnings)
 - **Git Branch**: `main`
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
 - **Last Approved Gate**: Gate 3 (Authorized on 2026-11-19)
@@ -80,9 +81,9 @@
     - Embellished Histogram: OLED rounded card, sqrt scaling to reveal midtones, glowing RGB curves, quartile zone guides (Noirs, Ombres, Exposition, Hautes Lum.), clipping badges.
     - Crop & Geometry: 120 FPS vector overlay, aspect ratio presets, Enter/double-click commit, independent enable/disable toggles.
     - Batch Export: configurable subfolder (`Export`), suffix (`_rraw`), formats (JPEG quality, PNG 8/16, TIFF 8/16), auto-closing dialog.
-- Total tests: 122 unit/integration tests passing cleanly across 38 test suites.
+- Total tests: 169 unit/integration tests passing cleanly across 46 test suites.
 
 ## Last Observed Verification Run
 
 - `./.git/hooks/pre-commit` (`cargo fmt --all -- --check` + `cargo clippy --workspace --all-targets -- -D warnings`): passed (exit `0`).
-- `cargo test --workspace`: passed (`95` unit/integration tests across all `11` crates; `0` failed, `0` ignored).
+- `cargo test --workspace`: passed (`169` unit/integration tests across all `11` crates; `0` failed, `0` ignored).

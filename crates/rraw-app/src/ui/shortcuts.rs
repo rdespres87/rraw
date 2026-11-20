@@ -16,6 +16,10 @@ impl RrawApp {
         let mut is_open = self.show_shortcuts_dialog;
         let mut close_requested = false;
 
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            close_requested = true;
+        }
+
         egui::Window::new("⌨ Guide des Raccourcis Clavier — RRAW")
             .open(&mut is_open)
             .collapsible(false)

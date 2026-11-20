@@ -290,6 +290,94 @@ impl RrawApp {
         app
     }
 
+    /// Creates a headless `RrawApp` instance without window context for unit & integration testing.
+    #[must_use]
+    pub fn new_headless() -> Self {
+        let (decode_sender, decode_receiver) = channel();
+        let (thumbnail_sender, thumbnail_receiver) = channel();
+        let (thumbnail_req_tx, _thumbnail_req_rx) = channel::<PathBuf>();
+        #[cfg(target_os = "macos")]
+        let headroom_provider: Box<dyn DisplayHeadroomProvider> =
+            Box::new(MacOsDisplayHeadroomProvider);
+        #[cfg(not(target_os = "macos"))]
+        let headroom_provider: Box<dyn DisplayHeadroomProvider> =
+            Box::new(SdrFallbackHeadroomProvider);
+        let layout_config = AppLayoutConfig::default();
+
+        Self {
+            headroom_provider,
+            grading: DarkroomGradingState::default(),
+            current_preset: GradingPreset::AsShot,
+            layout_config,
+            loaded_photo: None,
+            cached_cfa: None,
+            base_preview: None,
+            photo_cache: Vec::new(),
+            preview_texture: None,
+            original_texture: None,
+            is_comparing_original: false,
+            split_compare: false,
+            split_position: 0.5,
+            clipping_overlay: crate::view_tools::ClippingOverlay::default(),
+            histogram: HistogramData::default(),
+            needs_preview_update: false,
+            decode_sender,
+            decode_receiver,
+            is_decoding: false,
+            current_directory: None,
+            directory_entries: Vec::new(),
+            inspector_tab: InspectorTab::Develop,
+            left_panel_tab: LeftPanelTab::Explorer,
+            active_tool_family: ToolFamily::All,
+            active_tools_only: false,
+            horizon_tool_active: false,
+            horizon_start_point: None,
+            last_fit_scale: 1.0,
+            crop_drag_handle: CropDragHandle::None,
+            zoom_level: 0.0,
+            pan_offset: egui::Vec2::ZERO,
+            status_message: "Test headless instance".to_string(),
+            surface_format: SurfaceFormat::Rgba16Float,
+            photo_gradings: HashMap::new(),
+            photo_ratings: HashMap::new(),
+            rating_filter: RatingFilter::All,
+            thumbnail_textures: HashMap::new(),
+            thumbnail_sender,
+            thumbnail_receiver,
+            thumbnail_req_tx,
+            thumbnail_pending: HashSet::new(),
+            show_export_dialog: false,
+            show_shortcuts_dialog: false,
+            export_format: ExportFormatChoice::Jpeg,
+            export_jpeg_quality: 92,
+            export_bit_depth: ExportBitDepth::Bits8,
+            export_scale_mode: ExportScaleMode::Original,
+            export_custom_dir: None,
+            export_status: None,
+            parallel_tool_phase: ParallelToolPhase::Inactive,
+            parallel_line1: None,
+            parallel_line2: None,
+            parallel_drag_start: None,
+            is_crop_editing: false,
+            selected_photos: HashSet::new(),
+            export_use_subfolder: true,
+            export_subfolder: "Export".to_string(),
+            export_suffix: "_rraw".to_string(),
+            export_batch_selection: false,
+            export_target_mode: ExportTargetMode::CurrentPhoto,
+            timelapse_fps: rraw_export::TimelapseFrameRate::Fps24,
+            timelapse_deflicker: rraw_export::TimelapseDeflickerConfig::default(),
+            timelapse_keyframe_ramping: true,
+            timelapse_sequence_prefix: "timelapse".to_string(),
+            last_selected_index: None,
+            recipe_clipboard: None,
+            exif_search_query: String::new(),
+            active_curve_channel: CurveChannel::CombinedRgb,
+            dragging_curve_point: None,
+            last_dir_poll: std::time::Instant::now(),
+        }
+    }
+
     /// Queries the current active display headroom (e.g. 1.0 on SDR, up to 4.0 or 16.0 on EDR).
     #[must_use]
     pub fn current_headroom(&self) -> f32 {
@@ -624,6 +712,45 @@ impl RrawApp {
         self.needs_preview_update = true;
     }
 
+    /// Handles the Escape key press hierarchically:
+    /// 1. Closes open modal dialogs (shortcuts cheat sheet, export dialog).
+    /// 2. Deactivates active interactive viewport tools (crop editing, perspective lines, brush mask).
+    /// 3. Clears the filmstrip batch selection if no dialog or tool is active.
+    ///
+    /// Returns `true` if an active dialog, tool, or selection was dismissed.
+    pub fn handle_escape_key(&mut self) -> bool {
+        if self.show_shortcuts_dialog {
+            self.show_shortcuts_dialog = false;
+            true
+        } else if self.show_export_dialog {
+            self.show_export_dialog = false;
+            true
+        } else if self.is_crop_editing {
+            self.is_crop_editing = false;
+            self.crop_drag_handle = CropDragHandle::None;
+            self.status_message = "Outil de recadrage désactivé".to_string();
+            true
+        } else if self.parallel_tool_phase != ParallelToolPhase::Inactive {
+            self.parallel_tool_phase = ParallelToolPhase::Inactive;
+            self.parallel_line1 = None;
+            self.parallel_line2 = None;
+            self.parallel_drag_start = None;
+            self.status_message = "Outil de perspective désactivé".to_string();
+            true
+        } else if self.grading.active_brush_mask_idx.is_some() {
+            self.grading.active_brush_mask_idx = None;
+            self.status_message = "Outil pinceau désactivé".to_string();
+            true
+        } else if !self.selected_photos.is_empty() {
+            let prev = self.selected_photos.len();
+            self.selected_photos.clear();
+            self.status_message = "Sélection d'exportation réinitialisée (0 photo)".to_string();
+            prev > 0
+        } else {
+            false
+        }
+    }
+
     /// Sets the rating (0 to 5) of the currently loaded photo and persists to `.rraw.json` and `.xmp`.
     pub fn set_current_photo_rating(&mut self, rating: u8) {
         if let Some(photo) = &mut self.loaded_photo {
@@ -809,16 +936,21 @@ impl eframe::App for RrawApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         ui.style_mut().spacing.scroll.kinetic.rubber_band = false;
 
-        // Keyboard navigation and multi-selection
-        let shift = ui.input(|i| i.modifiers.shift);
-        let nav_prev =
-            ui.input(|i| i.key_pressed(egui::Key::ArrowLeft) || i.key_pressed(egui::Key::PageUp));
-        let nav_next = ui
-            .input(|i| i.key_pressed(egui::Key::ArrowRight) || i.key_pressed(egui::Key::PageDown));
-        if nav_prev {
-            self.navigate_relative_with_shift(-1, shift);
-        } else if nav_next {
-            self.navigate_relative_with_shift(1, shift);
+        let wants_keyboard = ui.ctx().egui_wants_keyboard_input();
+
+        // Keyboard navigation and multi-selection (only when text input doesn't have focus)
+        if !wants_keyboard {
+            let shift = ui.input(|i| i.modifiers.shift);
+            let nav_prev = ui
+                .input(|i| i.key_pressed(egui::Key::ArrowLeft) || i.key_pressed(egui::Key::PageUp));
+            let nav_next = ui.input(|i| {
+                i.key_pressed(egui::Key::ArrowRight) || i.key_pressed(egui::Key::PageDown)
+            });
+            if nav_prev {
+                self.navigate_relative_with_shift(-1, shift);
+            } else if nav_next {
+                self.navigate_relative_with_shift(1, shift);
+            }
         }
 
         // Batch Recipe Clipboard shortcuts: Cmd/Ctrl + Shift + C (Copy) / Cmd/Ctrl + Shift + V (Paste)
@@ -836,71 +968,68 @@ impl eframe::App for RrawApp {
             self.paste_recipe_to_selection(&ctx);
         }
 
-        // Classical keyboard selection shortcuts: Cmd/Ctrl+A, Cmd/Ctrl+D, Escape, Space
-        ui.input(|i| {
-            if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::A) {
-                for entry in &self.directory_entries {
-                    self.selected_photos.insert(entry.clone());
+        // Global Escape key handling:
+        // - If a modal/dialog is open (shortcuts guide, export window), Escape always dismisses it, even if a child widget has focus.
+        // - If no dialog is open and a text field has focus, Escape is left for egui to unfocus the active input.
+        // - If no text field is focused, Escape hierarchically cancels the active tool or batch selection.
+        if ui.input(|i| i.key_pressed(egui::Key::Escape))
+            && (self.show_shortcuts_dialog || self.show_export_dialog || !wants_keyboard)
+        {
+            self.handle_escape_key();
+        }
+
+        // Classical keyboard selection shortcuts: Cmd/Ctrl+A, Cmd/Ctrl+D, Space (when no text field focused)
+        if !wants_keyboard {
+            ui.input(|i| {
+                if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::A) {
+                    for entry in &self.directory_entries {
+                        self.selected_photos.insert(entry.clone());
+                    }
+                    self.status_message = format!(
+                        "Sélection : toutes les photos cochées pour l'export ({} au total)",
+                        self.directory_entries.len()
+                    );
                 }
-                self.status_message = format!(
-                    "Sélection : toutes les photos cochées pour l'export ({} au total)",
-                    self.directory_entries.len()
-                );
-            }
-            if i.key_pressed(egui::Key::Backslash) {
-                self.is_comparing_original = !self.is_comparing_original;
-            }
-            if i.key_pressed(egui::Key::Escape) {
-                if self.grading.active_brush_mask_idx.is_some() {
-                    self.grading.active_brush_mask_idx = None;
-                    self.status_message = "Outil pinceau désactivé".to_string();
-                } else if !(i.modifiers.command || i.modifiers.ctrl) {
+                if i.key_pressed(egui::Key::Backslash) {
+                    self.is_comparing_original = !self.is_comparing_original;
+                }
+                if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::D) {
                     let prev = self.selected_photos.len();
                     self.selected_photos.clear();
-                    if prev > 0 {
-                        self.status_message =
-                            "Sélection d'exportation réinitialisée (0 photo)".to_string();
-                    }
+                    self.grading.active_brush_mask_idx = None;
+                    self.status_message = if prev > 0 {
+                        format!(
+                            "Désélection : {prev} photo{} retirée{} du lot d'export",
+                            if prev > 1 { "s" } else { "" },
+                            if prev > 1 { "s" } else { "" }
+                        )
+                    } else {
+                        "Sélection d'exportation : aucune photo cochée".to_string()
+                    };
                 }
-            }
-            if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::D) {
-                let prev = self.selected_photos.len();
-                self.selected_photos.clear();
-                self.grading.active_brush_mask_idx = None;
-                self.status_message = if prev > 0 {
-                    format!(
-                        "Désélection : {prev} photo{} retirée{} du lot d'export",
-                        if prev > 1 { "s" } else { "" },
-                        if prev > 1 { "s" } else { "" }
-                    )
-                } else {
-                    "Sélection d'exportation : aucune photo cochée".to_string()
-                };
-            }
-            if i.key_pressed(egui::Key::Space) {
-                // In Darkroom with brush active, Space is reserved for panning zoomed image
-                if self.grading.active_brush_mask_idx.is_none() {
-                    if let Some(photo) = &self.loaded_photo {
-                        if self.selected_photos.contains(&photo.path) {
-                            self.selected_photos.remove(&photo.path);
-                            self.status_message = format!(
-                                "Photo retirée du lot d'export (reste {})",
-                                self.selected_photos.len()
-                            );
-                        } else {
-                            self.selected_photos.insert(photo.path.clone());
-                            self.status_message = format!(
-                                "Photo ajoutée au lot d'export ({} au total)",
-                                self.selected_photos.len()
-                            );
+                if i.key_pressed(egui::Key::Space) {
+                    // In Darkroom with brush active, Space is reserved for panning zoomed image
+                    if self.grading.active_brush_mask_idx.is_none() {
+                        if let Some(photo) = &self.loaded_photo {
+                            if self.selected_photos.contains(&photo.path) {
+                                self.selected_photos.remove(&photo.path);
+                                self.status_message = format!(
+                                    "Photo retirée du lot d'export (reste {})",
+                                    self.selected_photos.len()
+                                );
+                            } else {
+                                self.selected_photos.insert(photo.path.clone());
+                                self.status_message = format!(
+                                    "Photo ajoutée au lot d'export ({} au total)",
+                                    self.selected_photos.len()
+                                );
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
 
-        // Viewport display shortcuts (ignored while a text field has keyboard focus)
-        if !ui.ctx().egui_wants_keyboard_input() {
+            // Viewport display shortcuts (ignored while a text field has keyboard focus)
             let (toggle_filmstrip, toggle_hud, toggle_split, toggle_clipping, toggle_shortcuts) =
                 ui.input(|i| {
                     (
@@ -928,20 +1057,20 @@ impl eframe::App for RrawApp {
             if toggle_shortcuts {
                 self.show_shortcuts_dialog = !self.show_shortcuts_dialog;
             }
-        }
 
-        for digit in 0..=5 {
-            let key = match digit {
-                0 => egui::Key::Num0,
-                1 => egui::Key::Num1,
-                2 => egui::Key::Num2,
-                3 => egui::Key::Num3,
-                4 => egui::Key::Num4,
-                5 => egui::Key::Num5,
-                _ => unreachable!(),
-            };
-            if ui.input(|i| i.key_pressed(key)) {
-                self.set_current_photo_rating(digit);
+            for digit in 0..=5 {
+                let key = match digit {
+                    0 => egui::Key::Num0,
+                    1 => egui::Key::Num1,
+                    2 => egui::Key::Num2,
+                    3 => egui::Key::Num3,
+                    4 => egui::Key::Num4,
+                    5 => egui::Key::Num5,
+                    _ => unreachable!(),
+                };
+                if ui.input(|i| i.key_pressed(key)) {
+                    self.set_current_photo_rating(digit);
+                }
             }
         }
 

@@ -631,6 +631,10 @@ impl RrawApp {
         let mut trigger_export = false;
         let mut close_dialog = false;
 
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            close_dialog = true;
+        }
+
         egui::Window::new("📤 Exporter / 🎬 Timelapse")
             .open(&mut is_open)
             .movable(true)
