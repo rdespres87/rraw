@@ -2,6 +2,17 @@
 
 ## Last Completed Milestone
 
+- **Escape Key Modal & Interactive Tool Dismissal Hierarchy (`rraw-app`)**:
+  - Implemented hierarchical `handle_escape_key(&mut self) -> bool` on `RrawApp`:
+    1. Dismisses active modal dialogs first (`show_shortcuts_dialog`, `show_export_dialog`).
+    2. Cancels active viewport interactive tools (`is_crop_editing`, `parallel_tool_phase`, `active_brush_mask_idx`).
+    3. Clears filmstrip multi-selection (`selected_photos.clear()`).
+  - Added Escape key listeners directly inside `render_shortcuts_dialog` and `render_export_dialog`.
+  - Added text-input focus guard (`ui.ctx().egui_wants_keyboard_input()`): prevents global navigation (arrows, PageUp/Down) and shortcuts (Space, Cmd+A, Cmd+D, digits 0..=5) from hijacking active text editing while allowing Escape to dismiss dialogs or release text focus.
+  - Added headless testing constructor `RrawApp::new_headless() -> Self`.
+  - Added comprehensive test suite `crates/rraw-app/tests/escape_key_tests.rs` (4 tests).
+  - Verified with 169 unit and integration tests passing across 46 suites, 0 clippy warnings, and Qwen 3.6 35B local audit APPROVED.
+
 - **Phase 12 — Batch Recipe Clipboard & Multi-Image Development (`rraw-core` & `rraw-app`)**:
   - Implemented `ColorToneRecipeClipboard` in `rraw-core::recipe` for headless/core Stage 5 colorimetric & tonal grading transfer with `from_stage5` and `apply_to_stage5`.
   - Implemented `GradingRecipeClipboard` in `rraw-app::state` capturing creative color & tone parameters (exposure, contrast, highlights, shadows, blacks, saturation, vibrance, white balance kelvin/tint, display transform AgX/OpenDrt, monochrome toggle, PCHIP tone curves, 3D custom CLUT, creative vignetting).
