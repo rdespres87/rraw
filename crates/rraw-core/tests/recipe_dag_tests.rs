@@ -259,3 +259,70 @@ fn test_semantic_ai_mask_serialization_and_hash_invariance(
     assert_ne!(recipe.hash_display(src, 2.0), base.hash_display(src, 2.0));
     Ok(())
 }
+
+#[test]
+fn test_color_tone_recipe_clipboard_isolation_and_application(
+) -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_core::curves::{CurvePoint, ToneCurvesRecipe};
+    use rraw_core::recipe::{ColorToneRecipeClipboard, Stage5GradingParams};
+
+    let mut source_stage5 = Stage5GradingParams {
+        exposure_ev: 0.75,
+        contrast: 0.25,
+        highlights: -0.40,
+        shadows: 0.30,
+        whites: 0.15,
+        blacks: -0.10,
+        saturation: 0.20,
+        vibrance: 0.10,
+        laplacian_local_contrast: 0.85,
+        tone_curves: ToneCurvesRecipe::default(),
+    };
+    source_stage5
+        .tone_curves
+        .combined_rgb
+        .add_point(CurvePoint::new(0.5, 0.6)?);
+
+    let clipboard = ColorToneRecipeClipboard::from_stage5(&source_stage5);
+    assert_eq!(clipboard.exposure_ev, 0.75);
+    assert_eq!(clipboard.contrast, 0.25);
+    assert_eq!(clipboard.highlights, -0.40);
+    assert_eq!(clipboard.shadows, 0.30);
+    assert_eq!(clipboard.whites, 0.15);
+    assert_eq!(clipboard.blacks, -0.10);
+    assert_eq!(clipboard.saturation, 0.20);
+    assert_eq!(clipboard.vibrance, 0.10);
+    assert_eq!(clipboard.tone_curves, source_stage5.tone_curves);
+
+    // Target has independent settings, including laplacian local contrast
+    let mut target_stage5 = Stage5GradingParams {
+        exposure_ev: -1.0,
+        contrast: -0.5,
+        highlights: 0.0,
+        shadows: 0.0,
+        whites: 0.0,
+        blacks: 0.0,
+        saturation: -0.5,
+        vibrance: -0.5,
+        laplacian_local_contrast: 0.12,
+        tone_curves: ToneCurvesRecipe::default(),
+    };
+
+    clipboard.apply_to_stage5(&mut target_stage5);
+
+    // Color and tone parameters are copied
+    assert_eq!(target_stage5.exposure_ev, 0.75);
+    assert_eq!(target_stage5.contrast, 0.25);
+    assert_eq!(target_stage5.highlights, -0.40);
+    assert_eq!(target_stage5.shadows, 0.30);
+    assert_eq!(target_stage5.whites, 0.15);
+    assert_eq!(target_stage5.blacks, -0.10);
+    assert_eq!(target_stage5.saturation, 0.20);
+    assert_eq!(target_stage5.vibrance, 0.10);
+    assert_eq!(target_stage5.tone_curves, source_stage5.tone_curves);
+
+    // Photo-specific laplacian local contrast is strictly preserved
+    assert_eq!(target_stage5.laplacian_local_contrast, 0.12);
+
+    Ok(())
+}

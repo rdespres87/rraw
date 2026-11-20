@@ -2,6 +2,18 @@
 
 ## Last Completed Milestone
 
+- **Phase 12 — Batch Recipe Clipboard & Multi-Image Development (`rraw-core` & `rraw-app`)**:
+  - Implemented `ColorToneRecipeClipboard` in `rraw-core::recipe` for headless/core Stage 5 colorimetric & tonal grading transfer with `from_stage5` and `apply_to_stage5`.
+  - Implemented `GradingRecipeClipboard` in `rraw-app::state` capturing creative color & tone parameters (exposure, contrast, highlights, shadows, blacks, saturation, vibrance, white balance kelvin/tint, display transform AgX/OpenDrt, monochrome toggle, PCHIP tone curves, 3D custom CLUT, creative vignetting).
+  - Strictly isolated creative settings: photo-dependent parameters (crop, straighten, geometry, local brush/gradient masks, CoreML semantic masks, lens optics distortion/CA/defringe/vignette correction, and ISO wavelet/chroma/luma denoise) are completely excluded from the clipboard and strictly preserved on target photos.
+  - Implemented `RrawApp::copy_active_recipe`, `copy_recipe_for_path`, `paste_recipe_to_selection`, and `paste_recipe_to_path` in `crates/rraw-app/src/app.rs`.
+  - Wired native keyboard shortcuts: `Cmd+Shift+C` (or `Ctrl+Shift+C`) to copy active recipe, `Cmd+Shift+V` (or `Ctrl+Shift+V`) to paste onto multi-selected photos (or active photo).
+  - Added contextual right-click menu on filmstrip thumbnail cards (`response.context_menu`): "📋 Copier le rendu (Cmd+Shift+C)", "📥 Coller le rendu sur la sélection / cette photo (Cmd+Shift+V)", clipboard summary, and export lot toggling.
+  - Added toolbar quick actions `📋 Copier rendu` and `📥 Coller sélection` in the filmstrip top bar.
+  - Updated keyboard shortcuts modal cheat sheet (`crates/rraw-app/src/ui/shortcuts.rs`) with dedicated clipboard section.
+  - Added full test coverage in `crates/rraw-core/tests/recipe_dag_tests.rs` and `crates/rraw-app/tests/clipboard_tests.rs` verifying selective parameter transfer, photo-dependent preservation, summary format, and sidecar persistence roundtrip.
+  - Verified with 165 unit and integration tests passing across 45 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit APPROVED.
+
 - **UI Overhaul Step 1: Darkroom Palette Categorization, Search & Clean Sidebar Architecture (`rraw-app`)**:
   - Implemented `ToolFamily` categorization (`All`, `Light`, `Color`, `Detail`, `Geometry`, `LocalMasks`, `Timelapse`) with label and short-label mappings.
   - Extended `DarkroomSection::ALL` to 11 modules, repatriating parametric `ToneCurves` into the right darkroom panel under the `Light` family alongside Exposure and Contrast.
