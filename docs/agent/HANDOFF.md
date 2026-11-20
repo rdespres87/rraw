@@ -42,12 +42,7 @@
   - Local commit: `0428e25` (`feat(rraw-app): add canvas HUD, before/after split view, clipping overlays and keyboard shortcuts guide`).
   - Verified with 161 unit and integration tests passing across 44 test suites, 0 clippy warnings, and Qwen 3.6 35B local audit APPROVED.
 
-## Next Logical Action: Phase 11 — Internationalization (i18n)
-
-In priority order:
-1. **Task 11.1 (`rraw-app`)**: Create `crates/rraw-app/src/i18n/` module with typed `Language { Fr, En }` enum and zero-cost compile-time string tables with exhaustive key matching.
-2. **Task 11.2 (`rraw-app`)**: Migrate all hard-coded UI labels across `inspector.rs`, `app.rs`, `filmstrip.rs`, `exif.rs`, `shortcuts.rs`, `canvas_hud.rs`, and `histogram.rs` to i18n references.
-3. **Task 11.3 (`rraw-app`)**: Add compact `FR | EN` toggle button in the top bar, persist `language` in `~/.config/rraw/layout.json`, and verify live instant switching without application restart.
+- **Live Filmstrip Thumbnail Synchronization & Crop Matching (`rraw-app`)**:
   - Implemented `create_thumbnail_from_preview` in `crates/rraw-app/src/preview.rs` to extract downscaled 140px thumbnails from rendered previews with exact crop bounding box support.
   - Live in-place texture update (`tex.set`) in `crates/rraw-app/src/app.rs` (`update_preview_textures`) so moving any grading slider (exposure, WB, curves, sepia, B&W, vignettes, local masks, crop) updates the filmstrip thumbnail in real time (<0.1ms).
   - Background thumbnail worker race condition prevention: skips overwriting active photo with stale background decodes.
@@ -144,18 +139,25 @@ In priority order:
   - Implemented live In/Out percentage coordinate readout and vertical hairline cursor guide.
   - Added dynamic activity dot indicator on modified curve channel selector tabs.
 
-## Next Logical Action: Phase 9.2 — Local Adjustment Brush & Freehand Masking
+## Next Logical Action: Phase 11 — Internationalization (i18n)
 
-- **Objective**: Implement interactive brush painting (freehand drawing mask with radius, flow, and feather) on the viewport canvas to touch up fine details.
-- **Deliverables**:
-  1. Raster stroke accumulator or quadtree mask tile for freehand brush strokes.
-  2. Viewport mouse brush interaction (size adjusting with wheel/bracket keys, flow, opacity).
-  3. Integration into `LocalMaskLayer` and Stage 6 GPU pipeline.
-  4. Unit and integration tests.
+In priority order:
+1. **Task 11.1 (`rraw-app`)**: Create `crates/rraw-app/src/i18n/` module with typed `Language { Fr, En }` enum and zero-cost compile-time string tables with exhaustive key matching.
+2. **Task 11.2 (`rraw-app`)**: Migrate all hard-coded UI labels across `inspector.rs`, `app.rs`, `filmstrip.rs`, `exif.rs`, `shortcuts.rs`, `canvas_hud.rs`, and `histogram.rs` to i18n references.
+3. **Task 11.3 (`rraw-app`)**: Add compact `FR | EN` toggle button in the top bar, persist `language` in `~/.config/rraw/layout.json`, and verify live instant switching without application restart.
+
+## Upcoming Roadmap Horizons: Phase 12 & Phase 13
+
+4. **Phase 12 — Batch Recipe Clipboard & Multi-Image Development (`rraw-core` & `rraw-app`)**:
+   - In-memory clipboard holding active recipe snapshot for color & tone grading parameters (Exposure, Contrast, White Balance CCT/Tint, Tone Curves, Saturation, Film Emulations/Styles), strictly excluding photo-dependent parameters (Crop, Straighten/Geometry, Local Brush/Gradient Masks, Lens Optics, ISO Denoise).
+   - Multi-selection filmstrip batch pasting via `Cmd+Shift+C` / `Cmd+Shift+V` and right-click context menu ("Copier le rendu / Coller le rendu"), immediate thumbnail re-render, sidecar auto-save, and status feedback.
+5. **Phase 13 — Application Versioning, Packaging & macOS DMG Installer (`rraw-app` & Distribution)**:
+   - Compile-time semantic versioning (`VERSION`), build timestamp, and git commit hash in top bar, "À propos" dialog, and CLI `--version`.
+   - Standalone `Rraw.app` bundle and drag-and-drop `.dmg` installer packaging script with custom icon and `/Applications` symlink.
 
 ## Repository Completion State
 
-All planned deliverables across Phases 0–8 and Phase 9.1 are implemented, verified by adversarial TDD, and passing all pre-commit formatting and clippy gates. Phase 9.2 is the active development horizon.
+All planned deliverables across Phases 0–10 are implemented, verified by adversarial TDD (161 tests passing workspace-wide, 0 clippy warnings), and passing all pre-commit formatting and clippy gates. Phase 11 (i18n) is the active development horizon.
 
 ### Summary of Completed Workspace Milestones
 1. **Phase 0**: Repository governance, `#![forbid(unsafe_code)]` / audited EDR isolation, 11 crates.
