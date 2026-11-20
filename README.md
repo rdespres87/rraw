@@ -51,6 +51,10 @@
 - **ISO 21496-1 HDR Gain Maps**: Embeds standardized gain maps into AVIF, JPEG XL, and JPEG files, providing universal backward compatibility on standard SDR displays while unlocking full HDR luminance on supported devices.
 - **RAW Timelapse & Temporal Deflicker Engine**: High-bit-depth numbered sequence assembly (`<prefix>_00001.<ext>`), weighted local-linear temporal log2 luminance deflickering (`ΔEV`) eliminating mechanical aperture jitter, Holy Grail day-to-night keyframe ramping (interpolating Exposure, Kelvin, Tint, Contrast, and Saturation), and `timelapse_sequence.json` manifest generation with ready-to-run FFmpeg ProRes 422 HQ / 10-bit HEVC assembly commands.
 
+### 8. Full Internationalization (i18n) & Desktop Ergonomics
+- **Zero-Allocation i18n Engine**: 100% typed string tables with compile-time exhaustiveness matching (`Language { Fr, En }`), zero runtime allocations (`&'static str`), and instant reactive live switching without app restart.
+- **Persistent User Preferences**: Compact `FR | EN` top bar toggle, backward-compatible layout persistence (`~/.config/rraw/layout.json`), and comprehensive French / English localization across all panels, tools, EXIF metadata, and shortcuts.
+
 ---
 
 ## Architecture & Engineering Rigor

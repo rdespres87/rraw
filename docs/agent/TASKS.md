@@ -71,9 +71,9 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 ---
 
 ## Phase 11 — Internationalization (i18n)
-- [ ] **Task 11.1 (`rraw-app`)**: Typed, zero-allocation string tables (`Language { Fr, En }` enum + `&'static str` lookup per key, compile-time exhaustiveness via `match`), module `crates/rraw-app/src/i18n/`
-- [ ] **Task 11.2 (`rraw-app`)**: Migrate all hard-coded UI labels (top bar, inspector, filmstrip, EXIF, viewport prompts, histogram) to i18n keys; unit test asserting every key resolves to a non-empty string in every language
-- [ ] **Task 11.3 (`rraw-app`)**: Compact `FR | EN` toggle in the top bar, persisted in `layout.json` (backward-compatible `#[serde(default)]`), live switch without restart
+- [x] **Task 11.1 (`rraw-app`)**: Typed, zero-allocation string tables (`Language { Fr, En }` enum + `&'static str` lookup per key, compile-time exhaustiveness via `match`), module `crates/rraw-app/src/i18n/`
+- [x] **Task 11.2 (`rraw-app`)**: Migrate all hard-coded UI labels (top bar, inspector, filmstrip, EXIF, viewport prompts, histogram) to i18n keys; unit test asserting every key resolves to a non-empty string in every language
+- [x] **Task 11.3 (`rraw-app`)**: Compact `FR | EN` toggle in the top bar, persisted in `layout.json` (backward-compatible `#[serde(default)]`), live switch without restart
 
 ---
 

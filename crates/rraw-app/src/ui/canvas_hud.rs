@@ -5,6 +5,7 @@
 use egui::{Color32, FontId, Rect, Sense};
 
 use crate::app::RrawApp;
+use crate::i18n::Key;
 use crate::view_tools::shooting_summary;
 
 const HUD_FILL: Color32 = Color32::from_black_alpha(170);
@@ -18,24 +19,30 @@ impl RrawApp {
     /// Compact viewport display toggles rendered in the top bar.
     pub fn render_view_toggles(&mut self, ui: &mut egui::Ui) {
         if ui
-            .selectable_label(self.split_compare, "Avant | Après")
-            .on_hover_text("Comparaison côte à côte avec séparateur déplaçable (Y)\nMaintenir D, P ou \\ pour afficher l'original")
+            .selectable_label(self.split_compare, self.t(Key::ToggleBeforeAfter))
+            .on_hover_text(self.t(Key::ToggleBeforeAfterTooltip))
             .clicked()
         {
             self.split_compare = !self.split_compare;
         }
 
         if ui
-            .selectable_label(self.clipping_overlay.is_active(), "Écrêtage")
-            .on_hover_text("Afficher les zones écrêtées : ombres bouchées en bleu, hautes lumières brûlées en rouge (J)")
+            .selectable_label(
+                self.clipping_overlay.is_active(),
+                self.t(Key::ToggleClipping),
+            )
+            .on_hover_text(self.t(Key::ToggleClippingTooltip))
             .clicked()
         {
             self.toggle_clipping_overlay();
         }
 
         if ui
-            .selectable_label(self.layout_config.show_canvas_hud, "Infos")
-            .on_hover_text("Afficher les paramètres de prise de vue et la note sur l'image (I)")
+            .selectable_label(
+                self.layout_config.show_canvas_hud,
+                self.t(Key::ToggleInfoHud),
+            )
+            .on_hover_text(self.t(Key::ToggleInfoHudTooltip))
             .clicked()
         {
             self.layout_config.show_canvas_hud = !self.layout_config.show_canvas_hud;
@@ -43,8 +50,11 @@ impl RrawApp {
         }
 
         if ui
-            .selectable_label(self.layout_config.filmstrip_visible, "Pellicule")
-            .on_hover_text("Afficher / masquer le bandeau de vignettes (F9)")
+            .selectable_label(
+                self.layout_config.filmstrip_visible,
+                self.t(Key::ToggleFilmstrip),
+            )
+            .on_hover_text(self.t(Key::ToggleFilmstripTooltip))
             .clicked()
         {
             self.layout_config.filmstrip_visible = !self.layout_config.filmstrip_visible;
@@ -52,8 +62,8 @@ impl RrawApp {
         }
 
         if ui
-            .selectable_label(self.show_shortcuts_dialog, "⌨ Raccourcis")
-            .on_hover_text("Afficher le guide des raccourcis clavier (F1)")
+            .selectable_label(self.show_shortcuts_dialog, self.t(Key::ToggleShortcuts))
+            .on_hover_text(self.t(Key::ToggleShortcutsTooltip))
             .clicked()
         {
             self.show_shortcuts_dialog = !self.show_shortcuts_dialog;

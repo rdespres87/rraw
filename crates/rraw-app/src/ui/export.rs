@@ -9,6 +9,7 @@ use egui::Color32;
 use image::ImageEncoder;
 
 use crate::app::RrawApp;
+use crate::i18n::{Key, Language};
 use crate::preview::*;
 use crate::state::*;
 
@@ -374,31 +375,43 @@ impl RrawApp {
     /// Renders the shared Timelapse & Holy Grail keyframe editor UI (used both in the right
     /// inspector side panel and inside the floating export window).
     pub fn render_timelapse_controls_ui(&mut self, ui: &mut egui::Ui, id_salt_prefix: &str) {
+        let lang = self.lang();
+        let t = |key: Key| key.translate(lang);
         let tl_paths = self.timelapse_candidate_paths();
         let frame_count = tl_paths.len();
         let dur_s = self.timelapse_fps.duration_seconds(frame_count);
 
+        let seq_text = if lang == Language::Fr {
+            format!("🎞️ Séquence : {} images", frame_count)
+        } else {
+            format!("🎞️ Sequence: {} frames", frame_count)
+        };
+        let dur_text = if lang == Language::Fr {
+            format!("Durée : {:.2} s @ {} fps", dur_s, self.timelapse_fps.fps())
+        } else {
+            format!(
+                "Duration: {:.2} s @ {} fps",
+                dur_s,
+                self.timelapse_fps.fps()
+            )
+        };
         ui.horizontal_wrapped(|ui| {
             ui.label(
-                egui::RichText::new(format!("🎞️ Séquence : {} images", frame_count))
+                egui::RichText::new(seq_text)
                     .strong()
                     .color(Color32::from_rgb(120, 220, 255)),
             );
             ui.separator();
             ui.label(
-                egui::RichText::new(format!(
-                    "Durée : {:.2} s @ {} fps",
-                    dur_s,
-                    self.timelapse_fps.fps()
-                ))
-                .strong()
-                .color(Color32::from_rgb(130, 235, 165)),
+                egui::RichText::new(dur_text)
+                    .strong()
+                    .color(Color32::from_rgb(130, 235, 165)),
             );
         });
 
         ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.label("Cadence (FPS) :");
+            ui.label(t(Key::TimelapseFps));
             egui::ComboBox::from_id_salt(format!("{id_salt_prefix}_timelapse_fps_combo"))
                 .selected_text(self.timelapse_fps.label())
                 .show_ui(ui, |ui| {
@@ -411,25 +424,29 @@ impl RrawApp {
         ui.separator();
         ui.checkbox(
             &mut self.timelapse_deflicker.enabled,
-            "✨ Anti-Scintillement (RAW Deflicker)",
+            t(Key::TimelapseDeflickerTitle),
         )
-        .on_hover_text(
-            "Analyse la courbe de luminance log2 linéaire et compense les micro-variations d'exposition (ΔEV) entre images consécutives",
-        );
+        .on_hover_text(t(Key::TimelapseDeflickerTooltip));
 
         if self.timelapse_deflicker.enabled {
             ui.horizontal(|ui| {
-                ui.label("Fenêtre glissante :");
+                ui.label(t(Key::TimelapseWindowSize));
                 let mut rad = self.timelapse_deflicker.window_radius as u32;
                 if ui
-                    .add(egui::Slider::new(&mut rad, 1..=15).suffix(" images"))
+                    .add(
+                        egui::Slider::new(&mut rad, 1..=15).suffix(if lang == Language::Fr {
+                            " images"
+                        } else {
+                            " frames"
+                        }),
+                    )
                     .changed()
                 {
                     self.timelapse_deflicker.window_radius = rad as usize;
                 }
             });
             ui.horizontal(|ui| {
-                ui.label("Intensité Deflicker :");
+                ui.label(t(Key::TimelapseIntensity));
                 let mut pct = (self.timelapse_deflicker.strength * 100.0).round();
                 if ui
                     .add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%"))
@@ -443,11 +460,9 @@ impl RrawApp {
         ui.separator();
         ui.checkbox(
             &mut self.timelapse_keyframe_ramping,
-            "🌅 Interpolation Holy Grail (1ère → Dernière)",
+            t(Key::TimelapseHolyGrailTitle),
         )
-        .on_hover_text(
-            "Interpole progressivement l'Exposition, la Température (Kelvin), la Teinte, le Contraste et la Saturation entre la première et la dernière image de la séquence",
-        );
+        .on_hover_text(t(Key::TimelapseHolyGrailTooltip));
 
         if self.timelapse_keyframe_ramping && frame_count >= 2 {
             let first_path = tl_paths[0].clone();
@@ -489,22 +504,23 @@ impl RrawApp {
             let mut first_changed = false;
             let mut first_commit_disk = false;
             ui.horizontal(|ui| {
+                let start_title = format!("{} (#1 : {first_name})", t(Key::TimelapseStartLabel));
                 ui.label(
-                    egui::RichText::new(format!("☀️ Départ (#1 : {first_name})"))
+                    egui::RichText::new(start_title)
                         .small()
                         .strong()
                         .color(Color32::from_rgb(255, 215, 110)),
                 );
                 if ui
-                    .small_button("👁️ Voir")
-                    .on_hover_text("Afficher la 1ère photo dans le viewport")
+                    .small_button(t(Key::TimelapseViewButton))
+                    .on_hover_text(t(Key::TimelapseViewStartTooltip))
                     .clicked()
                 {
                     open_preview_target = Some(first_path.clone());
                 }
             });
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("Exp :").small());
+                ui.label(egui::RichText::new(t(Key::TimelapseExpShort)).small());
                 let r_exp = ui.add(
                     egui::Slider::new(&mut g_first.exposure_ev, -4.0..=4.0)
                         .step_by(0.05)
@@ -516,7 +532,7 @@ impl RrawApp {
                 if r_exp.drag_stopped() || r_exp.lost_focus() {
                     first_commit_disk = true;
                 }
-                ui.label(egui::RichText::new("Temp :").small());
+                ui.label(egui::RichText::new(t(Key::TimelapseTempShort)).small());
                 let r_tmp = ui.add(
                     egui::Slider::new(&mut g_first.kelvin, 2000.0..=12000.0)
                         .step_by(50.0)
@@ -557,22 +573,26 @@ impl RrawApp {
             let mut last_changed = false;
             let mut last_commit_disk = false;
             ui.horizontal(|ui| {
+                let end_title = format!(
+                    "{} (#{frame_count} : {last_name})",
+                    t(Key::TimelapseEndLabel)
+                );
                 ui.label(
-                    egui::RichText::new(format!("🌙 Fin (#{frame_count} : {last_name})"))
+                    egui::RichText::new(end_title)
                         .small()
                         .strong()
                         .color(Color32::from_rgb(155, 195, 255)),
                 );
                 if ui
-                    .small_button("👁️ Voir")
-                    .on_hover_text("Afficher la dernière photo dans le viewport")
+                    .small_button(t(Key::TimelapseViewButton))
+                    .on_hover_text(t(Key::TimelapseViewEndTooltip))
                     .clicked()
                 {
                     open_preview_target = Some(last_path.clone());
                 }
             });
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("Exp :").small());
+                ui.label(egui::RichText::new(t(Key::TimelapseExpShort)).small());
                 let r_exp = ui.add(
                     egui::Slider::new(&mut g_last.exposure_ev, -4.0..=4.0)
                         .step_by(0.05)
@@ -584,7 +604,7 @@ impl RrawApp {
                 if r_exp.drag_stopped() || r_exp.lost_focus() {
                     last_commit_disk = true;
                 }
-                ui.label(egui::RichText::new("Temp :").small());
+                ui.label(egui::RichText::new(t(Key::TimelapseTempShort)).small());
                 let r_tmp = ui.add(
                     egui::Slider::new(&mut g_last.kelvin, 2000.0..=12000.0)
                         .step_by(50.0)
@@ -627,6 +647,8 @@ impl RrawApp {
             return;
         }
 
+        let lang = self.lang();
+        let t = |key: Key| key.translate(lang);
         let mut is_open = self.show_export_dialog;
         let mut trigger_export = false;
         let mut close_dialog = false;
@@ -635,7 +657,8 @@ impl RrawApp {
             close_dialog = true;
         }
 
-        egui::Window::new("📤 Exporter / 🎬 Timelapse")
+        egui::Window::new(t(Key::ExportWindowTitle))
+            .id(egui::Id::NULL.with("export_timelapse_modal_window"))
             .open(&mut is_open)
             .movable(true)
             .collapsible(true)
@@ -643,24 +666,22 @@ impl RrawApp {
             .default_width(470.0)
             .default_pos(egui::pos2(780.0, 52.0))
             .show(ctx, |ui| {
-                ui.heading("Cible d'export");
+                ui.heading(t(Key::ExportTargetHeading));
                 ui.horizontal_wrapped(|ui| {
                     if ui
                         .radio_value(
                             &mut self.export_target_mode,
                             ExportTargetMode::CurrentPhoto,
-                            "📷 Photo courante",
+                            t(Key::ExportTargetCurrent),
                         )
                         .clicked()
                     {
                         self.export_batch_selection = false;
                     }
                     let sel_count = self.selected_photos.len();
-                    let batch_label = format!(
-                        "🗂️ Lot ({} photo{})",
-                        sel_count,
-                        if sel_count > 1 { "s" } else { "" }
-                    );
+                    let batch_word = t(Key::ExportTargetBatch);
+                    let s_suffix = if sel_count > 1 { "s" } else { "" };
+                    let batch_label = format!("{batch_word} ({sel_count} photo{s_suffix})");
                     if ui
                         .radio_value(
                             &mut self.export_target_mode,
@@ -675,7 +696,7 @@ impl RrawApp {
                         .radio_value(
                             &mut self.export_target_mode,
                             ExportTargetMode::TimelapseSequence,
-                            "🎬 Séquence Timelapse & Anti-Flicker",
+                            t(Key::ExportTargetTimelapse),
                         )
                         .clicked()
                     {
@@ -690,7 +711,7 @@ impl RrawApp {
                     ExportTargetMode::CurrentPhoto => {
                         if let Some(photo) = &self.loaded_photo {
                             ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new("Photo active :").strong());
+                                ui.label(egui::RichText::new(t(Key::ExportActivePhoto)).strong());
                                 if let Some(name) = photo.path.file_name().and_then(|n| n.to_str())
                                 {
                                     ui.label(
@@ -700,13 +721,14 @@ impl RrawApp {
                                 }
                             });
                             let crop_text = if self.grading.crop_enabled {
-                                " (Recadrage actif appliqué)"
+                                t(Key::ExportCropApplied)
                             } else {
                                 ""
                             };
+                            let sensor_title = t(Key::ExportSensorResolution);
                             ui.label(
                                 egui::RichText::new(format!(
-                                    "Définition capteur : {} × {} px{crop_text}",
+                                    "{sensor_title} {} × {} px{crop_text}",
                                     photo.dimensions.0, photo.dimensions.1
                                 ))
                                 .small()
@@ -717,11 +739,9 @@ impl RrawApp {
                     ExportTargetMode::BatchSelection => {
                         if self.selected_photos.is_empty() {
                             ui.label(
-                                egui::RichText::new(
-                                    "⚠️ Aucune photo cochée dans les vignettes. Seule la photo active sera exportée.",
-                                )
-                                .small()
-                                .color(Color32::from_rgb(255, 180, 50)),
+                                egui::RichText::new(t(Key::ExportNoBatchWarning))
+                                    .small()
+                                    .color(Color32::from_rgb(255, 180, 50)),
                             );
                         }
                     }
@@ -737,7 +757,7 @@ impl RrawApp {
                 }
 
                 ui.separator();
-                ui.heading("Format de sortie & Compression");
+                ui.heading(t(Key::ExportFormatHeading));
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut self.export_format, ExportFormatChoice::Jpeg, "JPEG");
                     ui.selectable_value(&mut self.export_format, ExportFormatChoice::Png, "PNG");
@@ -748,87 +768,91 @@ impl RrawApp {
                 match self.export_format {
                     ExportFormatChoice::Jpeg => {
                         ui.horizontal(|ui| {
-                            ui.label("Qualité JPEG :");
+                            ui.label(t(Key::ExportJpegQuality));
                             ui.add(
                                 egui::Slider::new(&mut self.export_jpeg_quality, 1..=100)
                                     .suffix("%"),
                             );
                         });
                         let quality_desc = if self.export_jpeg_quality >= 92 {
-                            "Qualité maximale (Recommandé pour tirage / archivage)"
+                            t(Key::ExportJpegQualityMax)
                         } else if self.export_jpeg_quality >= 80 {
-                            "Qualité équilibrée (Idéal pour le web et les réseaux)"
+                            t(Key::ExportJpegQualityBalanced)
                         } else {
-                            "Forte compression (Taille de fichier minimale)"
+                            t(Key::ExportJpegQualityLow)
                         };
-                        ui.label(egui::RichText::new(quality_desc).small().color(Color32::GRAY));
+                        ui.label(
+                            egui::RichText::new(quality_desc)
+                                .small()
+                                .color(Color32::GRAY),
+                        );
                     }
                     ExportFormatChoice::Png => {
                         ui.horizontal(|ui| {
-                            ui.label("Profondeur :");
+                            ui.label(t(Key::ExportBitDepth));
                             ui.radio_value(
                                 &mut self.export_bit_depth,
                                 ExportBitDepth::Bits8,
-                                "8-bit sRGB (Standard)",
+                                t(Key::ExportBitDepth8Standard),
                             );
                             ui.radio_value(
                                 &mut self.export_bit_depth,
                                 ExportBitDepth::Bits16,
-                                "16-bit (Master sans perte)",
+                                t(Key::ExportBitDepth16Lossless),
                             );
                         });
                     }
                     ExportFormatChoice::Tiff => {
                         ui.horizontal(|ui| {
-                            ui.label("Profondeur :");
+                            ui.label(t(Key::ExportBitDepth));
                             ui.radio_value(
                                 &mut self.export_bit_depth,
                                 ExportBitDepth::Bits8,
-                                "8-bit",
+                                t(Key::ExportBitDepth8),
                             );
                             ui.radio_value(
                                 &mut self.export_bit_depth,
                                 ExportBitDepth::Bits16,
-                                "16-bit (Studio / Cinéma)",
+                                t(Key::ExportBitDepth16Studio),
                             );
                         });
                     }
                 }
 
                 ui.separator();
-                ui.heading("Redimensionnement");
+                ui.heading(t(Key::ExportResizeHeading));
                 egui::ComboBox::from_id_salt("export_scale_combo")
-                    .selected_text(self.export_scale_mode.label())
+                    .selected_text(self.export_scale_mode.label_lang(lang))
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut self.export_scale_mode,
                             ExportScaleMode::Original,
-                            ExportScaleMode::Original.label(),
+                            ExportScaleMode::Original.label_lang(lang),
                         );
                         ui.selectable_value(
                             &mut self.export_scale_mode,
                             ExportScaleMode::Percent75,
-                            ExportScaleMode::Percent75.label(),
+                            ExportScaleMode::Percent75.label_lang(lang),
                         );
                         ui.selectable_value(
                             &mut self.export_scale_mode,
                             ExportScaleMode::Percent50,
-                            ExportScaleMode::Percent50.label(),
+                            ExportScaleMode::Percent50.label_lang(lang),
                         );
                         ui.selectable_value(
                             &mut self.export_scale_mode,
                             ExportScaleMode::FitLongEdge2048,
-                            ExportScaleMode::FitLongEdge2048.label(),
+                            ExportScaleMode::FitLongEdge2048.label_lang(lang),
                         );
                         ui.selectable_value(
                             &mut self.export_scale_mode,
                             ExportScaleMode::FitLongEdge3840,
-                            ExportScaleMode::FitLongEdge3840.label(),
+                            ExportScaleMode::FitLongEdge3840.label_lang(lang),
                         );
                     });
 
                 ui.separator();
-                ui.heading("Dossier de destination & Nom");
+                ui.heading(t(Key::ExportDestinationHeading));
                 ui.horizontal(|ui| {
                     let dest_label = if let Some(dir) = &self.export_custom_dir {
                         dir.to_string_lossy().to_string()
@@ -837,12 +861,12 @@ impl RrawApp {
                             .path
                             .parent()
                             .map(|p| p.to_string_lossy().to_string())
-                            .unwrap_or_else(|| "Dossier source".to_string())
+                            .unwrap_or_else(|| t(Key::ExportSourceFolder).to_string())
                     } else {
-                        "Dossier source".to_string()
+                        t(Key::ExportSourceFolder).to_string()
                     };
                     ui.label(egui::RichText::new(dest_label).small().monospace());
-                    if ui.button("📁 Parcourir...").clicked() {
+                    if ui.button(t(Key::SidebarBrowseButton)).clicked() {
                         if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                             self.export_custom_dir = Some(folder);
                         }
@@ -850,7 +874,7 @@ impl RrawApp {
                 });
 
                 ui.horizontal(|ui| {
-                    ui.checkbox(&mut self.export_use_subfolder, "Créer un sous-dossier :");
+                    ui.checkbox(&mut self.export_use_subfolder, t(Key::ExportUseSubfolder));
                     if self.export_use_subfolder {
                         ui.add(
                             egui::TextEdit::singleline(&mut self.export_subfolder)
@@ -861,7 +885,7 @@ impl RrawApp {
 
                 if self.export_target_mode == ExportTargetMode::TimelapseSequence {
                     ui.horizontal(|ui| {
-                        ui.label("Préfixe de séquence :");
+                        ui.label(t(Key::ExportSequencePrefix));
                         ui.add(
                             egui::TextEdit::singleline(&mut self.timelapse_sequence_prefix)
                                 .desired_width(120.0),
@@ -872,11 +896,15 @@ impl RrawApp {
                             1,
                             ext,
                         );
-                        ui.label(egui::RichText::new(format!("→ {sample}")).small().monospace());
+                        ui.label(
+                            egui::RichText::new(format!("→ {sample}"))
+                                .small()
+                                .monospace(),
+                        );
                     });
                 } else {
                     ui.horizontal(|ui| {
-                        ui.label("Suffixe de fichier :");
+                        ui.label(t(Key::ExportFileSuffix));
                         ui.add(
                             egui::TextEdit::singleline(&mut self.export_suffix)
                                 .desired_width(120.0),
@@ -897,15 +925,13 @@ impl RrawApp {
                 ui.add_space(8.0);
                 ui.separator();
                 ui.horizontal(|ui| {
-                    if ui.button("Annuler").clicked() {
+                    if ui.button(t(Key::ExportCancel)).clicked() {
                         close_dialog = true;
                     }
                     let export_btn_text = match self.export_target_mode {
-                        ExportTargetMode::CurrentPhoto => "🚀 Exporter l'image",
-                        ExportTargetMode::BatchSelection => "🚀 Exporter le lot",
-                        ExportTargetMode::TimelapseSequence => {
-                            "🎬 Assembler & Exporter le Timelapse"
-                        }
+                        ExportTargetMode::CurrentPhoto => t(Key::ExportBtnSingle),
+                        ExportTargetMode::BatchSelection => t(Key::ExportBtnBatch),
+                        ExportTargetMode::TimelapseSequence => t(Key::ExportBtnTimelapse),
                     };
                     if ui
                         .add(
@@ -930,24 +956,33 @@ impl RrawApp {
                     let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("image");
                     let status_txt = match self.export_target_mode {
                         ExportTargetMode::CurrentPhoto => {
-                            format!("✅ Export réussi : {file_name}")
+                            format!("{}{file_name}", t(Key::ExportSuccessSinglePrefix))
                         }
-                        ExportTargetMode::BatchSelection => format!(
-                            "✅ Export par lot réussi ({} fichier(s))",
-                            self.selected_photos.len().max(1)
-                        ),
-                        ExportTargetMode::TimelapseSequence => format!(
-                            "✅ Séquence Timelapse exportée ({} images @ {} fps + manifeste JSON)",
-                            self.timelapse_candidate_paths().len(),
-                            self.timelapse_fps.fps()
-                        ),
+                        ExportTargetMode::BatchSelection => {
+                            let count = self.selected_photos.len().max(1);
+                            if lang == Language::Fr {
+                                format!("✅ Export par lot réussi ({count} fichier(s))")
+                            } else {
+                                format!("✅ Batch export successful ({count} file(s))")
+                            }
+                        }
+                        ExportTargetMode::TimelapseSequence => {
+                            let frames = self.timelapse_candidate_paths().len();
+                            let fps = self.timelapse_fps.fps();
+                            if lang == Language::Fr {
+                                format!("✅ Séquence Timelapse exportée ({frames} images @ {fps} fps + manifeste JSON)")
+                            } else {
+                                format!("✅ Timelapse sequence exported ({frames} frames @ {fps} fps + JSON manifest)")
+                            }
+                        }
                     };
                     self.status_message = status_txt.clone();
                     self.export_status = Some((status_txt, true));
                     self.show_export_dialog = false;
                 }
                 Err(err) => {
-                    self.export_status = Some((format!("❌ Échec : {err}"), false));
+                    self.export_status =
+                        Some((format!("{}{err}", t(Key::ExportFailedPrefix)), false));
                 }
             }
         }

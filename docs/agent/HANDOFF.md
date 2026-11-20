@@ -2,6 +2,18 @@
 
 ## Last Completed Milestone
 
+- **Phase 11 — Internationalization (i18n) (`rraw-app`)**:
+  - Implemented typed, zero-allocation string tables (`Language { Fr, En }` enum + `Key` enum with 294 typed UI keys) in `crates/rraw-app/src/i18n/mod.rs`.
+  - Compile-time exhaustiveness enforced via `match (self, lang)` mapping every key to both French and English `&'static str` without wildcards.
+  - Added backward-compatible `Language` persistence in `AppLayoutConfig` (`layout.json`) with `#[serde(default)]` defaulting to French for existing installations.
+  - Updated `ToolFamily::label_lang`, `DarkroomSection::title_lang`, and `ExportScaleMode::label_lang` with dynamic language support while preserving backward compatibility.
+  - Added compact interactive `FR | EN` language toggle in the top bar with instant reactive switching without restart.
+  - Localized full UI across `app.rs`, `inspector.rs`, `filmstrip.rs`, `explorer.rs`, `exif.rs`, `histogram.rs`, `canvas_hud.rs`, `shortcuts.rs`, `presets.rs`, `viewport.rs`, and `export.rs` (including Timelapse controls and modal dialog).
+  - Stabilized egui UI state across language switches using explicit `id_salt` and `Id` hashes on all collapsing headers and modal dialogs.
+  - Fixed darkroom inspector ergonomics on fixed 360px panel: line break for 0° rotation button, vertical stacking of local mask types, and concise section titles preventing collision with action buttons.
+  - Added comprehensive test suite `crates/rraw-app/tests/i18n_tests.rs` (5 tests) asserting all 294 keys resolve to non-empty strings in all languages, language properties, backward-compatible serde, darkroom & tool family translations, and live language toggle on headless app.
+  - Verified with 174 unit and integration tests passing across 47 suites, 0 clippy warnings, and Qwen 3.6 35B local audit APPROVED.
+
 - **Escape Key Modal & Interactive Tool Dismissal Hierarchy (`rraw-app`)**:
   - Implemented hierarchical `handle_escape_key(&mut self) -> bool` on `RrawApp`:
     1. Dismisses active modal dialogs first (`show_shortcuts_dialog`, `show_export_dialog`).

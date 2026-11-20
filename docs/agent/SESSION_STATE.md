@@ -4,8 +4,12 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 7 — Advanced Demosaicing & Noise Reduction Engine (Edge-Aware / Guided Wavelet / Luma & Chroma Denoise)
+- **Active Phase**: Phase 11 — Internationalization (i18n)
 - **Active Tasks**:
+  - Phase 11 Internationalization (`rraw-app`): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 174 tests across 47 suites, 0 clippy warnings)
+  - Task 11.1 (`rraw-app`): **Complete** (Typed zero-allocation string tables, `Language { Fr, En }`, `Key` 103 variants, compile-time exhaustive matching, module `crates/rraw-app/src/i18n/`)
+  - Task 11.2 (`rraw-app`): **Complete** (Migrated UI labels across top bar, inspector, filmstrip, EXIF, explorer, histogram, HUD; comprehensive test suite asserting all keys resolve to non-empty strings)
+  - Task 11.3 (`rraw-app`): **Complete** (Compact `FR | EN` toggle in top bar, persisted in `layout.json` via `#[serde(default)]`, instant live switch without restart)
   - Task 0.1 & Task 0.2: **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized)
   - Task 1.1 (`rraw-core`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `acedebb`)
   - Task 1.2 (`rraw-decode`): **Complete** (Inquisitor APPROVED, CI green, Gate 3 authorized, commit `8fa0a80`)
@@ -81,9 +85,9 @@
     - Embellished Histogram: OLED rounded card, sqrt scaling to reveal midtones, glowing RGB curves, quartile zone guides (Noirs, Ombres, Exposition, Hautes Lum.), clipping badges.
     - Crop & Geometry: 120 FPS vector overlay, aspect ratio presets, Enter/double-click commit, independent enable/disable toggles.
     - Batch Export: configurable subfolder (`Export`), suffix (`_rraw`), formats (JPEG quality, PNG 8/16, TIFF 8/16), auto-closing dialog.
-- Total tests: 169 unit/integration tests passing cleanly across 46 test suites.
+- Total tests: 174 unit/integration tests passing cleanly across 47 test suites.
 
 ## Last Observed Verification Run
 
 - `./.git/hooks/pre-commit` (`cargo fmt --all -- --check` + `cargo clippy --workspace --all-targets -- -D warnings`): passed (exit `0`).
-- `cargo test --workspace`: passed (`169` unit/integration tests across all `11` crates; `0` failed, `0` ignored).
+- `cargo test --workspace`: passed (`174` unit/integration tests across all `11` crates; `0` failed, `0` ignored).
