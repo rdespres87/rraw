@@ -48,6 +48,7 @@
   - Phase 9.1 Local Retouching & Masking Suite (Linear/Radial Gradients & Overlays): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 146 tests across 43 suites, commit `94ea97d`)
   - Phase 9.2 Freehand Adjustment Brush Mask (Vector Dabs, Zoom Retouching & Viewport Pan): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 148 tests across 43 suites, commit `d15a0f1`)
   - Live Filmstrip Thumbnail Synchronization & Crop Matching: **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 150 tests across 44 suites)
+  - Phase 12 Batch Recipe Clipboard & Multi-Image Development (`rraw-core` & `rraw-app`): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 165 tests across 45 suites, 0 clippy warnings)
 - **Git Branch**: `main`
 - **Remote**: `git@github.com:rdespres87/rraw.git` (Tracking)
 - **Last Approved Gate**: Gate 3 (Authorized on 2026-11-19)

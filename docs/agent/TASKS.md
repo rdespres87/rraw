@@ -78,8 +78,8 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 ---
 
 ## Phase 12 — Batch Recipe Clipboard & Multi-Image Development (Copy/Paste Settings)
-- [ ] **Task 12.1 (`rraw-core` & `rraw-app`)**: Color & Tone Recipe Clipboard Model (Snapshot core colorimetric & tonal grading parameters: Exposure, Contrast, White Balance CCT/Tint, Tone Curves PCHIP, Saturation, Film Emulations/Styles; strictly excluding photo-dependent settings like Crop, Straighten/Geometry, Local Brush/Gradient Masks, Lens Optics, and ISO Denoise)
-- [ ] **Task 12.2 (`rraw-app`)**: Filmstrip Multi-Selection Batch Paste & Keyboard Shortcuts (`Cmd+Shift+C` / `Cmd+Shift+V`, contextual right-click menu on filmstrip thumbnails "Copier le rendu / Coller le rendu", batch application to multi-selected photos with immediate thumbnail re-render, sidecar auto-save and bottom status bar notification)
+- [x] **Task 12.1 (`rraw-core` & `rraw-app`)**: Color & Tone Recipe Clipboard Model (Snapshot core colorimetric & tonal grading parameters: Exposure, Contrast, White Balance CCT/Tint, Tone Curves PCHIP, Saturation, Film Emulations/Styles; strictly excluding photo-dependent settings like Crop, Straighten/Geometry, Local Brush/Gradient Masks, Lens Optics, and ISO Denoise)
+- [x] **Task 12.2 (`rraw-app`)**: Filmstrip Multi-Selection Batch Paste & Keyboard Shortcuts (`Cmd+Shift+C` / `Cmd+Shift+V`, contextual right-click menu on filmstrip thumbnails "Copier le rendu / Coller le rendu", batch application to multi-selected photos with immediate thumbnail re-render, sidecar auto-save and bottom status bar notification)
 
 
 ---

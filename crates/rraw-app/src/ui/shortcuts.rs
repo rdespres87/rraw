@@ -58,6 +58,14 @@ impl RrawApp {
 
                     ui.add_space(10.0);
 
+                    render_section(ui, "📋 Presse-papiers & Développement par Lot", &[
+                        ("Cmd + Shift + C", "Copier le rendu colorimétrique & tonal de la photo"),
+                        ("Cmd + Shift + V", "Coller le rendu sur la photo active ou la sélection multiple"),
+                        ("Clic droit", "Menu contextuel sur vignette (Copier / Coller / Cocher)"),
+                    ]);
+
+                    ui.add_space(10.0);
+
                     render_section(ui, "📁 Fichiers, Export & Outils", &[
                         ("Cmd + O", "Ouvrir une photo RAW / TIFF"),
                         ("Cmd + E", "Ouvrir la boîte de dialogue d'exportation (JPEG / TIFF / HDR)"),

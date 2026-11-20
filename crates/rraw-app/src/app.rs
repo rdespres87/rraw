@@ -148,6 +148,8 @@ pub struct RrawApp {
     pub timelapse_sequence_prefix: String,
     /// Last selected index in filmstrip for Shift-range selection.
     pub last_selected_index: Option<usize>,
+    /// In-memory clipboard holding a snapshot of color & tone grading parameters for batch copy/paste.
+    pub recipe_clipboard: Option<GradingRecipeClipboard>,
     /// Search query for filtering EXIF metadata tags table.
     pub exif_search_query: String,
     /// Active color channel in the tone curves inspector.
@@ -273,6 +275,7 @@ impl RrawApp {
             timelapse_keyframe_ramping: true,
             timelapse_sequence_prefix: "timelapse".to_string(),
             last_selected_index: None,
+            recipe_clipboard: None,
             exif_search_query: String::new(),
             active_curve_channel: CurveChannel::CombinedRgb,
             dragging_curve_point: None,
@@ -346,6 +349,147 @@ impl RrawApp {
                 .copied()
                 .unwrap_or(photo.rating);
             save_photo_sidecars(&photo.path, &self.grading, rating);
+        }
+    }
+
+    /// Copies the active photo's color & tone grading parameters into the in-memory clipboard.
+    pub fn copy_active_recipe(&mut self) {
+        if self.loaded_photo.is_some() {
+            let clipboard = GradingRecipeClipboard::from_grading(&self.grading);
+            let summary = clipboard.summary();
+            self.recipe_clipboard = Some(clipboard);
+            self.status_message = format!("📋 Rendu copié dans le presse-papiers ({summary})");
+        } else {
+            self.status_message = "Presse-papiers : aucune photo active à copier".to_string();
+        }
+    }
+
+    /// Copies the color & tone grading parameters for a specific photograph path.
+    pub fn copy_recipe_for_path(&mut self, path: &Path) {
+        if self.loaded_photo.as_ref().map(|p| p.path.as_path()) == Some(path) {
+            self.copy_active_recipe();
+            return;
+        }
+
+        let grading = if let Some(g) = self.photo_gradings.get(path) {
+            g.clone()
+        } else if let (Some(g), _) = load_photo_sidecars(path) {
+            g
+        } else {
+            DarkroomGradingState::default()
+        };
+
+        let clipboard = GradingRecipeClipboard::from_grading(&grading);
+        let summary = clipboard.summary();
+        self.recipe_clipboard = Some(clipboard);
+        self.status_message = format!("📋 Rendu copié dans le presse-papiers ({summary})");
+    }
+
+    /// Pastes the in-memory clipboard recipe onto a single target photograph.
+    pub fn paste_recipe_to_path(&mut self, target_path: &Path, ctx: &egui::Context) {
+        let clipboard = match &self.recipe_clipboard {
+            Some(c) => c.clone(),
+            None => {
+                self.status_message =
+                    "Presse-papiers vide : copiez un rendu d'abord (Cmd+Shift+C)".to_string();
+                return;
+            }
+        };
+
+        self.apply_clipboard_to_single_photo(target_path, &clipboard, ctx);
+        self.status_message = "✓ Rendu collé avec succès sur la photo".to_string();
+    }
+
+    /// Pastes the in-memory clipboard recipe onto all selected photos in the filmstrip,
+    /// or onto the currently active photo if no batch selection is active.
+    pub fn paste_recipe_to_selection(&mut self, ctx: &egui::Context) {
+        let clipboard = match &self.recipe_clipboard {
+            Some(c) => c.clone(),
+            None => {
+                self.status_message =
+                    "Presse-papiers vide : copiez un rendu d'abord (Cmd+Shift+C)".to_string();
+                return;
+            }
+        };
+
+        let targets: Vec<PathBuf> = if !self.selected_photos.is_empty() {
+            self.selected_photos.iter().cloned().collect()
+        } else if let Some(photo) = &self.loaded_photo {
+            vec![photo.path.clone()]
+        } else {
+            return;
+        };
+
+        let count = targets.len();
+        for target_path in &targets {
+            self.apply_clipboard_to_single_photo(target_path, &clipboard, ctx);
+        }
+
+        self.status_message = format!(
+            "✓ Rendu collé avec succès sur {} photo{}",
+            count,
+            if count > 1 { "s" } else { "" }
+        );
+    }
+
+    /// Helper applying a clipboard recipe to a single photograph, saving sidecars and updating thumbnails.
+    fn apply_clipboard_to_single_photo(
+        &mut self,
+        target_path: &Path,
+        clipboard: &GradingRecipeClipboard,
+        ctx: &egui::Context,
+    ) {
+        let is_loaded = self.loaded_photo.as_ref().map(|p| p.path.as_path()) == Some(target_path);
+
+        if is_loaded {
+            clipboard.apply_to_grading(&mut self.grading);
+            self.current_preset = self.grading.preset;
+            self.photo_gradings
+                .insert(target_path.to_path_buf(), self.grading.clone());
+            self.needs_preview_update = true;
+            let rating = self
+                .photo_ratings
+                .get(target_path)
+                .copied()
+                .or_else(|| self.loaded_photo.as_ref().map(|p| p.rating))
+                .unwrap_or(0);
+            save_photo_sidecars(target_path, &self.grading, rating);
+        } else {
+            let mut target_grading = if let Some(g) = self.photo_gradings.get(target_path) {
+                g.clone()
+            } else if let (Some(g), _) = load_photo_sidecars(target_path) {
+                g
+            } else {
+                DarkroomGradingState::default()
+            };
+
+            clipboard.apply_to_grading(&mut target_grading);
+            self.photo_gradings
+                .insert(target_path.to_path_buf(), target_grading.clone());
+            let rating = self.photo_ratings.get(target_path).copied().unwrap_or(0);
+            save_photo_sidecars(target_path, &target_grading, rating);
+
+            // If the photo is cached in memory, re-render its thumbnail immediately
+            if let Some(entry) = self.photo_cache.iter_mut().find(|e| e.path == target_path) {
+                let (preview, _) = render_preview_from_base(&entry.base_preview, &target_grading);
+                let thumb_img = create_thumbnail_from_preview(&preview, &target_grading, 140, 100);
+                if let Some(tex) = self.thumbnail_textures.get_mut(target_path) {
+                    tex.set(thumb_img, egui::TextureOptions::LINEAR);
+                } else {
+                    let tex = ctx.load_texture(
+                        format!("thumb_{}", target_path.display()),
+                        thumb_img,
+                        egui::TextureOptions::LINEAR,
+                    );
+                    self.thumbnail_textures
+                        .insert(target_path.to_path_buf(), tex);
+                }
+            } else {
+                // Invalidate texture so background thumbnail worker reloads it with updated sidecar
+                self.thumbnail_textures.remove(target_path);
+                self.thumbnail_pending.remove(target_path);
+                let _ = self.thumbnail_req_tx.send(target_path.to_path_buf());
+            }
         }
     }
 
@@ -675,6 +819,21 @@ impl eframe::App for RrawApp {
             self.navigate_relative_with_shift(-1, shift);
         } else if nav_next {
             self.navigate_relative_with_shift(1, shift);
+        }
+
+        // Batch Recipe Clipboard shortcuts: Cmd/Ctrl + Shift + C (Copy) / Cmd/Ctrl + Shift + V (Paste)
+        let (copy_recipe, paste_recipe) = ui.input(|i| {
+            let cmd = i.modifiers.command || i.modifiers.ctrl;
+            (
+                cmd && i.modifiers.shift && i.key_pressed(egui::Key::C),
+                cmd && i.modifiers.shift && i.key_pressed(egui::Key::V),
+            )
+        });
+        if copy_recipe {
+            self.copy_active_recipe();
+        } else if paste_recipe {
+            let ctx = ui.ctx().clone();
+            self.paste_recipe_to_selection(&ctx);
         }
 
         // Classical keyboard selection shortcuts: Cmd/Ctrl+A, Cmd/Ctrl+D, Escape, Space

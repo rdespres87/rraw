@@ -1468,6 +1468,96 @@ impl DarkroomGradingState {
     }
 }
 
+/// In-memory clipboard holding a snapshot of color & tone grading parameters
+/// for copying and pasting across photographs in the darkroom and filmstrip.
+///
+/// Strictly isolates creative parameters (exposure, contrast, tone curves, white balance,
+/// saturation, film emulations, styles, custom LUTs, and creative vignetting) while
+/// preserving photo-dependent settings (crop, straighten, geometry, local brush/gradient masks,
+/// lens optical corrections, ISO denoise, and sharpening).
+#[derive(Debug, Clone, PartialEq)]
+pub struct GradingRecipeClipboard {
+    pub preset: GradingPreset,
+    pub exposure_ev: f32,
+    pub contrast: f32,
+    pub highlights: f32,
+    pub shadows: f32,
+    pub blacks: f32,
+    pub saturation: f32,
+    pub vibrance: f32,
+    pub kelvin: f32,
+    pub tint: f32,
+    pub display_transform: DisplayTransform,
+    pub is_monochrome: bool,
+    pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
+    pub custom_clut: Option<CustomClutState>,
+    pub creative_vignette_amount: f32,
+    pub creative_vignette_midpoint: f32,
+    pub creative_vignette_feather: f32,
+    pub creative_vignette_roundness: f32,
+}
+
+impl GradingRecipeClipboard {
+    /// Creates a new snapshot from the provided `DarkroomGradingState`.
+    #[must_use]
+    pub fn from_grading(grading: &DarkroomGradingState) -> Self {
+        Self {
+            preset: grading.preset,
+            exposure_ev: grading.exposure_ev,
+            contrast: grading.contrast,
+            highlights: grading.highlights,
+            shadows: grading.shadows,
+            blacks: grading.blacks,
+            saturation: grading.saturation,
+            vibrance: grading.vibrance,
+            kelvin: grading.kelvin,
+            tint: grading.tint,
+            display_transform: grading.display_transform,
+            is_monochrome: grading.is_monochrome,
+            tone_curves: grading.tone_curves.clone(),
+            custom_clut: grading.custom_clut.clone(),
+            creative_vignette_amount: grading.creative_vignette_amount,
+            creative_vignette_midpoint: grading.creative_vignette_midpoint,
+            creative_vignette_feather: grading.creative_vignette_feather,
+            creative_vignette_roundness: grading.creative_vignette_roundness,
+        }
+    }
+
+    /// Applies the color and tone recipe to target `DarkroomGradingState`,
+    /// leaving photo-dependent geometry, crop, masks, optical corrections, and denoise intact.
+    pub fn apply_to_grading(&self, grading: &mut DarkroomGradingState) {
+        grading.preset = self.preset;
+        grading.exposure_ev = self.exposure_ev;
+        grading.contrast = self.contrast;
+        grading.highlights = self.highlights;
+        grading.shadows = self.shadows;
+        grading.blacks = self.blacks;
+        grading.saturation = self.saturation;
+        grading.vibrance = self.vibrance;
+        grading.kelvin = self.kelvin;
+        grading.tint = self.tint;
+        grading.display_transform = self.display_transform;
+        grading.is_monochrome = self.is_monochrome;
+        grading.tone_curves = self.tone_curves.clone();
+        grading.custom_clut = self.custom_clut.clone();
+        grading.creative_vignette_amount = self.creative_vignette_amount;
+        grading.creative_vignette_midpoint = self.creative_vignette_midpoint;
+        grading.creative_vignette_feather = self.creative_vignette_feather;
+        grading.creative_vignette_roundness = self.creative_vignette_roundness;
+    }
+
+    /// Formats a concise human-readable summary of the clipboard recipe.
+    #[must_use]
+    pub fn summary(&self) -> String {
+        let preset_name = self.preset.name();
+        let exp_sign = if self.exposure_ev >= 0.0 { "+" } else { "" };
+        format!(
+            "{} · {}{:0.2} EV · {:0.0}K",
+            preset_name, exp_sign, self.exposure_ev, self.kelvin
+        )
+    }
+}
+
 impl Default for DarkroomGradingState {
     fn default() -> Self {
         Self {

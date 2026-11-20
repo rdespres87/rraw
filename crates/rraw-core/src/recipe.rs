@@ -591,3 +591,52 @@ impl Recipe {
         Ok(recipe)
     }
 }
+
+/// Snapshot of core colorimetric and tonal grading parameters for clipboard and batch transfer.
+///
+/// Strictly isolates creative tone curves, exposure, contrast, highlights, shadows,
+/// whites, blacks, saturation, and vibrance from photo-dependent optics, crop, denoise, and local masks.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ColorToneRecipeClipboard {
+    pub exposure_ev: f32,
+    pub contrast: f32,
+    pub highlights: f32,
+    pub shadows: f32,
+    pub whites: f32,
+    pub blacks: f32,
+    pub saturation: f32,
+    pub vibrance: f32,
+    pub tone_curves: crate::curves::ToneCurvesRecipe,
+}
+
+impl ColorToneRecipeClipboard {
+    /// Creates a clipboard snapshot from `Stage5GradingParams`.
+    #[must_use]
+    pub fn from_stage5(stage5: &Stage5GradingParams) -> Self {
+        Self {
+            exposure_ev: stage5.exposure_ev,
+            contrast: stage5.contrast,
+            highlights: stage5.highlights,
+            shadows: stage5.shadows,
+            whites: stage5.whites,
+            blacks: stage5.blacks,
+            saturation: stage5.saturation,
+            vibrance: stage5.vibrance,
+            tone_curves: stage5.tone_curves.clone(),
+        }
+    }
+
+    /// Applies clipboard parameters onto target `Stage5GradingParams`, preserving
+    /// other stage fields like laplacian local contrast.
+    pub fn apply_to_stage5(&self, stage5: &mut Stage5GradingParams) {
+        stage5.exposure_ev = self.exposure_ev;
+        stage5.contrast = self.contrast;
+        stage5.highlights = self.highlights;
+        stage5.shadows = self.shadows;
+        stage5.whites = self.whites;
+        stage5.blacks = self.blacks;
+        stage5.saturation = self.saturation;
+        stage5.vibrance = self.vibrance;
+        stage5.tone_curves = self.tone_curves.clone();
+    }
+}

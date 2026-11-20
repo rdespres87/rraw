@@ -121,6 +121,45 @@ impl RrawApp {
                         }
                     }
 
+                    // Clipboard quick actions in filmstrip toolbar
+                    ui.separator();
+                    let has_clip = self.recipe_clipboard.is_some();
+                    let copy_btn = ui
+                        .small_button("📋 Copier rendu")
+                        .on_hover_text("Copier le rendu de la photo active dans le presse-papiers (Cmd+Shift+C)");
+                    if copy_btn.clicked() {
+                        self.copy_active_recipe();
+                    }
+
+                    if has_clip {
+                        let clip_summary = self
+                            .recipe_clipboard
+                            .as_ref()
+                            .map(|c| c.summary())
+                            .unwrap_or_default();
+                        let paste_label = if sel_count > 0 {
+                            format!("📥 Coller sélection ({sel_count})")
+                        } else {
+                            "📥 Coller rendu".to_string()
+                        };
+                        let paste_btn = egui::Button::new(
+                            egui::RichText::new(paste_label)
+                                .small()
+                                .color(Color32::from_rgb(180, 240, 180)),
+                        )
+                        .fill(Color32::from_rgb(32, 54, 38));
+                        if ui
+                            .add(paste_btn)
+                            .on_hover_text(format!(
+                                "Coller le rendu ({clip_summary}) sur la sélection ou la photo active (Cmd+Shift+V)"
+                            ))
+                            .clicked()
+                        {
+                            let ctx = ui.ctx().clone();
+                            self.paste_recipe_to_selection(&ctx);
+                        }
+                    }
+
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .button("▶")
@@ -173,6 +212,12 @@ impl RrawApp {
                                 let mut star_change: Option<(PathBuf, u8)> = None;
                                 let mut thumbs_to_request = Vec::new();
                                 let entries = self.directory_entries.clone();
+                                let has_clipboard = self.recipe_clipboard.is_some();
+                                let clipboard_summary =
+                                    self.recipe_clipboard.as_ref().map(|c| c.summary());
+                                let mut copy_recipe_path = None;
+                                let mut paste_recipe_path = None;
+                                let mut toggle_export_path = None;
 
                                 for (entry_idx, entry) in entries.iter().enumerate() {
                                     let rating =
@@ -220,6 +265,54 @@ impl RrawApp {
                                     let card_size = egui::vec2(120.0, 104.0);
                                     let (rect, response) =
                                         ui.allocate_exact_size(card_size, egui::Sense::click());
+
+                                    // Contextual right-click menu for batch development & clipboard
+                                    response.context_menu(|ui| {
+                                        ui.set_min_width(230.0);
+                                        if ui.button("📋 Copier le rendu (Cmd+Shift+C)").clicked() {
+                                            copy_recipe_path = Some(entry.clone());
+                                            ui.close();
+                                        }
+
+                                        let is_in_selection = self.selected_photos.contains(entry);
+                                        let paste_label = if is_in_selection
+                                            && self.selected_photos.len() > 1
+                                        {
+                                            format!(
+                                                "📥 Coller le rendu sur la sélection ({})",
+                                                self.selected_photos.len()
+                                            )
+                                        } else {
+                                            "📥 Coller le rendu sur cette photo (Cmd+Shift+V)"
+                                                .to_string()
+                                        };
+                                        let paste_btn = egui::Button::new(paste_label);
+                                        if ui.add_enabled(has_clipboard, paste_btn).clicked() {
+                                            paste_recipe_path = Some(entry.clone());
+                                            ui.close();
+                                        }
+
+                                        if let Some(summary) = &clipboard_summary {
+                                            ui.label(
+                                                egui::RichText::new(format!(
+                                                    "Presse-papiers : {summary}"
+                                                ))
+                                                .small()
+                                                .color(Color32::from_rgb(140, 150, 165)),
+                                            );
+                                        }
+
+                                        ui.separator();
+                                        let chk_label = if is_multi_selected {
+                                            "✕ Décocher du lot d'export"
+                                        } else {
+                                            "✓ Cocher pour le lot d'export"
+                                        };
+                                        if ui.button(chk_label).clicked() {
+                                            toggle_export_path = Some(entry.clone());
+                                            ui.close();
+                                        }
+                                    });
                                     let painter = ui.painter_at(rect);
 
                                     painter.rect_filled(rect, 6.0, bg_color);
@@ -456,6 +549,27 @@ impl RrawApp {
                                             self.selected_photos.insert(entry.clone());
                                         }
                                         self.last_selected_index = Some(entry_idx);
+                                    }
+                                }
+
+                                if let Some(path) = copy_recipe_path {
+                                    self.copy_recipe_for_path(&path);
+                                }
+                                if let Some(path) = paste_recipe_path {
+                                    let ctx = ui.ctx().clone();
+                                    if self.selected_photos.contains(&path)
+                                        && self.selected_photos.len() > 1
+                                    {
+                                        self.paste_recipe_to_selection(&ctx);
+                                    } else {
+                                        self.paste_recipe_to_path(&path, &ctx);
+                                    }
+                                }
+                                if let Some(path) = toggle_export_path {
+                                    if self.selected_photos.contains(&path) {
+                                        self.selected_photos.remove(&path);
+                                    } else {
+                                        self.selected_photos.insert(path);
                                     }
                                 }
 
