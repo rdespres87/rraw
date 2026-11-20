@@ -40,6 +40,12 @@ pub struct RrawApp {
     pub original_texture: Option<egui::TextureHandle>,
     /// Whether the user has toggled comparison mode to view the original untouched photo.
     pub is_comparing_original: bool,
+    /// Split-screen Before/After comparison mode (toggled with `Y`).
+    pub split_compare: bool,
+    /// Normalized horizontal position of the Before/After divider in `[0, 1]`.
+    pub split_position: f32,
+    /// Shadow / highlight clipping warnings painted over the preview (`J`).
+    pub clipping_overlay: crate::view_tools::ClippingOverlay,
     /// Pre-computed live RGB histogram data.
     pub histogram: HistogramData,
     /// Flag signaling that preview texture must be re-rendered.
@@ -96,6 +102,8 @@ pub struct RrawApp {
     pub thumbnail_pending: HashSet<PathBuf>,
     /// Whether the export modal dialog is open.
     pub show_export_dialog: bool,
+    /// Whether the keyboard shortcuts cheat sheet dialog is open.
+    pub show_shortcuts_dialog: bool,
     /// Selected output format for photo export.
     pub export_format: ExportFormatChoice,
     /// JPEG quality parameter (1-100).
@@ -211,6 +219,9 @@ impl RrawApp {
             preview_texture: None,
             original_texture: None,
             is_comparing_original: false,
+            split_compare: false,
+            split_position: 0.5,
+            clipping_overlay: crate::view_tools::ClippingOverlay::default(),
             histogram: HistogramData::default(),
             needs_preview_update: false,
             decode_sender,
@@ -239,6 +250,7 @@ impl RrawApp {
             thumbnail_req_tx,
             thumbnail_pending: HashSet::new(),
             show_export_dialog: false,
+            show_shortcuts_dialog: false,
             export_format: ExportFormatChoice::Jpeg,
             export_jpeg_quality: 92,
             export_bit_depth: ExportBitDepth::Bits8,
@@ -284,7 +296,7 @@ impl RrawApp {
     /// Updates the main viewport texture and histogram from the active base preview.
     pub fn update_preview_textures(&mut self, ctx: &egui::Context) {
         if let Some(base) = &self.base_preview {
-            let (preview, hist) = render_preview_from_base(base, &self.grading);
+            let (mut preview, hist) = render_preview_from_base(base, &self.grading);
 
             // Dynamically update the active filmstrip thumbnail with live grading and crop
             if let Some(photo) = &self.loaded_photo {
@@ -300,6 +312,9 @@ impl RrawApp {
                     self.thumbnail_textures.insert(photo.path.clone(), tex);
                 }
             }
+
+            // Clipping warnings are painted after the thumbnail so the filmstrip stays clean.
+            crate::view_tools::apply_clipping_overlay(&mut preview.pixels, self.clipping_overlay);
 
             if let Some(tex) = &mut self.preview_texture {
                 tex.set(preview, egui::TextureOptions::LINEAR);
@@ -453,6 +468,16 @@ impl RrawApp {
                 rating == 0
             })
             .count()
+    }
+
+    /// Toggles both clipping warning layers together (`J` shortcut).
+    pub fn toggle_clipping_overlay(&mut self) {
+        let enable = !self.clipping_overlay.is_active();
+        self.clipping_overlay = crate::view_tools::ClippingOverlay {
+            shadows: enable,
+            highlights: enable,
+        };
+        self.needs_preview_update = true;
     }
 
     /// Sets the rating (0 to 5) of the currently loaded photo and persists to `.rraw.json` and `.xmp`.
@@ -658,6 +683,10 @@ impl eframe::App for RrawApp {
                 for entry in &self.directory_entries {
                     self.selected_photos.insert(entry.clone());
                 }
+                self.status_message = format!(
+                    "Sélection : toutes les photos cochées pour l'export ({} au total)",
+                    self.directory_entries.len()
+                );
             }
             if i.key_pressed(egui::Key::Backslash) {
                 self.is_comparing_original = !self.is_comparing_original;
@@ -665,12 +694,29 @@ impl eframe::App for RrawApp {
             if i.key_pressed(egui::Key::Escape) {
                 if self.grading.active_brush_mask_idx.is_some() {
                     self.grading.active_brush_mask_idx = None;
+                    self.status_message = "Outil pinceau désactivé".to_string();
                 } else if !(i.modifiers.command || i.modifiers.ctrl) {
+                    let prev = self.selected_photos.len();
                     self.selected_photos.clear();
+                    if prev > 0 {
+                        self.status_message =
+                            "Sélection d'exportation réinitialisée (0 photo)".to_string();
+                    }
                 }
             }
             if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::D) {
+                let prev = self.selected_photos.len();
                 self.selected_photos.clear();
+                self.grading.active_brush_mask_idx = None;
+                self.status_message = if prev > 0 {
+                    format!(
+                        "Désélection : {prev} photo{} retirée{} du lot d'export",
+                        if prev > 1 { "s" } else { "" },
+                        if prev > 1 { "s" } else { "" }
+                    )
+                } else {
+                    "Sélection d'exportation : aucune photo cochée".to_string()
+                };
             }
             if i.key_pressed(egui::Key::Space) {
                 // In Darkroom with brush active, Space is reserved for panning zoomed image
@@ -678,13 +724,52 @@ impl eframe::App for RrawApp {
                     if let Some(photo) = &self.loaded_photo {
                         if self.selected_photos.contains(&photo.path) {
                             self.selected_photos.remove(&photo.path);
+                            self.status_message = format!(
+                                "Photo retirée du lot d'export (reste {})",
+                                self.selected_photos.len()
+                            );
                         } else {
                             self.selected_photos.insert(photo.path.clone());
+                            self.status_message = format!(
+                                "Photo ajoutée au lot d'export ({} au total)",
+                                self.selected_photos.len()
+                            );
                         }
                     }
                 }
             }
         });
+
+        // Viewport display shortcuts (ignored while a text field has keyboard focus)
+        if !ui.ctx().egui_wants_keyboard_input() {
+            let (toggle_filmstrip, toggle_hud, toggle_split, toggle_clipping, toggle_shortcuts) =
+                ui.input(|i| {
+                    (
+                        i.key_pressed(egui::Key::F9),
+                        i.key_pressed(egui::Key::I) && !i.modifiers.any(),
+                        i.key_pressed(egui::Key::Y) && !i.modifiers.any(),
+                        i.key_pressed(egui::Key::J) && !i.modifiers.any(),
+                        i.key_pressed(egui::Key::F1),
+                    )
+                });
+            if toggle_filmstrip {
+                self.layout_config.filmstrip_visible = !self.layout_config.filmstrip_visible;
+                self.layout_config.save();
+            }
+            if toggle_hud {
+                self.layout_config.show_canvas_hud = !self.layout_config.show_canvas_hud;
+                self.layout_config.save();
+            }
+            if toggle_split {
+                self.split_compare = !self.split_compare;
+            }
+            if toggle_clipping {
+                self.toggle_clipping_overlay();
+            }
+            if toggle_shortcuts {
+                self.show_shortcuts_dialog = !self.show_shortcuts_dialog;
+            }
+        }
 
         for digit in 0..=5 {
             let key = match digit {
@@ -832,10 +917,6 @@ impl eframe::App for RrawApp {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.heading("RRAW");
-                    ui.label(
-                        egui::RichText::new("Chambre noire 120Hz EDR")
-                            .color(egui::Color32::from_rgb(100, 180, 255)),
-                    );
 
                     ui.separator();
 
@@ -883,76 +964,25 @@ impl eframe::App for RrawApp {
 
                     ui.separator();
 
-                    // Live EDR Headroom Badge
-                    let headroom_label = if headroom > 1.05 {
-                        egui::RichText::new(format!(
-                            "⚡ Headroom EDR : {:.1}x (Apple XDR)",
-                            headroom
-                        ))
-                        .color(egui::Color32::from_rgb(255, 200, 50))
+                    // Live EDR Headroom Badge (compact; details on hover)
+                    let (headroom_text, headroom_col, headroom_tip) = if headroom > 1.05 {
+                        (
+                            format!("⚡ EDR {headroom:.1}x"),
+                            egui::Color32::from_rgb(255, 200, 50),
+                            "Marge EDR disponible sur l'écran (Extended Dynamic Range)",
+                        )
                     } else {
-                        egui::RichText::new(format!("📺 Écran SDR : {:.1}x", headroom))
-                            .color(egui::Color32::LIGHT_GRAY)
+                        (
+                            format!("SDR {headroom:.1}x"),
+                            egui::Color32::LIGHT_GRAY,
+                            "Écran en plage dynamique standard (SDR)",
+                        )
                     };
-                    ui.label(headroom_label);
+                    ui.label(egui::RichText::new(headroom_text).color(headroom_col))
+                        .on_hover_text(headroom_tip);
 
-                    if let Some(photo) = &self.loaded_photo {
-                        ui.separator();
-                        if let Some(file_name) = photo.path.file_name().and_then(|n| n.to_str()) {
-                            ui.label(egui::RichText::new(file_name).strong());
-                        }
-                        let fl_info = if !photo.focal_length_str.is_empty() {
-                            format!(" | {}", photo.focal_length_str)
-                        } else {
-                            String::new()
-                        };
-                        ui.label(format!(
-                            "{}x{} | ISO {} | {} | {}{fl_info} | {}",
-                            photo.dimensions.0,
-                            photo.dimensions.1,
-                            photo.iso,
-                            photo.shutter_str,
-                            photo.aperture_str,
-                            photo.camera_model
-                        ));
-
-                        ui.separator();
-                        let current_r = photo.rating;
-                        let mut new_top_r = None;
-                        ui.horizontal(|ui| {
-                            for s in 1..=5 {
-                                let is_lit = s <= current_r;
-                                let star_char = if is_lit { "★" } else { "☆" };
-                                let star_col = if is_lit {
-                                    Color32::from_rgb(255, 200, 50)
-                                } else {
-                                    Color32::from_rgb(100, 105, 115)
-                                };
-                                let resp = ui.add(
-                                    egui::Label::new(
-                                        egui::RichText::new(star_char).color(star_col).size(14.0),
-                                    )
-                                    .sense(egui::Sense::click()),
-                                );
-                                if resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                let tip = format!(
-                                    "Noter {} étoile{} (0 pour effacer)",
-                                    s,
-                                    if s > 1 { "s" } else { "" }
-                                );
-                                let resp = resp.on_hover_text(tip);
-                                if resp.clicked() {
-                                    let target_r = if current_r == s { 0 } else { s };
-                                    new_top_r = Some(target_r);
-                                }
-                            }
-                        });
-                        if let Some(r) = new_top_r {
-                            self.set_current_photo_rating(r);
-                        }
-                    }
+                    ui.separator();
+                    self.render_view_toggles(ui);
 
                     ui.separator();
                     ui.label(egui::RichText::new("Zoom :").size(12.0));
@@ -1143,7 +1173,9 @@ impl eframe::App for RrawApp {
             });
 
         // 3. Bottom Filmstrip Panel
-        self.render_filmstrip_panel(ui);
+        if self.layout_config.filmstrip_visible {
+            self.render_filmstrip_panel(ui);
+        }
 
         // 4. Left Sidebar Panel (Histogram + Explorer + Presets + EXIF)
         self.render_left_panel(ui);
@@ -1156,5 +1188,8 @@ impl eframe::App for RrawApp {
 
         // 7. Render interactive Export modal dialog if active
         self.render_export_dialog(ui.ctx());
+
+        // 8. Render shortcuts cheat sheet dialog if active
+        self.render_shortcuts_dialog(ui.ctx());
     }
 }

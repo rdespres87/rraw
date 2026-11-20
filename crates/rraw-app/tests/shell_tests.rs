@@ -1217,3 +1217,28 @@ fn test_chroma_and_luma_denoise_reduces_variance_in_rendered_preview_and_export(
 
     Ok(())
 }
+
+#[test]
+fn test_layout_config_view_toggles_default_and_legacy_compat(
+) -> Result<(), Box<dyn std::error::Error>> {
+    use app::AppLayoutConfig;
+
+    let defaults = AppLayoutConfig::default();
+    assert!(defaults.filmstrip_visible);
+    assert!(defaults.show_canvas_hud);
+
+    // A layout.json written before the view toggles existed must keep them enabled.
+    let legacy = r#"{"section_order":[],"active_tool_family":"All","active_tools_only":false}"#;
+    let restored: AppLayoutConfig = serde_json::from_str(legacy)?;
+    assert!(restored.filmstrip_visible);
+    assert!(restored.show_canvas_hud);
+
+    let hidden = AppLayoutConfig {
+        filmstrip_visible: false,
+        show_canvas_hud: false,
+        ..AppLayoutConfig::default()
+    };
+    let round_trip: AppLayoutConfig = serde_json::from_str(&serde_json::to_string(&hidden)?)?;
+    assert_eq!(round_trip, hidden);
+    Ok(())
+}

@@ -1014,7 +1014,7 @@ pub fn render_preview_from_base(
             clamped
         };
         let mapped = toe.powf(1.0 / 2.2);
-        (mapped * 255.0).clamp(0.0, 255.0) as u8
+        (mapped * 255.0 + 0.5).clamp(0.0, 255.0) as u8
     };
 
     struct RowHistogram {
@@ -1323,10 +1323,10 @@ pub fn render_preview_from_base(
                     .min(255) as usize;
                 row_lum[lum] += 1;
 
-                if lum == 0 {
+                if lum <= 1 {
                     row_sc += 1;
                 }
-                if lum == 255 {
+                if lum >= 250 || u8_r >= 253 || u8_g >= 253 || u8_b >= 253 {
                     row_hc += 1;
                 }
 

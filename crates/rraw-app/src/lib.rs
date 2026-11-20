@@ -7,6 +7,7 @@ pub mod preview;
 pub mod shell;
 pub mod state;
 pub mod ui;
+pub mod view_tools;
 
 pub use app::RrawApp;
 pub use preview::*;
