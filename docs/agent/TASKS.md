@@ -74,3 +74,17 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 - [ ] **Task 11.1 (`rraw-app`)**: Typed, zero-allocation string tables (`Language { Fr, En }` enum + `&'static str` lookup per key, compile-time exhaustiveness via `match`), module `crates/rraw-app/src/i18n/`
 - [ ] **Task 11.2 (`rraw-app`)**: Migrate all hard-coded UI labels (top bar, inspector, filmstrip, EXIF, viewport prompts, histogram) to i18n keys; unit test asserting every key resolves to a non-empty string in every language
 - [ ] **Task 11.3 (`rraw-app`)**: Compact `FR | EN` toggle in the top bar, persisted in `layout.json` (backward-compatible `#[serde(default)]`), live switch without restart
+
+---
+
+## Phase 12 — Batch Recipe Clipboard & Multi-Image Development (Copy/Paste Settings)
+- [ ] **Task 12.1 (`rraw-core` & `rraw-app`)**: Color & Tone Recipe Clipboard Model (Snapshot core colorimetric & tonal grading parameters: Exposure, Contrast, White Balance CCT/Tint, Tone Curves PCHIP, Saturation, Film Emulations/Styles; strictly excluding photo-dependent settings like Crop, Straighten/Geometry, Local Brush/Gradient Masks, Lens Optics, and ISO Denoise)
+- [ ] **Task 12.2 (`rraw-app`)**: Filmstrip Multi-Selection Batch Paste & Keyboard Shortcuts (`Cmd+Shift+C` / `Cmd+Shift+V`, contextual right-click menu on filmstrip thumbnails "Copier le rendu / Coller le rendu", batch application to multi-selected photos with immediate thumbnail re-render, sidecar auto-save and bottom status bar notification)
+
+
+---
+
+## Phase 13 — Application Versioning, Packaging & macOS DMG Installer
+- [ ] **Task 13.1 (`rraw-app` & Workspace)**: Semantic Versioning & Build Metadata (Semver `VERSION`, git commit hash and build date exposed via compile-time constants, displayed in top bar, "À propos" modal dialog and CLI `--version`)
+- [ ] **Task 13.2 (Packaging & Distribution)**: macOS App Bundle (`Rraw.app`) & Drag-and-Drop DMG Disk Image Installer (`scripts/package_macos.sh`, `Info.plist`, HiDPI `.icns` application icon, `/Applications` symlink, background art and code signing/notarization preparation)
+
