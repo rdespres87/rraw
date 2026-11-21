@@ -2,6 +2,14 @@
 
 ## Last Completed Milestone
 
+- **Optical Corrections UX, Auto-Crop, DNG Sensor Margins & Before/After Reference (`rraw-optics`, `rraw-decode`, `rraw-app`)**:
+  - **Désactivation intégrale des corrections sur l'affichage Avant (`raw_original`)** : implémentation de `DarkroomGradingState::untouched_raw()` forçant l'intégralité des corrections à l'état désactivé neutre (profil d'objectif désactivé, distorsion et vignetage à 0%, aberrations chromatiques et defringe désactivés, géométrie/rotation/trapèze à 0, smart lighting à Off, débruitage et netteté à 0). L'Avant représente rigoureusement le capteur brut pur sans aucune altération.
+  - **Isolation stricte des modes Profil vs Manuel** : dans `preview.rs` (`render_preview_from_base` et `render_export_image`), séparation étanche via `match grading.optical_tab`. En mode Manuel, le profil automatique est totalement débrayé (plus de profil fantôme ni d'addition invisible par-dessus les curseurs manuels). En mode Profil, seules les corrections du profil détecté s'appliquent.
+  - **Recadrage automatique (Auto-crop) sur la distorsion optique** : calcul d'un facteur de zoom géométrique compensateur $opt\_zoom$ résolu numériquement ($Z^3 - Z^2 - k_{dist} = 0$ pour $k_{dist} > 0$ et $1 / (1 + k_{dist} r_x^2)$ pour $k_{dist} < 0$), éliminant à 100% l'apparition de bordures noires incurvées ou de clampage sur les bords lors de la correction optique.
+  - **Rognage natif du capteur selon les métadonnées utiles DNG** : dans `rraw-decode::lib.rs`, extraction et rognage des marges de masquage optique du capteur selon `raw_image.crop_area.or(raw_image.active_area)`, aligné sur les frontières paires 2x2 du quad Bayer (élimination des 60 colonnes noires à gauche et 36 à droite sur Pentax KP et autres boîtiers DNG).
+  - **Réactivité interactive** : régénération instantanée de l'aperçu au basculement entre les onglets `[ 🎯 Profil d'objectif | 🛠️ Manuel ]` via `needs_preview_update`.
+  - **Tests et validation** : validation de la suite complète avec 235 tests passants across 55 test suites, 0 clippy warnings, et audit local impitoyable Qwen 3.6 35B APPROVED.
+
 - **Filmstrip Thumbnail Fidelity & Orientation/Crop Fixes (`rraw-app`)**:
   - **Élimination de la corruption et inversion de vignettes** : suppression de l'aliasing de texture entre `preview_texture` et `thumbnail_textures`. `preview_texture` ne réutilise plus jamais un handle de vignette et réinitialise son état proprement lors de l'ouverture d'un nouveau fichier pour empêcher tout écrasement des vignettes existantes par l'aperçu de la photo précédente pendant le décodage asynchrone.
   - **Maintien strict du ratio d'aspect des vignettes** : dans `filmstrip.rs`, calcul géométrique du rectangle adapté (`fitted_rect`) centré dans le cadre 110x62 avec fond sombre (letterboxing haut/bas pour les panoramiques, pillarboxing gauche/droite pour les portraits 2:3 et carrés 1:1). Élimine 100% des écrasements et étirements.

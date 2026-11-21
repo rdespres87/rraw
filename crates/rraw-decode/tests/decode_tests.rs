@@ -48,6 +48,21 @@ fn test_dng_tag_0xc761_noise_profile_extraction() -> Result<(), Box<dyn std::err
 }
 
 #[test]
+fn test_inspect_dng_crop_area() -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_decode::RawDecoder;
+    let path = std::path::Path::new("/Users/rdespres/Desktop/test/IMGP4058.DNG");
+    if path.exists() {
+        let decoder = rraw_decode::PureRustRawDecoder::new();
+        let decoded = decoder.decode_file(path)?;
+        assert_eq!(decoded.metadata.width, 6016);
+        assert_eq!(decoded.metadata.height, 4000);
+        assert_eq!(decoded.cfa_signed.width(), 6016);
+        assert_eq!(decoded.cfa_signed.height(), 4000);
+    }
+    Ok(())
+}
+
+#[test]
 fn test_wavelet_mad_noise_profile_accuracy() -> Result<(), Box<dyn std::error::Error>> {
     // Generate a 256x256 synthetic flat CFA buffer with injected noise sigma = 0.02
     let width = 256;

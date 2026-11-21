@@ -936,46 +936,36 @@ pub fn render_preview_from_base(
     let cy = preview_h as f32 * 0.5;
     let max_radius_sq = (cx * cx + cy * cy).max(1.0);
 
-    let (k_dist, v_gain) = if let Some(matched) = &base.matched_lens {
-        let (prof_k1, prof_v1) = if grading.lens_profile_auto {
-            let dist_scale = (grading.lens_distortion_strength / 100.0).max(0.0);
-            let vig_scale = (grading.lens_vignette_strength / 100.0).max(0.0);
-            (
-                matched.model.distortion.k1 * dist_scale,
-                matched.model.vignette.v1 * vig_scale,
-            )
-        } else {
-            (0.0, 0.0)
-        };
-        let kd = prof_k1
-            + if grading.distortion_correction {
+    let (k_dist, v_gain) = match grading.optical_tab {
+        OpticalCorrectionTab::Profile => {
+            if let Some(matched) = &base.matched_lens {
+                if grading.lens_profile_auto {
+                    let dist_scale = (grading.lens_distortion_strength / 100.0).max(0.0);
+                    let vig_scale = (grading.lens_vignette_strength / 100.0).max(0.0);
+                    (
+                        matched.model.distortion.k1 * dist_scale,
+                        matched.model.vignette.v1 * vig_scale,
+                    )
+                } else {
+                    (0.0, 0.0)
+                }
+            } else {
+                (0.0, 0.0)
+            }
+        }
+        OpticalCorrectionTab::Manual => {
+            let kd = if grading.distortion_correction {
                 (grading.distortion_amount / 100.0) * 0.15
             } else {
                 0.0
             };
-        let vg = prof_v1
-            + if grading.vignette_correction {
+            let vg = if grading.vignette_correction {
                 (grading.vignette_amount / 100.0) * 0.65
             } else {
                 0.0
             };
-        (kd, vg)
-    } else {
-        let kd = if grading.distortion_correction {
-            -0.06 + (grading.distortion_amount / 100.0) * 0.15
-        } else if grading.distortion_amount.abs() > 0.001 {
-            (grading.distortion_amount / 100.0) * 0.15
-        } else {
-            0.0
-        };
-        let vg = if grading.vignette_correction {
-            0.35 + (grading.vignette_amount / 100.0) * 0.65
-        } else if grading.vignette_amount > 0.01 {
-            (grading.vignette_amount / 100.0) * 0.65
-        } else {
-            0.0
-        };
-        (kd, vg)
+            (kd, vg)
+        }
     };
 
     let rot_deg = grading.rotation_degrees;
@@ -1039,7 +1029,24 @@ pub fn render_preview_from_base(
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();
 
-    let auto_zoom = if grading.geometry_enabled && grading.auto_crop_geometry {
+    let opt_zoom = if k_dist > 1e-5 {
+        let mut z = 1.0 + k_dist * 0.8;
+        for _ in 0..4 {
+            let f = z * z * z - z * z - k_dist;
+            let fp = 3.0 * z * z - 2.0 * z;
+            if fp.abs() > 1e-6 {
+                z -= f / fp;
+            }
+        }
+        z.max(1.0)
+    } else if k_dist < -1e-5 {
+        let min_warp = 1.0 + k_dist * (cx * cx / max_radius_sq);
+        (1.0 / min_warp.max(0.1)).max(1.0)
+    } else {
+        1.0
+    };
+
+    let geom_zoom = if grading.geometry_enabled && grading.auto_crop_geometry {
         let abs_rot = rot_deg.abs().to_radians();
         let rot_zoom = abs_rot.cos() + abs_rot.sin() * (cy / cx.max(1.0));
         let k_zoom = 1.0
@@ -1053,6 +1060,7 @@ pub fn render_preview_from_base(
     } else {
         1.0
     };
+    let auto_zoom = geom_zoom * opt_zoom;
 
     let is_identity_geom = rot_deg.abs() < 1e-4
         && k_dist.abs() < 1e-5
@@ -1573,46 +1581,36 @@ pub fn render_export_image(
     let cy = preview_h as f32 * 0.5;
     let max_radius_sq = (cx * cx + cy * cy).max(1.0);
 
-    let (k_dist, v_gain) = if let Some(matched) = &base.matched_lens {
-        let (prof_k1, prof_v1) = if grading.lens_profile_auto {
-            let dist_scale = (grading.lens_distortion_strength / 100.0).max(0.0);
-            let vig_scale = (grading.lens_vignette_strength / 100.0).max(0.0);
-            (
-                matched.model.distortion.k1 * dist_scale,
-                matched.model.vignette.v1 * vig_scale,
-            )
-        } else {
-            (0.0, 0.0)
-        };
-        let kd = prof_k1
-            + if grading.distortion_correction {
+    let (k_dist, v_gain) = match grading.optical_tab {
+        OpticalCorrectionTab::Profile => {
+            if let Some(matched) = &base.matched_lens {
+                if grading.lens_profile_auto {
+                    let dist_scale = (grading.lens_distortion_strength / 100.0).max(0.0);
+                    let vig_scale = (grading.lens_vignette_strength / 100.0).max(0.0);
+                    (
+                        matched.model.distortion.k1 * dist_scale,
+                        matched.model.vignette.v1 * vig_scale,
+                    )
+                } else {
+                    (0.0, 0.0)
+                }
+            } else {
+                (0.0, 0.0)
+            }
+        }
+        OpticalCorrectionTab::Manual => {
+            let kd = if grading.distortion_correction {
                 (grading.distortion_amount / 100.0) * 0.15
             } else {
                 0.0
             };
-        let vg = prof_v1
-            + if grading.vignette_correction {
+            let vg = if grading.vignette_correction {
                 (grading.vignette_amount / 100.0) * 0.65
             } else {
                 0.0
             };
-        (kd, vg)
-    } else {
-        let kd = if grading.distortion_correction {
-            -0.06 + (grading.distortion_amount / 100.0) * 0.15
-        } else if grading.distortion_amount.abs() > 0.001 {
-            (grading.distortion_amount / 100.0) * 0.15
-        } else {
-            0.0
-        };
-        let vg = if grading.vignette_correction {
-            0.35 + (grading.vignette_amount / 100.0) * 0.65
-        } else if grading.vignette_amount > 0.01 {
-            (grading.vignette_amount / 100.0) * 0.65
-        } else {
-            0.0
-        };
-        (kd, vg)
+            (kd, vg)
+        }
     };
 
     let rot_deg = grading.rotation_degrees;
@@ -1676,7 +1674,24 @@ pub fn render_export_image(
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();
 
-    let auto_zoom = if grading.geometry_enabled && grading.auto_crop_geometry {
+    let opt_zoom = if k_dist > 1e-5 {
+        let mut z = 1.0 + k_dist * 0.8;
+        for _ in 0..4 {
+            let f = z * z * z - z * z - k_dist;
+            let fp = 3.0 * z * z - 2.0 * z;
+            if fp.abs() > 1e-6 {
+                z -= f / fp;
+            }
+        }
+        z.max(1.0)
+    } else if k_dist < -1e-5 {
+        let min_warp = 1.0 + k_dist * (cx * cx / max_radius_sq);
+        (1.0 / min_warp.max(0.1)).max(1.0)
+    } else {
+        1.0
+    };
+
+    let geom_zoom = if grading.geometry_enabled && grading.auto_crop_geometry {
         let abs_rot = rot_deg.abs().to_radians();
         let rot_zoom = abs_rot.cos() + abs_rot.sin() * (cy / cx.max(1.0));
         let k_zoom = 1.0
@@ -1690,6 +1705,7 @@ pub fn render_export_image(
     } else {
         1.0
     };
+    let auto_zoom = geom_zoom * opt_zoom;
 
     let mut u8_bytes = Vec::with_capacity(out_w * out_h * 3);
     let mut u16_samples = Vec::with_capacity(out_w * out_h * 3);

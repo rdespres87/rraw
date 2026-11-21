@@ -165,3 +165,142 @@ fn test_optical_sidecar_roundtrip_with_tabs_and_threshold() -> Result<(), Box<dy
 
     Ok(())
 }
+
+#[test]
+fn test_optical_mode_isolation_profile_vs_manual() {
+    use rraw_app::preview::{render_preview_from_base, BaseRgbPreview};
+    use rraw_app::state::OpticalCorrectionTab;
+    use rraw_optics::db::MatchedLens;
+    use rraw_optics::model::{DistortionPoly, LateralTca, OpticalCorrectionModel, RadialVignette};
+    use std::sync::Arc;
+
+    let width = 64;
+    let height = 64;
+    let mut samples_rgb = Vec::with_capacity(width * height);
+    for y in 0..height {
+        for x in 0..width {
+            let r = x as f32 / width as f32;
+            let g = y as f32 / height as f32;
+            samples_rgb.push([r, g, 0.5]);
+        }
+    }
+
+    let fake_matched = MatchedLens {
+        profile_name: "Test Distortion Lens".to_string(),
+        maker: "TestMaker".to_string(),
+        model: OpticalCorrectionModel {
+            distortion: DistortionPoly {
+                k1: 0.08,
+                k2: 0.0,
+                k3: 0.0,
+            },
+            lateral_ca: LateralTca::default(),
+            vignette: RadialVignette::default(),
+        },
+        is_exact_match: true,
+    };
+
+    let base = BaseRgbPreview {
+        width,
+        height,
+        samples_rgb,
+        as_shot_wb: [1.0, 1.0, 1.0],
+        cam_to_srgb: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        semantic_masks: Arc::new(rraw_ai::SemanticMaskSet {
+            width,
+            height,
+            subject: vec![0.0; width * height],
+            sky: vec![0.0; width * height],
+            background: vec![0.0; width * height],
+            portrait: vec![0.0; width * height],
+        }),
+        exif_orientation: 1,
+        matched_lens: Some(fake_matched),
+    };
+
+    // 1. Identity baseline (no profile, manual disabled)
+    let grading_ident = DarkroomGradingState {
+        optical_tab: OpticalCorrectionTab::Manual,
+        distortion_correction: false,
+        distortion_amount: 0.0,
+        ..Default::default()
+    };
+    let (p_ident, _) = render_preview_from_base(&base, &grading_ident);
+
+    // 2. Profile mode: profile distortion must be active
+    let grading_prof = DarkroomGradingState {
+        optical_tab: OpticalCorrectionTab::Profile,
+        lens_profile_auto: true,
+        lens_distortion_strength: 100.0,
+        distortion_correction: false, // Ensure manual checkbox has no effect in profile mode
+        ..Default::default()
+    };
+    let (p_prof, _) = render_preview_from_base(&base, &grading_prof);
+
+    // 3. Manual mode: profile distortion must NOT be applied (no ghost profile)
+    let grading_man_clean = DarkroomGradingState {
+        optical_tab: OpticalCorrectionTab::Manual,
+        lens_profile_auto: true, // Auto flag was left on, but manual tab isolates it
+        distortion_correction: false,
+        distortion_amount: 0.0,
+        ..Default::default()
+    };
+    let (p_man_clean, _) = render_preview_from_base(&base, &grading_man_clean);
+
+    // Pixel at corner (0, 0) must differ between Profile and Identity
+    let c_ident = p_ident.pixels[0];
+    let c_prof = p_prof.pixels[0];
+    assert_ne!(
+        c_ident, c_prof,
+        "Profile mode must distort pixels relative to identity"
+    );
+
+    // Manual mode without manual distortion must match identity exactly (profile isolated!)
+    let c_man = p_man_clean.pixels[0];
+    assert_eq!(
+        c_man, c_ident,
+        "Manual mode without distortion must match identity (no ghost profile)"
+    );
+}
+
+#[test]
+fn test_untouched_raw_reference_view_all_corrections_disabled() {
+    use rraw_app::state::{DarkroomGradingState, OpticalCorrectionTab};
+
+    let untouched = DarkroomGradingState::untouched_raw();
+
+    // Verify optical corrections are 100% disabled
+    assert_eq!(untouched.optical_tab, OpticalCorrectionTab::Manual);
+    assert!(!untouched.lens_profile_auto);
+    assert_eq!(untouched.lens_distortion_strength, 0.0);
+    assert_eq!(untouched.lens_vignette_strength, 0.0);
+    assert_eq!(untouched.lens_ca_strength, 0.0);
+    assert!(!untouched.distortion_correction);
+    assert_eq!(untouched.distortion_amount, 0.0);
+    assert!(!untouched.chromatic_aberration_correction);
+    assert_eq!(untouched.defringe_purple_amount, 0.0);
+    assert_eq!(untouched.defringe_green_amount, 0.0);
+    assert!(!untouched.defringe_preview_mask);
+    assert!(!untouched.vignette_correction);
+    assert_eq!(untouched.vignette_amount, 0.0);
+    assert_eq!(untouched.creative_vignette_amount, 0.0);
+
+    // Verify geometry is 100% disabled
+    assert!(!untouched.geometry_enabled);
+    assert!(!untouched.auto_crop_geometry);
+    assert_eq!(untouched.rotation_degrees, 0.0);
+    assert_eq!(untouched.keystone_vertical, 0.0);
+    assert_eq!(untouched.keystone_horizontal, 0.0);
+
+    // Verify smart lighting is disabled
+    assert_eq!(
+        untouched.smart_lighting.mode,
+        rraw_core::SmartLightingMode::Off
+    );
+    assert_eq!(untouched.smart_lighting.intensity, 0.0);
+
+    // Verify denoise and sharpening are zeroed
+    assert_eq!(untouched.wavelet_denoise_sigma, 0.0);
+    assert_eq!(untouched.color_denoise, 0.0);
+    assert_eq!(untouched.capture_sharpening_amount, 0.0);
+}

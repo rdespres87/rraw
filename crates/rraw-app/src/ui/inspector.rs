@@ -51,7 +51,8 @@ impl RrawApp {
                 self.grading.keystone_vertical != 0.0 || self.grading.keystone_horizontal != 0.0
             }
             DarkroomSection::OpticalCorrections => {
-                !self.grading.lens_profile_auto
+                self.grading.optical_tab != crate::state::OpticalCorrectionTab::Profile
+                    || !self.grading.lens_profile_auto
                     || (self.grading.lens_distortion_strength - 100.0).abs() > 0.01
                     || (self.grading.lens_vignette_strength - 100.0).abs() > 0.01
                     || (self.grading.lens_ca_strength - 100.0).abs() > 0.01
@@ -1739,6 +1740,8 @@ impl RrawApp {
                         .clicked()
                     {
                         self.grading.optical_tab = OpticalCorrectionTab::Profile;
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
                     }
                     if ui
                         .add_sized(
@@ -1751,6 +1754,8 @@ impl RrawApp {
                         .clicked()
                     {
                         self.grading.optical_tab = OpticalCorrectionTab::Manual;
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
                     }
                 });
 

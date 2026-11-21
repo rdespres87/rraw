@@ -71,8 +71,34 @@ impl RawDecoder for PureRustRawDecoder {
             }
         };
 
-        let width = raw_image.width;
-        let height = raw_image.height;
+        // Crop optical black / sensor margins according to recommended crop area or active area
+        let (width, height, cropped_samples_storage) =
+            if let Some(crop) = raw_image.crop_area.or(raw_image.active_area) {
+                // Align to 2x2 Bayer quad boundary to preserve CFA origin
+                let crop_x = (crop.x() / 2) * 2;
+                let crop_y = (crop.y() / 2) * 2;
+                let crop_w = (crop.width() / 2) * 2;
+                let crop_h = (crop.height() / 2) * 2;
+                if crop_x + crop_w <= raw_image.width
+                    && crop_y + crop_h <= raw_image.height
+                    && crop_w > 0
+                    && crop_h > 0
+                {
+                    let mut cropped = Vec::with_capacity(crop_w * crop_h);
+                    for row in crop_y..(crop_y + crop_h) {
+                        let start = row * raw_image.width + crop_x;
+                        let end = start + crop_w;
+                        cropped.extend_from_slice(&raw_samples[start..end]);
+                    }
+                    (crop_w, crop_h, Some(cropped))
+                } else {
+                    (raw_image.width, raw_image.height, None)
+                }
+            } else {
+                (raw_image.width, raw_image.height, None)
+            };
+        let raw_samples = cropped_samples_storage.as_deref().unwrap_or(raw_samples);
+
         let cfa_pattern = CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb);
 
         let black_levels = raw_image.blacklevel.as_bayer_array();

@@ -1536,6 +1536,77 @@ pub struct DarkroomGradingState {
 }
 
 impl DarkroomGradingState {
+    /// Creates a completely untouched raw sensor grading state with all corrections disabled.
+    ///
+    /// Used for the "Avant" / Original reference view in before-and-after split comparisons.
+    #[must_use]
+    pub fn untouched_raw() -> Self {
+        Self {
+            preset: GradingPreset::AsShot,
+            exposure_ev: 0.0,
+            contrast: 0.0,
+            highlights: 0.0,
+            shadows: 0.0,
+            blacks: 0.0,
+            saturation: 0.0,
+            vibrance: 0.0,
+            kelvin: 5500.0,
+            tint: 0.0,
+            display_transform: DisplayTransform::AgX,
+            wavelet_denoise_sigma: 0.0,
+            color_denoise: 0.0,
+            luma_denoise: 0.0,
+            capture_sharpening_amount: 0.0,
+            optical_tab: OpticalCorrectionTab::Manual,
+            lens_profile_auto: false,
+            lens_distortion_strength: 0.0,
+            lens_vignette_strength: 0.0,
+            lens_ca_strength: 0.0,
+            distortion_correction: false,
+            distortion_amount: 0.0,
+            chromatic_aberration_correction: false,
+            defringe_purple_amount: 0.0,
+            defringe_green_amount: 0.0,
+            defringe_threshold: 0.08,
+            defringe_preview_mask: false,
+            vignette_correction: false,
+            vignette_amount: 0.0,
+            creative_vignette_amount: 0.0,
+            creative_vignette_midpoint: 50.0,
+            creative_vignette_feather: 50.0,
+            creative_vignette_roundness: 0.0,
+            is_monochrome: false,
+            crop_enabled: false,
+            crop_aspect: CropAspectRatio::Free,
+            crop_left: 0.0,
+            crop_top: 0.0,
+            crop_right: 1.0,
+            crop_bottom: 1.0,
+            crop_show_grid: false,
+            rotation_degrees: 0.0,
+            flip_horizontal: false,
+            flip_vertical: false,
+            geometry_enabled: false,
+            keystone_vertical: 0.0,
+            keystone_horizontal: 0.0,
+            auto_crop_geometry: false,
+            tone_curves: rraw_core::curves::ToneCurvesRecipe::default(),
+            custom_clut: None,
+            semantic_masks: Vec::new(),
+            show_semantic_mask_overlay: None,
+            local_masks: Vec::new(),
+            show_local_mask_overlay: None,
+            active_brush_mask_idx: None,
+            soft_proof: rraw_color::SoftProofConfig::default(),
+            smart_lighting: rraw_core::SmartLightingParams {
+                mode: rraw_core::SmartLightingMode::Off,
+                intensity: 0.0,
+                custom_shadow_lift: 0.0,
+                custom_highlight_compression: 0.0,
+            },
+        }
+    }
+
     /// Returns a mutable reference to the semantic mask layer for `category`, creating it if absent.
     pub fn upsert_semantic_mask(
         &mut self,
