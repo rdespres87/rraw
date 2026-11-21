@@ -248,8 +248,11 @@ impl RrawApp {
                     .show(ui, |ui| {
                         ui.vertical(|ui| {
                             ui.horizontal(|ui| {
-                                let active_path =
-                                    self.loaded_photo.as_ref().map(|p| p.path.clone());
+                                let active_path = self
+                                    .loaded_photo
+                                    .as_ref()
+                                    .map(|p| p.path.clone())
+                                    .or_else(|| self.layout_config.last_open_photo.clone());
                                 let mut file_to_open = None;
                                 let mut star_change: Option<(PathBuf, u8)> = None;
                                 let mut thumbs_to_request = Vec::new();
@@ -307,6 +310,12 @@ impl RrawApp {
                                     let card_size = egui::vec2(120.0, 104.0);
                                     let (rect, response) =
                                         ui.allocate_exact_size(card_size, egui::Sense::click());
+
+                                    // Follow active thumbnail card into view when navigating via keyboard or controls
+                                    if is_selected && self.scroll_filmstrip_to_active {
+                                        response.scroll_to_me(None);
+                                        self.scroll_filmstrip_to_active = false;
+                                    }
 
                                     // Contextual right-click menu for batch development & clipboard
                                     response.context_menu(|ui| {

@@ -162,6 +162,8 @@ pub struct RrawApp {
     pub dragging_curve_point: Option<usize>,
     /// Timestamp of last automatic filesystem check for new/deleted photos in `current_directory`.
     pub last_dir_poll: std::time::Instant,
+    /// Whether to scroll the bottom filmstrip so the active thumbnail card is brought into view.
+    pub scroll_filmstrip_to_active: bool,
 }
 
 impl RrawApp {
@@ -311,6 +313,7 @@ impl RrawApp {
             active_curve_channel: CurveChannel::CombinedRgb,
             dragging_curve_point: None,
             last_dir_poll: std::time::Instant::now(),
+            scroll_filmstrip_to_active: false,
         };
 
         // Restore previous photo if available, valid and matching active filters, otherwise open first filtered photo in directory
@@ -417,6 +420,7 @@ impl RrawApp {
             active_curve_channel: CurveChannel::CombinedRgb,
             dragging_curve_point: None,
             last_dir_poll: std::time::Instant::now(),
+            scroll_filmstrip_to_active: false,
         }
     }
 
@@ -902,7 +906,11 @@ impl RrawApp {
             return;
         }
 
-        let current_path = self.loaded_photo.as_ref().map(|p| &p.path);
+        let current_path = self
+            .loaded_photo
+            .as_ref()
+            .map(|p| &p.path)
+            .or(self.layout_config.last_open_photo.as_ref());
         let current_idx = current_path
             .and_then(|cp| filtered.iter().position(|p| p == cp))
             .unwrap_or(0);
@@ -923,11 +931,54 @@ impl RrawApp {
             self.last_selected_index = Some(new_idx);
         }
 
+        self.scroll_filmstrip_to_active = true;
+        self.open_raw_file(&target);
+    }
+
+    /// Navigates directly to an absolute index in the filtered filmstrip (e.g. 0 for Home, usize::MAX for End).
+    pub fn navigate_to_filtered_index(&mut self, index: usize, shift: bool) {
+        let filtered: Vec<PathBuf> = self
+            .directory_entries
+            .iter()
+            .filter(|p| self.matches_active_filter(p))
+            .cloned()
+            .collect();
+
+        if filtered.is_empty() {
+            return;
+        }
+
+        let new_idx = index.min(filtered.len() - 1);
+        let target = filtered[new_idx].clone();
+
+        if shift {
+            let current_path = self
+                .loaded_photo
+                .as_ref()
+                .map(|p| &p.path)
+                .or(self.layout_config.last_open_photo.as_ref());
+            let current_idx = current_path
+                .and_then(|cp| filtered.iter().position(|p| p == cp))
+                .unwrap_or(0);
+            let anchor = self.last_selected_index.unwrap_or(current_idx);
+            let min_i = anchor.min(new_idx);
+            let max_i = anchor.max(new_idx);
+            for i in min_i..=max_i {
+                if let Some(p) = filtered.get(i) {
+                    self.selected_photos.insert(p.clone());
+                }
+            }
+        } else {
+            self.last_selected_index = Some(new_idx);
+        }
+
+        self.scroll_filmstrip_to_active = true;
         self.open_raw_file(&target);
     }
 
     /// Decodes and loads a RAW file at `path`, utilizing in-memory MRU cache or async worker thread.
     pub fn open_raw_file(&mut self, path: &Path) {
+        self.scroll_filmstrip_to_active = true;
         let abs_path = if path.is_absolute() {
             path.to_path_buf()
         } else {
@@ -1069,10 +1120,17 @@ impl eframe::App for RrawApp {
             let nav_next = ui.input(|i| {
                 i.key_pressed(egui::Key::ArrowRight) || i.key_pressed(egui::Key::PageDown)
             });
+            let nav_home = ui.input(|i| i.key_pressed(egui::Key::Home));
+            let nav_end = ui.input(|i| i.key_pressed(egui::Key::End));
+
             if nav_prev {
                 self.navigate_relative_with_shift(-1, shift);
             } else if nav_next {
                 self.navigate_relative_with_shift(1, shift);
+            } else if nav_home {
+                self.navigate_to_filtered_index(0, shift);
+            } else if nav_end {
+                self.navigate_to_filtered_index(usize::MAX, shift);
             }
         }
 

@@ -55,6 +55,7 @@ impl RrawApp {
                             &[
                                 ("◀ / ▶", "Photo précédente / suivante dans le dossier"),
                                 ("PageUp / PageDown", "Saut rapide de photos"),
+                                ("Home / End", "Première / dernière photo du dossier"),
                                 ("0 à 5", "Attribuer une note de 0 à 5 étoiles (0 pour effacer)"),
                                 ("Cmd + A", "Sélectionner / cocher toutes les photos pour l'export par lot"),
                                 ("Cmd + D", "Tout désélectionner / décocher le lot d'export"),
