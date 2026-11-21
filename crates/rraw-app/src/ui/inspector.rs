@@ -54,7 +54,10 @@ impl RrawApp {
                     || self.grading.distortion_amount != 0.0
                     || self.grading.defringe_purple_amount != 0.0
                     || self.grading.defringe_green_amount != 0.0
+                    || (self.grading.defringe_threshold - 0.08).abs() > 0.005
+                    || self.grading.defringe_preview_mask
                     || self.grading.creative_vignette_amount != 0.0
+                    || (self.grading.vignette_amount - 50.0).abs() > 0.01
             }
             DarkroomSection::AiSemanticMasks => {
                 !self.grading.semantic_masks.is_empty() || !self.grading.local_masks.is_empty()
@@ -115,6 +118,7 @@ impl RrawApp {
                 self.grading.auto_crop_geometry = true;
             }
             DarkroomSection::OpticalCorrections => {
+                self.grading.optical_tab = crate::state::OpticalCorrectionTab::Profile;
                 self.grading.lens_profile_auto = true;
                 self.grading.lens_distortion_strength = 100.0;
                 self.grading.lens_vignette_strength = 100.0;
@@ -124,6 +128,8 @@ impl RrawApp {
                 self.grading.chromatic_aberration_correction = true;
                 self.grading.defringe_purple_amount = 0.0;
                 self.grading.defringe_green_amount = 0.0;
+                self.grading.defringe_threshold = 0.08;
+                self.grading.defringe_preview_mask = false;
                 self.grading.vignette_correction = true;
                 self.grading.vignette_amount = 50.0;
                 self.grading.creative_vignette_amount = 0.0;
@@ -1578,234 +1584,323 @@ impl RrawApp {
                 }
             }
             DarkroomSection::OpticalCorrections => {
-                ui.label(egui::RichText::new(t(Key::InspectorLensProfileTitle)).strong());
+                // Segmented mode selector: [ 🎯 Profil d'objectif | 🛠️ Manuel ]
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(4.0, 0.0);
+                    let tab_w = ((ui.available_width() - 4.0) / 2.0).max(60.0);
+                    let is_prof = self.grading.optical_tab == OpticalCorrectionTab::Profile;
+                    let is_man = self.grading.optical_tab == OpticalCorrectionTab::Manual;
 
-                let c_auto = ui
-                    .checkbox(
-                        &mut self.grading.lens_profile_auto,
-                        t(Key::InspectorLensProfileAuto),
-                    )
-                    .on_hover_text(t(Key::InspectorLensProfileAutoTooltip));
-                if c_auto.changed() {
-                    self.needs_preview_update = true;
-                    ui.ctx().request_repaint();
+                    if ui
+                        .add_sized(
+                            [tab_w, 22.0],
+                            egui::Button::new(
+                                egui::RichText::new(t(Key::InspectorLensTabProfile)).size(11.0),
+                            )
+                            .selected(is_prof),
+                        )
+                        .clicked()
+                    {
+                        self.grading.optical_tab = OpticalCorrectionTab::Profile;
+                    }
+                    if ui
+                        .add_sized(
+                            [tab_w, 22.0],
+                            egui::Button::new(
+                                egui::RichText::new(t(Key::InspectorLensTabManual)).size(11.0),
+                            )
+                            .selected(is_man),
+                        )
+                        .clicked()
+                    {
+                        self.grading.optical_tab = OpticalCorrectionTab::Manual;
+                    }
+                });
+
+                ui.add_space(4.0);
+
+                if self.grading.optical_tab == OpticalCorrectionTab::Profile {
+                    ui.label(egui::RichText::new(t(Key::InspectorLensProfileTitle)).strong());
+
+                    let c_auto = ui
+                        .checkbox(
+                            &mut self.grading.lens_profile_auto,
+                            t(Key::InspectorLensProfileAuto),
+                        )
+                        .on_hover_text(t(Key::InspectorLensProfileAutoTooltip));
+                    if c_auto.changed() {
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    if self.grading.lens_profile_auto {
+                        let (lens_name, is_exact, extra_meta) = if let Some(base) = &self.base_preview {
+                            if let Some(matched) = &base.matched_lens {
+                                let meta_str = if let Some(photo) = &self.loaded_photo {
+                                    if !photo.focal_length_str.is_empty()
+                                        && !photo.aperture_str.is_empty()
+                                    {
+                                        format!(
+                                            "{} · {}",
+                                            photo.focal_length_str, photo.aperture_str
+                                        )
+                                    } else {
+                                        photo.focal_length_str.clone()
+                                    }
+                                } else {
+                                    String::new()
+                                };
+                                (matched.profile_name.clone(), matched.is_exact_match, meta_str)
+                            } else {
+                                (t(Key::InspectorLensProfileGeneric).to_string(), false, String::new())
+                            }
+                        } else if let Some(photo) = &self.loaded_photo {
+                            let meta_str = if !photo.focal_length_str.is_empty()
+                                && !photo.aperture_str.is_empty()
+                            {
+                                format!("{} · {}", photo.focal_length_str, photo.aperture_str)
+                            } else {
+                                photo.focal_length_str.clone()
+                            };
+                            if !photo.lens_model.is_empty() {
+                                (photo.lens_model.clone(), true, meta_str)
+                            } else {
+                                (t(Key::InspectorLensProfileGeneric).to_string(), false, meta_str)
+                            }
+                        } else {
+                            (t(Key::InspectorLensProfileGeneric).to_string(), false, String::new())
+                        };
+
+                        let badge_icon = if is_exact { "🎯" } else { "📐" };
+                        let frame_color = if is_exact {
+                            Color32::from_rgb(28, 36, 48)
+                        } else {
+                            Color32::from_rgb(32, 34, 38)
+                        };
+
+                        egui::Frame::group(ui.style())
+                            .fill(frame_color)
+                            .inner_margin(6.0)
+                            .show(ui, |ui| {
+                                ui.vertical(|ui| {
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.label(format!("{badge_icon} {}", t(Key::InspectorLensProfileDetected)));
+                                        ui.label(
+                                            egui::RichText::new(&lens_name)
+                                                .strong()
+                                                .color(Color32::from_rgb(140, 200, 255)),
+                                        );
+                                    });
+                                    if !extra_meta.is_empty() {
+                                        ui.label(
+                                            egui::RichText::new(&extra_meta)
+                                                .size(10.5)
+                                                .color(Color32::from_rgb(170, 180, 195)),
+                                        );
+                                    }
+                                });
+                            });
+
+                        ui.add_space(2.0);
+                        ui.label(t(Key::InspectorLensProfileDistortion));
+                        let s_ld = ui.add(
+                            egui::Slider::new(&mut self.grading.lens_distortion_strength, 0.0..=200.0)
+                                .show_value(true)
+                                .suffix(" %"),
+                        );
+                        if s_ld.changed() {
+                            self.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
+
+                        ui.label(t(Key::InspectorLensProfileVignette));
+                        let s_lv = ui.add(
+                            egui::Slider::new(&mut self.grading.lens_vignette_strength, 0.0..=200.0)
+                                .show_value(true)
+                                .suffix(" %"),
+                        );
+                        if s_lv.changed() {
+                            self.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
+
+                        ui.label(t(Key::InspectorLensProfileCa));
+                        let s_lca = ui.add(
+                            egui::Slider::new(&mut self.grading.lens_ca_strength, 0.0..=200.0)
+                                .show_value(true)
+                                .suffix(" %"),
+                        );
+                        if s_lca.changed() {
+                            self.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
+                    } else {
+                        ui.add_space(2.0);
+                        ui.label(
+                            egui::RichText::new(t(Key::InspectorLensProfileDisabledNotice))
+                                .size(11.0)
+                                .color(Color32::from_rgb(170, 175, 185)),
+                        );
+                    }
                 }
 
-                if self.grading.lens_profile_auto {
-                    let (lens_name, is_exact) = if let Some(base) = &self.base_preview {
-                        if let Some(matched) = &base.matched_lens {
-                            (matched.profile_name.clone(), matched.is_exact_match)
-                        } else {
-                            (t(Key::InspectorLensProfileGeneric).to_string(), false)
-                        }
-                    } else if let Some(photo) = &self.loaded_photo {
-                        if !photo.lens_model.is_empty() {
-                            (photo.lens_model.clone(), true)
-                        } else {
-                            (t(Key::InspectorLensProfileGeneric).to_string(), false)
-                        }
-                    } else {
-                        (t(Key::InspectorLensProfileGeneric).to_string(), false)
-                    };
+                if self.grading.optical_tab == OpticalCorrectionTab::Manual {
+                    ui.label(egui::RichText::new(t(Key::InspectorLensManualTitle)).strong());
 
-                    let badge_icon = if is_exact { "🎯" } else { "📐" };
-                    let frame_color = if is_exact {
-                        Color32::from_rgb(28, 36, 48)
-                    } else {
-                        Color32::from_rgb(32, 34, 38)
-                    };
-
-                    egui::Frame::group(ui.style())
-                        .fill(frame_color)
-                        .inner_margin(6.0)
-                        .show(ui, |ui| {
-                            ui.horizontal_wrapped(|ui| {
-                                ui.label(format!("{badge_icon} {}", t(Key::InspectorLensProfileDetected)));
-                                ui.label(
-                                    egui::RichText::new(&lens_name)
-                                        .strong()
-                                        .color(Color32::from_rgb(140, 200, 255)),
-                                );
-                            });
-                        });
-
-                    ui.add_space(2.0);
-                    ui.label(t(Key::InspectorLensProfileDistortion));
-                    let s_ld = ui.add(
-                        egui::Slider::new(&mut self.grading.lens_distortion_strength, 0.0..=200.0)
-                            .show_value(true)
-                            .suffix(" %"),
+                    let c_dist = ui.checkbox(
+                        &mut self.grading.distortion_correction,
+                        t(Key::InspectorLensDistortion),
                     );
-                    if s_ld.changed() {
+                    if c_dist.changed() {
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
 
-                    ui.label(t(Key::InspectorLensProfileVignette));
-                    let s_lv = ui.add(
-                        egui::Slider::new(&mut self.grading.lens_vignette_strength, 0.0..=200.0)
-                            .show_value(true)
-                            .suffix(" %"),
+                    ui.label(t(Key::InspectorParamDistortion));
+                    let r_da = ui.add(
+                        egui::Slider::new(&mut self.grading.distortion_amount, -50.0..=50.0)
+                            .show_value(true),
                     );
-                    if s_lv.changed() {
-                        self.needs_preview_update = true;
-                        ui.ctx().request_repaint();
-                    }
-
-                    ui.label(t(Key::InspectorLensProfileCa));
-                    let s_lca = ui.add(
-                        egui::Slider::new(&mut self.grading.lens_ca_strength, 0.0..=200.0)
-                            .show_value(true)
-                            .suffix(" %"),
-                    );
-                    if s_lca.changed() {
+                    if r_da.changed() {
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
 
                     ui.separator();
-                }
 
-                ui.label(egui::RichText::new(t(Key::InspectorLensManualTitle)).strong());
-
-                let c_dist = ui.checkbox(
-                    &mut self.grading.distortion_correction,
-                    t(Key::InspectorLensDistortion),
-                );
-                if c_dist.changed() {
-                    self.needs_preview_update = true;
-                    ui.ctx().request_repaint();
-                }
-
-                ui.label(t(Key::InspectorParamDistortion));
-                let r_da = ui.add(
-                    egui::Slider::new(&mut self.grading.distortion_amount, -50.0..=50.0)
-                        .show_value(true),
-                );
-                if r_da.changed() {
-                    self.needs_preview_update = true;
-                    ui.ctx().request_repaint();
-                }
-
-                ui.separator();
-
-                let c_ca = ui.checkbox(
-                    &mut self.grading.chromatic_aberration_correction,
-                    t(Key::InspectorLensCa),
-                );
-                if c_ca.changed() {
-                    self.needs_preview_update = true;
-                    ui.ctx().request_repaint();
-                }
-
-                ui.label(t(Key::InspectorParamDefringePurple));
-                let r_dp = ui.add(
-                    egui::Slider::new(&mut self.grading.defringe_purple_amount, 0.0..=100.0)
-                        .show_value(true)
-                        .suffix(" %"),
-                );
-                if r_dp.changed() {
-                    self.needs_preview_update = true;
-                    ui.ctx().request_repaint();
-                }
-
-                ui.label(t(Key::InspectorParamDefringeGreen));
-                let r_dg = ui.add(
-                    egui::Slider::new(&mut self.grading.defringe_green_amount, 0.0..=100.0)
-                        .show_value(true)
-                        .suffix(" %"),
-                );
-                if r_dg.changed() {
-                    self.needs_preview_update = true;
-                    ui.ctx().request_repaint();
-                }
-
-                ui.separator();
-
-                ui.label(egui::RichText::new(t(Key::InspectorLensVignetteTitle)).strong());
-                let c_vig = ui.checkbox(
-                    &mut self.grading.vignette_correction,
-                    t(Key::InspectorLensVignette),
-                );
-                if c_vig.changed() {
-                    self.needs_preview_update = true;
-                    ui.ctx().request_repaint();
-                }
-
-                ui.label(t(Key::InspectorCorrectionStrength));
-                let r_va = ui.add(
-                    egui::Slider::new(&mut self.grading.vignette_amount, 0.0..=100.0)
-                        .show_value(true),
-                );
-                if r_va.changed() {
-                    self.needs_preview_update = true;
-                    ui.ctx().request_repaint();
-                }
-
-                ui.separator();
-
-                ui.label(egui::RichText::new(t(Key::InspectorCreativeVignetteTitle)).strong());
-                ui.label(t(Key::InspectorParamVignetteAmount));
-                let r_cva = ui.add(
-                    egui::Slider::new(&mut self.grading.creative_vignette_amount, -100.0..=100.0)
-                        .show_value(true),
-                );
-                if r_cva.changed() {
-                    self.needs_preview_update = true;
-                    ui.ctx().request_repaint();
-                }
-
-                if self.grading.creative_vignette_amount.abs() > 0.1 {
-                    ui.label(t(Key::InspectorParamVignetteMidpoint));
-                    let r_cvm = ui.add(
-                        egui::Slider::new(
-                            &mut self.grading.creative_vignette_midpoint,
-                            10.0..=90.0,
-                        )
-                        .show_value(true),
+                    let c_ca = ui.checkbox(
+                        &mut self.grading.chromatic_aberration_correction,
+                        t(Key::InspectorLensCa),
                     );
-                    if r_cvm.changed() {
+                    if c_ca.changed() {
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
 
-                    ui.label(t(Key::InspectorParamVignetteFeather));
-                    let r_cvf = ui.add(
-                        egui::Slider::new(&mut self.grading.creative_vignette_feather, 10.0..=90.0)
+                    ui.label(t(Key::InspectorParamDefringePurple));
+                    let r_dp = ui.add(
+                        egui::Slider::new(&mut self.grading.defringe_purple_amount, 0.0..=100.0)
+                            .show_value(true)
+                            .suffix(" %"),
+                    );
+                    if r_dp.changed() {
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    ui.label(t(Key::InspectorParamDefringeGreen));
+                    let r_dg = ui.add(
+                        egui::Slider::new(&mut self.grading.defringe_green_amount, 0.0..=100.0)
+                            .show_value(true)
+                            .suffix(" %"),
+                    );
+                    if r_dg.changed() {
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    ui.label(t(Key::InspectorParamDefringeThreshold));
+                    let mut thresh_pct = self.grading.defringe_threshold * 100.0;
+                    let r_dt = ui.add(
+                        egui::Slider::new(&mut thresh_pct, 1.0..=30.0)
+                            .show_value(true)
+                            .suffix(" %"),
+                    );
+                    if r_dt.changed() {
+                        self.grading.defringe_threshold = (thresh_pct / 100.0).clamp(0.01, 0.30);
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    let c_dpm = ui
+                        .checkbox(
+                            &mut self.grading.defringe_preview_mask,
+                            t(Key::InspectorDefringePreviewMask),
+                        )
+                        .on_hover_text(t(Key::InspectorDefringePreviewMaskTooltip));
+                    if c_dpm.changed() {
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    ui.separator();
+
+                    ui.label(egui::RichText::new(t(Key::InspectorLensVignetteTitle)).strong());
+                    let c_vig = ui.checkbox(
+                        &mut self.grading.vignette_correction,
+                        t(Key::InspectorLensVignette),
+                    );
+                    if c_vig.changed() {
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    ui.label(t(Key::InspectorCorrectionStrength));
+                    let r_va = ui.add(
+                        egui::Slider::new(&mut self.grading.vignette_amount, 0.0..=100.0)
                             .show_value(true),
                     );
-                    if r_cvf.changed() {
+                    if r_va.changed() {
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
 
-                    ui.label(t(Key::InspectorParamVignetteRoundness));
-                    let r_cvr = ui.add(
-                        egui::Slider::new(
-                            &mut self.grading.creative_vignette_roundness,
-                            -100.0..=100.0,
-                        )
-                        .show_value(true),
+                    ui.separator();
+
+                    ui.label(egui::RichText::new(t(Key::InspectorCreativeVignetteTitle)).strong());
+                    ui.label(t(Key::InspectorParamVignetteAmount));
+                    let r_cva = ui.add(
+                        egui::Slider::new(&mut self.grading.creative_vignette_amount, -100.0..=100.0)
+                            .show_value(true),
                     );
-                    if r_cvr.changed() {
+                    if r_cva.changed() {
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
+                    }
+
+                    if self.grading.creative_vignette_amount.abs() > 0.1 {
+                        ui.label(t(Key::InspectorParamVignetteMidpoint));
+                        let r_cvm = ui.add(
+                            egui::Slider::new(
+                                &mut self.grading.creative_vignette_midpoint,
+                                10.0..=90.0,
+                            )
+                            .show_value(true),
+                        );
+                        if r_cvm.changed() {
+                            self.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
+
+                        ui.label(t(Key::InspectorParamVignetteFeather));
+                        let r_cvf = ui.add(
+                            egui::Slider::new(&mut self.grading.creative_vignette_feather, 10.0..=90.0)
+                                .show_value(true),
+                        );
+                        if r_cvf.changed() {
+                            self.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
+
+                        ui.label(t(Key::InspectorParamVignetteRoundness));
+                        let r_cvr = ui.add(
+                            egui::Slider::new(
+                                &mut self.grading.creative_vignette_roundness,
+                                -100.0..=100.0,
+                            )
+                            .show_value(true),
+                        );
+                        if r_cvr.changed() {
+                            self.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
                     }
                 }
 
+                ui.separator();
+
                 if ui.button(t(Key::InspectorResetOptical)).clicked() {
-                    self.grading.distortion_correction = true;
-                    self.grading.distortion_amount = 0.0;
-                    self.grading.defringe_purple_amount = 0.0;
-                    self.grading.defringe_green_amount = 0.0;
-                    self.grading.vignette_correction = true;
-                    self.grading.vignette_amount = 50.0;
-                    self.grading.creative_vignette_amount = 0.0;
-                    self.grading.creative_vignette_midpoint = 50.0;
-                    self.grading.creative_vignette_feather = 50.0;
-                    self.grading.creative_vignette_roundness = 0.0;
-                    self.needs_preview_update = true;
-                    ui.ctx().request_repaint();
+                    self.reset_section(DarkroomSection::OpticalCorrections);
                 }
             }
             DarkroomSection::Timelapse => {

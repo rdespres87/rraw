@@ -151,3 +151,67 @@ fn test_defringe_handles_small_images_without_panic() {
     defringe_rgb(&mut small_2x2, 2, 2, &config);
     assert_eq!(small_2x2.len(), 4);
 }
+
+#[test]
+fn test_defringe_mask_renders_fringe_pixels_bright_and_unfringed_dimmed() {
+    use rraw_optics::defringe::defringe_mask_rgb;
+
+    let width = 16;
+    let height = 16;
+    let mut samples = vec![[0.0_f32; 3]; width * height];
+
+    for y in 0..height {
+        for x in 0..width {
+            if x < 7 {
+                samples[y * width + x] = [0.08, 0.08, 0.08];
+            } else if x == 7 {
+                // Purple fringe on high contrast edge
+                samples[y * width + x] = [0.65, 0.10, 0.70];
+            } else {
+                samples[y * width + x] = [0.95, 0.95, 0.95];
+            }
+        }
+    }
+
+    let config = DefringeConfig {
+        purple_amount: 1.0,
+        green_amount: 0.0,
+        threshold: 0.08,
+    };
+
+    defringe_mask_rgb(&mut samples, width, height, &config);
+
+    // Unfringed pixels must be dimmed
+    let left_px = samples[5 * width + 2];
+    assert!(
+        left_px[0] < 0.05 && left_px[1] < 0.05 && left_px[2] < 0.05,
+        "Unfringed background should be dimmed: {left_px:?}"
+    );
+
+    // Fringe pixels at x = 7 must be highlighted in magenta (R > 0.5, B > 0.5, G near 0)
+    for y in 2..(height - 2) {
+        let fringe_px = samples[y * width + 7];
+        assert!(
+            fringe_px[0] > 0.6 && fringe_px[2] > 0.5 && fringe_px[1] < 0.2,
+            "Detected purple fringe at y={y} should be highlighted as magenta: {fringe_px:?}"
+        );
+    }
+}
+
+#[test]
+fn test_defringe_mask_handles_small_images_without_panic() {
+    use rraw_optics::defringe::defringe_mask_rgb;
+
+    let mut small_1x1 = vec![[0.5, 0.5, 0.5]];
+    let config = DefringeConfig {
+        purple_amount: 1.0,
+        green_amount: 1.0,
+        threshold: 0.10,
+    };
+    defringe_mask_rgb(&mut small_1x1, 1, 1, &config);
+    assert_eq!(small_1x1, vec![[0.5, 0.5, 0.5]]);
+
+    let mut small_2x2 = vec![[0.1, 0.2, 0.3]; 4];
+    defringe_mask_rgb(&mut small_2x2, 2, 2, &config);
+    assert_eq!(small_2x2.len(), 4);
+}

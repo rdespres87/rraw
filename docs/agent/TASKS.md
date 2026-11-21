@@ -52,7 +52,7 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 ## Phase 8 — Complete Optical Correction Suite (Distortion, CA Defringe, Vignetting & Profile Matching)
 - [x] **Task 8.1 (`rraw-optics` & `rraw-app`)**: Chromatic Aberration Auto-Detection & Axial/Lateral Defringe (Purple and green fringing suppression with edge-threshold and hue span controls, creative post-crop vignetting, commit `0ac3a54` / `165ba90`)
 - [x] **Task 8.2 (`rraw-optics` & `rraw-app`)**: Lens Profile Matching & Metadata Linking (Exif LensModel/FocalLength matching with Lensfun / DNG OpcodeList3 formulas, static catalog, continuous focal/aperture interpolation, auto profile correction toggle, and strength sliders)
-- [ ] **Task 8.3 (`rraw-app`)**: Enhanced Optical Inspector UI in `DarkroomSection::OpticalCorrections` (Auto-Profile vs Manual mode, interactive defringe preview, sidecar persistence and reset)
+- [x] **Task 8.3 (`rraw-app`)**: Enhanced Optical Inspector UI in `DarkroomSection::OpticalCorrections` (Auto-Profile vs Manual mode, interactive defringe preview, sidecar persistence and reset)
 
 ---
 

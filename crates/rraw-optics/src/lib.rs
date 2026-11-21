@@ -10,7 +10,7 @@ pub mod resolver;
 pub mod rl;
 
 pub use db::{CalibratedFocalPoint, LensDatabase, LensProfile, MatchedLens};
-pub use defringe::{defringe_rgb, DefringeConfig};
+pub use defringe::{defringe_mask_rgb, defringe_rgb, DefringeConfig};
 pub use lut::{UvLutGenerator, UvLutTable};
 pub use model::{DistortionPoly, LateralTca, OpticalCorrectionModel, RadialVignette};
 pub use resolver::OpticalResolver;

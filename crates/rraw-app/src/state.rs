@@ -314,6 +314,14 @@ impl ToolFamily {
     }
 }
 
+/// Selected sub-tab / mode in the Optical Corrections inspector section.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum OpticalCorrectionTab {
+    #[default]
+    Profile,
+    Manual,
+}
+
 /// Identifiers for customizable darkroom inspector sections that can be reordered by the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DarkroomSection {
@@ -1462,6 +1470,7 @@ pub struct DarkroomGradingState {
     pub color_denoise: f32,
     pub luma_denoise: f32,
     pub capture_sharpening_amount: f32,
+    pub optical_tab: OpticalCorrectionTab,
     pub lens_profile_auto: bool,
     pub lens_distortion_strength: f32,
     pub lens_vignette_strength: f32,
@@ -1471,6 +1480,8 @@ pub struct DarkroomGradingState {
     pub chromatic_aberration_correction: bool,
     pub defringe_purple_amount: f32,
     pub defringe_green_amount: f32,
+    pub defringe_threshold: f32,
+    pub defringe_preview_mask: bool,
     pub vignette_correction: bool,
     pub vignette_amount: f32,
     pub creative_vignette_amount: f32,
@@ -1731,6 +1742,7 @@ impl Default for DarkroomGradingState {
             color_denoise: 25.0,
             luma_denoise: 0.0,
             capture_sharpening_amount: 0.5,
+            optical_tab: OpticalCorrectionTab::Profile,
             lens_profile_auto: true,
             lens_distortion_strength: 100.0,
             lens_vignette_strength: 100.0,
@@ -1740,6 +1752,8 @@ impl Default for DarkroomGradingState {
             chromatic_aberration_correction: true,
             defringe_purple_amount: 0.0,
             defringe_green_amount: 0.0,
+            defringe_threshold: 0.08,
+            defringe_preview_mask: false,
             vignette_correction: true,
             vignette_amount: 50.0,
             creative_vignette_amount: 0.0,
@@ -1797,6 +1811,10 @@ const fn default_100_f32() -> f32 {
     100.0
 }
 
+const fn default_defringe_threshold() -> f32 {
+    0.08
+}
+
 /// Serialized recipe saved into adjacent `<photo>.rraw.json` sidecar.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SidecarRecipe {
@@ -1822,6 +1840,8 @@ pub struct SidecarRecipe {
     #[serde(default)]
     pub luma_denoise: f32,
     pub capture_sharpening_amount: f32,
+    #[serde(default)]
+    pub optical_tab: OpticalCorrectionTab,
     #[serde(default = "default_true_bool")]
     pub lens_profile_auto: bool,
     #[serde(default = "default_100_f32")]
@@ -1837,6 +1857,10 @@ pub struct SidecarRecipe {
     pub defringe_purple_amount: f32,
     #[serde(default)]
     pub defringe_green_amount: f32,
+    #[serde(default = "default_defringe_threshold")]
+    pub defringe_threshold: f32,
+    #[serde(default)]
+    pub defringe_preview_mask: bool,
     pub vignette_correction: bool,
     pub vignette_amount: f32,
     #[serde(default)]
@@ -1910,6 +1934,7 @@ impl SidecarRecipe {
             color_denoise: grading.color_denoise,
             luma_denoise: grading.luma_denoise,
             capture_sharpening_amount: grading.capture_sharpening_amount,
+            optical_tab: grading.optical_tab,
             lens_profile_auto: grading.lens_profile_auto,
             lens_distortion_strength: grading.lens_distortion_strength,
             lens_vignette_strength: grading.lens_vignette_strength,
@@ -1919,6 +1944,8 @@ impl SidecarRecipe {
             chromatic_aberration_correction: grading.chromatic_aberration_correction,
             defringe_purple_amount: grading.defringe_purple_amount,
             defringe_green_amount: grading.defringe_green_amount,
+            defringe_threshold: grading.defringe_threshold,
+            defringe_preview_mask: grading.defringe_preview_mask,
             vignette_correction: grading.vignette_correction,
             vignette_amount: grading.vignette_amount,
             creative_vignette_amount: grading.creative_vignette_amount,
@@ -1970,6 +1997,7 @@ impl SidecarRecipe {
         grading.color_denoise = self.color_denoise;
         grading.luma_denoise = self.luma_denoise;
         grading.capture_sharpening_amount = self.capture_sharpening_amount;
+        grading.optical_tab = self.optical_tab;
         grading.lens_profile_auto = self.lens_profile_auto;
         grading.lens_distortion_strength = self.lens_distortion_strength;
         grading.lens_vignette_strength = self.lens_vignette_strength;
@@ -1979,6 +2007,8 @@ impl SidecarRecipe {
         grading.chromatic_aberration_correction = self.chromatic_aberration_correction;
         grading.defringe_purple_amount = self.defringe_purple_amount;
         grading.defringe_green_amount = self.defringe_green_amount;
+        grading.defringe_threshold = self.defringe_threshold;
+        grading.defringe_preview_mask = self.defringe_preview_mask;
         grading.vignette_correction = self.vignette_correction;
         grading.vignette_amount = self.vignette_amount;
         grading.creative_vignette_amount = self.creative_vignette_amount;

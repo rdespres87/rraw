@@ -88,6 +88,12 @@ fn test_optical_profile_i18n_keys() {
         Key::InspectorLensProfileVignette,
         Key::InspectorLensProfileCa,
         Key::InspectorLensManualTitle,
+        Key::InspectorLensTabProfile,
+        Key::InspectorLensTabManual,
+        Key::InspectorParamDefringeThreshold,
+        Key::InspectorDefringePreviewMask,
+        Key::InspectorDefringePreviewMaskTooltip,
+        Key::InspectorLensProfileDisabledNotice,
     ];
 
     for key in keys {
@@ -101,4 +107,61 @@ fn test_optical_profile_i18n_keys() {
             key
         );
     }
+}
+
+#[test]
+fn test_optical_tab_and_defringe_threshold_defaults_and_reset() {
+    use rraw_app::state::OpticalCorrectionTab;
+
+    let mut app = RrawApp::new_headless();
+    assert_eq!(app.grading.optical_tab, OpticalCorrectionTab::Profile);
+    assert!((app.grading.defringe_threshold - 0.08).abs() < 1e-4);
+    assert!(!app.grading.defringe_preview_mask);
+
+    app.grading.optical_tab = OpticalCorrectionTab::Manual;
+    app.grading.defringe_threshold = 0.18;
+    app.grading.defringe_preview_mask = true;
+    app.grading.defringe_purple_amount = 55.0;
+
+    app.reset_section(DarkroomSection::OpticalCorrections);
+
+    assert_eq!(app.grading.optical_tab, OpticalCorrectionTab::Profile);
+    assert!((app.grading.defringe_threshold - 0.08).abs() < 1e-4);
+    assert!(!app.grading.defringe_preview_mask);
+    assert_eq!(app.grading.defringe_purple_amount, 0.0);
+}
+
+#[test]
+fn test_optical_sidecar_roundtrip_with_tabs_and_threshold() -> Result<(), Box<dyn std::error::Error>>
+{
+    use rraw_app::state::OpticalCorrectionTab;
+
+    let grading = DarkroomGradingState {
+        optical_tab: OpticalCorrectionTab::Manual,
+        defringe_threshold: 0.14,
+        defringe_preview_mask: true,
+        defringe_purple_amount: 40.0,
+        defringe_green_amount: 25.0,
+        ..Default::default()
+    };
+
+    let recipe = SidecarRecipe::from_state(&grading, 5);
+    let serialized = serde_json::to_string(&recipe)?;
+
+    assert!(serialized.contains(r#""optical_tab":"Manual""#));
+    assert!(serialized.contains("defringe_threshold"));
+    assert!(serialized.contains("defringe_preview_mask"));
+
+    let deserialized: SidecarRecipe = serde_json::from_str(&serialized)?;
+    assert_eq!(deserialized.optical_tab, OpticalCorrectionTab::Manual);
+    assert!((deserialized.defringe_threshold - 0.14).abs() < 1e-4);
+    assert!(deserialized.defringe_preview_mask);
+
+    let mut restored = DarkroomGradingState::default();
+    deserialized.apply_to(&mut restored);
+    assert_eq!(restored.optical_tab, OpticalCorrectionTab::Manual);
+    assert!((restored.defringe_threshold - 0.14).abs() < 1e-4);
+    assert!(restored.defringe_preview_mask);
+
+    Ok(())
 }

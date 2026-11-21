@@ -961,12 +961,13 @@ pub fn render_preview_from_base(
     let defringe_cfg = rraw_optics::DefringeConfig {
         purple_amount: (grading.defringe_purple_amount / 100.0).clamp(0.0, 1.0),
         green_amount: (grading.defringe_green_amount / 100.0).clamp(0.0, 1.0),
-        threshold: 0.08,
+        threshold: grading.defringe_threshold.clamp(0.01, 0.50),
     };
     let need_denoise = denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4;
     let need_defringe = defringe_cfg.purple_amount > 1e-4 || defringe_cfg.green_amount > 1e-4;
+    let show_defringe_mask = grading.defringe_preview_mask;
 
-    let processed_samples = if need_denoise || need_defringe {
+    let processed_samples = if need_denoise || need_defringe || show_defringe_mask {
         let mut s = base.samples_rgb.clone();
         if need_denoise {
             rraw_core::denoise_rgb_with_wb(
@@ -977,7 +978,9 @@ pub fn render_preview_from_base(
                 Some([eff_wb_r, eff_wb_g, eff_wb_b]),
             );
         }
-        if need_defringe {
+        if show_defringe_mask {
+            rraw_optics::defringe_mask_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
+        } else if need_defringe {
             rraw_optics::defringe_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
         }
         Some(s)
@@ -1536,12 +1539,13 @@ pub fn render_export_image(
     let defringe_cfg = rraw_optics::DefringeConfig {
         purple_amount: (grading.defringe_purple_amount / 100.0).clamp(0.0, 1.0),
         green_amount: (grading.defringe_green_amount / 100.0).clamp(0.0, 1.0),
-        threshold: 0.08,
+        threshold: grading.defringe_threshold.clamp(0.01, 0.50),
     };
     let need_denoise = denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4;
     let need_defringe = defringe_cfg.purple_amount > 1e-4 || defringe_cfg.green_amount > 1e-4;
+    let show_defringe_mask = false;
 
-    let processed_samples = if need_denoise || need_defringe {
+    let processed_samples = if need_denoise || need_defringe || show_defringe_mask {
         let mut s = base.samples_rgb.clone();
         if need_denoise {
             rraw_core::denoise_rgb_with_wb(
@@ -1552,7 +1556,9 @@ pub fn render_export_image(
                 Some([eff_wb_r, eff_wb_g, eff_wb_b]),
             );
         }
-        if need_defringe {
+        if show_defringe_mask {
+            rraw_optics::defringe_mask_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
+        } else if need_defringe {
             rraw_optics::defringe_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
         }
         Some(s)
