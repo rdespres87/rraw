@@ -12,7 +12,7 @@
   - Added `SmartLightingMode` (`Off`, `Slight`, `Medium`, `Strong`, `Custom`) and `SmartLightingParams` (`mode`, `intensity`, `custom_shadow_lift`, `custom_highlight_compression`) to `Stage5GradingParams` in `crates/rraw-core/src/recipe.rs` with backwards-compatible serde defaults.
   - Re-exported module in `crates/rraw-color/src/lib.rs` and integrated Smart Lighting into `CpuReferencePipeline::execute` in `crates/rraw-color/src/pipeline.rs`.
   - Added unit test suite in `crates/rraw-color/tests/smart_lighting_tests.rs` (11 unit/integration tests).
-  - Verified with 221 unit and integration tests passing across 53 suites, 0 clippy warnings, and Qwen 3.6 35B local adversarial audit APPROVED. Commit: `e47dc0a`.
+  - Verified with 221 unit and integration tests passing across 53 suites, 0 clippy warnings, and Qwen 3.6 35B local adversarial audit APPROVED. Commit: `3d8c6b7`.
 
 - **Phase 8.3 — Enhanced Optical Inspector UI (`rraw-optics`, `rraw-app`)**:
   - Implemented `defringe_mask_rgb` in `crates/rraw-optics/src/defringe.rs` providing an interactive diagnostic fringe visualization mask highlighting detected purple fringes in bright magenta, green fringes in neon-green, and background pixels in dimmed monochrome ($Y \times 0.35$).
