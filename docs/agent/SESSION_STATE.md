@@ -6,6 +6,7 @@
 
 - **Active Phase**: Phase 13 — Application Versioning, Packaging & macOS DMG Installer
 - **Active Tasks**:
+  - Workflow Session Persistence (`rraw-app`): **Complete** (Auto-restauration du précédent dossier et de la dernière photo ouverte au redémarrage via `layout.json`, synchronisation active à chaque changement de dossier/photo et sur `on_exit`, tolérance aux fichiers supprimés, compatibilité ascendante avec les anciennes configurations via `#[serde(default)]`, suite de tests dédiée `workflow_session_tests.rs`, Inquisitor APPROVED via Qwen 3.6 35B, CI green 196 tests across 50 suites, 0 clippy warnings)
   - Toolbar UX Refinement (`rraw-app`): **Complete** (Suppression de l'en-tête `RRAW`, migration du sélecteur `FR | EN` dans la barre d'état inférieure droite, ruban supérieur commençant directement sur les actions photo, commit `68ffca5`)
   - Task 13.1 (`rraw-app` & Workspace): **Complete** (Semver `VERSION`, `VERSION_TAG`, `LONG_VERSION`, build date et git commit hash exposés à la compilation, affichage discret en barre d'état, modale "À propos", CLI `--version`, commits `b29cad9`, `68ffca5`)
   - Task 13.2 (Packaging & Distribution): **Complete** (macOS App Bundle `Rraw.app`, `assets/macos/Info.plist`, HiDPI `AppIcon.icns`, script `scripts/package_macos.sh`, codesigning ad-hoc/runtime, installeur DMG drag-and-drop avec lien `/Applications`, test suite `packaging_tests.rs`, Inquisitor APPROVED, commit `6729fa6`, CI green 192 tests across 39 suites)
@@ -89,9 +90,9 @@
     - Embellished Histogram: OLED rounded card, sqrt scaling to reveal midtones, glowing RGB curves, quartile zone guides (Noirs, Ombres, Exposition, Hautes Lum.), clipping badges.
     - Crop & Geometry: 120 FPS vector overlay, aspect ratio presets, Enter/double-click commit, independent enable/disable toggles.
     - Batch Export: configurable subfolder (`Export`), suffix (`_rraw`), formats (JPEG quality, PNG 8/16, TIFF 8/16), auto-closing dialog.
-- Total tests: 174 unit/integration tests passing cleanly across 47 test suites.
+- Total tests: 196 unit/integration tests passing cleanly across 50 test suites.
 
 ## Last Observed Verification Run
 
 - `./.git/hooks/pre-commit` (`cargo fmt --all -- --check` + `cargo clippy --workspace --all-targets -- -D warnings`): passed (exit `0`).
-- `cargo test --workspace`: passed (`174` unit/integration tests across all `11` crates; `0` failed, `0` ignored).
+- `cargo test --workspace`: passed (`196` unit/integration tests across all `11` crates; `0` failed, `0` ignored).

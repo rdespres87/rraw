@@ -199,17 +199,33 @@ impl RrawApp {
             });
         }
 
-        // Default folder to user's Desktop as requested
-        let default_dir = std::env::var_os("HOME")
-            .map(PathBuf::from)
-            .map(|h| h.join("Desktop"))
-            .filter(|p| p.is_dir())
-            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-        let default_entries = scan_directory_for_images(&default_dir);
-
         let layout_config = AppLayoutConfig::load();
         let active_tool_family = layout_config.active_tool_family;
         let active_tools_only = layout_config.active_tools_only;
+
+        // Restore previous working directory if valid, otherwise fallback to user's Desktop
+        let initial_dir = match layout_config
+            .last_open_directory
+            .as_ref()
+            .filter(|p| p.is_dir())
+            .cloned()
+        {
+            Some(dir) => dir,
+            None => {
+                let desktop_opt = std::env::var_os("HOME")
+                    .map(PathBuf::from)
+                    .map(|h| h.join("Desktop"))
+                    .filter(|p| p.is_dir());
+                match desktop_opt {
+                    Some(desk) => desk,
+                    None => match std::env::current_dir() {
+                        Ok(cwd) => cwd,
+                        Err(_) => PathBuf::from("."),
+                    },
+                }
+            }
+        };
+        let initial_entries = scan_directory_for_images(&initial_dir);
 
         let mut app = Self {
             headroom_provider,
@@ -231,8 +247,8 @@ impl RrawApp {
             decode_sender,
             decode_receiver,
             is_decoding: false,
-            current_directory: Some(default_dir),
-            directory_entries: default_entries,
+            current_directory: Some(initial_dir),
+            directory_entries: initial_entries,
             inspector_tab: InspectorTab::Develop,
             left_panel_tab: LeftPanelTab::Explorer,
             active_tool_family,
@@ -285,9 +301,17 @@ impl RrawApp {
             last_dir_poll: std::time::Instant::now(),
         };
 
-        // Open the first photo in default directory if available
-        if let Some(first) = app.directory_entries.first().cloned() {
-            app.open_raw_file(&first);
+        // Restore previous photo if available and valid, otherwise open first photo in directory
+        let photo_to_open = app
+            .layout_config
+            .last_open_photo
+            .as_ref()
+            .filter(|p| p.is_file())
+            .cloned()
+            .or_else(|| app.directory_entries.first().cloned());
+
+        if let Some(photo) = photo_to_open {
+            app.open_raw_file(&photo);
         }
 
         app
@@ -621,6 +645,10 @@ impl RrawApp {
         self.current_directory = Some(abs_dir.clone());
         self.directory_entries = scan_directory_for_images(&abs_dir);
 
+        // Track last opened directory in persistent layout configuration
+        self.layout_config.last_open_directory = Some(abs_dir.clone());
+        self.layout_config.save();
+
         // Preload sidecars (.rraw.json & .xmp) without stalling CPU
         let entries = self.directory_entries.clone();
         for path in &entries {
@@ -860,6 +888,15 @@ impl RrawApp {
                 self.open_directory(parent);
             }
         }
+
+        // Track last opened photo and directory in persistent layout configuration
+        self.layout_config.last_open_photo = Some(abs_path.clone());
+        if let Some(parent) = abs_path.parent() {
+            if parent.is_dir() {
+                self.layout_config.last_open_directory = Some(parent.to_path_buf());
+            }
+        }
+        self.layout_config.save();
 
         // Save current photo's grading and sidecars in background before switching
         if let Some(loaded) = &self.loaded_photo {
@@ -1532,5 +1569,20 @@ impl eframe::App for RrawApp {
 
         // 9. Render "About" version dialog if active
         self.render_about_dialog(ui.ctx());
+    }
+
+    fn on_exit(&mut self) {
+        if let Some(loaded) = &self.loaded_photo {
+            self.layout_config.last_open_photo = Some(loaded.path.clone());
+            let rating = match self.photo_ratings.get(&loaded.path).copied() {
+                Some(r) => r,
+                None => loaded.rating,
+            };
+            save_photo_sidecars(&loaded.path, &self.grading, rating);
+        }
+        if let Some(dir) = &self.current_directory {
+            self.layout_config.last_open_directory = Some(dir.clone());
+        }
+        self.layout_config.save();
     }
 }

@@ -403,6 +403,12 @@ pub struct AppLayoutConfig {
     /// Active application UI language.
     #[serde(default)]
     pub language: Language,
+    /// Last opened directory path, persisted across application restarts.
+    #[serde(default)]
+    pub last_open_directory: Option<PathBuf>,
+    /// Last opened photo file path, persisted across application restarts.
+    #[serde(default)]
+    pub last_open_photo: Option<PathBuf>,
 }
 
 const fn default_true() -> bool {
@@ -418,6 +424,8 @@ impl Default for AppLayoutConfig {
             filmstrip_visible: true,
             show_canvas_hud: true,
             language: Language::Fr,
+            last_open_directory: None,
+            last_open_photo: None,
         }
     }
 }
@@ -463,6 +471,8 @@ impl AppLayoutConfig {
             filmstrip_visible: loaded.filmstrip_visible,
             show_canvas_hud: loaded.show_canvas_hud,
             language: loaded.language,
+            last_open_directory: loaded.last_open_directory,
+            last_open_photo: loaded.last_open_photo,
         }
     }
 
@@ -475,7 +485,12 @@ impl AppLayoutConfig {
             let _ = std::fs::create_dir_all(parent);
         }
         if let Ok(json) = serde_json::to_string_pretty(self) {
-            let _ = std::fs::write(&path, json);
+            if let Err(err) = std::fs::write(&path, json) {
+                eprintln!(
+                    "rraw: failed to persist layout configuration to {}: {err}",
+                    path.display()
+                );
+            }
         }
     }
 }
