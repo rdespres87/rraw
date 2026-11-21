@@ -86,7 +86,7 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 
 ## Phase 13 — Application Versioning, Packaging & macOS DMG Installer
 - [x] **Task 13.1 (`rraw-app` & Workspace)**: Semantic Versioning & Build Metadata (Semver `VERSION`, git commit hash and build date exposed via compile-time constants, displayed in top bar, "À propos" modal dialog and CLI `--version`)
-- [ ] **Task 13.2 (Packaging & Distribution)**: macOS App Bundle (`Rraw.app`) & Drag-and-Drop DMG Disk Image Installer (`scripts/package_macos.sh`, `Info.plist`, HiDPI `.icns` application icon, `/Applications` symlink, background art and code signing/notarization preparation)
+- [x] **Task 13.2 (Packaging & Distribution)**: macOS App Bundle (`Rraw.app`) & Drag-and-Drop DMG Disk Image Installer (`scripts/package_macos.sh`, `Info.plist`, HiDPI `.icns` application icon, `/Applications` symlink, background art and code signing/notarization preparation)
 
 ---
 

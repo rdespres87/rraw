@@ -2,6 +2,14 @@
 
 ## Last Completed Milestone
 
+- **Phase 13.2 — macOS App Bundle & Drag-and-Drop DMG Installer (`assets/macos`, `scripts`, `crates/rraw-app`)**:
+  - Implemented macOS Application Bundle assembly pipeline (`scripts/package_macos.sh`) creating `target/dist/Rraw.app` with `Contents/MacOS/rraw-app`, `Contents/Resources/AppIcon.icns`, `Contents/Info.plist`, and `Contents/PkgInfo`.
+  - Authored canonical `assets/macos/Info.plist` template specifying `CFBundleName = "Rraw"`, `CFBundleExecutable = "rraw-app"`, `CFBundleIdentifier = "com.rraw.darkroom"`, `LSMinimumSystemVersion = "13.0"`, `NSHighResolutionCapable = true`, `NSSupportsAutomaticGraphicsSwitching = true`, and standard RAW photo document associations (`.dng`, `.arw`, `.cr2`, `.cr3`, `.nef`, `.orf`, `.rw2`, `.raf`, `.pef`).
+  - Implemented high-resolution Apple ICNS generation pipeline (`assets/macos/generate_icon.py`) creating master 1024x1024 darkroom squircle icon and compiling `assets/macos/AppIcon.icns` via `iconutil`.
+  - Implemented production drag-and-drop DMG packager with `/Applications` symlink, compressed UDZO image creation via `hdiutil`, ad-hoc/runtime codesigning, and SHA-256 checksum generation (`target/dist/Rraw-v0.1.0.dmg`).
+  - Added integration test suite `crates/rraw-app/tests/packaging_tests.rs` (4 tests) asserting plist integrity, Apple ICNS magic bytes & size, packaging script execution permissions, and CLI `--help` invocation.
+  - Verified with 192 unit and integration tests passing across 39 suites, 0 clippy warnings, and Qwen 3.6 35B local adversarial audit APPROVED.
+
 - **Phase 13.1 — Semantic Versioning & Build Metadata (`rraw-core`, `rraw-app`, `rraw-cli`)**:
   - Implemented `rraw-core::build_info` module and `build.rs` embedding compile-time semantic version (`VERSION`, `VERSION_TAG = "v..."`), Git commit hash (`GIT_COMMIT_HASH`, 7 short hex chars), committer build date (`BUILD_DATE` ISO 8601 UTC), and full CLI string (`LONG_VERSION`).
   - Streamlined darkroom top toolbar: removed redundant `RRAW` heading and relocated compact `FR | EN` toggle to the bottom status bar right-to-left layout (`[FR | EN] · [EDR 120 Hz] · [v0.1.0]`), allowing the top toolbar to start directly with primary photo workflow actions (`Open Image`, `Open Folder`, `Export`).

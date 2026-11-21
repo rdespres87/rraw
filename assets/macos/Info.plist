@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>Rraw</string>
+    <key>CFBundleExecutable</key>
+    <string>rraw-app</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.rraw.darkroom</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Rraw</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>${VERSION}</string>
+    <key>CFBundleVersion</key>
+    <string>${BUILD_NUMBER}</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.photography</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2026 Rraw Contributors. Licensed under GPL-3.0-or-later.</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Camera RAW Image</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>dng</string>
+                <string>arw</string>
+                <string>cr2</string>
+                <string>cr3</string>
+                <string>nef</string>
+                <string>orf</string>
+                <string>rw2</string>
+                <string>raf</string>
+                <string>pef</string>
+            </array>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.camera-raw-image</string>
+                <string>com.adobe.raw-image</string>
+                <string>com.sony.raw-image</string>
+                <string>com.canon.cr2-raw-image</string>
+                <string>com.canon.cr3-raw-image</string>
+                <string>com.nikon.raw-image</string>
+                <string>com.olympus.raw-image</string>
+                <string>com.panasonic.raw-image</string>
+                <string>com.fuji.raw-image</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>
