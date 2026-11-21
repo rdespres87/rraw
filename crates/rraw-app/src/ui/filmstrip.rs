@@ -24,12 +24,15 @@ impl RrawApp {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new("Filtre :").strong().size(12.0));
 
+                    let mut filter_changed = false;
+
                     let all_label = format!("Toutes ({})", self.directory_entries.len());
                     if ui
                         .selectable_label(self.rating_filter == RatingFilter::All, all_label)
                         .clicked()
                     {
                         self.rating_filter = RatingFilter::All;
+                        filter_changed = true;
                     }
 
                     for stars in 1..=5 {
@@ -43,6 +46,7 @@ impl RrawApp {
                             .clicked()
                         {
                             self.rating_filter = RatingFilter::MinStars(stars);
+                            filter_changed = true;
                         }
                     }
 
@@ -56,6 +60,7 @@ impl RrawApp {
                         .clicked()
                     {
                         self.rating_filter = RatingFilter::Unrated;
+                        filter_changed = true;
                     }
 
                     let raw_count = self
@@ -78,6 +83,17 @@ impl RrawApp {
                             .clicked()
                         {
                             self.raw_only_filter = !self.raw_only_filter;
+                            filter_changed = true;
+                        }
+                    }
+
+                    if filter_changed {
+                        if let Some(loaded) = &self.loaded_photo {
+                            if !self.matches_active_filter(&loaded.path) {
+                                if let Some(target) = self.first_filtered_entry() {
+                                    self.open_raw_file(&target);
+                                }
+                            }
                         }
                     }
 
@@ -244,21 +260,11 @@ impl RrawApp {
                                 let mut toggle_export_path = None;
 
                                 for (entry_idx, entry) in entries.iter().enumerate() {
+                                    if !self.matches_active_filter(entry) {
+                                        continue;
+                                    }
                                     let rating =
                                         self.photo_ratings.get(entry).copied().unwrap_or(0);
-                                    if !self.rating_filter.matches(rating) {
-                                        continue;
-                                    }
-
-                                    let ext_str = entry
-                                        .extension()
-                                        .and_then(|s| s.to_str())
-                                        .unwrap_or_default();
-                                    if self.raw_only_filter
-                                        && !crate::preview::is_raw_extension(ext_str)
-                                    {
-                                        continue;
-                                    }
 
                                     let is_selected = active_path.as_ref() == Some(entry);
                                     let is_multi_selected = self.selected_photos.contains(entry);

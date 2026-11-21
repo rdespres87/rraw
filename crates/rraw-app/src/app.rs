@@ -313,13 +313,14 @@ impl RrawApp {
             last_dir_poll: std::time::Instant::now(),
         };
 
-        // Restore previous photo if available and valid, otherwise open first photo in directory
+        // Restore previous photo if available, valid and matching active filters, otherwise open first filtered photo in directory
         let photo_to_open = app
             .layout_config
             .last_open_photo
             .as_ref()
-            .filter(|p| p.is_file())
+            .filter(|p| p.is_file() && app.matches_active_filter(p))
             .cloned()
+            .or_else(|| app.first_filtered_entry())
             .or_else(|| app.directory_entries.first().cloned());
 
         if let Some(photo) = photo_to_open {
@@ -861,6 +862,28 @@ impl RrawApp {
         }
     }
 
+    /// Checks if a file path matches the currently active filmstrip filters (rating + raw-only).
+    #[must_use]
+    pub fn matches_active_filter(&self, path: &Path) -> bool {
+        let rating = self.photo_ratings.get(path).copied().unwrap_or(0);
+        let rating_match = self.rating_filter.matches(rating);
+        let raw_match = !self.raw_only_filter
+            || path
+                .extension()
+                .and_then(|s| s.to_str())
+                .is_some_and(crate::preview::is_raw_extension);
+        rating_match && raw_match
+    }
+
+    /// Returns the first photo in `directory_entries` that satisfies active filmstrip filters.
+    #[must_use]
+    pub fn first_filtered_entry(&self) -> Option<PathBuf> {
+        self.directory_entries
+            .iter()
+            .find(|p| self.matches_active_filter(p))
+            .cloned()
+    }
+
     /// Navigates relative to the current photo in the filtered filmstrip.
     pub fn navigate_relative(&mut self, delta: isize) {
         self.navigate_relative_with_shift(delta, false);
@@ -871,15 +894,7 @@ impl RrawApp {
         let filtered: Vec<PathBuf> = self
             .directory_entries
             .iter()
-            .filter(|p| {
-                let rating = self.photo_ratings.get(*p).copied().unwrap_or(0);
-                let rating_match = self.rating_filter.matches(rating);
-                let raw_match = !self.raw_only_filter
-                    || p.extension()
-                        .and_then(|s| s.to_str())
-                        .is_some_and(crate::preview::is_raw_extension);
-                rating_match && raw_match
-            })
+            .filter(|p| self.matches_active_filter(p))
             .cloned()
             .collect();
 
@@ -926,6 +941,15 @@ impl RrawApp {
             if !parent.as_os_str().is_empty() && self.current_directory.as_deref() != Some(parent) {
                 self.open_directory(parent);
             }
+        }
+
+        // If explicitly opening a non-RAW image (e.g. PNG / JPG via dialog or CLI), disable raw-only filter so it appears in filmstrip
+        let is_raw = abs_path
+            .extension()
+            .and_then(|s| s.to_str())
+            .is_some_and(crate::preview::is_raw_extension);
+        if !is_raw && self.raw_only_filter {
+            self.raw_only_filter = false;
         }
 
         // Track last opened photo and directory in persistent layout configuration
@@ -1349,7 +1373,10 @@ impl eframe::App for RrawApp {
                     if ui.button(self.t(Key::TopBarOpenFolder)).clicked() {
                         if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                             self.open_directory(&folder);
-                            if let Some(first_file) = self.directory_entries.first().cloned() {
+                            if let Some(first_file) = self
+                                .first_filtered_entry()
+                                .or_else(|| self.directory_entries.first().cloned())
+                            {
                                 self.open_raw_file(&first_file);
                             }
                         }

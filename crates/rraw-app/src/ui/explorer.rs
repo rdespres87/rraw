@@ -122,7 +122,10 @@ impl RrawApp {
 
         if let Some(d) = dir_to_open {
             self.open_directory(&d);
-            if let Some(first) = self.directory_entries.first().cloned() {
+            if let Some(first) = self
+                .first_filtered_entry()
+                .or_else(|| self.directory_entries.first().cloned())
+            {
                 self.open_raw_file(&first);
             }
         }
