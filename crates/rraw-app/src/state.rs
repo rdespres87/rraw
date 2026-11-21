@@ -417,6 +417,10 @@ pub struct AppLayoutConfig {
     /// Last opened photo file path, persisted across application restarts.
     #[serde(default)]
     pub last_open_photo: Option<PathBuf>,
+    /// User preference for the raw-only filmstrip filter, persisted across sessions.
+    /// If `None`, defaults adaptively to `raw_count > 0`.
+    #[serde(default)]
+    pub raw_only_filter: Option<bool>,
 }
 
 const fn default_true() -> bool {
@@ -434,6 +438,7 @@ impl Default for AppLayoutConfig {
             language: Language::Fr,
             last_open_directory: None,
             last_open_photo: None,
+            raw_only_filter: None,
         }
     }
 }
@@ -481,6 +486,7 @@ impl AppLayoutConfig {
             language: loaded.language,
             last_open_directory: loaded.last_open_directory,
             last_open_photo: loaded.last_open_photo,
+            raw_only_filter: loaded.raw_only_filter,
         }
     }
 

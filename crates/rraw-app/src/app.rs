@@ -236,7 +236,7 @@ impl RrawApp {
                     .is_some_and(crate::preview::is_raw_extension)
             })
             .count();
-        let raw_only_filter = raw_count > 0;
+        let raw_only_filter = layout_config.raw_only_filter.unwrap_or(raw_count > 0);
 
         let mut app = Self {
             headroom_provider,
@@ -678,7 +678,7 @@ impl RrawApp {
                     .is_some_and(crate::preview::is_raw_extension)
             })
             .count();
-        self.raw_only_filter = raw_count > 0;
+        self.raw_only_filter = self.layout_config.raw_only_filter.unwrap_or(raw_count > 0);
 
         // Track last opened directory in persistent layout configuration
         self.layout_config.last_open_directory = Some(abs_dir.clone());
@@ -950,6 +950,8 @@ impl RrawApp {
             .is_some_and(crate::preview::is_raw_extension);
         if !is_raw && self.raw_only_filter {
             self.raw_only_filter = false;
+            self.layout_config.raw_only_filter = Some(false);
+            self.layout_config.save();
         }
 
         // Track last opened photo and directory in persistent layout configuration

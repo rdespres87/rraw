@@ -83,6 +83,8 @@ impl RrawApp {
                             .clicked()
                         {
                             self.raw_only_filter = !self.raw_only_filter;
+                            self.layout_config.raw_only_filter = Some(self.raw_only_filter);
+                            self.layout_config.save();
                             filter_changed = true;
                         }
                     }

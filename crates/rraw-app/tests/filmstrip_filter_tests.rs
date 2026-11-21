@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use rraw_app::app::RrawApp;
-use rraw_app::state::RatingFilter;
+use rraw_app::state::{AppLayoutConfig, RatingFilter};
 use std::path::{Path, PathBuf};
 
 #[test]
@@ -96,4 +96,60 @@ fn test_filter_switch_fallback_when_no_raw_match() {
 
     app.raw_only_filter = true;
     assert_eq!(app.first_filtered_entry(), None);
+}
+
+#[test]
+fn test_layout_config_raw_only_filter_serialization() -> Result<(), Box<dyn std::error::Error>> {
+    let mut config = AppLayoutConfig::default();
+    assert_eq!(config.raw_only_filter, None);
+
+    config.raw_only_filter = Some(false);
+    let json = serde_json::to_string(&config)?;
+    assert!(json.contains("\"raw_only_filter\":false"));
+
+    let loaded: AppLayoutConfig = serde_json::from_str(&json)?;
+    assert_eq!(loaded.raw_only_filter, Some(false));
+
+    config.raw_only_filter = Some(true);
+    let json = serde_json::to_string(&config)?;
+    let loaded: AppLayoutConfig = serde_json::from_str(&json)?;
+    assert_eq!(loaded.raw_only_filter, Some(true));
+
+    // Key omitted from previous layout.json versions deserializes to None
+    let mut val: serde_json::Value = serde_json::to_value(&config)?;
+    val.as_object_mut()
+        .and_then(|obj| obj.remove("raw_only_filter"));
+    let loaded_omitted: AppLayoutConfig = serde_json::from_value(val)?;
+    assert_eq!(loaded_omitted.raw_only_filter, None);
+    Ok(())
+}
+
+#[test]
+fn test_directory_open_respects_persisted_raw_only_filter() -> Result<(), Box<dyn std::error::Error>>
+{
+    let temp_dir = std::env::temp_dir().join("rraw_test_raw_filter_persisted");
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    std::fs::create_dir_all(&temp_dir)?;
+    std::fs::write(temp_dir.join("photo.DNG"), b"dummy dng")?;
+    std::fs::write(temp_dir.join("image.jpg"), b"dummy jpg")?;
+
+    let mut app = RrawApp::new_headless();
+
+    // 1. With raw_only_filter = None, opening a folder with RAW files defaults to true
+    app.layout_config.raw_only_filter = None;
+    app.open_directory(&temp_dir);
+    assert!(app.raw_only_filter);
+
+    // 2. With raw_only_filter = Some(false), opening a folder with RAW files respects user preference (false)
+    app.layout_config.raw_only_filter = Some(false);
+    app.open_directory(&temp_dir);
+    assert!(!app.raw_only_filter);
+
+    // 3. With raw_only_filter = Some(true), opening respects user preference (true)
+    app.layout_config.raw_only_filter = Some(true);
+    app.open_directory(&temp_dir);
+    assert!(app.raw_only_filter);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    Ok(())
 }
