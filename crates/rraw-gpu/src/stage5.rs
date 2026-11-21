@@ -32,6 +32,8 @@ pub struct Stage5Params {
     pub tone_curves_lut: Option<Box<[[f32; 4]; 1024]>>,
     pub clut_3d: Option<rraw_color::ColorLut3d>,
     pub clut_3d_strength: f32,
+    pub smart_lighting_shadow_lift: f32,
+    pub smart_lighting_highlight_compression: f32,
 }
 
 impl Stage5Params {
@@ -53,6 +55,8 @@ impl Stage5Params {
             tone_curves_lut: None,
             clut_3d: None,
             clut_3d_strength: 1.0,
+            smart_lighting_shadow_lift: 0.0,
+            smart_lighting_highlight_compression: 0.0,
         }
     }
 
@@ -70,6 +74,18 @@ impl Stage5Params {
         self.clut_3d_strength = strength.clamp(0.0, 1.0);
         self
     }
+
+    /// Attaches Smart Lighting local tone mapping parameters.
+    #[must_use]
+    pub const fn with_smart_lighting(
+        mut self,
+        shadow_lift: f32,
+        highlight_compression: f32,
+    ) -> Self {
+        self.smart_lighting_shadow_lift = shadow_lift;
+        self.smart_lighting_highlight_compression = highlight_compression;
+        self
+    }
 }
 
 #[repr(C)]
@@ -83,6 +99,10 @@ struct Stage5UniformsGpu {
     enable_tone_curves: u32,
     enable_clut_3d: u32,
     clut_3d_strength: f32,
+    enable_smart_lighting: u32,
+    smart_lighting_shadow_lift: f32,
+    smart_lighting_highlight_compression: f32,
+    _pad_sl: f32,
 }
 
 /// Headless GPU compute pipeline for Stage 5.
@@ -347,6 +367,14 @@ impl Stage5Pipeline {
             None => &self.default_lut_view,
         };
 
+        let enable_smart_lighting = if params.smart_lighting_shadow_lift > 0.0
+            || params.smart_lighting_highlight_compression > 0.0
+        {
+            1u32
+        } else {
+            0u32
+        };
+
         let uniforms = Stage5UniformsGpu {
             width: params.width,
             height: params.height,
@@ -356,6 +384,10 @@ impl Stage5Pipeline {
             enable_tone_curves,
             enable_clut_3d,
             clut_3d_strength,
+            enable_smart_lighting,
+            smart_lighting_shadow_lift: params.smart_lighting_shadow_lift,
+            smart_lighting_highlight_compression: params.smart_lighting_highlight_compression,
+            _pad_sl: 0.0,
         };
 
         let uniform_buffer = ctx

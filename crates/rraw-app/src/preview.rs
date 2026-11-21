@@ -1053,6 +1053,57 @@ pub fn render_preview_from_base(
         (mapped * 255.0 + 0.5).clamp(0.0, 255.0) as u8
     };
 
+    let smart_lighting_map: Option<Vec<f32>> = if grading.smart_lighting.is_active() {
+        let n_pix = preview_w * preview_h;
+        let mut rgb_linear = Vec::with_capacity(n_pix);
+        for s in effective_samples.iter().take(n_pix) {
+            let [r, g, b] = *s;
+            let r_scaled =
+                (combined_mat[0] * r + combined_mat[1] * g + combined_mat[2] * b).max(0.0);
+            let g_scaled =
+                (combined_mat[3] * r + combined_mat[4] * g + combined_mat[5] * b).max(0.0);
+            let b_scaled =
+                (combined_mat[6] * r + combined_mat[7] * g + combined_mat[8] * b).max(0.0);
+            rgb_linear.push([r_scaled, g_scaled, b_scaled]);
+        }
+        if rgb_linear.len() == n_pix {
+            let orig_lumas: Vec<f32> = rgb_linear
+                .iter()
+                .map(|rgb| rraw_color::smart_lighting::aces_cg_luminance(*rgb).max(0.0))
+                .collect();
+            if rraw_color::smart_lighting::apply_smart_lighting_acescg(
+                &mut rgb_linear,
+                preview_w,
+                preview_h,
+                &grading.smart_lighting,
+            )
+            .is_ok()
+            {
+                let gains: Vec<f32> = rgb_linear
+                    .iter()
+                    .enumerate()
+                    .map(|(i, mapped)| {
+                        let orig_y = orig_lumas[i];
+                        let mapped_y =
+                            rraw_color::smart_lighting::aces_cg_luminance(*mapped).max(0.0);
+                        if orig_y > 1e-7 {
+                            mapped_y / orig_y
+                        } else {
+                            1.0
+                        }
+                    })
+                    .collect();
+                Some(gains)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     struct RowHistogram {
         hist_r: [u32; 256],
         hist_g: [u32; 256],
@@ -1131,21 +1182,29 @@ pub fn render_preview_from_base(
 
                 let [mean_r, mean_g, mean_b] = effective_samples[sample_idx];
 
-                let r_scaled = (combined_mat[0] * mean_r
+                let mut r_scaled = (combined_mat[0] * mean_r
                     + combined_mat[1] * mean_g
                     + combined_mat[2] * mean_b)
                     .max(0.0)
                     * v_mult;
-                let g_scaled = (combined_mat[3] * mean_r
+                let mut g_scaled = (combined_mat[3] * mean_r
                     + combined_mat[4] * mean_g
                     + combined_mat[5] * mean_b)
                     .max(0.0)
                     * v_mult;
-                let b_scaled = (combined_mat[6] * mean_r
+                let mut b_scaled = (combined_mat[6] * mean_r
                     + combined_mat[7] * mean_g
                     + combined_mat[8] * mean_b)
                     .max(0.0)
                     * v_mult;
+
+                if let Some(gains) = &smart_lighting_map {
+                    let sl_idx = sample_idx.min(gains.len().saturating_sub(1));
+                    let g = gains[sl_idx];
+                    r_scaled *= g;
+                    g_scaled *= g;
+                    b_scaled *= g;
+                }
 
                 let (r_toned, g_toned, b_toned) = if has_tonal_adjustment {
                     let lum = 0.2126 * r_scaled + 0.7152 * g_scaled + 0.0722 * b_scaled;
@@ -1594,6 +1653,61 @@ pub fn render_export_image(
     let mut u8_bytes = Vec::with_capacity(out_w * out_h * 3);
     let mut u16_samples = Vec::with_capacity(out_w * out_h * 3);
 
+    let smart_lighting_map: Option<Vec<f32>> = if grading.smart_lighting.is_active() {
+        let n_pix = preview_w * preview_h;
+        let mut rgb_linear = Vec::with_capacity(n_pix);
+        for s in effective_samples.iter().take(n_pix) {
+            let [r, g, b] = *s;
+            let r_wb = r * eff_wb_r;
+            let g_wb = g * eff_wb_g;
+            let b_wb = b * eff_wb_b;
+            let r_linear = (mat[0] * r_wb + mat[1] * g_wb + mat[2] * b_wb).max(0.0);
+            let g_linear = (mat[3] * r_wb + mat[4] * g_wb + mat[5] * b_wb).max(0.0);
+            let b_linear = (mat[6] * r_wb + mat[7] * g_wb + mat[8] * b_wb).max(0.0);
+            rgb_linear.push([
+                r_linear * exposure_gain,
+                g_linear * exposure_gain,
+                b_linear * exposure_gain,
+            ]);
+        }
+        if rgb_linear.len() == n_pix {
+            let orig_lumas: Vec<f32> = rgb_linear
+                .iter()
+                .map(|rgb| rraw_color::smart_lighting::aces_cg_luminance(*rgb).max(0.0))
+                .collect();
+            if rraw_color::smart_lighting::apply_smart_lighting_acescg(
+                &mut rgb_linear,
+                preview_w,
+                preview_h,
+                &grading.smart_lighting,
+            )
+            .is_ok()
+            {
+                let gains: Vec<f32> = rgb_linear
+                    .iter()
+                    .enumerate()
+                    .map(|(i, mapped)| {
+                        let orig_y = orig_lumas[i];
+                        let mapped_y =
+                            rraw_color::smart_lighting::aces_cg_luminance(*mapped).max(0.0);
+                        if orig_y > 1e-7 {
+                            mapped_y / orig_y
+                        } else {
+                            1.0
+                        }
+                    })
+                    .collect();
+                Some(gains)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     for oy in 0..out_h {
         let orig_y = crop_y0 as f32 + (oy as f32 / out_h as f32) * cropped_h as f32;
         let raw_dy = (orig_y - cy) * flip_y;
@@ -1641,9 +1755,17 @@ pub fn render_export_image(
             let g_linear = (mat[3] * r_wb + mat[4] * g_wb + mat[5] * b_wb).max(0.0);
             let b_linear = (mat[6] * r_wb + mat[7] * g_wb + mat[8] * b_wb).max(0.0);
 
-            let r_scaled = (r_linear * exposure_gain * v_mult).max(0.0);
-            let g_scaled = (g_linear * exposure_gain * v_mult).max(0.0);
-            let b_scaled = (b_linear * exposure_gain * v_mult).max(0.0);
+            let mut r_scaled = (r_linear * exposure_gain * v_mult).max(0.0);
+            let mut g_scaled = (g_linear * exposure_gain * v_mult).max(0.0);
+            let mut b_scaled = (b_linear * exposure_gain * v_mult).max(0.0);
+
+            if let Some(gains) = &smart_lighting_map {
+                let sl_idx = sample_idx.min(gains.len().saturating_sub(1));
+                let g = gains[sl_idx];
+                r_scaled *= g;
+                g_scaled *= g;
+                b_scaled *= g;
+            }
 
             let lum = 0.2126 * r_scaled + 0.7152 * g_scaled + 0.0722 * b_scaled;
             let y_norm = lum / (lum + 0.18);

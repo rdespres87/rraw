@@ -107,6 +107,8 @@ fn test_scale_invariance_rmse_between_levels() {
         tone_curves_lut: None,
         clut_3d: None,
         clut_3d_strength: 1.0,
+        smart_lighting_shadow_lift: 0.0,
+        smart_lighting_highlight_compression: 0.0,
     };
 
     let params_l2 = Stage5Params {
@@ -118,6 +120,8 @@ fn test_scale_invariance_rmse_between_levels() {
         tone_curves_lut: None,
         clut_3d: None,
         clut_3d_strength: 1.0,
+        smart_lighting_shadow_lift: 0.0,
+        smart_lighting_highlight_compression: 0.0,
     };
 
     let res_l0 = pipeline.execute(&ctx, &rgb_in, &params_l0);
@@ -265,6 +269,8 @@ fn test_stage5_gpu_tone_curves_matches_cpu_reference() {
         tone_curves_lut: Some(lut),
         clut_3d: None,
         clut_3d_strength: 1.0,
+        smart_lighting_shadow_lift: 0.0,
+        smart_lighting_highlight_compression: 0.0,
     };
 
     let gpu_res = pipeline.execute(&ctx, &rgb_in, &params);
@@ -370,6 +376,83 @@ fn test_stage5_gpu_3d_clut_matches_cpu_reference() -> Result<(), Box<dyn std::er
             "Index {i}: diff {diff} exceeds tolerance at 50% blend"
         );
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_stage5_gpu_smart_lighting_scale_invariance_and_chromaticity(
+) -> Result<(), rraw_gpu::GpuError> {
+    let ctx = match GpuContext::new_headless() {
+        Ok(c) => c,
+        Err(_) => return Ok(()),
+    };
+
+    let pipeline = match Stage5Pipeline::new(&ctx) {
+        Ok(p) => p,
+        Err(_) => return Ok(()),
+    };
+
+    let width = 64_u32;
+    let height = 64_u32;
+    let count = (width * height) as usize;
+
+    let mut rgb_in = vec![0.0_f32; count * 3];
+    for y in 0..height {
+        for x in 0..width {
+            let idx = ((y * width + x) * 3) as usize;
+            // Ramp with distinct non-neutral R, G, B channels
+            let t = (x as f32 / width as f32) * 0.9 + 0.05;
+            rgb_in[idx] = t * 1.2;
+            rgb_in[idx + 1] = t * 0.9;
+            rgb_in[idx + 2] = t * 0.6;
+        }
+    }
+
+    // Test scale-invariance L=0 vs L=2 with smart lighting active
+    let params_l0 = Stage5Params::new(width, height, 0, 6, 0.2).with_smart_lighting(0.5, 0.4);
+    let params_l2 = Stage5Params::new(width, height, 2, 6, 0.2).with_smart_lighting(0.5, 0.4);
+
+    let out_l0 = pipeline.execute(&ctx, &rgb_in, &params_l0)?;
+    let out_l2 = pipeline.execute(&ctx, &rgb_in, &params_l2)?;
+
+    // Chromaticity check on out_l0: R/G and B/G ratios preserved within 2e-3
+    for i in 0..count {
+        let r_in = rgb_in[i * 3];
+        let g_in = rgb_in[i * 3 + 1];
+        let b_in = rgb_in[i * 3 + 2];
+        let r_out = out_l0[i * 3];
+        let g_out = out_l0[i * 3 + 1];
+        let b_out = out_l0[i * 3 + 2];
+
+        if g_in > 1e-4 && g_out > 1e-4 {
+            let in_rg = r_in / g_in;
+            let out_rg = r_out / g_out;
+            assert!(
+                (in_rg - out_rg).abs() < 2e-3,
+                "Chromaticity R/G shift at pixel {i}"
+            );
+
+            let in_bg = b_in / g_in;
+            let out_bg = b_out / g_out;
+            assert!(
+                (in_bg - out_bg).abs() < 2e-3,
+                "Chromaticity B/G shift at pixel {i}"
+            );
+        }
+    }
+
+    // Scale-invariance RMSE check
+    let mut sse = 0.0_f64;
+    for i in 0..(count * 3) {
+        let diff = (out_l0[i] - out_l2[i]) as f64;
+        sse += diff * diff;
+    }
+    let rmse = (sse / (count * 3) as f64).sqrt();
+    assert!(
+        rmse < 0.015,
+        "Scale-invariance RMSE must be < 1.5% (measured: {rmse})"
+    );
 
     Ok(())
 }

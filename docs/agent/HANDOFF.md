@@ -2,6 +2,16 @@
 
 ## Last Completed Milestone
 
+- **Phase 14.2 — Pipeline & GPU/CPU Integration (`rraw-gpu`, `rraw-app`)**:
+  - Implemented Smart Lighting local tone mapping in Stage 5 compute WGSL shader (`crates/rraw-gpu/src/shaders/stage5_color_laplacian.wgsl`) with scale-invariant Laplacian pyramid base/detail decomposition ($N_{\text{effective}} = N_{\text{octaves}} - L$) and strict chromaticity preservation via AP1 luminance rescaling ($R/Y, G/Y, B/Y$ invariant).
+  - Extended `Stage5Params` with `smart_lighting_shadow_lift`, `smart_lighting_highlight_compression`, and `with_smart_lighting` builder in `crates/rraw-gpu/src/stage5.rs`.
+  - Expanded `Stage5UniformsGpu` to 48 bytes with 16-byte WGSL alignment (`enable_smart_lighting: u32`, `smart_lighting_shadow_lift: f32`, `smart_lighting_highlight_compression: f32`, `_pad_sl: f32`) and wired into compute dispatch.
+  - Added headless GPU integration test in `crates/rraw-gpu/tests/cache_and_stages5_7_tests.rs` asserting chromaticity ratios $R/G$ and $B/G$ preserved within $2 \times 10^{-3}$ and scale-invariance RMSE $< 1.5\%$ between $L=0$ and $L=2$.
+  - Added `smart_lighting: SmartLightingParams` to `DarkroomGradingState` and `SidecarRecipe` in `crates/rraw-app/src/state.rs` with backwards-compatible serde defaults.
+  - Implemented CPU pre-pass in `render_preview_from_base` and `render_export_image` in `crates/rraw-app/src/preview.rs` generating a 2D luminance gain map via `apply_smart_lighting_acescg` and applying it with exact chromaticity preservation.
+  - Added integration test suite in `crates/rraw-app/tests/smart_lighting_pipeline_tests.rs` (4 tests: preview/export execution, sidecar roundtrip, backward compatibility, and chromaticity preservation).
+  - Verified with 226 unit and integration tests passing across 54 suites, 0 clippy warnings, and Qwen 3.6 35B local adversarial audit APPROVED.
+
 - **Phase 14.1 — Scene Dynamic Range Analyzer & Local Tone Mapping Core (`rraw-core`, `rraw-color`)**:
   - Implemented `crates/rraw-color/src/smart_lighting.rs` providing:
     - Full scene dynamic range analyzer (`analyze_scene_dynamic_range`) extracting min/max/mean/geometric mean luma, percentiles $p_{0.1} \dots p_{99.9}$, dynamic range in EV, under/over-exposure EV, shadow/highlight clipping ratios.

@@ -7,6 +7,10 @@ struct Stage5Uniforms {
     enable_tone_curves: u32,
     enable_clut_3d: u32,
     clut_3d_strength: f32,
+    enable_smart_lighting: u32,
+    smart_lighting_shadow_lift: f32,
+    smart_lighting_highlight_compression: f32,
+    _pad_sl: f32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Stage5Uniforms;
@@ -84,6 +88,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let iy = i32(y);
 
     var current_rgb = sample_pixel(ix, iy);
+    var base_rgb = current_rgb;
 
     // Multi-scale Laplacian pyramid local contrast with effective octaves = N_octaves - L
     for (var k = 0u; k < uniforms.effective_octaves; k = k + 1u) {
@@ -101,6 +106,45 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         // Compression / contrast enhancement
         let scale = uniforms.local_contrast_strength / (1.0 + f32(k) * 0.5);
         current_rgb = current_rgb + detail * scale * 0.1;
+        base_rgb = blurred;
+    }
+
+    // Smart Lighting: scene-aware adaptive local tone mapping with chromaticity preservation
+    if (uniforms.enable_smart_lighting != 0u) {
+        let cur_luma = 0.2722287 * current_rgb.r + 0.6740818 * current_rgb.g + 0.0536895 * current_rgb.b;
+        let base_luma = 0.2722287 * base_rgb.r + 0.6740818 * base_rgb.g + 0.0536895 * base_rgb.b;
+
+        let mid_log = -2.47393;   // log2(0.18)
+        let floor_log = -13.2877; // log2(1e-4)
+        let ceil_log = 2.0;       // log2(4.0)
+
+        let b = log2(max(base_luma, 1e-6));
+        let d = log2(max(cur_luma, 1e-6)) - b;
+        var b_mapped = b;
+
+        // Shadow lift (smooth quadratic rolloff below midtones with black floor preservation)
+        if (b < mid_log && uniforms.smart_lighting_shadow_lift > 0.0) {
+            let t_shadow = clamp((mid_log - b) / (mid_log - floor_log), 0.0, 1.0);
+            let black_taper = clamp((b - floor_log) / 3.0, 0.0, 1.0);
+            let lift_delta = uniforms.smart_lighting_shadow_lift * 2.2 * t_shadow * (1.0 - 0.5 * t_shadow) * black_taper;
+            b_mapped += lift_delta;
+        }
+
+        // Highlight compression (smooth shoulder rolloff above midtones)
+        if (b > mid_log && uniforms.smart_lighting_highlight_compression > 0.0) {
+            let t_high = clamp((b - mid_log) / (ceil_log - mid_log), 0.0, 1.0);
+            let comp_delta = uniforms.smart_lighting_highlight_compression * 1.8 * t_high * (1.0 - 0.4 * t_high);
+            b_mapped -= comp_delta;
+        }
+
+        let luma_out = exp2(b_mapped + d);
+        var scale = 1.0;
+        if (cur_luma > 1e-7) {
+            scale = max(luma_out / cur_luma, 0.0);
+        }
+
+        // Rescale RGB proportionally to preserve chromaticity
+        current_rgb = max(current_rgb * scale, vec3<f32>(0.0));
     }
 
     // Gamut Guard: strictly non-negative inside AP1 core

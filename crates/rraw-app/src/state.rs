@@ -1530,6 +1530,9 @@ pub struct DarkroomGradingState {
 
     // Color Management & Soft Proofing (Task 6.4)
     pub soft_proof: rraw_color::SoftProofConfig,
+
+    // Smart Lighting & Adaptive Dynamic Range (Phase 14)
+    pub smart_lighting: rraw_core::SmartLightingParams,
 }
 
 impl DarkroomGradingState {
@@ -1783,6 +1786,7 @@ impl Default for DarkroomGradingState {
             show_local_mask_overlay: None,
             active_brush_mask_idx: None,
             soft_proof: rraw_color::SoftProofConfig::default(),
+            smart_lighting: rraw_core::SmartLightingParams::default(),
         }
     }
 }
@@ -1909,6 +1913,8 @@ pub struct SidecarRecipe {
     pub local_masks: Vec<LocalMaskLayer>,
     #[serde(default)]
     pub soft_proof: rraw_color::SoftProofConfig,
+    #[serde(default)]
+    pub smart_lighting: rraw_core::SmartLightingParams,
 }
 
 impl SidecarRecipe {
@@ -1975,6 +1981,7 @@ impl SidecarRecipe {
             semantic_masks: grading.semantic_masks.clone(),
             local_masks: grading.local_masks.clone(),
             soft_proof: grading.soft_proof,
+            smart_lighting: grading.smart_lighting.clone(),
         }
     }
 
@@ -2023,6 +2030,7 @@ impl SidecarRecipe {
         grading.show_local_mask_overlay = None;
         grading.active_brush_mask_idx = None;
         grading.soft_proof = self.soft_proof;
+        grading.smart_lighting = self.smart_lighting.clone();
         grading.preset = if let Some(p_str) = &self.preset {
             GradingPreset::from_id_str(p_str)
                 .unwrap_or_else(|| GradingPreset::detect_preset(grading))
