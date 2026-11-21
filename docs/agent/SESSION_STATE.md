@@ -4,8 +4,10 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 11 — Internationalization (i18n)
+- **Active Phase**: Phase 13 — Application Versioning, Packaging & macOS DMG Installer
 - **Active Tasks**:
+  - Task 13.1 (`rraw-app` & Workspace): **Complete** (Semver `VERSION`, `VERSION_TAG`, `LONG_VERSION`, build date and short git commit hash exposed via compile-time constants in `rraw-core::build_info`, zero-allocation top-bar display, "À propos" modal dialog, CLI `--version`, CI green, local audit via LM Studio)
+  - Task 13.2 (Packaging & Distribution): **Next** (macOS App Bundle `Rraw.app` & Drag-and-Drop DMG Disk Image Installer)
   - Phase 11 Internationalization (`rraw-app`): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 174 tests across 47 suites, 0 clippy warnings)
   - Task 11.1 (`rraw-app`): **Complete** (Typed zero-allocation string tables, `Language { Fr, En }`, `Key` 103 variants, compile-time exhaustive matching, module `crates/rraw-app/src/i18n/`)
   - Task 11.2 (`rraw-app`): **Complete** (Migrated UI labels across top bar, inspector, filmstrip, EXIF, explorer, histogram, HUD; comprehensive test suite asserting all keys resolve to non-empty strings)

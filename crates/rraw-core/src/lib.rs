@@ -6,11 +6,13 @@ use std::fmt;
 
 use thiserror::Error;
 
+pub mod build_info;
 pub mod curves;
 pub mod demosaic;
 pub mod denoise;
 pub mod recipe;
 
+pub use build_info::*;
 pub use curves::*;
 pub use demosaic::*;
 pub use denoise::*;

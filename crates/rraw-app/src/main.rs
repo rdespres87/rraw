@@ -8,6 +8,14 @@ use rraw_app::{initialize_shell_summary, RrawApp};
 
 fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        let info = rraw_core::build_info::BuildInfo::current();
+        println!(
+            "rraw-app v{} ({} {})",
+            info.version, info.commit_hash, info.build_date
+        );
+        return std::process::ExitCode::SUCCESS;
+    }
     if args.iter().any(|a| a == "--summary" || a == "--headless") {
         return match initialize_shell_summary() {
             Ok(summary) => {

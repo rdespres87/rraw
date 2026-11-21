@@ -104,6 +104,8 @@ pub struct RrawApp {
     pub show_export_dialog: bool,
     /// Whether the keyboard shortcuts cheat sheet dialog is open.
     pub show_shortcuts_dialog: bool,
+    /// Whether the "About" version dialog is open.
+    pub show_about_dialog: bool,
     /// Selected output format for photo export.
     pub export_format: ExportFormatChoice,
     /// JPEG quality parameter (1-100).
@@ -253,6 +255,7 @@ impl RrawApp {
             thumbnail_pending: HashSet::new(),
             show_export_dialog: false,
             show_shortcuts_dialog: false,
+            show_about_dialog: false,
             export_format: ExportFormatChoice::Jpeg,
             export_jpeg_quality: 92,
             export_bit_depth: ExportBitDepth::Bits8,
@@ -348,6 +351,7 @@ impl RrawApp {
             thumbnail_pending: HashSet::new(),
             show_export_dialog: false,
             show_shortcuts_dialog: false,
+            show_about_dialog: false,
             export_format: ExportFormatChoice::Jpeg,
             export_jpeg_quality: 92,
             export_bit_depth: ExportBitDepth::Bits8,
@@ -731,7 +735,10 @@ impl RrawApp {
     ///
     /// Returns `true` if an active dialog, tool, or selection was dismissed.
     pub fn handle_escape_key(&mut self) -> bool {
-        if self.show_shortcuts_dialog {
+        if self.show_about_dialog {
+            self.show_about_dialog = false;
+            true
+        } else if self.show_shortcuts_dialog {
             self.show_shortcuts_dialog = false;
             true
         } else if self.show_export_dialog {
@@ -985,7 +992,10 @@ impl eframe::App for RrawApp {
         // - If no dialog is open and a text field has focus, Escape is left for egui to unfocus the active input.
         // - If no text field is focused, Escape hierarchically cancels the active tool or batch selection.
         if ui.input(|i| i.key_pressed(egui::Key::Escape))
-            && (self.show_shortcuts_dialog || self.show_export_dialog || !wants_keyboard)
+            && (self.show_shortcuts_dialog
+                || self.show_export_dialog
+                || self.show_about_dialog
+                || !wants_keyboard)
         {
             self.handle_escape_key();
         }
@@ -1492,6 +1502,14 @@ impl eframe::App for RrawApp {
                     }
                     ui.label(&self.status_message);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .link(egui::RichText::new(rraw_core::build_info::VERSION_TAG).weak())
+                            .on_hover_text(rraw_core::build_info::BuildInfo::about_text())
+                            .clicked()
+                        {
+                            self.show_about_dialog = true;
+                        }
+                        ui.label(egui::RichText::new("·").weak());
                         ui.label(self.t(Key::StatusSurfaceInfo));
                     });
                 });
@@ -1516,5 +1534,8 @@ impl eframe::App for RrawApp {
 
         // 8. Render shortcuts cheat sheet dialog if active
         self.render_shortcuts_dialog(ui.ctx());
+
+        // 9. Render "About" version dialog if active
+        self.render_about_dialog(ui.ctx());
     }
 }

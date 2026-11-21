@@ -358,6 +358,13 @@ pub enum Key {
     TimelapseTempTooltip,
     TimelapseImage1,
     TimelapseImageN,
+    TopBarAbout,
+    AboutTitle,
+    AboutDescription,
+    AboutVersion,
+    AboutCommit,
+    AboutBuildDate,
+    AboutClose,
 }
 
 impl Key {
@@ -937,6 +944,20 @@ impl Key {
             (Self::TimelapseImage1, Language::En) => "Frame 1",
             (Self::TimelapseImageN, Language::Fr) => "Image N",
             (Self::TimelapseImageN, Language::En) => "Frame N",
+            (Self::TopBarAbout, Language::Fr) => "ℹ️ À propos",
+            (Self::TopBarAbout, Language::En) => "ℹ️ About",
+            (Self::AboutTitle, Language::Fr) => "À propos de Rraw",
+            (Self::AboutTitle, Language::En) => "About Rraw",
+            (Self::AboutDescription, Language::Fr) => "Développeur RAW 100 % Rust natif pour macOS — Apple Silicon",
+            (Self::AboutDescription, Language::En) => "Native 100% Rust RAW processor for macOS — Apple Silicon",
+            (Self::AboutVersion, Language::Fr) => "Version",
+            (Self::AboutVersion, Language::En) => "Version",
+            (Self::AboutCommit, Language::Fr) => "Commit",
+            (Self::AboutCommit, Language::En) => "Commit",
+            (Self::AboutBuildDate, Language::Fr) => "Date de build",
+            (Self::AboutBuildDate, Language::En) => "Build date",
+            (Self::AboutClose, Language::Fr) => "Fermer",
+            (Self::AboutClose, Language::En) => "Close",
         }
     }
 }
@@ -1243,4 +1264,11 @@ pub const ALL_KEYS: &[Key] = &[
     Key::TimelapseTempTooltip,
     Key::TimelapseImage1,
     Key::TimelapseImageN,
+    Key::TopBarAbout,
+    Key::AboutTitle,
+    Key::AboutDescription,
+    Key::AboutVersion,
+    Key::AboutCommit,
+    Key::AboutBuildDate,
+    Key::AboutClose,
 ];

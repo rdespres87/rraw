@@ -2,6 +2,7 @@
 
 //! Modular user interface components for `rraw-app`.
 
+pub mod about;
 pub mod canvas_hud;
 pub mod exif;
 pub mod explorer;

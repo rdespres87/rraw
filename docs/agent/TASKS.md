@@ -85,6 +85,14 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 ---
 
 ## Phase 13 — Application Versioning, Packaging & macOS DMG Installer
-- [ ] **Task 13.1 (`rraw-app` & Workspace)**: Semantic Versioning & Build Metadata (Semver `VERSION`, git commit hash and build date exposed via compile-time constants, displayed in top bar, "À propos" modal dialog and CLI `--version`)
+- [x] **Task 13.1 (`rraw-app` & Workspace)**: Semantic Versioning & Build Metadata (Semver `VERSION`, git commit hash and build date exposed via compile-time constants, displayed in top bar, "À propos" modal dialog and CLI `--version`)
 - [ ] **Task 13.2 (Packaging & Distribution)**: macOS App Bundle (`Rraw.app`) & Drag-and-Drop DMG Disk Image Installer (`scripts/package_macos.sh`, `Info.plist`, HiDPI `.icns` application icon, `/Applications` symlink, background art and code signing/notarization preparation)
+
+---
+
+## Phase 14 — Smart Lighting & Adaptive Dynamic Range (Scene-Aware Local Tone Mapping)
+- [ ] **Task 14.1 (`rraw-core` & `rraw-color`)**: Scene Dynamic Range Analyzer & Local Tone Mapping Core (Automatic histogram/key analysis for backlighting, under/over-exposure; edge-preserving multi-scale base/detail decomposition via guided filter or Laplacian pyramid; halo-free shadow lift & highlight compression in linear ACEScg)
+- [ ] **Task 14.2 (`rraw-gpu` & `rraw-app`)**: Pipeline & GPU/CPU Integration (Real-time WGSL / CPU preview execution, scale-invariant downsample factor handling $N_{\text{effective}} = N_{\text{octaves}} - L$, chromaticity preservation avoiding desaturation or hue shifts in recovered shadows/highlights)
+- [ ] **Task 14.3 (`rraw-app`)**: Smart Lighting UI Inspector & Preset Integration (Controls in `DarkroomSection::ExposureTone`: Modes `Off` / `Slight` / `Medium` / `Strong` / `Custom`, intensity slider, sidecar `.rraw.json` persistence, batch clipboard copy/paste in Phase 12 model, Fr/En i18n keys)
+
 

@@ -12,7 +12,8 @@ use rraw_decode::{DecodeError, PureRustRawDecoder, RawDecoder};
 #[derive(Parser, Debug)]
 #[command(
     name = "rraw-cli",
-    version,
+    version = rraw_core::build_info::VERSION,
+    long_version = rraw_core::build_info::LONG_VERSION,
     about = "Pure-Rust command-line RAW photographic processor and reference pipeline"
 )]
 struct CliArgs {
