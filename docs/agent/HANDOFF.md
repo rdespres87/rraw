@@ -2,6 +2,12 @@
 
 ## Last Completed Milestone
 
+- **Filmstrip RAW Filter Persistence Across Sessions (`rraw-app`)**:
+  - **Persistance de la préférence de filtre dans `AppLayoutConfig`** : ajout du champ `raw_only_filter: Option<bool>` avec `#[serde(default)]` dans `AppLayoutConfig` et sauvegarde dans `~/.config/rraw/layout.json`.
+  - **Prise en compte au démarrage et au changement de dossier** : utilisation de `layout_config.raw_only_filter.unwrap_or(raw_count > 0)` au lieu de réinitialiser aveuglément à `true` en présence de RAW.
+  - **Mise à jour interactive** : synchronisation immédiate de `layout_config.raw_only_filter` et appel de `save()` lors du clic sur le badge `📷 RAW` dans le filmstrip ou lors de l'ouverture explicite d'un raster non-RAW (JPG/PNG).
+  - **Tests et validation** : tests unitaires ajoutés dans `filmstrip_filter_tests.rs`, 103 tests passants dans `rraw-app`, 0 avertissement clippy, Inquisitor APPROVED via Qwen 3.6 35B (commit `cd840aa`).
+
 - **Optical Corrections UX, Auto-Crop, DNG Sensor Margins & Before/After Reference (`rraw-optics`, `rraw-decode`, `rraw-app`)**:
   - **Désactivation intégrale des corrections sur l'affichage Avant (`raw_original`)** : implémentation de `DarkroomGradingState::untouched_raw()` forçant l'intégralité des corrections à l'état désactivé neutre (profil d'objectif désactivé, distorsion et vignetage à 0%, aberrations chromatiques et defringe désactivés, géométrie/rotation/trapèze à 0, smart lighting à Off, débruitage et netteté à 0). L'Avant représente rigoureusement le capteur brut pur sans aucune altération.
   - **Isolation stricte des modes Profil vs Manuel** : dans `preview.rs` (`render_preview_from_base` et `render_export_image`), séparation étanche via `match grading.optical_tab`. En mode Manuel, le profil automatique est totalement débrayé (plus de profil fantôme ni d'addition invisible par-dessus les curseurs manuels). En mode Profil, seules les corrections du profil détecté s'appliquent.
