@@ -2,6 +2,16 @@
 
 ## Last Completed Milestone
 
+- **Phase 8.3 — Enhanced Optical Inspector UI (`rraw-optics`, `rraw-app`)**:
+  - Implemented `defringe_mask_rgb` in `crates/rraw-optics/src/defringe.rs` providing an interactive diagnostic fringe visualization mask highlighting detected purple fringes in bright magenta, green fringes in neon-green, and background pixels in dimmed monochrome ($Y \times 0.35$).
+  - Re-exported `defringe_mask_rgb` in `crates/rraw-optics/src/lib.rs`.
+  - Added `OpticalCorrectionTab` (`Profile`, `Manual`) and new fields `defringe_threshold: f32` (default 0.08) and `defringe_preview_mask: bool` (default false) to `DarkroomGradingState` and `SidecarRecipe` in `crates/rraw-app/src/state.rs` with backwards-compatible serde defaults.
+  - Updated `render_preview_from_base` in `crates/rraw-app/src/preview.rs` to dynamically evaluate `defringe_threshold` and render the defringe preview mask, while strictly isolating `render_export_image` with `show_defringe_mask = false` so export never leaks diagnostic overlays.
+  - Reorganized `DarkroomSection::OpticalCorrections` in `crates/rraw-app/src/ui/inspector.rs` with a sleek segmented tab bar `[ 🎯 Profil d'objectif | 🛠️ Manuel ]`, lens detection card with focal/aperture summary, profile modulation sliders (0–200%), manual distortion/CA/defringe sliders, edge contrast threshold slider (1–30%), interactive defringe mask toggle, and comprehensive reset delegating to `reset_section`.
+  - Added 6 typed i18n keys for French and English in `crates/rraw-app/src/i18n/mod.rs` (`InspectorLensTabProfile`, `InspectorLensTabManual`, `InspectorParamDefringeThreshold`, `InspectorDefringePreviewMask`, `InspectorDefringePreviewMaskTooltip`, `InspectorLensProfileDisabledNotice`).
+  - Added unit test suites in `crates/rraw-optics/tests/defringe_tests.rs` (7 tests) and `crates/rraw-app/tests/profile_ui_tests.rs` (6 tests).
+  - Verified with 210 unit and integration tests passing across 52 suites, 0 clippy warnings, and Qwen 3.6 35B local adversarial audit APPROVED. Commit: `ef158e6`.
+
 - **Phase 8.2 — Lens Profile Matching & Metadata Linking (`rraw-optics`, `rraw-app`)**:
   - Implemented optical lens database module (`crates/rraw-optics/src/db.rs`) with curated static catalog of prime and zoom lenses (Sony, Canon, Nikon, Fujifilm, Sigma, Tamron) with calibrated radial polynomial distortion ($k_1, k_2, k_3$), lateral TCA scale factors ($scale_r, scale_b$), and aperture-dependent radial vignetting ($v_1, v_2$).
   - Implemented continuous focal length and aperture interpolation (`LensProfile::interpolate_model`) clamping at zoom limits, interpolating linearly across calibrated focal brackets, and scaling vignetting across f-stops.
@@ -214,7 +224,7 @@ In priority order:
 
 ## Repository Completion State
 
-All planned deliverables across Phases 0–13 are implemented, with Task 8.1, Task 8.2, and Task 9.3 complete. Total 206 tests passing workspace-wide, 0 clippy warnings, and pre-commit checks passing.
+All planned deliverables across Phases 0–13 are implemented, with Phase 8 (Tasks 8.1, 8.2, 8.3) and Phase 9 (Tasks 9.1, 9.2, 9.3) complete. Total 210 tests passing workspace-wide, 0 clippy warnings, and pre-commit checks passing.
 
 ### Summary of Completed Workspace Milestones
 1. **Phase 0**: Repository governance, `#![forbid(unsafe_code)]` / audited EDR isolation, 11 crates.
