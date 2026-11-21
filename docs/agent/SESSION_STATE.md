@@ -4,8 +4,10 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 13 — Application Versioning, Packaging & macOS DMG Installer
+- **Active Phase**: Phase 8 — Complete Optical Correction Suite
 - **Active Tasks**:
+  - Task 8.2 (`rraw-optics` & `rraw-app`): **Complete** (Catalogue statique d'objectifs avec points focaux calibrés distorsion/TCA/vignetage, interpolation continue focale & ouverture, moteur de recherche tolérant, liaison métadonnées EXIF, carte profil détecté dans l'inspecteur, curseurs de modulation d'intensité 0-200%, préservation stricte de la compatibilité ascendante des sidecars `.rraw.json`, 9 clés i18n FR/EN, Inquisitor APPROVED via Qwen 3.6 35B, CI green 206 tests across 52 suites, 0 clippy warnings)
+  - Next: Task 8.3 / Phase 14 (Smart Lighting & Adaptive Dynamic Range)
   - Workflow Session Persistence (`rraw-app`): **Complete** (Auto-restauration du précédent dossier et de la dernière photo ouverte au redémarrage via `layout.json`, synchronisation active à chaque changement de dossier/photo et sur `on_exit`, tolérance aux fichiers supprimés, compatibilité ascendante avec les anciennes configurations via `#[serde(default)]`, suite de tests dédiée `workflow_session_tests.rs`, Inquisitor APPROVED via Qwen 3.6 35B, CI green 196 tests across 50 suites, 0 clippy warnings)
   - Toolbar UX Refinement (`rraw-app`): **Complete** (Suppression de l'en-tête `RRAW`, migration du sélecteur `FR | EN` dans la barre d'état inférieure droite, ruban supérieur commençant directement sur les actions photo, commit `68ffca5`)
   - Task 13.1 (`rraw-app` & Workspace): **Complete** (Semver `VERSION`, `VERSION_TAG`, `LONG_VERSION`, build date et git commit hash exposés à la compilation, affichage discret en barre d'état, modale "À propos", CLI `--version`, commits `b29cad9`, `68ffca5`)
@@ -90,9 +92,9 @@
     - Embellished Histogram: OLED rounded card, sqrt scaling to reveal midtones, glowing RGB curves, quartile zone guides (Noirs, Ombres, Exposition, Hautes Lum.), clipping badges.
     - Crop & Geometry: 120 FPS vector overlay, aspect ratio presets, Enter/double-click commit, independent enable/disable toggles.
     - Batch Export: configurable subfolder (`Export`), suffix (`_rraw`), formats (JPEG quality, PNG 8/16, TIFF 8/16), auto-closing dialog.
-- Total tests: 196 unit/integration tests passing cleanly across 50 test suites.
+- Total tests: 206 unit/integration tests passing cleanly across 52 test suites.
 
 ## Last Observed Verification Run
 
 - `./.git/hooks/pre-commit` (`cargo fmt --all -- --check` + `cargo clippy --workspace --all-targets -- -D warnings`): passed (exit `0`).
-- `cargo test --workspace`: passed (`196` unit/integration tests across all `11` crates; `0` failed, `0` ignored).
+- `cargo test --workspace`: passed (`206` unit/integration tests across all `11` crates; `0` failed, `0` ignored).

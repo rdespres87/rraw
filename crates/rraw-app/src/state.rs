@@ -1462,6 +1462,10 @@ pub struct DarkroomGradingState {
     pub color_denoise: f32,
     pub luma_denoise: f32,
     pub capture_sharpening_amount: f32,
+    pub lens_profile_auto: bool,
+    pub lens_distortion_strength: f32,
+    pub lens_vignette_strength: f32,
+    pub lens_ca_strength: f32,
     pub distortion_correction: bool,
     pub distortion_amount: f32,
     pub chromatic_aberration_correction: bool,
@@ -1727,6 +1731,10 @@ impl Default for DarkroomGradingState {
             color_denoise: 25.0,
             luma_denoise: 0.0,
             capture_sharpening_amount: 0.5,
+            lens_profile_auto: true,
+            lens_distortion_strength: 100.0,
+            lens_vignette_strength: 100.0,
+            lens_ca_strength: 100.0,
             distortion_correction: true,
             distortion_amount: 0.0,
             chromatic_aberration_correction: true,
@@ -1785,6 +1793,10 @@ const fn default_feather() -> f32 {
     50.0
 }
 
+const fn default_100_f32() -> f32 {
+    100.0
+}
+
 /// Serialized recipe saved into adjacent `<photo>.rraw.json` sidecar.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SidecarRecipe {
@@ -1810,6 +1822,14 @@ pub struct SidecarRecipe {
     #[serde(default)]
     pub luma_denoise: f32,
     pub capture_sharpening_amount: f32,
+    #[serde(default = "default_true_bool")]
+    pub lens_profile_auto: bool,
+    #[serde(default = "default_100_f32")]
+    pub lens_distortion_strength: f32,
+    #[serde(default = "default_100_f32")]
+    pub lens_vignette_strength: f32,
+    #[serde(default = "default_100_f32")]
+    pub lens_ca_strength: f32,
     pub distortion_correction: bool,
     pub distortion_amount: f32,
     pub chromatic_aberration_correction: bool,
@@ -1890,6 +1910,10 @@ impl SidecarRecipe {
             color_denoise: grading.color_denoise,
             luma_denoise: grading.luma_denoise,
             capture_sharpening_amount: grading.capture_sharpening_amount,
+            lens_profile_auto: grading.lens_profile_auto,
+            lens_distortion_strength: grading.lens_distortion_strength,
+            lens_vignette_strength: grading.lens_vignette_strength,
+            lens_ca_strength: grading.lens_ca_strength,
             distortion_correction: grading.distortion_correction,
             distortion_amount: grading.distortion_amount,
             chromatic_aberration_correction: grading.chromatic_aberration_correction,
@@ -1946,6 +1970,10 @@ impl SidecarRecipe {
         grading.color_denoise = self.color_denoise;
         grading.luma_denoise = self.luma_denoise;
         grading.capture_sharpening_amount = self.capture_sharpening_amount;
+        grading.lens_profile_auto = self.lens_profile_auto;
+        grading.lens_distortion_strength = self.lens_distortion_strength;
+        grading.lens_vignette_strength = self.lens_vignette_strength;
+        grading.lens_ca_strength = self.lens_ca_strength;
         grading.distortion_correction = self.distortion_correction;
         grading.distortion_amount = self.distortion_amount;
         grading.chromatic_aberration_correction = self.chromatic_aberration_correction;

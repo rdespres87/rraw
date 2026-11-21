@@ -138,6 +138,7 @@ impl RrawApp {
             target_width,
         );
         b.cam_to_srgb = ref_preview.cam_to_srgb;
+        b.matched_lens = ref_preview.matched_lens.clone();
         b.with_exif_orientation(ref_preview.exif_orientation)
     }
 

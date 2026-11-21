@@ -47,7 +47,11 @@ impl RrawApp {
                 self.grading.keystone_vertical != 0.0 || self.grading.keystone_horizontal != 0.0
             }
             DarkroomSection::OpticalCorrections => {
-                self.grading.distortion_amount != 0.0
+                !self.grading.lens_profile_auto
+                    || (self.grading.lens_distortion_strength - 100.0).abs() > 0.01
+                    || (self.grading.lens_vignette_strength - 100.0).abs() > 0.01
+                    || (self.grading.lens_ca_strength - 100.0).abs() > 0.01
+                    || self.grading.distortion_amount != 0.0
                     || self.grading.defringe_purple_amount != 0.0
                     || self.grading.defringe_green_amount != 0.0
                     || self.grading.creative_vignette_amount != 0.0
@@ -111,6 +115,10 @@ impl RrawApp {
                 self.grading.auto_crop_geometry = true;
             }
             DarkroomSection::OpticalCorrections => {
+                self.grading.lens_profile_auto = true;
+                self.grading.lens_distortion_strength = 100.0;
+                self.grading.lens_vignette_strength = 100.0;
+                self.grading.lens_ca_strength = 100.0;
                 self.grading.distortion_correction = true;
                 self.grading.distortion_amount = 0.0;
                 self.grading.chromatic_aberration_correction = true;
@@ -1570,6 +1578,96 @@ impl RrawApp {
                 }
             }
             DarkroomSection::OpticalCorrections => {
+                ui.label(egui::RichText::new(t(Key::InspectorLensProfileTitle)).strong());
+
+                let c_auto = ui
+                    .checkbox(
+                        &mut self.grading.lens_profile_auto,
+                        t(Key::InspectorLensProfileAuto),
+                    )
+                    .on_hover_text(t(Key::InspectorLensProfileAutoTooltip));
+                if c_auto.changed() {
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+
+                if self.grading.lens_profile_auto {
+                    let (lens_name, is_exact) = if let Some(base) = &self.base_preview {
+                        if let Some(matched) = &base.matched_lens {
+                            (matched.profile_name.clone(), matched.is_exact_match)
+                        } else {
+                            (t(Key::InspectorLensProfileGeneric).to_string(), false)
+                        }
+                    } else if let Some(photo) = &self.loaded_photo {
+                        if !photo.lens_model.is_empty() {
+                            (photo.lens_model.clone(), true)
+                        } else {
+                            (t(Key::InspectorLensProfileGeneric).to_string(), false)
+                        }
+                    } else {
+                        (t(Key::InspectorLensProfileGeneric).to_string(), false)
+                    };
+
+                    let badge_icon = if is_exact { "🎯" } else { "📐" };
+                    let frame_color = if is_exact {
+                        Color32::from_rgb(28, 36, 48)
+                    } else {
+                        Color32::from_rgb(32, 34, 38)
+                    };
+
+                    egui::Frame::group(ui.style())
+                        .fill(frame_color)
+                        .inner_margin(6.0)
+                        .show(ui, |ui| {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(format!("{badge_icon} {}", t(Key::InspectorLensProfileDetected)));
+                                ui.label(
+                                    egui::RichText::new(&lens_name)
+                                        .strong()
+                                        .color(Color32::from_rgb(140, 200, 255)),
+                                );
+                            });
+                        });
+
+                    ui.add_space(2.0);
+                    ui.label(t(Key::InspectorLensProfileDistortion));
+                    let s_ld = ui.add(
+                        egui::Slider::new(&mut self.grading.lens_distortion_strength, 0.0..=200.0)
+                            .show_value(true)
+                            .suffix(" %"),
+                    );
+                    if s_ld.changed() {
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    ui.label(t(Key::InspectorLensProfileVignette));
+                    let s_lv = ui.add(
+                        egui::Slider::new(&mut self.grading.lens_vignette_strength, 0.0..=200.0)
+                            .show_value(true)
+                            .suffix(" %"),
+                    );
+                    if s_lv.changed() {
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    ui.label(t(Key::InspectorLensProfileCa));
+                    let s_lca = ui.add(
+                        egui::Slider::new(&mut self.grading.lens_ca_strength, 0.0..=200.0)
+                            .show_value(true)
+                            .suffix(" %"),
+                    );
+                    if s_lca.changed() {
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    ui.separator();
+                }
+
+                ui.label(egui::RichText::new(t(Key::InspectorLensManualTitle)).strong());
+
                 let c_dist = ui.checkbox(
                     &mut self.grading.distortion_correction,
                     t(Key::InspectorLensDistortion),

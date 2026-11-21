@@ -2,6 +2,18 @@
 
 ## Last Completed Milestone
 
+- **Phase 8.2 — Lens Profile Matching & Metadata Linking (`rraw-optics`, `rraw-app`)**:
+  - Implemented optical lens database module (`crates/rraw-optics/src/db.rs`) with curated static catalog of prime and zoom lenses (Sony, Canon, Nikon, Fujifilm, Sigma, Tamron) with calibrated radial polynomial distortion ($k_1, k_2, k_3$), lateral TCA scale factors ($scale_r, scale_b$), and aperture-dependent radial vignetting ($v_1, v_2$).
+  - Implemented continuous focal length and aperture interpolation (`LensProfile::interpolate_model`) clamping at zoom limits, interpolating linearly across calibrated focal brackets, and scaling vignetting across f-stops.
+  - Implemented fuzzy/normalized lens lookup (`LensDatabase::find_lens`) and metadata matcher (`LensDatabase::match_metadata`) with smooth focal-dependent generic fallback.
+  - Implemented strength-scaled resolution (`OpticalResolver::resolve_with_strength`) modulating distortion, TCA, and vignette by user percentage factors (0% .. 200%).
+  - Extended darkroom state (`DarkroomGradingState`) and sidecar serialization (`SidecarRecipe`) with `lens_profile_auto`, `lens_distortion_strength`, `lens_vignette_strength`, and `lens_ca_strength` with backward-compatible serde defaults (`default_true_bool`, `default_100_f32`).
+  - Integrated profile corrections into preview and export pipelines (`preview.rs`, `ui/export.rs`) with `matched_lens` attached to `BaseRgbPreview`, gracefully falling back to baseline defaults when `matched_lens` is None.
+  - Integrated auto lens profile inspector UI in `DarkroomSection::OpticalCorrections` ([inspector.rs](file:///Users/rdespres/Projets/Rraw/crates/rraw-app/src/ui/inspector.rs)) featuring a detected lens status badge (`🎯` / `📐`), profile intensity sliders, and separation from manual fine-tuning controls.
+  - Added 9 typed i18n keys for French and English in `crates/rraw-app/src/i18n/mod.rs` (`InspectorLensProfileTitle`, `InspectorLensProfileAuto`, `InspectorLensProfileAutoTooltip`, `InspectorLensProfileDetected`, `InspectorLensProfileGeneric`, `InspectorLensProfileDistortion`, `InspectorLensProfileVignette`, `InspectorLensProfileCa`, `InspectorLensManualTitle`).
+  - Added comprehensive test suites: `crates/rraw-optics/tests/profile_matching_tests.rs` (6 tests) and `crates/rraw-app/tests/profile_ui_tests.rs` (4 tests).
+  - Verified with 206 unit/integration tests passing cleanly across 52 suites, 0 clippy warnings, and Qwen 3.6 35B local adversarial audit APPROVED.
+
 - **Phase 13.2 — macOS App Bundle & Drag-and-Drop DMG Installer (`assets/macos`, `scripts`, `crates/rraw-app`)**:
   - Implemented macOS Application Bundle assembly pipeline (`scripts/package_macos.sh`) creating `target/dist/Rraw.app` with `Contents/MacOS/rraw-app`, `Contents/Resources/AppIcon.icns`, `Contents/Info.plist`, and `Contents/PkgInfo`.
   - Authored canonical `assets/macos/Info.plist` template specifying `CFBundleName = "Rraw"`, `CFBundleExecutable = "rraw-app"`, `CFBundleIdentifier = "com.rraw.darkroom"`, `LSMinimumSystemVersion = "13.0"`, `NSHighResolutionCapable = true`, `NSSupportsAutomaticGraphicsSwitching = true`, and standard RAW photo document associations (`.dng`, `.arw`, `.cr2`, `.cr3`, `.nef`, `.orf`, `.rw2`, `.raf`, `.pef`).
@@ -191,25 +203,18 @@
   - Implemented live In/Out percentage coordinate readout and vertical hairline cursor guide.
   - Added dynamic activity dot indicator on modified curve channel selector tabs.
 
-## Next Logical Action: Phase 11 — Internationalization (i18n)
+## Next Logical Action: Task 8.3 / Phase 14
 
 In priority order:
-1. **Task 11.1 (`rraw-app`)**: Create `crates/rraw-app/src/i18n/` module with typed `Language { Fr, En }` enum and zero-cost compile-time string tables with exhaustive key matching.
-2. **Task 11.2 (`rraw-app`)**: Migrate all hard-coded UI labels across `inspector.rs`, `app.rs`, `filmstrip.rs`, `exif.rs`, `shortcuts.rs`, `canvas_hud.rs`, and `histogram.rs` to i18n references.
-3. **Task 11.3 (`rraw-app`)**: Add compact `FR | EN` toggle button in the top bar, persist `language` in `~/.config/rraw/layout.json`, and verify live instant switching without application restart.
-
-## Upcoming Roadmap Horizons: Phase 12 & Phase 13
-
-4. **Phase 12 — Batch Recipe Clipboard & Multi-Image Development (`rraw-core` & `rraw-app`)**:
-   - In-memory clipboard holding active recipe snapshot for color & tone grading parameters (Exposure, Contrast, White Balance CCT/Tint, Tone Curves, Saturation, Film Emulations/Styles), strictly excluding photo-dependent parameters (Crop, Straighten/Geometry, Local Brush/Gradient Masks, Lens Optics, ISO Denoise).
-   - Multi-selection filmstrip batch pasting via `Cmd+Shift+C` / `Cmd+Shift+V` and right-click context menu ("Copier le rendu / Coller le rendu"), immediate thumbnail re-render, sidecar auto-save, and status feedback.
-5. **Phase 13 — Application Versioning, Packaging & macOS DMG Installer (`rraw-app` & Distribution)**:
-   - Compile-time semantic versioning (`VERSION`), build timestamp, and git commit hash in top bar, "À propos" dialog, and CLI `--version`.
-   - Standalone `Rraw.app` bundle and drag-and-drop `.dmg` installer packaging script with custom icon and `/Applications` symlink.
+1. **Task 8.3 (`rraw-app`)**: Enhanced Optical Inspector UI refinements (interactive live defringe preview & profile override options) or proceed directly to:
+2. **Phase 14 — Smart Lighting & Adaptive Dynamic Range (`rraw-core`, `rraw-color`, `rraw-gpu`, `rraw-app`)**:
+   - **Task 14.1 (`rraw-core` & `rraw-color`)**: Scene Dynamic Range Analyzer & Local Tone Mapping Core (automatic scene key/contrast analysis, multi-scale base/detail decomposition, halo-free shadow lift & highlight compression in linear ACEScg).
+   - **Task 14.2 (`rraw-gpu` & `rraw-app`)**: GPU WGSL Stage 5/6 shader execution at 120 FPS, chromaticity preservation.
+   - **Task 14.3 (`rraw-app`)**: Smart Lighting inspector section with presets and intensity controls.
 
 ## Repository Completion State
 
-All planned deliverables across Phases 0–10 are implemented, verified by adversarial TDD (161 tests passing workspace-wide, 0 clippy warnings), and passing all pre-commit formatting and clippy gates. Phase 11 (i18n) is the active development horizon.
+All planned deliverables across Phases 0–13 are implemented, with Task 8.1, Task 8.2, and Task 9.3 complete. Total 206 tests passing workspace-wide, 0 clippy warnings, and pre-commit checks passing.
 
 ### Summary of Completed Workspace Milestones
 1. **Phase 0**: Repository governance, `#![forbid(unsafe_code)]` / audited EDR isolation, 11 crates.

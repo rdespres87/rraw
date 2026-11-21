@@ -162,6 +162,8 @@ pub struct BaseRgbPreview {
     pub semantic_masks: std::sync::Arc<rraw_ai::SemanticMaskSet>,
     /// Applied EXIF TIFF orientation code (`1..=8`).
     pub exif_orientation: u16,
+    /// Calibrated lens profile matched from EXIF metadata.
+    pub matched_lens: Option<rraw_optics::MatchedLens>,
 }
 
 /// Returns upright `(width, height)` after applying EXIF orientation (`5..=8` transpose dimensions).
@@ -523,6 +525,7 @@ impl BaseRgbPreview {
                 cam_to_srgb,
                 semantic_masks,
                 exif_orientation: 1,
+                matched_lens: None,
             };
         }
 
@@ -553,6 +556,7 @@ impl BaseRgbPreview {
                 cam_to_srgb,
                 semantic_masks,
                 exif_orientation: 1,
+                matched_lens: None,
             };
         }
 
@@ -637,6 +641,7 @@ impl BaseRgbPreview {
             cam_to_srgb,
             semantic_masks,
             exif_orientation: 1,
+            matched_lens: None,
         }
     }
 
@@ -681,6 +686,7 @@ impl BaseRgbPreview {
             cam_to_srgb,
             semantic_masks,
             exif_orientation: 1,
+            matched_lens: None,
         }
     }
 
@@ -816,6 +822,7 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
                         portrait: vec![0.0; w as usize * h as usize],
                     }),
                     exif_orientation: 1,
+                    matched_lens: None,
                 };
                 let (preview, _) = render_preview_from_base(&base, &grading);
                 if grading.crop_enabled {
@@ -888,20 +895,46 @@ pub fn render_preview_from_base(
     let cy = preview_h as f32 * 0.5;
     let max_radius_sq = (cx * cx + cy * cy).max(1.0);
 
-    let k_dist = if grading.distortion_correction {
-        -0.06 + (grading.distortion_amount / 100.0) * 0.15
-    } else if grading.distortion_amount.abs() > 0.001 {
-        (grading.distortion_amount / 100.0) * 0.15
+    let (k_dist, v_gain) = if let Some(matched) = &base.matched_lens {
+        let (prof_k1, prof_v1) = if grading.lens_profile_auto {
+            let dist_scale = (grading.lens_distortion_strength / 100.0).max(0.0);
+            let vig_scale = (grading.lens_vignette_strength / 100.0).max(0.0);
+            (
+                matched.model.distortion.k1 * dist_scale,
+                matched.model.vignette.v1 * vig_scale,
+            )
+        } else {
+            (0.0, 0.0)
+        };
+        let kd = prof_k1
+            + if grading.distortion_correction {
+                (grading.distortion_amount / 100.0) * 0.15
+            } else {
+                0.0
+            };
+        let vg = prof_v1
+            + if grading.vignette_correction {
+                (grading.vignette_amount / 100.0) * 0.65
+            } else {
+                0.0
+            };
+        (kd, vg)
     } else {
-        0.0
-    };
-
-    let v_gain = if grading.vignette_correction {
-        0.35 + (grading.vignette_amount / 100.0) * 0.65
-    } else if grading.vignette_amount > 0.01 {
-        (grading.vignette_amount / 100.0) * 0.65
-    } else {
-        0.0
+        let kd = if grading.distortion_correction {
+            -0.06 + (grading.distortion_amount / 100.0) * 0.15
+        } else if grading.distortion_amount.abs() > 0.001 {
+            (grading.distortion_amount / 100.0) * 0.15
+        } else {
+            0.0
+        };
+        let vg = if grading.vignette_correction {
+            0.35 + (grading.vignette_amount / 100.0) * 0.65
+        } else if grading.vignette_amount > 0.01 {
+            (grading.vignette_amount / 100.0) * 0.65
+        } else {
+            0.0
+        };
+        (kd, vg)
     };
 
     let rot_deg = grading.rotation_degrees;
@@ -1437,20 +1470,46 @@ pub fn render_export_image(
     let cy = preview_h as f32 * 0.5;
     let max_radius_sq = (cx * cx + cy * cy).max(1.0);
 
-    let k_dist = if grading.distortion_correction {
-        -0.06 + (grading.distortion_amount / 100.0) * 0.15
-    } else if grading.distortion_amount.abs() > 0.001 {
-        (grading.distortion_amount / 100.0) * 0.15
+    let (k_dist, v_gain) = if let Some(matched) = &base.matched_lens {
+        let (prof_k1, prof_v1) = if grading.lens_profile_auto {
+            let dist_scale = (grading.lens_distortion_strength / 100.0).max(0.0);
+            let vig_scale = (grading.lens_vignette_strength / 100.0).max(0.0);
+            (
+                matched.model.distortion.k1 * dist_scale,
+                matched.model.vignette.v1 * vig_scale,
+            )
+        } else {
+            (0.0, 0.0)
+        };
+        let kd = prof_k1
+            + if grading.distortion_correction {
+                (grading.distortion_amount / 100.0) * 0.15
+            } else {
+                0.0
+            };
+        let vg = prof_v1
+            + if grading.vignette_correction {
+                (grading.vignette_amount / 100.0) * 0.65
+            } else {
+                0.0
+            };
+        (kd, vg)
     } else {
-        0.0
-    };
-
-    let v_gain = if grading.vignette_correction {
-        0.35 + (grading.vignette_amount / 100.0) * 0.65
-    } else if grading.vignette_amount > 0.01 {
-        (grading.vignette_amount / 100.0) * 0.65
-    } else {
-        0.0
+        let kd = if grading.distortion_correction {
+            -0.06 + (grading.distortion_amount / 100.0) * 0.15
+        } else if grading.distortion_amount.abs() > 0.001 {
+            (grading.distortion_amount / 100.0) * 0.15
+        } else {
+            0.0
+        };
+        let vg = if grading.vignette_correction {
+            0.35 + (grading.vignette_amount / 100.0) * 0.65
+        } else if grading.vignette_amount > 0.01 {
+            (grading.vignette_amount / 100.0) * 0.65
+        } else {
+            0.0
+        };
+        (kd, vg)
     };
 
     let rot_deg = grading.rotation_degrees;
@@ -1930,7 +1989,8 @@ pub fn decode_photo_file_payload(
         exif_tags: decoded.exif_tags,
     };
 
-    let base = BaseRgbPreview::from_cfa_with_color(
+    let matched_lens = rraw_optics::LensDatabase::match_metadata(&meta);
+    let mut base = BaseRgbPreview::from_cfa_with_color(
         &decoded.cfa_signed,
         [
             decoded.wb_coeffs[0],
@@ -1940,6 +2000,7 @@ pub fn decode_photo_file_payload(
         decoded.color_matrix.as_ref(),
     )
     .with_exif_orientation(orient);
+    base.matched_lens = Some(matched_lens);
 
     Some(BackgroundDecodePayload {
         path: target_path.to_path_buf(),
