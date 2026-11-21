@@ -8,7 +8,7 @@
 - **Active Tasks**:
   - Toolbar UX Refinement (`rraw-app`): **Complete** (Suppression de l'en-tête `RRAW`, migration du sélecteur `FR | EN` dans la barre d'état inférieure droite, ruban supérieur commençant directement sur les actions photo, commit `68ffca5`)
   - Task 13.1 (`rraw-app` & Workspace): **Complete** (Semver `VERSION`, `VERSION_TAG`, `LONG_VERSION`, build date et git commit hash exposés à la compilation, affichage discret en barre d'état, modale "À propos", CLI `--version`, commits `b29cad9`, `68ffca5`)
-  - Task 13.2 (Packaging & Distribution): **Complete** (macOS App Bundle `Rraw.app`, `assets/macos/Info.plist`, HiDPI `AppIcon.icns`, script `scripts/package_macos.sh`, codesigning ad-hoc/runtime, installeur DMG drag-and-drop avec lien `/Applications`, test suite `packaging_tests.rs`, Inquisitor APPROVED, CI green 192 tests across 39 suites)
+  - Task 13.2 (Packaging & Distribution): **Complete** (macOS App Bundle `Rraw.app`, `assets/macos/Info.plist`, HiDPI `AppIcon.icns`, script `scripts/package_macos.sh`, codesigning ad-hoc/runtime, installeur DMG drag-and-drop avec lien `/Applications`, test suite `packaging_tests.rs`, Inquisitor APPROVED, commit `6729fa6`, CI green 192 tests across 39 suites)
   - Next: Phase 14 — Smart Lighting & Adaptive Dynamic Range (Task 14.1 Scene Dynamic Range Analyzer & Local Tone Mapping Core)
   - Phase 11 Internationalization (`rraw-app`): **Complete** (Local audit APPROVED via Qwen 3.6 35B, CI green 174 tests across 47 suites, 0 clippy warnings)
   - Task 11.1 (`rraw-app`): **Complete** (Typed zero-allocation string tables, `Language { Fr, En }`, `Key` 103 variants, compile-time exhaustive matching, module `crates/rraw-app/src/i18n/`)
