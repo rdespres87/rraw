@@ -60,6 +60,8 @@ pub struct RrawApp {
     pub current_directory: Option<PathBuf>,
     /// Image files discovered in `current_directory`.
     pub directory_entries: Vec<PathBuf>,
+    /// Filter displaying only genuine RAW files in the filmstrip.
+    pub raw_only_filter: bool,
     /// Active inspector navigation tab.
     pub inspector_tab: InspectorTab,
     /// Active navigation tab in left panel.
@@ -226,6 +228,15 @@ impl RrawApp {
             }
         };
         let initial_entries = scan_directory_for_images(&initial_dir);
+        let raw_count = initial_entries
+            .iter()
+            .filter(|p| {
+                p.extension()
+                    .and_then(|s| s.to_str())
+                    .is_some_and(crate::preview::is_raw_extension)
+            })
+            .count();
+        let raw_only_filter = raw_count > 0;
 
         let mut app = Self {
             headroom_provider,
@@ -249,6 +260,7 @@ impl RrawApp {
             is_decoding: false,
             current_directory: Some(initial_dir),
             directory_entries: initial_entries,
+            raw_only_filter,
             inspector_tab: InspectorTab::Develop,
             left_panel_tab: LeftPanelTab::Explorer,
             active_tool_family,
@@ -353,6 +365,7 @@ impl RrawApp {
             is_decoding: false,
             current_directory: None,
             directory_entries: Vec::new(),
+            raw_only_filter: false,
             inspector_tab: InspectorTab::Develop,
             left_panel_tab: LeftPanelTab::Explorer,
             active_tool_family: ToolFamily::All,
@@ -448,7 +461,15 @@ impl RrawApp {
             crate::view_tools::apply_clipping_overlay(&mut preview.pixels, self.clipping_overlay);
 
             if let Some(tex) = &mut self.preview_texture {
-                tex.set(preview, egui::TextureOptions::LINEAR);
+                if tex.name() == "raw_preview" {
+                    tex.set(preview, egui::TextureOptions::LINEAR);
+                } else {
+                    self.preview_texture = Some(ctx.load_texture(
+                        "raw_preview",
+                        preview,
+                        egui::TextureOptions::LINEAR,
+                    ));
+                }
             } else {
                 self.preview_texture =
                     Some(ctx.load_texture("raw_preview", preview, egui::TextureOptions::LINEAR));
@@ -470,14 +491,16 @@ impl RrawApp {
         self.needs_preview_update = false;
     }
 
-    /// Persists current photo grading and rating to both `.rraw.json` and `.xmp` sidecars.
-    pub fn save_current_photo_sidecar(&self) {
+    /// Persists current photo grading and rating to both `.rraw.json` and `.xmp` sidecars and memory cache.
+    pub fn save_current_photo_sidecar(&mut self) {
         if let Some(photo) = &self.loaded_photo {
             let rating = self
                 .photo_ratings
                 .get(&photo.path)
                 .copied()
                 .unwrap_or(photo.rating);
+            self.photo_gradings
+                .insert(photo.path.clone(), self.grading.clone());
             save_photo_sidecars(&photo.path, &self.grading, rating);
         }
     }
@@ -646,6 +669,17 @@ impl RrawApp {
 
         self.current_directory = Some(abs_dir.clone());
         self.directory_entries = scan_directory_for_images(&abs_dir);
+
+        let raw_count = self
+            .directory_entries
+            .iter()
+            .filter(|p| {
+                p.extension()
+                    .and_then(|s| s.to_str())
+                    .is_some_and(crate::preview::is_raw_extension)
+            })
+            .count();
+        self.raw_only_filter = raw_count > 0;
 
         // Track last opened directory in persistent layout configuration
         self.layout_config.last_open_directory = Some(abs_dir.clone());
@@ -841,7 +875,12 @@ impl RrawApp {
             .iter()
             .filter(|p| {
                 let rating = self.photo_ratings.get(*p).copied().unwrap_or(0);
-                self.rating_filter.matches(rating)
+                let rating_match = self.rating_filter.matches(rating);
+                let raw_match = !self.raw_only_filter
+                    || p.extension()
+                        .and_then(|s| s.to_str())
+                        .is_some_and(crate::preview::is_raw_extension);
+                rating_match && raw_match
             })
             .cloned()
             .collect();
@@ -944,6 +983,7 @@ impl RrawApp {
             self.loaded_photo = Some(entry.photo_view.clone());
             self.base_preview = Some(entry.base_preview.clone());
             self.cached_cfa = Some(entry.cfa.clone());
+            self.original_texture = None;
 
             // Restore per-photo grading state (preferring disk sidecar if present)
             if let Some(g) = disk_grading {
@@ -973,11 +1013,12 @@ impl RrawApp {
 
         self.status_message = format!("Decoding {}...", file_name);
         self.is_decoding = true;
-
-        // Instant visual feedback: if thumbnail texture is already in memory, display it immediately!
-        if let Some(thumb_tex) = self.thumbnail_textures.get(&abs_path) {
-            self.preview_texture = Some(thumb_tex.clone());
-        }
+        self.loaded_photo = None;
+        self.base_preview = None;
+        self.cached_cfa = None;
+        self.preview_texture = None;
+        self.original_texture = None;
+        self.needs_preview_update = false;
 
         let tx = self.decode_sender.clone();
         let target_path = abs_path;
@@ -1177,6 +1218,32 @@ impl eframe::App for RrawApp {
                     .insert(payload.path.clone(), payload.photo_view.rating);
             }
 
+            let is_still_active_target = self
+                .layout_config
+                .last_open_photo
+                .as_ref()
+                .is_some_and(|target| target == &payload.path);
+
+            if !is_still_active_target {
+                // If the user already switched to another photo while this background thread was running,
+                // cache the result in memory but do NOT hijack the active viewport.
+                if self.photo_cache.len() >= 30 {
+                    self.photo_cache.pop();
+                }
+                if !self.photo_cache.iter().any(|e| e.path == payload.path) {
+                    self.photo_cache.insert(
+                        0,
+                        CachedPhotoEntry {
+                            path: payload.path,
+                            photo_view: payload.photo_view,
+                            base_preview: payload.base_preview,
+                            cfa: payload.cfa,
+                        },
+                    );
+                }
+                continue;
+            }
+
             let mut view = payload.photo_view.clone();
             if let Some(&rating) = self.photo_ratings.get(&payload.path) {
                 view.rating = rating;
@@ -1185,6 +1252,7 @@ impl eframe::App for RrawApp {
             self.loaded_photo = Some(view);
             self.base_preview = Some(payload.base_preview.clone());
             self.cached_cfa = Some(payload.cfa.clone());
+            self.original_texture = None;
 
             // Restore per-photo grading state
             if let Some(saved) = self.photo_gradings.get(&payload.path) {

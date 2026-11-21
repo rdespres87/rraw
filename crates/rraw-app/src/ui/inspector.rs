@@ -1437,6 +1437,8 @@ impl RrawApp {
                                                 (self.grading.crop_top + crop_h).clamp(0.55, 1.0);
                                         }
                                         self.is_crop_editing = true;
+                                        self.needs_preview_update = true;
+                                        self.save_current_photo_sidecar();
                                         ui.ctx().request_repaint();
                                     }
                                 }

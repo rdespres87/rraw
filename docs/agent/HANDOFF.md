@@ -2,6 +2,14 @@
 
 ## Last Completed Milestone
 
+- **Filmstrip Thumbnail Fidelity & Orientation/Crop Fixes (`rraw-app`)**:
+  - **Élimination de la corruption et inversion de vignettes** : suppression de l'aliasing de texture entre `preview_texture` et `thumbnail_textures`. `preview_texture` ne réutilise plus jamais un handle de vignette et réinitialise son état proprement lors de l'ouverture d'un nouveau fichier pour empêcher tout écrasement des vignettes existantes par l'aperçu de la photo précédente pendant le décodage asynchrone.
+  - **Maintien strict du ratio d'aspect des vignettes** : dans `filmstrip.rs`, calcul géométrique du rectangle adapté (`fitted_rect`) centré dans le cadre 110x62 avec fond sombre (letterboxing haut/bas pour les panoramiques, pillarboxing gauche/droite pour les portraits 2:3 et carrés 1:1). Élimine 100% des écrasements et étirements.
+  - **Parcours complet de l'orientation EXIF multi-IFD et SubIFD (`0x8769`)** : dans `parse_tiff_ifd0_orientation`, chaînage automatique des IFD (IFD0, IFD1...) et inspection de l'Exif SubIFD avec tampon étendu à 256 Ko (`read_exif_orientation`).
+  - **Prise en compte systématique du recadrage** : les vignettes générées en tâche de fond ou lors de l'édition interactive appliquent systématiquement `create_thumbnail_from_preview`, conservant le ratio et les coordonnées de crop.
+  - **Synchronisation de la navigation clavier et filtrage RAW** : intégration de `raw_only_filter` dans `navigate_relative_with_shift` et activation par défaut à l'ouverture de dossiers contenant des RAW pour éliminer les doublons visuels des exports compagnons (JPG/PNG).
+  - Tests validés : `cargo test --workspace` (232 tests passants, 0 clippy warnings), audit local adversarial Qwen 3.6 35B APPROVED.
+
 - **Phase 14.3 — Smart Lighting UI Inspector & Preset Integration (`rraw-app`)**:
   - **Isolation stricte de la vue Avant / Après** : la texture de référence originale (`raw_original`) est forcée avec `smart_lighting.mode = Off` et `intensity = 0.0`. L'Avant représente fidèlement le capteur brut non retouché.
   - **Résolution de la race condition de décodage asynchrone** : garde `is_still_active_target` empêchant un décodage tardif en tâche de fond d'écraser la photo actuellement sélectionnée lors d'une navigation rapide dans le filmstrip.

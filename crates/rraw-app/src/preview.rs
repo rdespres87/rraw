@@ -320,21 +320,69 @@ fn parse_tiff_ifd0_orientation(tiff: &[u8]) -> Option<u16> {
         })
     };
 
-    let ifd_offset = read_u32(4)? as usize;
-    let entry_count = read_u16(ifd_offset)? as usize;
-    let entries_base = ifd_offset.checked_add(2)?;
+    let mut ifd_offset = read_u32(4)? as usize;
+    let mut ifd_count = 0;
 
-    for i in 0..entry_count.min(128) {
-        let entry_off = entries_base.checked_add(i * 12)?;
-        let tag = read_u16(entry_off)?;
-        if tag == 0x0112 {
-            let val = read_u16(entry_off + 8)?;
-            if (1..=8).contains(&val) {
-                return Some(val);
+    while ifd_offset != 0 && ifd_count < 8 {
+        ifd_count += 1;
+        let entry_count = read_u16(ifd_offset)? as usize;
+        let entries_base = ifd_offset.checked_add(2)?;
+
+        let mut exif_subifd_offset = None;
+
+        for i in 0..entry_count.min(128) {
+            let entry_off = entries_base.checked_add(i * 12)?;
+            let tag = read_u16(entry_off)?;
+            if tag == 0x0112 {
+                let val = read_u16(entry_off + 8)?;
+                if (1..=8).contains(&val) {
+                    return Some(val);
+                }
+            } else if tag == 0x8769 {
+                exif_subifd_offset = read_u32(entry_off + 8);
             }
         }
+
+        // Traverse Exif SubIFD (tag 0x8769) if orientation was not found in this IFD
+        if let Some(sub_off) = exif_subifd_offset {
+            let sub_off = sub_off as usize;
+            if let Some(sub_count) = read_u16(sub_off) {
+                if let Some(sub_base) = sub_off.checked_add(2) {
+                    for i in 0..(sub_count as usize).min(128) {
+                        if let Some(entry_off) = sub_base.checked_add(i * 12) {
+                            if let Some(tag) = read_u16(entry_off) {
+                                if tag == 0x0112 {
+                                    if let Some(val) = read_u16(entry_off + 8) {
+                                        if (1..=8).contains(&val) {
+                                            return Some(val);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Offset to next IFD in chain
+        if let Some(next_off_pos) = entries_base.checked_add(entry_count * 12) {
+            ifd_offset = read_u32(next_off_pos).unwrap_or(0) as usize;
+        } else {
+            break;
+        }
     }
+
     None
+}
+
+/// Checks if the given file extension corresponds to a RAW sensor format.
+#[must_use]
+pub fn is_raw_extension(ext: &str) -> bool {
+    matches!(
+        ext.to_ascii_lowercase().as_str(),
+        "dng" | "arw" | "cr2" | "cr3" | "nef" | "raf" | "rw2" | "orf" | "pef"
+    )
 }
 
 /// Reads the EXIF `Orientation` tag (`0x0112`, values `1..=8`) from a JPEG or TIFF/RAW file header.
@@ -344,7 +392,7 @@ pub fn read_exif_orientation(path: &Path) -> u16 {
     let Ok(mut file) = std::fs::File::open(path) else {
         return 1;
     };
-    let mut buf = vec![0_u8; 65536];
+    let mut buf = vec![0_u8; 262_144];
     let Ok(n) = file.read(&mut buf) else {
         return 1;
     };
@@ -825,10 +873,7 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
                     matched_lens: None,
                 };
                 let (preview, _) = render_preview_from_base(&base, &grading);
-                if grading.crop_enabled {
-                    return Some(create_thumbnail_from_preview(&preview, &grading, 140, 100));
-                }
-                return Some(preview);
+                return Some(create_thumbnail_from_preview(&preview, &grading, 140, 100));
             }
             return Some(egui::ColorImage::from_rgb(
                 [w as usize, h as usize],
@@ -860,11 +905,7 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
     .with_exif_orientation(orient);
 
     let (preview, _) = render_preview_from_base(&base, &grading);
-    if grading.crop_enabled {
-        Some(create_thumbnail_from_preview(&preview, &grading, 140, 100))
-    } else {
-        Some(preview)
-    }
+    Some(create_thumbnail_from_preview(&preview, &grading, 140, 100))
 }
 
 /// Evaluates darkroom grading, optical distortion, vignetting, and histogram from `BaseRgbPreview`.

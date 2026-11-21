@@ -801,6 +801,7 @@ impl RrawApp {
 
                 if resp.drag_stopped() {
                     self.crop_drag_handle = CropDragHandle::None;
+                    self.needs_preview_update = true;
                     self.save_current_photo_sidecar();
                     ui.ctx().request_repaint();
                 }

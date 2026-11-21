@@ -58,6 +58,29 @@ impl RrawApp {
                         self.rating_filter = RatingFilter::Unrated;
                     }
 
+                    let raw_count = self
+                        .directory_entries
+                        .iter()
+                        .filter(|p| {
+                            p.extension()
+                                .and_then(|s| s.to_str())
+                                .is_some_and(crate::preview::is_raw_extension)
+                        })
+                        .count();
+                    let has_non_raw = raw_count < self.directory_entries.len() && raw_count > 0;
+                    if has_non_raw {
+                        let raw_chip_text = format!("📷 RAW ({raw_count})");
+                        if ui
+                            .selectable_label(self.raw_only_filter, raw_chip_text)
+                            .on_hover_text(
+                                "Masquer les fichiers JPG/PNG pour n'afficher que les fichiers RAW d'origine",
+                            )
+                            .clicked()
+                        {
+                            self.raw_only_filter = !self.raw_only_filter;
+                        }
+                    }
+
                     ui.separator();
                     let sel_count = self.selected_photos.len();
                     let sel_text = if sel_count > 0 {
@@ -227,6 +250,16 @@ impl RrawApp {
                                         continue;
                                     }
 
+                                    let ext_str = entry
+                                        .extension()
+                                        .and_then(|s| s.to_str())
+                                        .unwrap_or_default();
+                                    if self.raw_only_filter
+                                        && !crate::preview::is_raw_extension(ext_str)
+                                    {
+                                        continue;
+                                    }
+
                                     let is_selected = active_path.as_ref() == Some(entry);
                                     let is_multi_selected = self.selected_photos.contains(entry);
                                     let is_cached =
@@ -330,10 +363,38 @@ impl RrawApp {
                                         egui::vec2(110.0, 62.0),
                                     );
 
+                                    // Fill thumbnail background to letterbox portrait & non-16:9 images cleanly
+                                    painter.rect_filled(
+                                        thumb_rect,
+                                        2.0,
+                                        Color32::from_rgb(14, 16, 20),
+                                    );
+
                                     if let Some(tex) = self.thumbnail_textures.get(entry) {
+                                        let tex_size = tex.size_vec2();
+                                        let tex_aspect = tex_size.x / tex_size.y.max(1.0);
+                                        let frame_aspect = thumb_rect.width() / thumb_rect.height().max(1.0);
+                                        let fitted_rect = if tex_aspect > frame_aspect {
+                                            // Limited by width (letterbox top/bottom)
+                                            let h = (thumb_rect.width() / tex_aspect).clamp(10.0, thumb_rect.height());
+                                            let y = thumb_rect.center().y - h * 0.5;
+                                            egui::Rect::from_min_size(
+                                                egui::pos2(thumb_rect.left(), y),
+                                                egui::vec2(thumb_rect.width(), h),
+                                            )
+                                        } else {
+                                            // Limited by height (pillarbox left/right for portrait / square crops)
+                                            let w = (thumb_rect.height() * tex_aspect).clamp(10.0, thumb_rect.width());
+                                            let x = thumb_rect.center().x - w * 0.5;
+                                            egui::Rect::from_min_size(
+                                                egui::pos2(x, thumb_rect.top()),
+                                                egui::vec2(w, thumb_rect.height()),
+                                            )
+                                        };
+
                                         painter.image(
                                             tex.id(),
-                                            thumb_rect,
+                                            fitted_rect,
                                             egui::Rect::from_min_max(
                                                 egui::pos2(0.0, 0.0),
                                                 egui::pos2(1.0, 1.0),
@@ -348,11 +409,6 @@ impl RrawApp {
                                         );
                                     } else {
                                         thumbs_to_request.push(entry.clone());
-                                        painter.rect_filled(
-                                            thumb_rect,
-                                            2.0,
-                                            Color32::from_rgb(14, 16, 20),
-                                        );
                                         painter.rect_stroke(
                                             thumb_rect,
                                             2.0,
