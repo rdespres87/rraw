@@ -4,11 +4,12 @@
 
 - **Phase 13.1 — Semantic Versioning & Build Metadata (`rraw-core`, `rraw-app`, `rraw-cli`)**:
   - Implemented `rraw-core::build_info` module and `build.rs` embedding compile-time semantic version (`VERSION`, `VERSION_TAG = "v..."`), Git commit hash (`GIT_COMMIT_HASH`, 7 short hex chars), committer build date (`BUILD_DATE` ISO 8601 UTC), and full CLI string (`LONG_VERSION`).
-  - Added zero-allocation compile-time `VERSION_TAG` label in `rraw-app` top bar with tooltip `BuildInfo::about_text()`.
+  - Streamlined darkroom top toolbar: removed redundant `RRAW` heading and relocated compact `FR | EN` toggle to the bottom status bar right-to-left layout (`[FR | EN] · [EDR 120 Hz] · [v0.1.0]`), allowing the top toolbar to start directly with primary photo workflow actions (`Open Image`, `Open Folder`, `Export`).
   - Added "ℹ️ À propos" modal dialog (`render_about_dialog`) in `crates/rraw-app/src/ui/about.rs` with application branding, metadata grid (Version, Commit, Build Date) and Escape key hierarchical dismissal.
   - Added typed i18n keys for French and English in `crates/rraw-app/src/i18n/mod.rs` (`TopBarAbout`, `AboutTitle`, `AboutDescription`, `AboutVersion`, `AboutCommit`, `AboutBuildDate`, `AboutClose`).
   - Added CLI `--version` and `-V` support for `rraw-cli` (via clap `version` & `long_version`) and `rraw-app` (via early argument interception).
   - Added integration test suite `crates/rraw-app/tests/version_tests.rs` (8 tests) asserting semver validity, ISO 8601 UTC date, hex commit hash, `VERSION_TAG`, `LONG_VERSION`, and headless About modal state/Escape dismissal.
+  - Commits: `b29cad9` and `68ffca5`.
 
 - **Phase 11 — Internationalization (i18n) (`rraw-app`)**:
   - Implemented typed, zero-allocation string tables (`Language { Fr, En }` enum + `Key` enum with 294 typed UI keys) in `crates/rraw-app/src/i18n/mod.rs`.
