@@ -13,6 +13,7 @@ pub mod drt;
 pub mod gamut_guard;
 pub mod matrix;
 pub mod pipeline;
+pub mod smart_lighting;
 pub mod soft_proof;
 
 pub use cct::*;
@@ -23,6 +24,7 @@ pub use drt::*;
 pub use gamut_guard::*;
 pub use matrix::*;
 pub use pipeline::*;
+pub use smart_lighting::*;
 pub use soft_proof::*;
 
 /// Typed errors returned by `rraw-color`.

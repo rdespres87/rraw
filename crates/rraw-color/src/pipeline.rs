@@ -154,7 +154,7 @@ impl CpuReferencePipeline {
         };
 
         // 2 & 3. Demosaic + Highlight Reconstruction
-        let mut demosaiced = Vec::with_capacity(width * height);
+        let mut linear_pixels = Vec::with_capacity(width * height);
         let exposure_scale = 2.0_f32.powf(recipe.stage5_grading.exposure_ev);
         let sat_threshold = 0.99;
         let curves_lut = crate::curves::generate_1d_lut_1024(&recipe.stage5_grading.tone_curves);
@@ -249,13 +249,7 @@ impl CpuReferencePipeline {
                             exposed
                         };
                         let guarded = apply_gamut_guard_ap1(curved);
-
-                        // 5. AgX DRT
-                        let drt_r = apply_agx_edr(guarded.x, headroom);
-                        let drt_g = apply_agx_edr(guarded.y, headroom);
-                        let drt_b = apply_agx_edr(guarded.z, headroom);
-
-                        demosaiced.push([drt_r, drt_g, drt_b]);
+                        linear_pixels.push([guarded.x, guarded.y, guarded.z]);
                     }
                 }
             }
@@ -272,15 +266,29 @@ impl CpuReferencePipeline {
                             exposed
                         };
                         let guarded = apply_gamut_guard_ap1(curved);
-
-                        let drt_r = apply_agx_edr(guarded.x, headroom);
-                        let drt_g = apply_agx_edr(guarded.y, headroom);
-                        let drt_b = apply_agx_edr(guarded.z, headroom);
-
-                        demosaiced.push([drt_r, drt_g, drt_b]);
+                        linear_pixels.push([guarded.x, guarded.y, guarded.z]);
                     }
                 }
             }
+        }
+
+        // 5. Smart Lighting: scene-aware adaptive local tone mapping in ACEScg AP1
+        if recipe.stage5_grading.smart_lighting.is_active() {
+            crate::smart_lighting::apply_smart_lighting_acescg(
+                &mut linear_pixels,
+                width,
+                height,
+                &recipe.stage5_grading.smart_lighting,
+            )?;
+        }
+
+        // 6. AgX Display Rendering Transform (DRT)
+        let mut demosaiced = Vec::with_capacity(linear_pixels.len());
+        for &[r, g, b] in &linear_pixels {
+            let drt_r = apply_agx_edr(r, headroom);
+            let drt_g = apply_agx_edr(g, headroom);
+            let drt_b = apply_agx_edr(b, headroom);
+            demosaiced.push([drt_r, drt_g, drt_b]);
         }
 
         CpuRgbImage::new(width, height, demosaiced)

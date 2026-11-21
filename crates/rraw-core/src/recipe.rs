@@ -181,6 +181,53 @@ impl Default for Stage4OpticsParams {
     }
 }
 
+/// Smart Lighting mode for scene-aware dynamic range and local tone mapping.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SmartLightingMode {
+    #[default]
+    Off,
+    Slight,
+    Medium,
+    Strong,
+    Custom,
+}
+
+/// Smart Lighting parameter set for adaptive dynamic range and local tone mapping.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SmartLightingParams {
+    pub mode: SmartLightingMode,
+    #[serde(default = "default_intensity_1_0")]
+    pub intensity: f32,
+    #[serde(default)]
+    pub custom_shadow_lift: f32,
+    #[serde(default)]
+    pub custom_highlight_compression: f32,
+}
+
+fn default_intensity_1_0() -> f32 {
+    1.0
+}
+
+impl Default for SmartLightingParams {
+    fn default() -> Self {
+        Self {
+            mode: SmartLightingMode::Off,
+            intensity: 1.0,
+            custom_shadow_lift: 0.0,
+            custom_highlight_compression: 0.0,
+        }
+    }
+}
+
+impl SmartLightingParams {
+    /// Returns `true` when Smart Lighting is enabled (`mode != Off` and `intensity > 0.0`).
+    #[must_use]
+    pub const fn is_active(&self) -> bool {
+        !matches!(self.mode, SmartLightingMode::Off) && self.intensity > 0.0
+    }
+}
+
 /// Stage 5 parameter set: Scene colorimetry, exposure, and tone grading (ACEScg AP1).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Stage5GradingParams {
@@ -205,6 +252,9 @@ pub struct Stage5GradingParams {
     /// Multi-channel parametric tone curves.
     #[serde(default)]
     pub tone_curves: crate::curves::ToneCurvesRecipe,
+    /// Scene-aware Smart Lighting adaptive dynamic range and local tone mapping.
+    #[serde(default)]
+    pub smart_lighting: SmartLightingParams,
 }
 
 impl Default for Stage5GradingParams {
@@ -220,6 +270,7 @@ impl Default for Stage5GradingParams {
             vibrance: 0.0,
             laplacian_local_contrast: 0.0,
             tone_curves: crate::curves::ToneCurvesRecipe::default(),
+            smart_lighting: SmartLightingParams::default(),
         }
     }
 }

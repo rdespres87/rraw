@@ -2,6 +2,18 @@
 
 ## Last Completed Milestone
 
+- **Phase 14.1 — Scene Dynamic Range Analyzer & Local Tone Mapping Core (`rraw-core`, `rraw-color`)**:
+  - Implemented `crates/rraw-color/src/smart_lighting.rs` providing:
+    - Full scene dynamic range analyzer (`analyze_scene_dynamic_range`) extracting min/max/mean/geometric mean luma, percentiles $p_{0.1} \dots p_{99.9}$, dynamic range in EV, under/over-exposure EV, shadow/highlight clipping ratios.
+    - Automatic scene classification: `Backlit` (spatial peripheral vs central luma analysis), `HighDynamicRange` ($> 10.5$ EV), `LowKey`, `HighKey`, `Normal`.
+    - Edge-preserving Guided Filter (`self_guided_filter` and fast separable $O(N)$ sliding window `box_filter_2d`) decomposing log-luminance into Base and Detail layers without gradient reversal or haloing.
+    - Adaptive halo-free shadow lift (smooth quadratic lift preserving the black floor) and highlight compression (smooth shoulder rolloff) in linear ACEScg AP1.
+    - Strict chromaticity preservation: scales RGB channels by $Y_{\text{mapped}} / Y$, mathematically guaranteeing invariant chromaticity ratios $(R/Y, G/Y, B/Y)$.
+  - Added `SmartLightingMode` (`Off`, `Slight`, `Medium`, `Strong`, `Custom`) and `SmartLightingParams` (`mode`, `intensity`, `custom_shadow_lift`, `custom_highlight_compression`) to `Stage5GradingParams` in `crates/rraw-core/src/recipe.rs` with backwards-compatible serde defaults.
+  - Re-exported module in `crates/rraw-color/src/lib.rs` and integrated Smart Lighting into `CpuReferencePipeline::execute` in `crates/rraw-color/src/pipeline.rs`.
+  - Added unit test suite in `crates/rraw-color/tests/smart_lighting_tests.rs` (11 unit/integration tests).
+  - Verified with 221 unit and integration tests passing across 53 suites, 0 clippy warnings, and Qwen 3.6 35B local adversarial audit APPROVED. Commit: `e47dc0a`.
+
 - **Phase 8.3 — Enhanced Optical Inspector UI (`rraw-optics`, `rraw-app`)**:
   - Implemented `defringe_mask_rgb` in `crates/rraw-optics/src/defringe.rs` providing an interactive diagnostic fringe visualization mask highlighting detected purple fringes in bright magenta, green fringes in neon-green, and background pixels in dimmed monochrome ($Y \times 0.35$).
   - Re-exported `defringe_mask_rgb` in `crates/rraw-optics/src/lib.rs`.
@@ -213,18 +225,16 @@
   - Implemented live In/Out percentage coordinate readout and vertical hairline cursor guide.
   - Added dynamic activity dot indicator on modified curve channel selector tabs.
 
-## Next Logical Action: Task 8.3 / Phase 14
+## Next Logical Action: Task 14.2 (`rraw-gpu` & `rraw-app`)
 
-In priority order:
-1. **Task 8.3 (`rraw-app`)**: Enhanced Optical Inspector UI refinements (interactive live defringe preview & profile override options) or proceed directly to:
-2. **Phase 14 — Smart Lighting & Adaptive Dynamic Range (`rraw-core`, `rraw-color`, `rraw-gpu`, `rraw-app`)**:
-   - **Task 14.1 (`rraw-core` & `rraw-color`)**: Scene Dynamic Range Analyzer & Local Tone Mapping Core (automatic scene key/contrast analysis, multi-scale base/detail decomposition, halo-free shadow lift & highlight compression in linear ACEScg).
-   - **Task 14.2 (`rraw-gpu` & `rraw-app`)**: GPU WGSL Stage 5/6 shader execution at 120 FPS, chromaticity preservation.
-   - **Task 14.3 (`rraw-app`)**: Smart Lighting inspector section with presets and intensity controls.
+Proceed directly to:
+**Phase 14.2 (`rraw-gpu` & `rraw-app`)**:
+- Pipeline & GPU/CPU Integration (Real-time WGSL Stage 5 shader execution at 120 FPS or compute pass, scale-invariant downsample factor handling $N_{\text{effective}} = N_{\text{octaves}} - L$, chromaticity preservation avoiding desaturation or hue shifts in recovered shadows/highlights, preview and export integration).
+- Followed by **Task 14.3 (`rraw-app`)**: Smart Lighting inspector section with presets and intensity controls.
 
 ## Repository Completion State
 
-All planned deliverables across Phases 0–13 are implemented, with Phase 8 (Tasks 8.1, 8.2, 8.3) and Phase 9 (Tasks 9.1, 9.2, 9.3) complete. Total 210 tests passing workspace-wide, 0 clippy warnings, and pre-commit checks passing.
+All planned deliverables across Phases 0–13 are implemented, and Task 14.1 of Phase 14 is complete. Total 221 tests passing workspace-wide, 0 clippy warnings, and pre-commit checks passing.
 
 ### Summary of Completed Workspace Milestones
 1. **Phase 0**: Repository governance, `#![forbid(unsafe_code)]` / audited EDR isolation, 11 crates.

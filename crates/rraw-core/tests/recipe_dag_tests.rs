@@ -277,6 +277,7 @@ fn test_color_tone_recipe_clipboard_isolation_and_application(
         vibrance: 0.10,
         laplacian_local_contrast: 0.85,
         tone_curves: ToneCurvesRecipe::default(),
+        smart_lighting: rraw_core::recipe::SmartLightingParams::default(),
     };
     source_stage5
         .tone_curves
@@ -306,6 +307,7 @@ fn test_color_tone_recipe_clipboard_isolation_and_application(
         vibrance: -0.5,
         laplacian_local_contrast: 0.12,
         tone_curves: ToneCurvesRecipe::default(),
+        smart_lighting: rraw_core::recipe::SmartLightingParams::default(),
     };
 
     clipboard.apply_to_stage5(&mut target_stage5);
