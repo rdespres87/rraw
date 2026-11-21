@@ -22,6 +22,10 @@ impl RrawApp {
                     || self.grading.blacks != 0.0
                     || self.grading.saturation != 0.0
                     || self.grading.vibrance != 0.0
+                    || self.grading.smart_lighting.mode != rraw_core::SmartLightingMode::Slight
+                    || (self.grading.smart_lighting.intensity - 1.0).abs() > 0.01
+                    || self.grading.smart_lighting.custom_shadow_lift != 0.0
+                    || self.grading.smart_lighting.custom_highlight_compression != 0.0
             }
             DarkroomSection::ToneCurves => !self.grading.tone_curves.is_identity(),
             DarkroomSection::WhiteBalanceColor => {
@@ -78,6 +82,7 @@ impl RrawApp {
                 self.grading.blacks = 0.0;
                 self.grading.saturation = 0.0;
                 self.grading.vibrance = 0.0;
+                self.grading.smart_lighting = DarkroomGradingState::default().smart_lighting;
             }
             DarkroomSection::ToneCurves => {
                 self.grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();
@@ -445,12 +450,142 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
 
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(t(Key::InspectorSmartLightingTitle)).strong())
+                        .on_hover_text(t(Key::InspectorSmartLightingTooltip));
+                });
+
+                let cur_mode = self.grading.smart_lighting.mode;
+                let mut new_mode = cur_mode;
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .selectable_label(
+                            cur_mode == rraw_core::SmartLightingMode::Off,
+                            t(Key::InspectorSmartLightingModeOff),
+                        )
+                        .clicked()
+                    {
+                        new_mode = rraw_core::SmartLightingMode::Off;
+                    }
+                    if ui
+                        .selectable_label(
+                            cur_mode == rraw_core::SmartLightingMode::Slight,
+                            t(Key::InspectorSmartLightingModeSlight),
+                        )
+                        .clicked()
+                    {
+                        new_mode = rraw_core::SmartLightingMode::Slight;
+                    }
+                    if ui
+                        .selectable_label(
+                            cur_mode == rraw_core::SmartLightingMode::Medium,
+                            t(Key::InspectorSmartLightingModeMedium),
+                        )
+                        .clicked()
+                    {
+                        new_mode = rraw_core::SmartLightingMode::Medium;
+                    }
+                    if ui
+                        .selectable_label(
+                            cur_mode == rraw_core::SmartLightingMode::Strong,
+                            t(Key::InspectorSmartLightingModeStrong),
+                        )
+                        .clicked()
+                    {
+                        new_mode = rraw_core::SmartLightingMode::Strong;
+                    }
+                    if ui
+                        .selectable_label(
+                            cur_mode == rraw_core::SmartLightingMode::Custom,
+                            t(Key::InspectorSmartLightingModeCustom),
+                        )
+                        .clicked()
+                    {
+                        new_mode = rraw_core::SmartLightingMode::Custom;
+                    }
+                });
+
+                if new_mode != cur_mode {
+                    self.grading.smart_lighting.mode = new_mode;
+                    if self.grading.smart_lighting.intensity <= 1.0 {
+                        self.grading.smart_lighting.intensity = 100.0;
+                    }
+                    if new_mode == rraw_core::SmartLightingMode::Custom
+                        && self.grading.smart_lighting.custom_shadow_lift == 0.0
+                        && self.grading.smart_lighting.custom_highlight_compression == 0.0
+                    {
+                        self.grading.smart_lighting.custom_shadow_lift = 0.50;
+                        self.grading.smart_lighting.custom_highlight_compression = 0.30;
+                    }
+                    self.grading.preset = GradingPreset::Custom;
+                    self.current_preset = GradingPreset::Custom;
+                    self.needs_preview_update = true;
+                    ui.ctx().request_repaint();
+                }
+
+                if self.grading.smart_lighting.is_active() {
+                    if self.grading.smart_lighting.intensity <= 1.0 {
+                        self.grading.smart_lighting.intensity = 100.0;
+                    }
+                    ui.add_space(2.0);
+                    ui.label(t(Key::InspectorSmartLightingIntensity));
+                    let r_int = ui.add(
+                        egui::Slider::new(&mut self.grading.smart_lighting.intensity, 0.0..=100.0)
+                            .suffix(" %")
+                            .show_value(true),
+                    );
+                    if r_int.changed() {
+                        self.grading.preset = GradingPreset::Custom;
+                        self.current_preset = GradingPreset::Custom;
+                        self.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+
+                    if self.grading.smart_lighting.mode == rraw_core::SmartLightingMode::Custom {
+                        ui.label(t(Key::InspectorSmartLightingShadowLift));
+                        let mut shadow_pct = self.grading.smart_lighting.custom_shadow_lift * 100.0;
+                        let r_sh = ui.add(
+                            egui::Slider::new(&mut shadow_pct, 0.0..=100.0)
+                                .suffix(" %")
+                                .show_value(true),
+                        );
+                        if r_sh.changed() {
+                            self.grading.smart_lighting.custom_shadow_lift = shadow_pct / 100.0;
+                            self.grading.preset = GradingPreset::Custom;
+                            self.current_preset = GradingPreset::Custom;
+                            self.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
+
+                        ui.label(t(Key::InspectorSmartLightingHighlightComp));
+                        let mut high_pct =
+                            self.grading.smart_lighting.custom_highlight_compression * 100.0;
+                        let r_hi = ui.add(
+                            egui::Slider::new(&mut high_pct, 0.0..=100.0)
+                                .suffix(" %")
+                                .show_value(true),
+                        );
+                        if r_hi.changed() {
+                            self.grading.smart_lighting.custom_highlight_compression =
+                                high_pct / 100.0;
+                            self.grading.preset = GradingPreset::Custom;
+                            self.current_preset = GradingPreset::Custom;
+                            self.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
+                    }
+                }
+
+                ui.add_space(4.0);
+
                 if ui.button(t(Key::InspectorResetTone)).clicked() {
                     self.grading.exposure_ev = 0.0;
                     self.grading.contrast = 0.0;
                     self.grading.highlights = 0.0;
                     self.grading.shadows = 0.0;
                     self.grading.blacks = 0.0;
+                    self.grading.smart_lighting = rraw_core::SmartLightingParams::default();
                     self.grading.preset = GradingPreset::detect_preset(&self.grading);
                     self.current_preset = self.grading.preset;
                     self.needs_preview_update = true;

@@ -197,11 +197,11 @@ fn test_smart_lighting_shadow_lift_increases_deep_shadows() -> Result<(), ColorE
 
     apply_smart_lighting_acescg(&mut dark_pixels, width, height, &params)?;
 
-    // Deep shadows should be lifted above initial 0.02
+    // Deep shadows should be lifted substantially above initial 0.02 (at least +1 EV, > 0.04)
     for px in dark_pixels {
         assert!(
-            px[0] > 0.02,
-            "Shadow lift failed: expected > 0.02, got {}",
+            px[0] >= 0.04,
+            "Shadow lift insufficiently strong: expected >= 0.04, got {}",
             px[0]
         );
     }

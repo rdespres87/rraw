@@ -1181,6 +1181,7 @@ fn test_chroma_and_luma_denoise_reduces_variance_in_rendered_preview_and_export(
         vignette_correction: false,
         color_denoise: 0.0,
         luma_denoise: 0.0,
+        smart_lighting: rraw_core::SmartLightingParams::default(),
         ..Default::default()
     };
     let (_, _, u8_raw, _) = app::render_export_image(&base, &no_denoise, 1.0);
@@ -1191,6 +1192,7 @@ fn test_chroma_and_luma_denoise_reduces_variance_in_rendered_preview_and_export(
         vignette_correction: false,
         color_denoise: 90.0,
         luma_denoise: 80.0,
+        smart_lighting: rraw_core::SmartLightingParams::default(),
         ..Default::default()
     };
     let (_, _, u8_clean, _) = app::render_export_image(&base, &with_denoise, 1.0);

@@ -456,8 +456,10 @@ impl RrawApp {
             self.histogram = hist;
 
             if self.original_texture.is_none() {
-                let (orig_preview, _) =
-                    render_preview_from_base(base, &DarkroomGradingState::default());
+                let mut untouched = DarkroomGradingState::default();
+                untouched.smart_lighting.mode = rraw_core::SmartLightingMode::Off;
+                untouched.smart_lighting.intensity = 0.0;
+                let (orig_preview, _) = render_preview_from_base(base, &untouched);
                 self.original_texture = Some(ctx.load_texture(
                     "raw_original",
                     orig_preview,

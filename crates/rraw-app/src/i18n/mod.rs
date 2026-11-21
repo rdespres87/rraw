@@ -380,6 +380,16 @@ pub enum Key {
     AboutCommit,
     AboutBuildDate,
     AboutClose,
+    InspectorSmartLightingTitle,
+    InspectorSmartLightingTooltip,
+    InspectorSmartLightingModeOff,
+    InspectorSmartLightingModeSlight,
+    InspectorSmartLightingModeMedium,
+    InspectorSmartLightingModeStrong,
+    InspectorSmartLightingModeCustom,
+    InspectorSmartLightingIntensity,
+    InspectorSmartLightingShadowLift,
+    InspectorSmartLightingHighlightComp,
 }
 
 impl Key {
@@ -1003,6 +1013,32 @@ impl Key {
             (Self::AboutBuildDate, Language::En) => "Build date",
             (Self::AboutClose, Language::Fr) => "Fermer",
             (Self::AboutClose, Language::En) => "Close",
+            (Self::InspectorSmartLightingTitle, Language::Fr) => "💡 Éclairage intelligent",
+            (Self::InspectorSmartLightingTitle, Language::En) => "💡 Smart Lighting",
+            (Self::InspectorSmartLightingTooltip, Language::Fr) => {
+                "Tone mapping local adaptatif multi-échelle sans halo préservant la chromaticité"
+            }
+            (Self::InspectorSmartLightingTooltip, Language::En) => {
+                "Halo-free multi-scale adaptive local tone mapping preserving chromaticity"
+            }
+            (Self::InspectorSmartLightingModeOff, Language::Fr) => "Désactivé",
+            (Self::InspectorSmartLightingModeOff, Language::En) => "Off",
+            (Self::InspectorSmartLightingModeSlight, Language::Fr) => "Léger",
+            (Self::InspectorSmartLightingModeSlight, Language::En) => "Slight",
+            (Self::InspectorSmartLightingModeMedium, Language::Fr) => "Moyen",
+            (Self::InspectorSmartLightingModeMedium, Language::En) => "Medium",
+            (Self::InspectorSmartLightingModeStrong, Language::Fr) => "Fort",
+            (Self::InspectorSmartLightingModeStrong, Language::En) => "Strong",
+            (Self::InspectorSmartLightingModeCustom, Language::Fr) => "Manuel",
+            (Self::InspectorSmartLightingModeCustom, Language::En) => "Custom",
+            (Self::InspectorSmartLightingIntensity, Language::Fr) => "Intensité",
+            (Self::InspectorSmartLightingIntensity, Language::En) => "Intensity",
+            (Self::InspectorSmartLightingShadowLift, Language::Fr) => "Débouchage ombres",
+            (Self::InspectorSmartLightingShadowLift, Language::En) => "Shadow Lift",
+            (Self::InspectorSmartLightingHighlightComp, Language::Fr) => {
+                "Compression hautes lumières"
+            }
+            (Self::InspectorSmartLightingHighlightComp, Language::En) => "Highlight Compression",
         }
     }
 }
@@ -1331,4 +1367,14 @@ pub const ALL_KEYS: &[Key] = &[
     Key::AboutCommit,
     Key::AboutBuildDate,
     Key::AboutClose,
+    Key::InspectorSmartLightingTitle,
+    Key::InspectorSmartLightingTooltip,
+    Key::InspectorSmartLightingModeOff,
+    Key::InspectorSmartLightingModeSlight,
+    Key::InspectorSmartLightingModeMedium,
+    Key::InspectorSmartLightingModeStrong,
+    Key::InspectorSmartLightingModeCustom,
+    Key::InspectorSmartLightingIntensity,
+    Key::InspectorSmartLightingShadowLift,
+    Key::InspectorSmartLightingHighlightComp,
 ];

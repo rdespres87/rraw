@@ -2,6 +2,25 @@
 
 ## Last Completed Milestone
 
+- **Phase 14.3 — Smart Lighting UI Inspector & Preset Integration (`rraw-app`)**:
+  - **Isolation stricte de la vue Avant / Après** : la texture de référence originale (`raw_original`) est forcée avec `smart_lighting.mode = Off` et `intensity = 0.0`. L'Avant représente fidèlement le capteur brut non retouché.
+  - **Résolution de la race condition de décodage asynchrone** : garde `is_still_active_target` empêchant un décodage tardif en tâche de fond d'écraser la photo actuellement sélectionnée lors d'une navigation rapide dans le filmstrip.
+  - **Filtrage des doublons dans le filmstrip** : puce `[ 📷 RAW (N) ]` affichée dès que des images non-RAW (JPG, PNG exportés) sont présentes dans le dossier pour les masquer en un clic.
+  - Integrated `smart_lighting` into `GradingRecipeClipboard` (`from_grading` / `apply_to_grading`), enabling full batch copy/paste across photos in the darkroom and filmstrip (`Cmd+Shift+C` / `Cmd+Shift+V` via Phase 12 model).
+  - Added 10 typed i18n keys in French and English (`InspectorSmartLightingTitle`, `InspectorSmartLightingTooltip`, `InspectorSmartLightingModeOff`, `InspectorSmartLightingModeSlight`, `InspectorSmartLightingModeMedium`, `InspectorSmartLightingModeStrong`, `InspectorSmartLightingModeCustom`, `InspectorSmartLightingIntensity`, `InspectorSmartLightingShadowLift`, `InspectorSmartLightingHighlightComp`).
+  - Added interactive Smart Lighting control card inside `DarkroomSection::ExposureTone`:
+    - Segmented mode buttons: `[ Désactivé | Léger | Moyen | Fort | Manuel ]`
+    - Intensity slider: 0 % à 100 % (avec normalisation bidirectionnelle fraction/pourcentage et auto-initialisation à 100% au basculement depuis `Off`)
+    - Mode personnalisé : curseurs fins de débouchage des ombres (0 % à 100 %) et de compression des hautes lumières (0 % à 100 %)
+  - Re-calibrated photographic dynamic range toe lift curve:
+    - Base metrics in stops-below-midtones $u = (\text{mid\_log} - b) / 6.0$ with $3.0 \cdot u^{0.65} \cdot (1 - 0.32u) \cdot \text{black\_taper}$.
+    - Rayon de filtre étendu (`8..=96`) et variance $\epsilon = 0.08$ éliminant les démarcations/halos sur les arêtes contrastées.
+    - Étalonnage des modes : `Slight` (+0.8 EV), `Medium` (+1.6 EV), `Strong` (+2.5 EV).
+    - Synchronized exact matching curve into GPU WGSL shader `stage5_color_laplacian.wgsl`.
+  - Wired section active detection (`is_section_active`) and reset to defaults (`reset_section` and `InspectorResetTone`).
+  - Added integration test suite `crates/rraw-app/tests/smart_lighting_ui_tests.rs` (3 tests: clipboard copy/paste, section activation/reset in ExposureTone, and i18n completeness).
+  - Verified with 229 unit and integration tests passing across 55 suites, 0 clippy warnings, and Qwen 3.6 35B local adversarial audit APPROVED.
+
 - **Phase 14.2 — Pipeline & GPU/CPU Integration (`rraw-gpu`, `rraw-app`)**:
   - Implemented Smart Lighting local tone mapping in Stage 5 compute WGSL shader (`crates/rraw-gpu/src/shaders/stage5_color_laplacian.wgsl`) with scale-invariant Laplacian pyramid base/detail decomposition ($N_{\text{effective}} = N_{\text{octaves}} - L$) and strict chromaticity preservation via AP1 luminance rescaling ($R/Y, G/Y, B/Y$ invariant).
   - Extended `Stage5Params` with `smart_lighting_shadow_lift`, `smart_lighting_highlight_compression`, and `with_smart_lighting` builder in `crates/rraw-gpu/src/stage5.rs`.

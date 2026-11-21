@@ -122,18 +122,20 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let d = log2(max(cur_luma, 1e-6)) - b;
         var b_mapped = b;
 
-        // Shadow lift (smooth quadratic rolloff below midtones with black floor preservation)
+        // Shadow lift (smooth toe lift below midtones with black floor preservation)
         if (b < mid_log && uniforms.smart_lighting_shadow_lift > 0.0) {
-            let t_shadow = clamp((mid_log - b) / (mid_log - floor_log), 0.0, 1.0);
+            let stops_below = max(mid_log - b, 0.0);
+            let t_shadow = clamp(stops_below / 6.0, 0.0, 1.0);
             let black_taper = clamp((b - floor_log) / 3.0, 0.0, 1.0);
-            let lift_delta = uniforms.smart_lighting_shadow_lift * 2.2 * t_shadow * (1.0 - 0.5 * t_shadow) * black_taper;
+            let lift_delta = uniforms.smart_lighting_shadow_lift * 3.0 * pow(t_shadow, 0.65) * (1.0 - 0.32 * t_shadow) * black_taper;
             b_mapped += lift_delta;
         }
 
         // Highlight compression (smooth shoulder rolloff above midtones)
         if (b > mid_log && uniforms.smart_lighting_highlight_compression > 0.0) {
-            let t_high = clamp((b - mid_log) / (ceil_log - mid_log), 0.0, 1.0);
-            let comp_delta = uniforms.smart_lighting_highlight_compression * 1.8 * t_high * (1.0 - 0.4 * t_high);
+            let stops_above = max(b - mid_log, 0.0);
+            let t_high = clamp(stops_above / max(ceil_log - mid_log, 1.0), 0.0, 1.0);
+            let comp_delta = uniforms.smart_lighting_highlight_compression * 1.6 * t_high * (1.0 - 0.3 * t_high);
             b_mapped -= comp_delta;
         }
 

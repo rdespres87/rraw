@@ -1664,6 +1664,7 @@ pub struct GradingRecipeClipboard {
     pub creative_vignette_midpoint: f32,
     pub creative_vignette_feather: f32,
     pub creative_vignette_roundness: f32,
+    pub smart_lighting: rraw_core::SmartLightingParams,
 }
 
 impl GradingRecipeClipboard {
@@ -1689,6 +1690,7 @@ impl GradingRecipeClipboard {
             creative_vignette_midpoint: grading.creative_vignette_midpoint,
             creative_vignette_feather: grading.creative_vignette_feather,
             creative_vignette_roundness: grading.creative_vignette_roundness,
+            smart_lighting: grading.smart_lighting.clone(),
         }
     }
 
@@ -1713,6 +1715,7 @@ impl GradingRecipeClipboard {
         grading.creative_vignette_midpoint = self.creative_vignette_midpoint;
         grading.creative_vignette_feather = self.creative_vignette_feather;
         grading.creative_vignette_roundness = self.creative_vignette_roundness;
+        grading.smart_lighting = self.smart_lighting.clone();
     }
 
     /// Formats a concise human-readable summary of the clipboard recipe.
@@ -1786,7 +1789,12 @@ impl Default for DarkroomGradingState {
             show_local_mask_overlay: None,
             active_brush_mask_idx: None,
             soft_proof: rraw_color::SoftProofConfig::default(),
-            smart_lighting: rraw_core::SmartLightingParams::default(),
+            smart_lighting: rraw_core::SmartLightingParams {
+                mode: rraw_core::SmartLightingMode::Slight,
+                intensity: 1.0,
+                custom_shadow_lift: 0.0,
+                custom_highlight_compression: 0.0,
+            },
         }
     }
 }
@@ -2022,6 +2030,7 @@ impl SidecarRecipe {
         grading.creative_vignette_midpoint = self.creative_vignette_midpoint;
         grading.creative_vignette_feather = self.creative_vignette_feather;
         grading.creative_vignette_roundness = self.creative_vignette_roundness;
+        grading.smart_lighting = self.smart_lighting.clone();
         grading.is_monochrome = self.is_monochrome;
         grading.tone_curves = self.tone_curves.clone();
         grading.semantic_masks = self.semantic_masks.clone();

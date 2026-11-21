@@ -26,6 +26,19 @@ pub fn aces_cg_luminance(rgb: [f32; 3]) -> f32 {
     AP1_LUMA_R * rgb[0] + AP1_LUMA_G * rgb[1] + AP1_LUMA_B * rgb[2]
 }
 
+/// Normalizes raw intensity into standard `[0.0, 1.0]` fraction.
+///
+/// Accepts both fraction `0.0..=1.0` and UI percentage `0.0..=100.0`.
+#[inline]
+#[must_use]
+pub fn normalize_intensity(raw: f32) -> f32 {
+    if raw > 1.0 {
+        (raw / 100.0).clamp(0.0, 1.0)
+    } else {
+        raw.clamp(0.0, 1.0)
+    }
+}
+
 /// Dynamic range percentiles extracted from scene luminance.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DynamicRangePercentiles {
@@ -336,11 +349,11 @@ pub fn analyze_scene_dynamic_range(
 
     // Recommended parameters tailored to scene classification
     let (recommended_shadow_lift, recommended_highlight_compression) = match scene_classification {
-        SceneClassification::Backlit => (0.65, 0.40),
-        SceneClassification::HighDynamicRange => (0.50, 0.55),
-        SceneClassification::LowKey => (0.35, 0.15),
-        SceneClassification::HighKey => (0.10, 0.50),
-        SceneClassification::Normal => (0.25, 0.20),
+        SceneClassification::Backlit => (0.85, 0.45),
+        SceneClassification::HighDynamicRange => (0.65, 0.60),
+        SceneClassification::LowKey => (0.45, 0.20),
+        SceneClassification::HighKey => (0.15, 0.55),
+        SceneClassification::Normal => (0.35, 0.25),
     };
 
     Ok(SceneDynamicRangeAnalysis {
@@ -376,24 +389,26 @@ pub fn apply_smart_lighting_acescg(
 
     let analysis = analyze_scene_dynamic_range(rgb_pixels, width, height)?;
 
+    let eff_intensity = normalize_intensity(params.intensity);
+
     // Resolve effective shadow lift and highlight compression amounts
     let (shadow_lift, highlight_compression) = match params.mode {
         SmartLightingMode::Off => (0.0, 0.0),
         SmartLightingMode::Slight => (
-            analysis.recommended_shadow_lift * 0.5 * params.intensity,
-            analysis.recommended_highlight_compression * 0.5 * params.intensity,
+            (analysis.recommended_shadow_lift * 0.9).max(0.60) * eff_intensity,
+            (analysis.recommended_highlight_compression * 0.9).max(0.35) * eff_intensity,
         ),
         SmartLightingMode::Medium => (
-            analysis.recommended_shadow_lift * 1.0 * params.intensity,
-            analysis.recommended_highlight_compression * 1.0 * params.intensity,
+            (analysis.recommended_shadow_lift * 1.5).max(1.05) * eff_intensity,
+            (analysis.recommended_highlight_compression * 1.4).max(0.65) * eff_intensity,
         ),
         SmartLightingMode::Strong => (
-            (analysis.recommended_shadow_lift * 1.5).min(1.0) * params.intensity,
-            (analysis.recommended_highlight_compression * 1.5).min(1.0) * params.intensity,
+            (analysis.recommended_shadow_lift * 2.2).max(1.55) * eff_intensity,
+            (analysis.recommended_highlight_compression * 2.0).max(0.95) * eff_intensity,
         ),
         SmartLightingMode::Custom => (
-            params.custom_shadow_lift * params.intensity,
-            params.custom_highlight_compression * params.intensity,
+            params.custom_shadow_lift * 1.8 * eff_intensity,
+            params.custom_highlight_compression * 1.6 * eff_intensity,
         ),
     };
 
@@ -412,8 +427,8 @@ pub fn apply_smart_lighting_acescg(
     }
 
     // Edge-preserving decomposition
-    let filter_radius = (width.min(height) / 32).clamp(4, 64);
-    let eps = 0.04; // ~0.2 EV variance in log2 domain
+    let filter_radius = (width.min(height) / 24).clamp(8, 96);
+    let eps = 0.08; // ~0.28 EV variance in log2 domain for smooth natural edge transitions
     let base_log = self_guided_filter(&log_luma, width, height, filter_radius, eps);
 
     let mid_log = MIDDLE_GRAY_LINEAR.log2(); // ~ -2.4739
@@ -425,18 +440,21 @@ pub fn apply_smart_lighting_acescg(
         let d = log_luma[i] - b;
         let mut b_mapped = b;
 
-        // Shadow lift (smooth quadratic rolloff below midtones with black floor preservation)
+        // Shadow lift (smooth toe lift below midtones with black floor preservation)
         if b < mid_log && shadow_lift > 0.0 {
-            let t_shadow = ((mid_log - b) / (mid_log - floor_log)).clamp(0.0, 1.0);
+            let stops_below = (mid_log - b).max(0.0);
+            let t_shadow = (stops_below / 6.0).clamp(0.0, 1.0);
             let black_taper = ((b - floor_log) / 3.0).clamp(0.0, 1.0);
-            let lift_delta = shadow_lift * 2.2 * t_shadow * (1.0 - 0.5 * t_shadow) * black_taper;
+            let lift_delta =
+                shadow_lift * 3.0 * t_shadow.powf(0.65) * (1.0 - 0.32 * t_shadow) * black_taper;
             b_mapped += lift_delta;
         }
 
         // Highlight compression (smooth shoulder rolloff above midtones)
         if b > mid_log && highlight_compression > 0.0 {
-            let t_high = ((b - mid_log) / (ceil_log - mid_log).max(0.5)).clamp(0.0, 1.0);
-            let comp_delta = highlight_compression * 1.8 * t_high * (1.0 - 0.4 * t_high);
+            let stops_above = (b - mid_log).max(0.0);
+            let t_high = (stops_above / (ceil_log - mid_log).max(1.0)).clamp(0.0, 1.0);
+            let comp_delta = highlight_compression * 1.6 * t_high * (1.0 - 0.3 * t_high);
             b_mapped -= comp_delta;
         }
 
