@@ -1226,35 +1226,6 @@ impl eframe::App for RrawApp {
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.heading("RRAW");
-
-                    ui.separator();
-
-                    // Compact FR | EN language toggle
-                    let cur_lang = self.layout_config.language;
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
-                        if ui
-                            .selectable_label(cur_lang == Language::Fr, "FR")
-                            .clicked()
-                            && cur_lang != Language::Fr
-                        {
-                            self.layout_config.language = Language::Fr;
-                            self.layout_config.save();
-                        }
-                        ui.label(egui::RichText::new("|").weak());
-                        if ui
-                            .selectable_label(cur_lang == Language::En, "EN")
-                            .clicked()
-                            && cur_lang != Language::En
-                        {
-                            self.layout_config.language = Language::En;
-                            self.layout_config.save();
-                        }
-                    });
-
-                    ui.separator();
-
                     if ui.button(self.t(Key::TopBarOpenImage)).clicked() {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter(
@@ -1511,6 +1482,30 @@ impl eframe::App for RrawApp {
                         }
                         ui.label(egui::RichText::new("·").weak());
                         ui.label(self.t(Key::StatusSurfaceInfo));
+                        ui.label(egui::RichText::new("·").weak());
+
+                        // Compact FR | EN language toggle
+                        let cur_lang = self.layout_config.language;
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
+                            if ui
+                                .selectable_label(cur_lang == Language::Fr, "FR")
+                                .clicked()
+                                && cur_lang != Language::Fr
+                            {
+                                self.layout_config.language = Language::Fr;
+                                self.layout_config.save();
+                            }
+                            ui.label(egui::RichText::new("|").weak());
+                            if ui
+                                .selectable_label(cur_lang == Language::En, "EN")
+                                .clicked()
+                                && cur_lang != Language::En
+                            {
+                                self.layout_config.language = Language::En;
+                                self.layout_config.save();
+                            }
+                        });
                     });
                 });
             });
