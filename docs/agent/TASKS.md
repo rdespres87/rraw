@@ -159,6 +159,63 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - 294 workspace tests passing across 65 suites, 0 clippy warnings under `-D warnings`, zero unwrap/expect in test and production code.
   - Adversarial local code audit APPROVED via Qwen 3.6 35B Inquisitor at 0 cloud tokens.
 
+---
+
+## Phase 17 — Sensor Fidelity, Dynamic CFA & True Multi-Format Export
+- [x] **Task 17.1 (`rraw-decode`)**: Dynamic CFA Pattern Resolution & Phase Alignment
+  - Query `raw_image.camera.cfa` from `rawler` and map dynamically to `CfaPattern::Bayer(Rggb | Bggr | Grbg | Gbrg)` or `CfaPattern::fujifilm_xtrans()`.
+  - Fix optical black margin cropping modulo alignment (modulo 6 for X-Trans, modulo 2 for Bayer) to preserve sensor phase (`align_crop_to_cfa_phase`).
+  - Eliminate hardcoded RGGB in `rraw-decode/src/lib.rs`.
+  - Dedicated unit test suite `crates/rraw-decode/tests/cfa_resolution_tests.rs` verifying channel assignment across all 4 Bayer variants and X-Trans (4 tests).
+  - 298 workspace tests passing across 66 suites, 0 clippy warnings under `-D warnings`, zero unwrap/expect in production code, Inquisitor APPROVED via Qwen 3.6 35B A3B.
+
+- [ ] **Task 17.2 (`rraw-core`)**: Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6)
+  - Replace naive `demosaic_bilinear` in `rraw-core/src/demosaic.rs` with an adaptive edge-aware algorithm (Markesteijn 1-pass variant) evaluating horizontal/vertical gradients on Green channels and reconstructing $(R-G)$ and $(B-G)$ chrominance.
+  - Siemens star synthetic test asserting PSNR > 38 dB on 6x6 X-Trans (preventing zipper artifacts and color bleeding).
+
+- [ ] **Task 17.3 (`rraw-export`, `rraw-app`)**: True AVIF HDR & Safe Multi-Format Batch Export
+  - Add `ravif` (or pure Rust avif encoder) to `rraw-export` for true 10-bit and 12-bit HDR AVIF encoding with BT.2020/Display-P3 profiles and ISO 21496-1 Gain Map support.
+  - Eliminate silent PNG fallback: reject unsupported formats cleanly with `ExportError::UnsupportedFormat`.
+  - Expose AVIF (10-bit / 12-bit HDR) in `rraw-app` UI export modal with bit-depth and quality sliders.
+
+---
+
+## Phase 18 — High-Performance Directory Session DAM (Option A: `.rraw/cache.db`)
+- [ ] **Task 18.1 (`rraw-storage`)**: Session-Mode SQLite Engine & High-Concurrency WAL Pragmas
+  - Add Session Mode to `SqliteDamIndex`: automatic creation/discovery of `.rraw/cache.db` within opened photo directories.
+  - Activate `PRAGMA journal_mode = WAL;`, `PRAGMA synchronous = NORMAL;`, `PRAGMA temp_store = MEMORY;` for lockless concurrent reads/writes.
+  - Implement incremental sync: index metadata and star/color ratings while keeping `.rraw.json` sidecars as the single source of truth.
+
+- [ ] **Task 18.2 (`rraw-app`)**: Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering
+  - Wire `SqliteDamIndex` into `LibraryController` in `rraw-app`.
+  - Background worker to scan/index directory EXIF tags into `.rraw/cache.db` on folder open without freezing the UI.
+  - Instant filmstrip filtering (< 1 ms on 5,000 photos) via indexed SQL queries (`DamFilter` by star rating, color label, pick status, camera, lens, focal length).
+  - Bidirectional sync: UI star rating and color label shortcuts write to both `.rraw/cache.db` and sidecar `.rraw.json`.
+
+---
+
+## Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database
+- [ ] **Task 19.1 (`rraw-optics`)**: Embedded & External Lensfun XML Database Engine
+  - Embed compressed official Lensfun XML catalog (> 1,000 lenses) into `rraw-optics` using pure Rust XML parser (`quick-xml` or `roxmltree`).
+  - Add search/discovery of local system database (`/usr/share/lensfun` on Linux, Homebrew on macOS, `~/Library/Application Support/rraw/lensfun/`).
+  - Dynamic interpolation of polynomial distortion, lateral TCA, and radial vignetting across focal length and aperture ranges.
+
+- [ ] **Task 19.2 (`rraw-optics`, `rraw-decode`)**: Tier 1 DNG Embedded Opcode Bridge & UI Profile Matching
+  - Bridge decoded DNG `WarpRectilinear` opcodes directly into Stage 4 `UvLutTable` grid.
+  - Add UI lens profile picker and manual override in `ui/sections/optics.rs` with fuzzy match confidence indicator and update check.
+
+---
+
+## Phase 20 — Native Apple Silicon Neural Engine Bridge (CoreML)
+- [ ] **Task 20.1 (`rraw-coreml` / `rraw-ai`)**: Hardware ANE Inference Bridge
+  - Isolate macOS CoreML Objective-C FFI in targeted safe wrapper (following `rraw-macos-edr` pattern with documented `// SAFETY:` blocks).
+  - Bind `MLModel` for 504x504 CFA RAW tile denoising on Apple Neural Engine (ANE) with zero-copy shared buffers.
+  - Implement 4-class semantic segmentation mask inference (`Subject`, `Sky`, `Background`, `Portrait`) replacing `synthetic_landscape()`.
+
+- [ ] **Task 20.2 (`rraw-app`, `rraw-gpu`)**: Interactive AI Masking & Real-Time Neural Denoising UI
+  - Connect real CoreML segmentation output to GPU Stage 6 mask blending pipeline.
+  - Add interactive toggle and progress feedback for ANE RAW denoising during preview and export.
+
 
 
 

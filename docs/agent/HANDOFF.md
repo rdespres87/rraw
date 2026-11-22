@@ -2,27 +2,25 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 16 — System Robustness, Concurrency Hardening & Controller Decomposition — ALL COMPLETE**:
-  - Toutes les tâches de la Phase 16 (16.1, 16.2, 16.3) sont terminées, vérifiées par 294 tests passants et auditées par l'auditeur local impitoyable à 0 token cloud.
-  - Consulter la roadmap générale ou le backlog produit pour les prochains développements ou améliorations de l'écosystème Rraw.
+- **Phase 17 — Sensor Fidelity, Dynamic CFA & True Multi-Format Export**:
+  - **Task 17.2 (`rraw-core`)**: Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6) — **READY FOR DEV**
+    - Replace naive `demosaic_bilinear` in `rraw-core/src/demosaic.rs` with an adaptive edge-aware algorithm (Markesteijn 1-pass variant) evaluating horizontal/vertical gradients on Green channels and reconstructing $(R-G)$ and $(B-G)$ chrominance.
+    - Siemens star synthetic test asserting PSNR > 38 dB on 6x6 X-Trans (preventing zipper artifacts and color bleeding).
+    - Zero token policy via local LM Studio Maker + Inquisitor, atomic commit gate.
 
 ---
 
 ## Last Completed Milestone
 
-- **Phase 16 — Task 16.3 End-to-End Stress Testing, Parity Verification & Phase 16 Closure (`rraw-app`)**:
-  - **Banc de tests de stress haute cadence** : `crates/rraw-app/tests/stress_concurrency_tests.rs` validant l'annulation par époque atomique sur 250 requêtes, le plafonnement strict à 256 textures VRAM sous 300 insertions, la navigation rapide au clavier sur 250 photos et l'application batch du presse-papiers sur 200 photos.
-  - **Conformité stricte craft & zero unwrap** : Aucun `.unwrap()` ni `.expect()`, propagation d'erreur idiomatique via `Result`.
-  - **294 tests passants across 65 suites, 0 clippy warnings**, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
-
----
-
-## Preceding Completed Milestone
-
-- **Phase 16 — Task 16.2 Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (`rraw-app`)**:
-  - **Éclatement du God Object `RrawApp`** : Décomposition des 73 champs en 5 contrôleurs de domaine étanches : `PhotoSession`, `ViewportController`, `LibraryController`, `ExportBatchController`, `BackgroundWorkers`.
-  - **Émancipation du borrow checker** : Structure de champs disjoints éliminant tout blocage d'emprunt mutable simultané dans les composants d'interface egui.
-  - **Suite de tests & Validation** : `crates/rraw-app/tests/controller_modularization_tests.rs` (5 tests), 289 tests passants across 64 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Phase 17 — Task 17.1 Dynamic CFA Pattern Resolution & Phase Alignment (`rraw-decode`) — COMPLETE**:
+  - **Résolution dynamique du motif CFA** : Détection et mapping automatique depuis `raw_image.camera.cfa` (`rawler`) vers `CfaPattern::Bayer(Rggb | Bggr | Grbg | Gbrg)` et `CfaPattern::fujifilm_xtrans()`.
+  - **Suppression du RGGB hardcodé** : Élimination du forçage RGGB aux lignes 102/118 de `rraw-decode/src/lib.rs`.
+  - **Alignement de phase lors du recadrage** : `align_crop_to_cfa_phase` préserve l'alignement modulo 6 (X-Trans) et modulo 2 (Bayer) avec clamping de sécurité saturé contre tout débordement.
+  - **Validation & Tests** : Suite de tests `cfa_resolution_tests.rs` (4 tests), 298 tests passants across 66 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+  - **Task 16.1 (`rraw-app`)** : Worker séquentiel de décodage avec annulation par époque atomique (`DecodeCoordinator`) et cache de miniatures borné à 256 textures (`LruThumbnailCache`). Commit `e38c4fd`.
+  - **Task 16.2 (`rraw-app`)** : Décomposition du God Object `RrawApp` en 5 contrôleurs de domaine étanches (`PhotoSession`, `ViewportController`, `LibraryController`, `ExportBatchController`, `BackgroundWorkers`). Commit `c2aa82a`.
+  - **Task 16.3 (`rraw-app`)** : Suite de stress haute contention `stress_concurrency_tests.rs` (250 photos, LRU 300, pool 8 threads, batch 200). Commit `f620ab4`.
+  - 294 tests passants across 65 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
 
 ---
 
