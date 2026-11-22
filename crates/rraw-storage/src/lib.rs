@@ -7,7 +7,7 @@ pub mod error;
 pub mod thumbnail;
 pub mod xmp;
 
-pub use dam::{DamFilter, DamPhotoRecord, SqliteDamIndex};
+pub use dam::{DamFilter, DamPhotoRecord, SqliteDamIndex, SyncAction};
 pub use error::StorageError;
 pub use thumbnail::{DiskThumbnailCache, ThumbnailSize};
 pub use xmp::XmpEditor;

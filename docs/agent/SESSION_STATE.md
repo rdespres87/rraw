@@ -4,14 +4,22 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 17 — Sensor Fidelity, Dynamic CFA & True Multi-Format Export — **ALL COMPLETE**
+- **Active Phase**: Phase 18 — High-Performance Directory Session DAM (Option A: `.rraw/cache.db`)
 - **Active Tasks**:
-  - Task 17.1: Dynamic CFA Pattern Resolution & Phase Alignment (`rraw-decode`) — **COMPLETE**
-  - Task 17.2: Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6) (`rraw-core`) — **COMPLETE**
-  - Task 17.3: True AVIF HDR & Safe Multi-Format Batch Export (`rraw-export`, `rraw-app`) — **COMPLETE**
-- **Next Phase**: Phase 18 — High-Performance Directory Session DAM (Option A: `.rraw/cache.db`)
-- **Last Verified Baseline**: 304 tests passants across 66 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 17 — Task 17.3 True AVIF HDR & Safe Multi-Format Batch Export **Complete**
+  - Task 18.1: Session-Mode SQLite Engine & High-Concurrency WAL Pragmas (`rraw-storage`) — **COMPLETE**
+  - Task 18.2: Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering (`rraw-app`) — **UP NEXT**
+- **Next Phase**: Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database
+- **Last Verified Baseline**: 309 tests passants across 67 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Phase 18 — Task 18.1 Session-Mode SQLite Engine & High-Concurrency WAL Pragmas **Complete**
+  - Implémentation du mode Session dans `SqliteDamIndex` : création/découverte automatique de `.rraw/cache.db` dans le dossier de photos ouvert.
+  - Activation des pragmas WAL et haute concurrence : `PRAGMA journal_mode = WAL;`, `PRAGMA synchronous = NORMAL;`, `PRAGMA temp_store = MEMORY;`, `PRAGMA busy_timeout = 5000;`.
+  - Prise en charge des sidecars `.rraw.json` comme unique source de vérité (`read_sidecar_overrides`) avec repli `.xmp`.
+  - Synchronisation incrémentale `sync_photo` (`SyncAction::Updated` / `SyncAction::Skipped`) basée sur `mtime` vs `updated_at`.
+  - Chemin rapide `sync_sidecar` pour propager instantanément les notes d'étoiles, labels de couleur et statuts de sélection sans redécodage des fichiers RAW.
+  - Sécurisation contre l'injection SQL sur l'interrogation des pragmas (`query_pragma_string`, `query_pragma_i64`).
+  - Suite de tests unitaires et de stress multi-threadée (`crates/rraw-storage/tests/session_dam_tests.rs`, 5 tests).
+  - 309 tests passants across 67 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 17 — Task 17.3 True AVIF HDR & Safe Multi-Format Batch Export **Complete**
   - Activation de la feature `avif` (`ravif`) dans `image` sous le `Cargo.toml` racine.
   - Implémentation de l'encodage réel AVIF (`image::codecs::avif::AvifEncoder`) dans `BatchExportQueue::process_single_job` pour `Avif10` et `Avif12`.
   - Élimination intégrale du fallback silencieux PNG au profit de la variante fortement typée `ExportError::UnsupportedFormat(String)`.

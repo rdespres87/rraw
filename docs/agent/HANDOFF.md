@@ -3,15 +3,27 @@
 ## Next Actionable Objective (Immediate Priority)
 
 - **Phase 18 — High-Performance Directory Session DAM (Option A: `.rraw/cache.db`)**:
-  - **Task 18.1 (`rraw-storage`)**: Session-Mode SQLite Engine & High-Concurrency WAL Pragmas — **READY FOR DEV**
-    - Implement Session Mode in `SqliteDamIndex`: discovery/creation of `.rraw/cache.db` in currently opened folder.
-    - Set WAL pragmas (`journal_mode = WAL`, `synchronous = NORMAL`, `temp_store = MEMORY`) for concurrent non-blocking reading and writing.
-    - Implement incremental metadata indexation preserving `.rraw.json` sidecars as the single source of truth.
-    - Unit tests for directory session database creation, schema migrations, and indexing.
+  - **Task 18.2 (`rraw-app`)**: Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering — **READY FOR DEV**
+    - Wire `SqliteDamIndex` into `LibraryController` in `rraw-app`.
+    - Background worker to scan/index directory EXIF tags into `.rraw/cache.db` on folder open without freezing the UI.
+    - Instant filmstrip filtering (< 1 ms on 5,000 photos) via indexed SQL queries (`DamFilter` by star rating, color label, pick status, camera, lens, focal length).
+    - Bidirectional sync: UI star rating and color label shortcuts write to both `.rraw/cache.db` and sidecar `.rraw.json`.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 18 — Task 18.1 Session-Mode SQLite Engine & High-Concurrency WAL Pragmas (`rraw-storage`) — COMPLETE**:
+  - **Session-Mode Database**: Automatic creation/discovery of `.rraw/cache.db` in currently opened folder via `SqliteDamIndex::open_session_database`.
+  - **High-Concurrency WAL Pragmas**: `journal_mode = WAL`, `synchronous = NORMAL`, `temp_store = MEMORY`, `busy_timeout = 5000`.
+  - **Sidecar Single Source of Truth**: `.rraw.json` sidecar takes precedence over RAW camera metadata for ratings, color labels, and pick flags (with `.xmp` fallback).
+  - **Incremental Sync**: `sync_photo` skips unchanged records based on `max(raw_mtime, sidecars_mtime)` vs `updated_at`.
+  - **Fast Sidecar Sync**: `sync_sidecar` updates database ratings in < 0.1 ms without RAW re-decoding.
+  - **Validation & Tests**: Dedicated test suite in `session_dam_tests.rs` (5 tests), 309 workspace tests passing across 67 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 17 — Sensor Fidelity, Dynamic CFA & True Multi-Format Export — ALL COMPLETE (Tasks 17.1, 17.2, 17.3)**:
   - **Task 17.1 (`rraw-decode`)** : Résolution dynamique du CFA (`rawler` -> `CfaPattern::Bayer` / `XTrans`) et alignement de phase modulo 6 / modulo 2 lors du recadrage. Commit `57c0c45`.

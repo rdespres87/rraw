@@ -186,10 +186,11 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 ---
 
 ## Phase 18 — High-Performance Directory Session DAM (Option A: `.rraw/cache.db`)
-- [ ] **Task 18.1 (`rraw-storage`)**: Session-Mode SQLite Engine & High-Concurrency WAL Pragmas
+- [x] **Task 18.1 (`rraw-storage`)**: Session-Mode SQLite Engine & High-Concurrency WAL Pragmas
   - Add Session Mode to `SqliteDamIndex`: automatic creation/discovery of `.rraw/cache.db` within opened photo directories.
-  - Activate `PRAGMA journal_mode = WAL;`, `PRAGMA synchronous = NORMAL;`, `PRAGMA temp_store = MEMORY;` for lockless concurrent reads/writes.
-  - Implement incremental sync: index metadata and star/color ratings while keeping `.rraw.json` sidecars as the single source of truth.
+  - Activate `PRAGMA journal_mode = WAL;`, `PRAGMA synchronous = NORMAL;`, `PRAGMA temp_store = MEMORY;`, `PRAGMA busy_timeout = 5000;` for lockless concurrent reads/writes.
+  - Implement incremental sync (`sync_photo`, `sync_sidecar`): index metadata and star/color ratings while keeping `.rraw.json` sidecars as the single source of truth.
+  - Dedicated unit and multi-threaded stress tests (`session_dam_tests.rs`). 309 workspace tests passing across 67 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
 - [ ] **Task 18.2 (`rraw-app`)**: Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering
   - Wire `SqliteDamIndex` into `LibraryController` in `rraw-app`.
