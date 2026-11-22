@@ -39,8 +39,9 @@ impl RrawApp {
                 ui.add_space(8.0);
 
                 egui::ScrollArea::vertical().max_height(480.0).show(ui, |ui| {
-                    let (sec_view, sec_nav, sec_batch, sec_files, sec_brush) = match lang {
-                        Language::Fr => (
+                    let is_es = matches!(lang, Language::Custom(code) if &code[..2] == b"es");
+                    let (sec_view, sec_nav, sec_batch, sec_files, sec_brush) = if lang == Language::Fr {
+                        (
                             &[
                                 ("Y", "Activer / désactiver la comparaison Avant | Après (séparateur déplaçable)"),
                                 ("D, P, \\", "Maintenir pour afficher l'image d'origine sans retouche (Before)"),
@@ -79,8 +80,50 @@ impl RrawApp {
                                 ("Clic gauche", "Peindre un trait de masque sur l'image"),
                                 ("Clic droit", "Gommer / effacer des portions du masque"),
                             ][..],
-                        ),
-                        _ => (
+                        )
+                    } else if is_es {
+                        (
+                            &[
+                                ("Y", "Activar / desactivar la vista dividida Antes | Después"),
+                                ("D, P, \\", "Mantener para ver la foto original sin retoques (Before)"),
+                                ("J", "Alternar advertencia de recorte (Azul = sombras, Rojo = altas luces)"),
+                                ("I", "Mostrar / ocultar HUD en imagen (parámetros de disparo y nota)"),
+                                ("F9", "Mostrar / ocultar tira de película inferior (Filmstrip)"),
+                                ("O", "Mostrar / ocultar superposición de color de máscaras locales"),
+                                ("Doble clic", "Alternar entre vista ajustada (Fit) y vista 1:1 (100%)"),
+                                ("Rueda", "Zoom centrado en la posición del cursor"),
+                                ("Espacio + Arrastre", "Mover la imagen (panorámica) en modo zoom"),
+                            ][..],
+                            &[
+                                ("◀ / ▶", "Foto anterior / siguiente en la carpeta"),
+                                ("PageUp / PageDown", "Salto rápido de fotos"),
+                                ("Inicio / Fin", "Primera / última foto de la carpeta"),
+                                ("0 a 5", "Asignar calificación de 0 a 5 estrellas (0 para borrar)"),
+                                ("Cmd + A", "Seleccionar / marcar todas las fotos para exportación por lote"),
+                                ("Cmd + D", "Deseleccionar todas las fotos del lote de exportación"),
+                                ("Espacio", "Añadir o quitar la foto activa del lote de exportación"),
+                                ("Shift + ◀/▶", "Navegar ampliando la selección múltiple"),
+                            ][..],
+                            &[
+                                ("Cmd + Shift + C", "Copiar ajustes de color y tono de la foto"),
+                                ("Cmd + Shift + V", "Pegar ajustes en la foto activa o selección"),
+                                ("Clic derecho", "Menú contextual en miniatura (Copiar / Pegar / Marcar)"),
+                            ][..],
+                            &[
+                                ("Cmd + O", "Abrir una foto RAW / TIFF"),
+                                ("Cmd + E", "Abrir el cuadro de diálogo de exportación (JPEG / TIFF / HDR)"),
+                                ("Escape", "Desactivar herramienta activa (pincel, recorte) o cerrar"),
+                                ("F1", "Abrir / cerrar esta guía de atajos de teclado"),
+                            ][..],
+                            &[
+                                ("[ / ]", "Reducir / aumentar el radio del pincel"),
+                                ("Alt + Rueda", "Ajustar rápidamente el radio del pincel"),
+                                ("Clic izquierdo", "Pintar un trazo de máscara en la imagen"),
+                                ("Clic derecho", "Borrar porciones de la máscara"),
+                            ][..],
+                        )
+                    } else {
+                        (
                             &[
                                 ("Y", "Toggle Before | After split comparison (movable divider)"),
                                 ("D, P, \\", "Hold to preview untouched camera original (Before)"),
@@ -118,7 +161,7 @@ impl RrawApp {
                                 ("Left click", "Paint mask stroke onto image"),
                                 ("Right click", "Erase mask strokes from image"),
                             ][..],
-                        ),
+                        )
                     };
 
                     render_section(ui, "sec_view", self.t(Key::ShortcutsSectionView), sec_view);

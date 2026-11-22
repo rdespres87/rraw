@@ -22,8 +22,8 @@ pub fn render(
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if (denoise_sharpen.color_denoise - 25.0).abs() > 0.1
                 && ui
-                    .small_button("Auto (25)")
-                    .on_hover_text("Rétablir la valeur automatique recommandée")
+                    .small_button(t(Key::DetailAutoDenoise))
+                    .on_hover_text(t(Key::DetailAutoDenoiseTooltip))
                     .clicked()
             {
                 denoise_sharpen.color_denoise = 25.0;
@@ -39,9 +39,7 @@ pub fn render(
                 .show_value(true)
                 .suffix("%"),
         )
-        .on_hover_text(
-            "Supprime les marbrures et tavelures colorées (magenta/vertes) sans flouter les détails nets",
-        );
+        .on_hover_text(t(Key::DetailChromaTooltip));
     if r_cd.changed() {
         out.mark_custom_preset = true;
         out.needs_preview_update = true;
@@ -56,9 +54,7 @@ pub fn render(
                 .show_value(true)
                 .suffix("%"),
         )
-        .on_hover_text(
-            "Lisse le grain noir et blanc dans les aplats tout en préservant le micro-contraste des contours",
-        );
+        .on_hover_text(t(Key::DetailLumaTooltip));
     if r_ld.changed() {
         out.mark_custom_preset = true;
         out.needs_preview_update = true;

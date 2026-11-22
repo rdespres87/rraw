@@ -33,7 +33,7 @@ pub fn render(
         {
             let count = local_masks.len() + 1;
             local_masks.push(LocalMaskLayer::new_linear(
-                format!("Linéaire {count}"),
+                format!("{} {count}", t(Key::MaskLinearPrefix)),
                 [0.5, 0.0],
                 [0.5, 0.45],
             ));
@@ -47,7 +47,7 @@ pub fn render(
         {
             let count = local_masks.len() + 1;
             local_masks.push(LocalMaskLayer::new_radial(
-                format!("Radial {count}"),
+                format!("{} {count}", t(Key::MaskRadialPrefix)),
                 [0.5, 0.5],
                 [0.3, 0.3],
             ));
@@ -62,7 +62,7 @@ pub fn render(
         {
             let count = local_masks.len() + 1;
             local_masks.push(LocalMaskLayer::new_brush(
-                format!("Pinceau {count}"),
+                format!("{} {count}", t(Key::MaskBrushPrefix)),
                 0.08,
                 0.65,
             ));
@@ -314,7 +314,7 @@ pub fn render(
                                             .show_value(true)
                                             .custom_formatter(|n, _| format!("{:.0}%", n * 100.0)),
                                     )
-                                    .on_hover_text("Intensité de chaque coup de pinceau")
+                                    .on_hover_text(t(Key::MaskBrushFlowTooltip))
                                     .changed()
                                 {
                                     changed = true;
@@ -323,28 +323,26 @@ pub fn render(
                             ui.horizontal(|ui| {
                                 let is_erase = *erase_mode;
                                 if ui
-                                    .selectable_label(!is_erase, "🖌️ Peindre")
-                                    .on_hover_text(
-                                        "Mode application : ajoute de la matière au masque",
-                                    )
+                                    .selectable_label(!is_erase, "🖌️")
+                                    .on_hover_text(t(Key::MaskBrushPaintTooltip))
                                     .clicked()
                                 {
                                     *erase_mode = false;
                                 }
                                 if ui
-                                    .selectable_label(is_erase, "🧹 Gommer")
-                                    .on_hover_text("Mode gomme : soustrait du masque")
+                                    .selectable_label(is_erase, "🧹")
+                                    .on_hover_text(t(Key::MaskBrushEraseTooltip))
                                     .clicked()
                                 {
                                     *erase_mode = true;
                                 }
                                 ui.add_space(8.0);
                                 let dab_count = dabs.len();
-                                ui.label(format!("({dab_count} traits)"));
+                                ui.label(format!("({dab_count})"));
                                 if dab_count > 0
                                     && ui
-                                        .small_button("🗑️ Vider")
-                                        .on_hover_text("Effacer tous les traits de ce pinceau")
+                                        .small_button("🗑️")
+                                        .on_hover_text(t(Key::MaskBrushClearTooltip))
                                         .clicked()
                                 {
                                     dabs.clear();
@@ -395,9 +393,9 @@ pub fn render(
                 egui::RichText::new(label.to_string())
             };
             let tooltip = if exists {
-                "Cliquer pour décocher et retirer ce masque IA"
+                t(Key::MaskAiDeselectTooltip)
             } else {
-                "Cliquer pour cocher et activer ce masque IA"
+                t(Key::MaskAiSelectTooltip)
             };
             if ui
                 .selectable_label(exists, btn_text)
@@ -458,7 +456,7 @@ pub fn render(
                     }
 
                     if ui
-                        .checkbox(&mut layer.invert, "Inverser")
+                        .checkbox(&mut layer.invert, t(Key::InspectorParamInvertMask))
                         .on_hover_text(t(Key::InspectorAiInvertTooltip))
                         .changed()
                     {

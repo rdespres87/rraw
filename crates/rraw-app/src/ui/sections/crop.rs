@@ -30,11 +30,14 @@ pub fn render(
         ui.horizontal(|ui| {
             ui.label(t(Key::InspectorParamCropRatio));
             egui::ComboBox::from_id_salt("crop_ratio_select")
-                .selected_text(geometry.crop_aspect.label())
+                .selected_text(geometry.crop_aspect.label_lang(cur_lang))
                 .show_ui(ui, |ui| {
                     for ratio in CropAspectRatio::ALL {
                         let is_sel = geometry.crop_aspect == ratio;
-                        if ui.selectable_label(is_sel, ratio.label()).clicked() {
+                        if ui
+                            .selectable_label(is_sel, ratio.label_lang(cur_lang))
+                            .clicked()
+                        {
                             geometry.crop_aspect = ratio;
                             let (orig_w, orig_h) = if let Some(dims) = photo_dimensions {
                                 (dims.0 as f32, dims.1 as f32)
@@ -108,11 +111,9 @@ pub fn render(
         }
 
         ui.label(
-            egui::RichText::new(
-                "💡 Ajustez le cadre à la souris sur la photo puis cliquez sur Valider.",
-            )
-            .small()
-            .color(Color32::GRAY),
+            egui::RichText::new(t(Key::CropHint))
+                .small()
+                .color(Color32::GRAY),
         );
     }
 

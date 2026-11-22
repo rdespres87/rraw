@@ -4,25 +4,22 @@
 
 - **Phase 15 — Architectural Hardening: State De-Obesity, UI Modularization & Scalable i18n — ALL COMPLETE**:
   - **Task 15.1 (`rraw-core` & `rraw-app`)**: State De-Obesity & Domain Hierarchy — **COMPLETE** (commit `5b57ead`).
-  - **Task 15.2 (`rraw-app`)**: Monolithic File & Function Decomposition — **COMPLETE**:
-    - Étape 1 : **TERMINÉE** (`inspector.rs` découpé en 11 sous-modules sous `ui/sections/`, commit `1aec13c`).
-    - Étape 2 : **TERMINÉE** (`viewport.rs` 1 231 lignes découpé en 6 sous-modules sous `ui/viewport/`, commit `ca37430`).
-    - Étape 3 : **TERMINÉE** (`preview.rs` 2 264 lignes découpé en 5 sous-modules sous `preview/`, commit `a61361a`).
-  - **Task 15.3 (`rraw-app`)**: Scalable External Resource-Based i18n Engine — **COMPLETE**:
-    - Découplage complet des traductions du code source Rust via catalogues JSON externes sous `assets/i18n/`.
-    - Architecture modulaire `key.rs`, `language.rs`, `catalog.rs`, `engine.rs`, `mod.rs`.
-    - Découverte zero-code dynamique au démarrage depuis `assets/i18n` et `~/.config/rraw/i18n`.
-    - Zéro allocation heap ($O(1)$ direct par index de tableau `Box<[&'static str; Key::COUNT]>`) pendant la boucle de rendu 120 Hz Metal.
-    - 275 tests passants across 62 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B.
+  - **Task 15.2 (`rraw-app`)**: Monolithic File & Function Decomposition — **COMPLETE** (commits `1aec13c`, `ca37430`, `a61361a`).
+  - **Task 15.3 (`rraw-app`)**: Scalable External Resource-Based i18n Engine — **COMPLETE** (commit `d157587` + suivi garde-fous / chaînes en dur).
+    - Découplage complet des traductions du code source Rust via catalogues JSON externes sous `assets/i18n/` (375 clés i18n).
+    - Élimination de 100% des chaînes en dur restantes dans l'interface et complétion de l'espagnol à 100%.
+    - Garde-fous anti-débordement de panneau (`.truncate()`, dimensions proportionnelles, test automatisé de budget de caractères).
+    - 276 tests passants across 62 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
 ---
 
 ## Last Completed Milestone
 
-- **Phase 15 — Task 15.3: Scalable External Resource-Based i18n Engine (`rraw-app`)**:
-  - Remplacement du match codé en dur de 1 380 lignes par `I18nEngine` et catalogues externes `fr.json`, `en.json`, `es.json`.
-  - Intégration du sélecteur dynamique dans la barre d'état et persistance automatique dans `layout.json`.
-  - Validation complète par tests unitaires `i18n_catalog_tests.rs` et suite workspace (275 tests, 0 warning clippy).
+- **Phase 15 — Task 15.3 Follow-up: Hardcoded Strings Elimination, 100% Spanish Completion & Character Budget Guardrails (`rraw-app`)**:
+  - Remplacement de toutes les chaînes d'interface résiduelles codées en dur par des clés i18n (`Key::...`).
+  - Ajout du dialogue complet des raccourcis clavier en espagnol et traduction de tous les presets et masques sémantiques.
+  - Implémentation du test de budget de caractères `test_i18n_character_budget_guardrails` pour prévenir tout bris d'UI.
+  - 276 tests passants across 62 suites, 0 warning clippy, audit local Inquisitor APPROVED.
 
 ---
 

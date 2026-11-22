@@ -5,6 +5,7 @@
 use egui::{Color32, Painter, Pos2, Rect, Response, Stroke, Ui, Vec2};
 
 use crate::grading::GeometryGradingParams;
+use crate::i18n::{Key, Language};
 use crate::state::ParallelToolPhase;
 use crate::ui::sections::geometry::ParallelLinesToolState;
 
@@ -25,6 +26,7 @@ pub fn handle_parallel_lines_tool(
     available_rect: Rect,
     tool_state: &mut ParallelLinesToolState<'_>,
     geometry: &mut GeometryGradingParams,
+    cur_lang: Language,
 ) -> PerspectiveToolOutput {
     let mut out = PerspectiveToolOutput::default();
     if *tool_state.phase == ParallelToolPhase::Inactive {
@@ -34,13 +36,10 @@ pub fn handle_parallel_lines_tool(
     ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
 
     let instruction = match *tool_state.phase {
-        ParallelToolPhase::DrawingLine1 => {
-            "Glissez pour tracer la 1ère référence verticale (Ligne 1)"
+        ParallelToolPhase::DrawingLine1 => Key::GeometryParallelStatus1.translate(cur_lang),
+        ParallelToolPhase::WaitingLine2 | ParallelToolPhase::DrawingLine2 => {
+            Key::GeometryParallelStatus2.translate(cur_lang)
         }
-        ParallelToolPhase::WaitingLine2 => {
-            "Ligne 1 validée. Glissez maintenant pour tracer la 2ème référence (Ligne 2)"
-        }
-        ParallelToolPhase::DrawingLine2 => "Tracez la 2ème référence verticale...",
         _ => "",
     };
     painter.rect_filled(
@@ -66,7 +65,7 @@ pub fn handle_parallel_lines_tool(
         painter.text(
             (p1 + p2.to_vec2()) * 0.5 + Vec2::new(10.0, 0.0),
             egui::Align2::LEFT_CENTER,
-            "Ligne 1",
+            Key::GeometryLine1Label.translate(cur_lang),
             egui::FontId::proportional(13.0),
             Color32::WHITE,
         );
@@ -133,8 +132,10 @@ pub fn handle_parallel_lines_tool(
                             out.needs_preview_update = true;
                             out.save_sidecar = true;
                             *tool_state.status_message = format!(
-                                "Perspective redressée : Keystone V {:.1}, Rotation {:.1}°",
-                                keystone, rotation
+                                "{} : Keystone V {:.1}, Rotation {:.1}°",
+                                Key::GeometryAdjustedStatus.translate(cur_lang),
+                                keystone,
+                                rotation
                             );
                         }
                         *tool_state.phase = ParallelToolPhase::Inactive;

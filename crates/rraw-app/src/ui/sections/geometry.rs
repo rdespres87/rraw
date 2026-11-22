@@ -40,11 +40,18 @@ pub fn render(
     if geometry.geometry_enabled {
         let is_parallel_active = *tool_state.phase != ParallelToolPhase::Inactive;
         let parallel_btn_label = if is_parallel_active {
-            "📐 2 Lignes Parallèles (Actif - Glissez sur la photo)"
+            t(Key::GeometryParallelBtnActive)
         } else {
-            "📐 Tracer 2 lignes parallèles (Perspective)"
+            t(Key::GeometryParallelBtn)
         };
-        let btn = ui.selectable_label(is_parallel_active, parallel_btn_label);
+        let btn = ui
+            .add_sized(
+                [ui.available_width(), 24.0],
+                egui::Button::new(parallel_btn_label)
+                    .selected(is_parallel_active)
+                    .truncate(),
+            )
+            .on_hover_text(parallel_btn_label);
         if btn.clicked() {
             if is_parallel_active {
                 *tool_state.phase = ParallelToolPhase::Inactive;
@@ -56,8 +63,7 @@ pub fn render(
                 *tool_state.line1 = None;
                 *tool_state.line2 = None;
                 *tool_state.drag_start = None;
-                *tool_state.status_message =
-                    "Glissez sur la photo pour tracer la 1ère référence verticale".to_string();
+                *tool_state.status_message = t(Key::GeometryParallelStatus1).to_string();
             }
         }
 
@@ -91,7 +97,13 @@ pub fn render(
             ui.ctx().request_repaint();
         }
 
-        if ui.button(t(Key::InspectorResetGeometry)).clicked() {
+        if ui
+            .add_sized(
+                [ui.available_width(), 22.0],
+                egui::Button::new(t(Key::InspectorResetGeometry)).truncate(),
+            )
+            .clicked()
+        {
             geometry.keystone_vertical = 0.0;
             geometry.keystone_horizontal = 0.0;
             geometry.rotation_degrees = 0.0;

@@ -107,6 +107,8 @@ impl RrawApp {
             });
 
             let mut remove_lut = false;
+            let remove_lut_tooltip = self.t(Key::PresetsRemoveLutTooltip);
+            let lut_intensity_label = self.t(Key::PresetsLutIntensity);
             if let Some(clut) = &mut self.grading.custom_clut {
                 ui.add_space(2.0);
                 ui.horizontal(|ui| {
@@ -118,7 +120,7 @@ impl RrawApp {
                     );
                     if ui
                         .small_button("✖")
-                        .on_hover_text("Retirer cette LUT 3D")
+                        .on_hover_text(remove_lut_tooltip)
                         .clicked()
                     {
                         remove_lut = true;
@@ -128,7 +130,7 @@ impl RrawApp {
                 if !remove_lut {
                     let mut pct = clut.strength * 100.0;
                     if ui
-                        .add(egui::Slider::new(&mut pct, 0.0..=100.0).text("Intensité %"))
+                        .add(egui::Slider::new(&mut pct, 0.0..=100.0).text(lut_intensity_label))
                         .changed()
                     {
                         clut.strength = pct / 100.0;

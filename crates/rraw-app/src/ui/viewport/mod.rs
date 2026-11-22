@@ -348,6 +348,8 @@ impl RrawApp {
                 }
             }
 
+            let cur_lang = self.lang();
+
             // Interactive mouse cropping
             if self.grading.geometry.crop_enabled && self.is_crop_editing {
                 let mut crop_state = crop_overlay::CropToolState {
@@ -362,6 +364,7 @@ impl RrawApp {
                     available_rect,
                     preview_rect,
                     &mut crop_state,
+                    cur_lang,
                 );
                 if crop_out.needs_preview_update {
                     self.needs_preview_update = true;
@@ -387,6 +390,7 @@ impl RrawApp {
                     available_rect,
                     &mut tool_state,
                     &mut self.grading.geometry,
+                    cur_lang,
                 );
                 if p_out.mark_custom_preset {
                     self.grading.preset = GradingPreset::Custom;

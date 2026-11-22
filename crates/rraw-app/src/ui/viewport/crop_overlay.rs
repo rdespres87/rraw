@@ -5,6 +5,7 @@
 use egui::{Color32, Painter, Pos2, Rect, Response, Stroke, StrokeKind, Ui, Vec2};
 
 use crate::grading::GeometryGradingParams;
+use crate::i18n::{Key, Language};
 use crate::state::CropDragHandle;
 
 /// Output result from crop overlay interactions.
@@ -30,6 +31,7 @@ pub fn handle_crop_overlay(
     available_rect: Rect,
     preview_rect: Rect,
     tool_state: &mut CropToolState<'_>,
+    cur_lang: Language,
 ) -> CropOverlayOutput {
     let geometry = &mut *tool_state.geometry;
     let is_crop_editing = &mut *tool_state.is_crop_editing;
@@ -460,7 +462,7 @@ pub fn handle_crop_overlay(
     painter.text(
         banner_rect.center() - Vec2::new(35.0, 0.0),
         egui::Align2::CENTER_CENTER,
-        "✂️ Ajustez le cadre (Entrée pour valider)",
+        Key::CropOverlayBanner.translate(cur_lang),
         egui::FontId::proportional(12.0),
         Color32::WHITE,
     );
@@ -486,7 +488,7 @@ pub fn handle_crop_overlay(
     painter.text(
         val_btn_rect.center(),
         egui::Align2::CENTER_CENTER,
-        "✓ Valider",
+        Key::CropOverlayValidate.translate(cur_lang),
         egui::FontId::proportional(11.0),
         Color32::WHITE,
     );

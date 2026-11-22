@@ -9,6 +9,7 @@
 
 use egui::{Context, Pos2, Rect, Vec2};
 use rraw_app::grading::GeometryGradingParams;
+use rraw_app::i18n::Language;
 use rraw_app::state::{CropDragHandle, ParallelToolPhase};
 use rraw_app::ui::sections::geometry::ParallelLinesToolState;
 use rraw_app::ui::viewport::{brush_overlay, crop_overlay, hud, perspective_tools, split_compare};
@@ -83,6 +84,7 @@ fn test_crop_overlay_handles_inactive() {
             available_rect,
             preview_rect,
             &mut tool_state,
+            Language::Fr,
         );
         assert!(!out.needs_preview_update);
         assert!(!out.save_sidecar);
@@ -121,6 +123,7 @@ fn test_perspective_tools_inactive() {
             available_rect,
             &mut tool_state,
             &mut geom,
+            Language::Fr,
         );
         assert!(!out.mark_custom_preset);
         assert!(!out.needs_preview_update);

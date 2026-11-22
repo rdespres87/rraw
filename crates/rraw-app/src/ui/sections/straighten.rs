@@ -34,19 +34,41 @@ pub fn render(
     }
 
     ui.horizontal(|ui| {
-        if ui.button(t(Key::InspectorResetAngle)).clicked() {
+        let btn_w = ((ui.available_width() - 8.0) / 3.0).floor().max(40.0);
+        if ui
+            .add_sized(
+                [btn_w, 22.0],
+                egui::Button::new(t(Key::InspectorResetAngle)).truncate(),
+            )
+            .on_hover_text(t(Key::InspectorResetAngle))
+            .clicked()
+        {
             geometry.rotation_degrees = 0.0;
             out.mark_custom_preset = true;
             out.needs_preview_update = true;
             ui.ctx().request_repaint();
         }
-        if ui.button(t(Key::InspectorRotate90Left)).clicked() {
+        if ui
+            .add_sized(
+                [btn_w, 22.0],
+                egui::Button::new(t(Key::InspectorRotate90Left)).truncate(),
+            )
+            .on_hover_text(t(Key::InspectorRotate90Left))
+            .clicked()
+        {
             geometry.rotation_degrees = (geometry.rotation_degrees - 90.0).clamp(-45.0, 45.0);
             out.mark_custom_preset = true;
             out.needs_preview_update = true;
             ui.ctx().request_repaint();
         }
-        if ui.button(t(Key::InspectorRotate90Right)).clicked() {
+        if ui
+            .add_sized(
+                [btn_w, 22.0],
+                egui::Button::new(t(Key::InspectorRotate90Right)).truncate(),
+            )
+            .on_hover_text(t(Key::InspectorRotate90Right))
+            .clicked()
+        {
             geometry.rotation_degrees = (geometry.rotation_degrees + 90.0).clamp(-45.0, 45.0);
             out.mark_custom_preset = true;
             out.needs_preview_update = true;
@@ -59,7 +81,14 @@ pub fn render(
     } else {
         t(Key::StraightenHorizonDraw)
     };
-    let horizon_btn = ui.selectable_label(*horizon_tool_active, horizon_btn_text);
+    let horizon_btn = ui
+        .add_sized(
+            [ui.available_width(), 24.0],
+            egui::Button::new(horizon_btn_text)
+                .selected(*horizon_tool_active)
+                .truncate(),
+        )
+        .on_hover_text(horizon_btn_text);
     if horizon_btn.clicked() {
         *horizon_tool_active = !*horizon_tool_active;
         *horizon_start_point = None;

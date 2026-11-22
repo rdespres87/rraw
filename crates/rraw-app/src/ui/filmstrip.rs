@@ -121,15 +121,15 @@ impl RrawApp {
                     );
 
                     if ui
-                        .small_button("Tout cocher")
-                        .on_hover_text("Sélectionner toutes les photos pour l'export par lot")
+                        .small_button(self.t(Key::FilmstripSelectAll))
+                        .on_hover_text(self.t(Key::FilmstripSelectAllTooltip))
                         .clicked()
                     {
                         for entry in &self.directory_entries {
                             self.selected_photos.insert(entry.clone());
                         }
                     }
-                    if sel_count > 0 && ui.small_button("Tout décocher").clicked() {
+                    if sel_count > 0 && ui.small_button(self.t(Key::FilmstripDeselectAll)).clicked() {
                         self.selected_photos.clear();
                     }
                     if let Some(photo) = &self.loaded_photo {

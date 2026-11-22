@@ -68,10 +68,11 @@ pub fn render(
 
     ui.add_space(2.0);
     if ui
-        .checkbox(&mut soft_proof.simulate_paper_and_ink, "Simuler papier et encre")
-        .on_hover_text(
-            "Simule la teinte chaude du papier coton/baryté (Dmin) et la réflectance minimale de l'encre noire (Dmax)",
+        .checkbox(
+            &mut soft_proof.simulate_paper_and_ink,
+            t(Key::InspectorParamSoftProofPaper),
         )
+        .on_hover_text(t(Key::TopBarPaperInkTooltip))
         .changed()
     {
         sp_changed = true;

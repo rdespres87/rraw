@@ -9,8 +9,15 @@
   - Task 15.1: State De-Obesity & Domain Hierarchy (`rraw-core` & `rraw-app`) — **COMPLETE**
   - Task 15.2: Monolithic File & Function Decomposition (`rraw-app`) — **COMPLETE** (Inspector, Viewport, and Preview decomposed into modular sub-packages)
   - Task 15.3: Scalable External Resource-Based i18n Engine (`rraw-app`) — **COMPLETE**
-- **Last Verified Baseline**: 275 tests passants across 62 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Preceding Milestone**: Phase 15 — Task 15.3: Scalable External Resource-Based i18n Engine **Complete**
+- **Last Verified Baseline**: 276 tests passants across 62 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Phase 15 — Task 15.3 Follow-up: Hardcoded Strings Elimination, 100% Spanish Completion & Character Budget Guardrails **Complete**
+  - Élimination de 100% des chaînes en dur restantes dans l'interface utilisateur (`geometry.rs`, `perspective_tools.rs`, `crop_overlay.rs`, `crop.rs`, `detail_denoise.rs`, `soft_proofing.rs`, `masks.rs`, `presets.rs`, `shortcuts.rs`, `filmstrip.rs`, `tone_curves.rs`, `state.rs`).
+  - Ajout de 49 nouvelles clés typées dans l'enum `Key` et les catalogues (`fr.json`, `en.json`, `es.json`), portant le total à 375 clés i18n exhaustives.
+  - Traduction espagnole (`assets/i18n/es.json`) complétée à 100%, incluant la boîte de dialogue de raccourcis clavier (`shortcuts.rs`) et les descriptions complètes de presets argentiques (`state.rs`).
+  - Implémentation d'un double garde-fou contre les ruptures de mise en page dans le panneau inspecteur (360 px) :
+    1. Troncature et dimensionnement proportionnel explicite (`.truncate()`, `btn_w = ((ui.available_width() - 8.0) / 3.0).floor().max(40.0)`) dans `straighten.rs` et `geometry.rs`.
+    2. Test de régression automatisé `test_i18n_character_budget_guardrails` dans `tests/i18n_catalog_tests.rs` validant les budgets de caractères (max 15 caractères pour boutons en ligne triple, max 15 pour titres de familles courts, max 28 pour boutons d'actions compacts) sur toutes les langues enregistrées.
+  - 276 tests passants across 62 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
   - Remplacement du match monolithique codé en dur de 1 380 lignes dans `crates/rraw-app/src/i18n/mod.rs` par une architecture de catalogage externe scalable sous `assets/i18n/` :
     - Catalogues par défaut `fr.json` (326 clés), `en.json` (326 clés) et catalogue d'extension `es.json` (Espagnol).
     - `crates/rraw-app/src/i18n/key.rs` (1 367 lignes) : 326 clés typées `Key`, indexation $O(1)$ directe, conversion bidirectionnelle.

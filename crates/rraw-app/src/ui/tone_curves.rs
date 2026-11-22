@@ -375,7 +375,7 @@ impl RrawApp {
                     );
                 } else {
                     ui.label(
-                        egui::RichText::new("Survolez ou glissez pour ajuster")
+                        egui::RichText::new(self.t(crate::i18n::Key::ToneCurvesHoverPrompt))
                             .small()
                             .color(Color32::from_rgb(120, 128, 142)),
                     );
@@ -387,8 +387,8 @@ impl RrawApp {
             // 6. Action controls (Reset buttons)
             ui.horizontal(|ui| {
                 if ui
-                    .button("↺ Réinitialiser canal")
-                    .on_hover_text("Réinitialise la courbe du canal actif en ligne droite")
+                    .button(self.t(crate::i18n::Key::InspectorResetTone))
+                    .on_hover_text(self.t(crate::i18n::Key::InspectorResetTone))
                     .clicked()
                 {
                     *self.active_curve_mut() = ChannelCurve::new_linear();
@@ -397,8 +397,8 @@ impl RrawApp {
                 }
 
                 if ui
-                    .button("Tout réinitialiser")
-                    .on_hover_text("Réinitialise toutes les courbes RVB et Luma")
+                    .button(self.t(crate::i18n::Key::ToneCurvesResetAll))
+                    .on_hover_text(self.t(crate::i18n::Key::ToneCurvesResetAllTooltip))
                     .clicked()
                 {
                     self.grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();

@@ -9,7 +9,7 @@ use rraw_app::RrawApp;
 #[test]
 fn test_all_keys_resolve_non_empty_strings_in_all_languages() {
     for &lang in &Language::ALL {
-        for &key in ALL_KEYS {
+        for key in ALL_KEYS {
             let translated = key.translate(lang);
             assert!(
                 !translated.trim().is_empty(),

@@ -45,17 +45,12 @@ impl CurveChannel {
 
     #[must_use]
     pub fn label_lang(self, lang: Language) -> &'static str {
-        match (self, lang) {
-            (Self::CombinedRgb, Language::Fr) => "RVB",
-            (Self::CombinedRgb, _) => "RGB",
-            (Self::Red, Language::Fr) => "Rouge",
-            (Self::Red, _) => "Red",
-            (Self::Green, Language::Fr) => "Vert",
-            (Self::Green, _) => "Green",
-            (Self::Blue, Language::Fr) => "Bleu",
-            (Self::Blue, _) => "Blue",
-            (Self::Luma, Language::Fr) => "Luminance",
-            (Self::Luma, _) => "Luma",
+        match self {
+            Self::CombinedRgb => Key::CurveChannelRgb.translate(lang),
+            Self::Red => Key::CurveChannelRed.translate(lang),
+            Self::Green => Key::CurveChannelGreen.translate(lang),
+            Self::Blue => Key::CurveChannelBlue.translate(lang),
+            Self::Luma => Key::CurveChannelLuma.translate(lang),
         }
     }
 }
@@ -117,16 +112,21 @@ impl CropAspectRatio {
     ];
 
     #[must_use]
-    pub const fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
+        self.label_lang(Language::Fr)
+    }
+
+    #[must_use]
+    pub fn label_lang(self, lang: Language) -> &'static str {
         match self {
-            Self::Free => "Libre",
-            Self::Original => "Original",
-            Self::Square1x1 => "1:1 (Carré)",
-            Self::Ratio3x2 => "3:2 (35mm)",
-            Self::Ratio4x3 => "4:3 (M4/3)",
-            Self::Ratio16x9 => "16:9 (Cinéma)",
-            Self::Ratio5x4 => "5:4 (Grand format)",
-            Self::Ratio9x16 => "9:16 (Story)",
+            Self::Free => Key::CropRatioFree.translate(lang),
+            Self::Original => Key::CropRatioOriginal.translate(lang),
+            Self::Square1x1 => Key::CropRatioSquare.translate(lang),
+            Self::Ratio3x2 => Key::CropRatio3x2.translate(lang),
+            Self::Ratio4x3 => Key::CropRatio4x3.translate(lang),
+            Self::Ratio16x9 => Key::CropRatio16x9.translate(lang),
+            Self::Ratio5x4 => Key::CropRatio5x4.translate(lang),
+            Self::Ratio9x16 => Key::CropRatio9x16.translate(lang),
         }
     }
 
@@ -243,14 +243,12 @@ impl ExportScaleMode {
     /// Language-aware display label for export scale mode.
     #[must_use]
     pub fn label_lang(&self, lang: Language) -> &'static str {
-        match (self, lang) {
-            (Self::Original, Language::Fr) => "100% (Pleine résolution)",
-            (Self::Original, _) => "100% (Full resolution)",
-            (Self::Percent75, _) => "75%",
-            (Self::Percent50, _) => "50%",
-            (Self::FitLongEdge2048, Language::Fr) => "2048 px (Format Web optimal)",
-            (Self::FitLongEdge2048, _) => "2048 px (Optimal Web size)",
-            (Self::FitLongEdge3840, _) => "3840 px (4K UHD)",
+        match self {
+            Self::Original => Key::ExportScaleOriginal.translate(lang),
+            Self::Percent75 => "75%",
+            Self::Percent50 => "50%",
+            Self::FitLongEdge2048 => Key::ExportScale2048.translate(lang),
+            Self::FitLongEdge3840 => "3840 px (4K UHD)",
         }
     }
 }
@@ -566,8 +564,10 @@ impl GradingPreset {
 
     #[must_use]
     pub fn name_lang(self, lang: Language) -> &'static str {
+        let is_es = matches!(lang, Language::Custom(code) if &code[..2] == b"es");
         match (self, lang) {
             (Self::AsShot, Language::Fr) => "À la prise de vue (D'origine)",
+            (Self::AsShot, _) if is_es => "Al disparar (Original)",
             (Self::AsShot, _) => "As Shot (Camera Original)",
             (Self::DaylightPunch, _) => "Daylight Punch (+0.3 EV, 5600K)",
             (Self::PortraitSoft, _) => "Portrait Soft (+0.6 EV, 5200K)",
@@ -584,12 +584,16 @@ impl GradingPreset {
             (Self::KodakPortra400, _) => "Kodak Portra 400",
             (Self::FujiVelvia50, _) => "Fujifilm Velvia 50",
             (Self::KodakTriX400, Language::Fr) => "Kodak Tri-X 400 (N&B)",
+            (Self::KodakTriX400, _) if is_es => "Kodak Tri-X 400 (B&N)",
             (Self::KodakTriX400, _) => "Kodak Tri-X 400 (B&W)",
             (Self::IlfordHp5, Language::Fr) => "Ilford HP5 Plus (N&B)",
+            (Self::IlfordHp5, _) if is_es => "Ilford HP5 Plus (B&N)",
             (Self::IlfordHp5, _) => "Ilford HP5 Plus (B&W)",
             (Self::SepiaVintage, Language::Fr) => "Sépia Vintage (Virage chaud)",
+            (Self::SepiaVintage, _) if is_es => "Sepia Vintage (Virado cálido)",
             (Self::SepiaVintage, _) => "Sepia Vintage (Warm Toning)",
             (Self::Custom, Language::Fr) => "Personnalisé",
+            (Self::Custom, _) if is_es => "Personalizado",
             (Self::Custom, _) => "Custom",
         }
     }
@@ -601,6 +605,7 @@ impl GradingPreset {
 
     #[must_use]
     pub fn description_lang(self, lang: Language) -> &'static str {
+        let is_es = matches!(lang, Language::Custom(code) if &code[..2] == b"es");
         if lang == Language::Fr {
             match self {
                 Self::AsShot => "Réglages d'origine du boîtier sans retouche",
@@ -654,6 +659,42 @@ impl GradingPreset {
                     "Virage au sulfure d'époque : ombres chaudes brun-chocolat & hautes lumières ambrées"
                 }
                 Self::Custom => "Réglages personnalisés par l'utilisateur",
+            }
+        } else if is_es {
+            match self {
+                Self::AsShot => "Ajustes originales de la cámara sin edición",
+                Self::DaylightPunch => "Contraste dinámico y sombras realzadas para luz diurna",
+                Self::PortraitSoft => "Tono suave, tonos de piel cálidos y contraste atenuado",
+                Self::CinematicAgX => {
+                    "Rendimiento cinematográfico analógico con compresión suave de altas luces"
+                }
+                Self::MonochromeFineArt => "Blanco y negro artístico profundo y modelado fino",
+                Self::LandscapeVivid => "Colores ricos, sombras abiertas y nitidez para paisajes",
+                Self::GoldenHourWarmth => "Luz dorada del atardecer (6300K) y sombras cálidas",
+                Self::MoodyMatte => "Ambiente cinematográfico mate, negros ligeramente elevados",
+                Self::HighKeyAiry => {
+                    "Tonalidad luminosa, sobreexposición controlada y tonos etéreos"
+                }
+                Self::StreetContrastBW => "Blanco y negro urbano contundente, alto microcontraste",
+                Self::VintageFilm => "Grano y pátina analógica vintage, viñeteado pronunciado",
+                Self::NightAstro => {
+                    "Cielo nocturno clarificado (4200K), reducción de ruido por ondículas"
+                }
+                Self::FujiClassicChrome => {
+                    "Rendimiento documental suave, sombras densas, saturación atenuada"
+                }
+                Self::KodakPortra400 => {
+                    "Colores pastel, tonos de piel favorecedores, sombras abiertas"
+                }
+                Self::FujiVelvia50 => {
+                    "Diapositiva mítica de saturación viva, negros profundos y cielos intensos"
+                }
+                Self::KodakTriX400 => "Blanco y negro clásico de fotoperiodismo, contraste firme",
+                Self::IlfordHp5 => "Blanco y negro analógico de gran latitud, gradaciones sutiles",
+                Self::SepiaVintage => {
+                    "Virado clásico al sulfuro: sombras cálidas marrón chocolate y luces ámbar"
+                }
+                Self::Custom => "Ajustes personalizados por el usuario",
             }
         } else {
             match self {
@@ -1138,15 +1179,13 @@ impl SemanticMaskLayer {
         category: rraw_core::SemanticMaskCategory,
         lang: Language,
     ) -> &'static str {
-        match (category, lang) {
-            (rraw_core::SemanticMaskCategory::Subject, Language::Fr) => "🧍 Sujet",
-            (rraw_core::SemanticMaskCategory::Subject, _) => "🧍 Subject",
-            (rraw_core::SemanticMaskCategory::Sky, Language::Fr) => "☁️ Ciel",
-            (rraw_core::SemanticMaskCategory::Sky, _) => "☁️ Sky",
-            (rraw_core::SemanticMaskCategory::Background, Language::Fr) => "🏞️ Arrière-plan",
-            (rraw_core::SemanticMaskCategory::Background, _) => "🏞️ Background",
-            (rraw_core::SemanticMaskCategory::Portrait, Language::Fr) => "👤 Portrait (Peau)",
-            (rraw_core::SemanticMaskCategory::Portrait, _) => "👤 Portrait (Skin)",
+        match category {
+            rraw_core::SemanticMaskCategory::Subject => Key::SemanticMaskSubject.translate(lang),
+            rraw_core::SemanticMaskCategory::Sky => Key::SemanticMaskSky.translate(lang),
+            rraw_core::SemanticMaskCategory::Background => {
+                Key::SemanticMaskBackground.translate(lang)
+            }
+            rraw_core::SemanticMaskCategory::Portrait => Key::SemanticMaskPortrait.translate(lang),
         }
     }
 }
