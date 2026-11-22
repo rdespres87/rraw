@@ -109,12 +109,14 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - TDD test suite `state_de_obesity_tests.rs` passing, 247 workspace tests passing, 0 clippy warnings, Qwen 3.6 35B Inquisitor APPROVED.
 
 - [ ] **Task 15.2 (`rraw-app`)**: Monolithic File & Function Decomposition
-  - Decompose `crates/rraw-app/src/ui/inspector.rs` (2,087 lines) & `render_darkroom_section` (1,773 lines) into isolated modular submodules under `crates/rraw-app/src/ui/sections/`:
-    - `sections/exposure_tone.rs`, `sections/white_balance.rs`, `sections/optics.rs`, `sections/denoise_sharpen.rs`, `sections/geometry.rs`, `sections/smart_lighting.rs`, `sections/curves.rs`, `sections/soft_proofing.rs`.
+  - [x] Step 1: Decompose `crates/rraw-app/src/ui/inspector.rs` (2,087 lines down to 420 lines) & `render_darkroom_section` (1,773 lines) into isolated modular submodules under `crates/rraw-app/src/ui/sections/`:
+    - `sections/exposure_tone.rs`, `sections/white_balance.rs`, `sections/optics.rs`, `sections/detail_denoise.rs`, `sections/geometry.rs`, `sections/crop.rs`, `sections/straighten.rs`, `sections/masks.rs`, `sections/soft_proofing.rs`, `sections/timelapse.rs`, `sections/mod.rs`.
     - Enforce the principle of least privilege: each section widget accepts only its specific domain parameter struct (e.g. `&mut ToneGradingParams`) rather than `&mut RrawApp` or full grading state.
-  - Decompose `crates/rraw-app/src/ui/viewport.rs` (1,231 lines) & `render_central_viewport` (1,134 lines) into modular subcomponents:
+    - Encapsulate perspective tool state in `ParallelLinesToolState` eliminating `clippy::too_many_arguments`.
+    - Dedicated test suite `crates/rraw-app/tests/section_modularization_tests.rs` (10 tests) passing, Inquisitor APPROVED.
+  - [ ] Step 2: Decompose `crates/rraw-app/src/ui/viewport.rs` (1,231 lines) & `render_central_viewport` (1,134 lines) into modular subcomponents:
     - `viewport/canvas.rs`, `viewport/hud.rs`, `viewport/split_compare.rs`, `viewport/overlay_masks.rs`, `viewport/navigation.rs`.
-  - Decompose `crates/rraw-app/src/preview.rs` (2,264 lines) into dedicated processing layers:
+  - [ ] Step 3: Decompose `crates/rraw-app/src/preview.rs` (2,264 lines) into dedicated processing layers:
     - `preview/pipeline.rs` (rendering execution), `preview/cache.rs` (MRU & texture pooling), `preview/masks.rs` (local adjustments evaluation).
 
 - [ ] **Task 15.3 (`rraw-app`)**: Scalable External Resource-Based i18n Engine

@@ -7,14 +7,15 @@
 - **Active Phase**: Phase 15 — Architectural Hardening: State De-Obesity, UI Modularization & Scalable i18n
 - **Active Tasks**:
   - Task 15.1: State De-Obesity & Domain Hierarchy (`rraw-core` & `rraw-app`) — **COMPLETE**
-  - Task 15.2: Monolithic File & Function Decomposition (`rraw-app`) — **NEXT**
+  - Task 15.2: Monolithic File & Function Decomposition (`rraw-app`) — **IN PROGRESS** (Inspector modularized into `ui/sections/`, 1,645 lines pruned from `inspector.rs` ; Viewport & Preview modularization next)
   - Task 15.3: Scalable External Resource-Based i18n Engine (`rraw-app`)
-- **Last Verified Baseline**: 247 tests passants across 58 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Preceding Milestone**: Phase 15 — Task 15.1: State De-Obesity & Domain Hierarchy **Complete**
-  - Éclatement de `DarkroomGradingState` (57 champs plats réduits à 15 champs modulaires) en 5 sous-structures de domaine cohésives sous `crates/rraw-app/src/grading/` : `ToneGradingParams`, `ColorGradingParams`, `DenoiseSharpenParams`, `OpticsGradingParams`, `GeometryGradingParams`.
-  - Préservation intégrale de la rétrocompatibilité ascendante et descendante des recettes sidecars `.rraw.json` via Serde `#[serde(flatten)]` sur `SidecarRecipe` sans aucune collision de noms de champs.
-  - Migration intégrale des call sites dans `inspector.rs`, `viewport.rs`, `preview.rs`, `export.rs`, `app.rs` et les suites de tests.
-  - Suite de tests TDD `state_de_obesity_tests.rs` validée, 247/247 tests passants, 0 avertissement clippy, Inquisitor APPROVED via Qwen 3.6 35B.
+- **Last Verified Baseline**: 257 tests passants across 59 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Preceding Milestone**: Phase 15 — Task 15.2 Part 1: Inspector UI Modularization **Complete**
+  - Décomposition de la fonction monolithique `render_darkroom_section` (1 773 lignes) : `inspector.rs` passe de 2 089 à 420 lignes.
+  - Création de 11 sous-modules modulaires sous `crates/rraw-app/src/ui/sections/` (`exposure_tone`, `white_balance`, `detail_denoise`, `optics`, `soft_proofing`, `crop`, `straighten`, `geometry`, `masks`, `timelapse`, `mod`).
+  - Application stricte du principe de moindre privilège (chaque vue ne reçoit que sa sous-structure de domaine plutôt que `&mut RrawApp` ou l'état global).
+  - Regroupement des paramètres du trapèze dans `ParallelLinesToolState` (résolution de `clippy::too_many_arguments`).
+  - Suite de tests `section_modularization_tests.rs` validée (10 tests), 257/257 tests passants dans le workspace, 0 avertissement clippy, Inquisitor APPROVED via Qwen 3.6 35B.
 - **Preceding Milestone**: Phase 14 — Smart Lighting & Adaptive Dynamic Range (Scene-Aware Local Tone Mapping) **Complete**
   - Filmstrip RAW Filter Persistence Across Sessions (`rraw-app`): **Complete** (Persistance de la préférence utilisateur `raw_only_filter: Option<bool>` dans `AppLayoutConfig` et `layout.json` ; respect de la préférence au démarrage et lors de l'ouverture de dossiers au lieu de forcer inconditionnellement `raw_count > 0` ; mise à jour immédiate lors du clic sur le chip `📷 RAW` et lors de l'ouverture explicite d'un raster non-RAW ; rétrocompatibilité serde `#[serde(default)]` ; suite de tests `filmstrip_filter_tests.rs` à 103 tests passants dans `rraw-app`, Inquisitor APPROVED via Qwen 3.6 35B, 0 warning clippy, commit `cd840aa`)
   - Filmstrip RAW Filter Synchronization & Startup Photo Selection (`rraw-app`): **Complete** (Correction du chargement initial et du filtrage RAW : `matches_active_filter` et `first_filtered_entry` garantissent que le démarrage, l'ouverture de dossier et les basculements de filtres ouvrent systématiquement le premier fichier RAW valide au lieu d'un fichier PNG/JPG présent dans le dossier ou conservé dans `last_open_photo` ; désactivation automatique du filtre `raw_only_filter` lors de l'ouverture explicite d'un fichier matriciel JPG/PNG ; synchronisation dynamique de la photo active lors du basculement des filtres d'étoiles ou RAW ; suite de tests dédiée `filmstrip_filter_tests.rs` à 101 tests passants dans `rraw-app`, Inquisitor APPROVED via Qwen 3.6 35B, 0 warning clippy)
