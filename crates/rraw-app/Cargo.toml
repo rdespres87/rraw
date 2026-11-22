@@ -23,6 +23,7 @@ rraw-ai.workspace = true
 rraw-storage.workspace = true
 rraw-export.workspace = true
 rraw-macos-edr.workspace = true
+rraw-coreml.workspace = true
 glam.workspace = true
 image.workspace = true
 rayon.workspace = true

@@ -2,7 +2,8 @@
 
 //! AI semantic segmentation masks inference and local adjustment evaluation.
 
-use rraw_ai::{CoreMlSemanticSegmenter, SemanticMaskSet, SemanticSegmenter};
+use rraw_ai::{SemanticMaskSet, SemanticSegmenter};
+use rraw_coreml::AneSemanticSegmenter;
 
 use crate::state::{LocalMaskLayer, SemanticMaskLayer};
 
@@ -49,7 +50,7 @@ pub fn infer_preview_semantic_masks(
         }
     }
 
-    let segmenter = CoreMlSemanticSegmenter::new();
+    let segmenter = AneSemanticSegmenter::new();
     let masks = segmenter
         .segment_rgb(&cal_rgb, sem_w, sem_h)
         .unwrap_or_else(|_| SemanticMaskSet {

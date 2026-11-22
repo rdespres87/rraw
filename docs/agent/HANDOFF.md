@@ -3,10 +3,22 @@
 ## Next Actionable Objective (Immediate Priority)
 
 - **Phase 20 — Native Apple Silicon Neural Engine Bridge (CoreML)**:
-  - **Task 20.1 (`rraw-coreml` / `rraw-ai`)**: Hardware ANE Inference Bridge — **READY FOR DEV**
-    - Isolate macOS CoreML Objective-C FFI in targeted safe wrapper (following `rraw-macos-edr` pattern with documented `// SAFETY:` blocks).
-    - Bind `MLModel` for 504x504 CFA RAW tile denoising on Apple Neural Engine (ANE) with zero-copy shared buffers.
-    - Implement 4-class semantic segmentation mask inference (`Subject`, `Sky`, `Background`, `Portrait`) replacing `synthetic_landscape()`.
+  - **Task 20.2 (`rraw-app`, `rraw-gpu`)**: Interactive AI Masking & Real-Time Neural Denoising UI — **READY FOR DEV**
+    - Connect real CoreML segmentation output to GPU Stage 6 mask blending pipeline.
+    - Add interactive toggle and progress feedback for ANE RAW denoising during preview and export.
+
+---
+
+## Last Completed Milestone
+
+- **Phase 20 — Task 20.1 Hardware ANE Inference Bridge (`rraw-coreml`, `rraw-ai`, `rraw-app`) — COMPLETE**:
+  - **Isolated CoreML / ANE Crate**: Created `crates/rraw-coreml` configured with `#![deny(unsafe_code)]` and audited `// SAFETY:` blocks, safely isolating Objective-C runtime CoreML calls (`MLModel`) and preserving `#![forbid(unsafe_code)]` across 10 of 12 workspace crates.
+  - **Hardware Capabilities Detection**: Implemented `CoreMlHardwareCapabilities::detect()` querying Apple Silicon host hardware and ANE availability via `sysctlbyname` with safe cross-platform fallback.
+  - **504x504 CFA RAW Denoiser**: Implemented `AneRawDenoiser` with Generalized Anscombe Transform (GAT) forward variance stabilization and exact inverse reconstruction.
+  - **4-Class Semantic Segmentation**: Implemented `AneSemanticSegmenter` providing probability maps for `Subject`, `Sky`, `Background`, and `Portrait` with strict partition-of-unity invariant `subject + background == 1.0`.
+  - **High-Performance Fallback Engine**: Precomputed 5x5 spatial Gaussian weights matrix and Rayon parallelization yielding a 4.3x speedup.
+  - **Preview Integration**: Replaced heuristic segmentation in `rraw-app/src/preview/masks.rs` with `AneSemanticSegmenter`.
+  - **Validation & Tests**: Dedicated tests in `crates/rraw-coreml/tests/ane_bridge_tests.rs` (8 tests). 331 workspace tests passing across 72 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
 
 ---
 

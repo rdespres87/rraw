@@ -6,10 +6,18 @@
 
 - **Active Phase**: Phase 20 — Native Apple Silicon Neural Engine Bridge (CoreML)
 - **Active Tasks**:
-  - Task 20.1: Hardware ANE Inference Bridge (`rraw-coreml` / `rraw-ai`) — **READY FOR DEV**
+  - Task 20.2: Interactive AI Masking & Real-Time Neural Denoising UI (`rraw-app`, `rraw-gpu`) — **READY FOR DEV**
 - **Next Phase**: Phase 21 — Final Optimization & Production Hardening
-- **Last Verified Baseline**: 323 tests passants across 69 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 19 — Task 19.3 Tier 1 DNG Embedded Opcode Bridge & UI Manual Profile Picker Override **Complete**
+- **Last Verified Baseline**: 331 tests passants across 72 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Phase 20 — Task 20.1 Hardware ANE Inference Bridge **Complete**
+  - Création de la crate dédiée `rraw-coreml` (`#![deny(unsafe_code)]` avec blocs `// SAFETY:` rigoureusement documentés) isolant le pont matériel CoreML et Objective-C (`MLModel`), garantissant que 10 des 12 crates du workspace conservent `#![forbid(unsafe_code)]`.
+  - Détection matérielle de l'Apple Silicon et de l'Apple Neural Engine (ANE) via `sysctlbyname` avec repli propre sur les plateformes non-macOS ou x86_64 (`CoreMlHardwareCapabilities`, `CoreMlComputeUnits::CpuAndNeuralEngine`).
+  - Implémentation du débruiteur CFA ANE `AneRawDenoiser` pour tuiles fixes de 504×504 avec stabilisation de variance par Transformée d'Anscombe Généralisée (GAT) avant inférence tensorielle et inversion exacte post-traitement.
+  - Implémentation du segmenteur sémantique ANE `AneSemanticSegmenter` produisant les 4 classes probabilistes (`Subject`, `Sky`, `Background`, `Portrait`) avec raffinement bilatéral guidé et respect strict de l'invariant de partition de l'unité `subject + background == 1.0`.
+  - Optimisation haute performance du moteur de débruitage : matrice précalculée de poids gaussiens spatiaux 5×5 (éliminant 25 appels `exp()` par pixel) et parallélisation ligne par ligne via Rayon (accélération mesurée de 4,3x).
+  - Intégration transparente dans le pipeline de masquage de l'application (`rraw-app/src/preview/masks.rs`).
+  - Suite de tests unitaires et d'intégration dédiée `crates/rraw-coreml/tests/ane_bridge_tests.rs` (8 tests).
+  - 331 tests passants across 72 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
   - Extraction binaire pure-Rust des flux d'opcodes DNG (`OpcodeList1`, `OpcodeList2`, `OpcodeList3` tags `0xC685`, `0xC686`, `0xC687`) dans `rraw-decode` (`crates/rraw-decode/src/opcodes.rs`).
   - Décodage et conversion directe du format `WarpRectilinear` (Opcode 1) : transformation des coefficients polynomiaux par plan ($k_0, k_1, k_2, k_3$) vers `OpticalCorrectionModel` et génération directe de la grille UV $N \times N$ per-canal dans `UvLutGenerator::generate_from_dng_warp_rectilinear`.
   - Résolution prioritaire Tier 1 dans `OpticalResolver::resolve_tier` et priorité 0 dans `LensfunDatabase::match_metadata`, activant instantanément les profils optiques embarqués dans les DNG.

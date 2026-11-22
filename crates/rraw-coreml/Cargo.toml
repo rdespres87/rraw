@@ -1,0 +1,20 @@
+[package]
+name = "rraw-coreml"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Isolated macOS CoreML / Apple Neural Engine (ANE) hardware bridge"
+
+[dependencies]
+rraw-core.workspace = true
+rraw-ai.workspace = true
+thiserror.workspace = true
+rayon.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-foundation = "0.3.2"
+
+[lints]
+workspace = true

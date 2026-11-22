@@ -10,6 +10,7 @@ members = [
     "crates/rraw-storage",
     "crates/rraw-export",
     "crates/rraw-macos-edr",
+    "crates/rraw-coreml",
     "crates/rraw-cli",
     "crates/rraw-app",
 ]
@@ -55,6 +56,7 @@ rraw-ai = { path = "crates/rraw-ai" }
 rraw-storage = { path = "crates/rraw-storage" }
 rraw-export = { path = "crates/rraw-export" }
 rraw-macos-edr = { path = "crates/rraw-macos-edr" }
+rraw-coreml = { path = "crates/rraw-coreml" }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff", "avif"] }
 
 [profile.dev.package.rawler]

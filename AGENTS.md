@@ -21,6 +21,6 @@ Before working on the codebase, review the domain-specific documentation:
 ## 2. Project-Specific Constraints (Rraw Only)
 
 - **Language Mandate**: 100% English repository (code, comments, tests, commit messages, and docs).
-- **`unsafe` Isolation (`E0453` Compliant)**: 10 of 11 crates enforce `#![forbid(unsafe_code)]`. Only `rraw-macos-edr` uses targeted `#[allow(unsafe_code)]` with documented `// SAFETY:` comments.
+- **`unsafe` Isolation (`E0453` Compliant)**: 10 of 12 crates enforce `#![forbid(unsafe_code)]`. Only `rraw-macos-edr` and `rraw-coreml` use targeted `#[allow(unsafe_code)]` with documented `// SAFETY:` comments.
 - **Pure-Rust Parsing**: No C/C++ parser bindings (`libraw`, `exiv2` are forbidden). All file parsing (TIFF, ISOBMFF, DNG opcodes, Lensfun) must be pure safe Rust.
 - **GPU Testing**: Offscreen headless execution via `GpuContext::new_headless()`.
