@@ -3,13 +3,25 @@
 ## Next Actionable Objective (Immediate Priority)
 
 - **Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database**:
-  - **Task 19.2 (`rraw-optics`, `rraw-decode`)**: Tier 1 DNG Embedded Opcode Bridge & UI Profile Matching — **READY FOR DEV**
+  - **Task 19.3 (`rraw-optics`, `rraw-app`)**: Tier 1 DNG Embedded Opcode Bridge & UI Manual Profile Picker Override — **READY FOR DEV**
     - Bridge decoded DNG `WarpRectilinear` opcodes directly into Stage 4 `UvLutTable` grid.
     - Add UI lens profile picker and manual override in `ui/sections/optics.rs` with fuzzy match confidence indicator and update check.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 19 — Task 19.2 Universal MakerNotes Lens ID Resolution & Multilingual EXIF Localization (`rraw-decode`, `rraw-app`) — COMPLETE**:
+  - **Universal MakerNote Parser**: Implemented in `crates/rraw-decode/src/makernotes.rs` extracting vendor MakerNote tags from native RAW and DNG PrivateData (Pentax `0x003F` `LensRec`, Sony `0x0102`, Canon `0x0016`, Nikon `0x0084`).
+  - **Zero Manual Effort Automatic Recognition**: Cross-references `rawler::lens::LensResolver` and 15,000+ lens database with camera make, mount (`k-mount`, `e-mount`, etc.), focal length, and aperture to identify third-party lenses (Sigma, Tamron) automatically.
+  - **EXIF & Lensfun Auto-Activation**: Automatically populates `PhotoMetadata.lens_model` and `Lens Model` EXIF tag, automatically activating the calibrated Lensfun profile. Added `sanitize_lens_name` to eliminate duplicate manufacturer prefixes.
+  - **Multilingual EXIF Localization**: Full dictionary support in `assets/i18n/{fr,en,es}.json` and `crates/rraw-app/src/i18n/` with 62 new typed keys for tags and enum values in FR/EN/ES (zero heap allocation during render loop).
+  - **Clean Monoline UI**: Filtered redundant tags already displayed in the top summary card, enforced uniform single-line height with `.truncate()` and full hover tooltips.
+  - **Validation & Tests**: Tests in `decode_tests.rs`, `i18n_tests.rs`, `i18n_catalog_tests.rs`, 319 workspace tests passing across 69 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 19 — Task 19.1 Embedded & External Lensfun XML Database Engine (`rraw-optics`) — COMPLETE**:
   - **Embedded Official Catalog**: Compressed database of > 1,500 lenses (511 KB gzip) embedded in `crates/rraw-optics/data/lensfun_database.xml.gz`.

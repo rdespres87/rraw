@@ -7,10 +7,20 @@
 - **Active Phase**: Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database
 - **Active Tasks**:
   - Task 19.1: Embedded & External Lensfun XML Database Engine (`rraw-optics`) — **COMPLETE**
-  - Task 19.2: Tier 1 DNG Embedded Opcode Bridge & UI Profile Matching (`rraw-optics`, `rraw-decode`) — **READY FOR DEV**
+  - Task 19.2: Universal MakerNotes Lens ID Resolution (`rraw-decode`) — **COMPLETE**
+  - Task 19.3: Tier 1 DNG Embedded Opcode Bridge & UI Manual Profile Picker Override (`rraw-optics`, `rraw-app`) — **READY FOR DEV**
 - **Next Phase**: Phase 20 — Native Apple Silicon Neural Engine Bridge (CoreML)
-- **Last Verified Baseline**: 316 tests passants across 69 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 19 — Task 19.1 Embedded & External Lensfun XML Database Engine **Complete**
+- **Last Verified Baseline**: 319 tests passants across 69 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Phase 19 — Task 19.2 Universal MakerNotes Lens ID Resolution & Multilingual EXIF Engine **Complete**
+  - Décodage universel des MakerNotes dans `rraw-decode` (`crates/rraw-decode/src/makernotes.rs`).
+  - Extraction transparente du tag `0x003F` (`LensRec`) Pentax/Ricoh depuis les fichiers PEF et DNG (`DNGPrivateData` `0xC634`), ainsi que des MakerNotes Sony (`0x0102`), Canon (`0x0016`) et Nikon (`0x0084`).
+  - Résolution et désambiguïsation automatique avec `rawler::lens::LensResolver` et la base de 15 000+ objectifs par monture (`k-mount`, `e-mount`, `ef-mount`, etc.), focale et ouverture (identifie automatiquement les objectifs tiers Sigma, Tamron, etc.).
+  - Assainissement systématique des préfixes constructeur dupliqués (`sanitize_lens_name` : ex. "Sigma Sigma 18-35mm" -> "Sigma 18-35mm").
+  - Intégration multilingue complète dans le système i18n officiel (`assets/i18n/{fr,en,es}.json`) : 62 nouvelles clés typées couvrant l'ensemble des tags EXIF et leurs valeurs énumérées sans allocation sur le heap (`&'static str`).
+  - Dépollution de l'interface EXIF (`rraw-app`) : filtrage des tags redondants déjà présents dans le résumé supérieur, et affichage strictement monoligne avec troncature propre (`.truncate()`) et infobulle intégrale au survol (`.on_hover_text(...)`), éliminant tout décalage vertical.
+  - Tests unitaires et d'intégration validés (`decode_tests.rs`, `i18n_tests.rs`, `i18n_catalog_tests.rs`).
+  - 319 tests passants across 69 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 19 — Task 19.1 Embedded & External Lensfun XML Database Engine **Complete**
   - Intégration du catalogue officiel Lensfun compressé (> 1 500 objectifs, 511 Ko gzip) embarqué dans `rraw-optics` (`data/lensfun_database.xml.gz`).
   - Moteur de parsing streaming en pur Rust sans allocations DOM superflues via `quick-xml`.
   - Découverte et fusion transparente des bases système externes (`RRAW_LENSFUN_PATH`, `~/Library/Application Support/rraw/lensfun/`, Homebrew `/opt/homebrew/share/lensfun/`, Linux `/usr/share/lensfun/`).

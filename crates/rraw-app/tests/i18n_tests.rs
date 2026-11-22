@@ -80,3 +80,47 @@ fn test_rraw_app_headless_language_toggle() {
     assert_eq!(app.lang(), Language::Fr);
     assert_eq!(app.t(Key::TopBarExport), "💾 Exporter...");
 }
+
+#[test]
+fn test_exif_tags_and_values_multilingual_resolution() {
+    use rraw_app::i18n::{translate_exif_tag, translate_exif_val};
+
+    // French
+    assert_eq!(
+        translate_exif_tag("Metering Mode", Language::Fr),
+        "Mode de mesure"
+    );
+    assert_eq!(
+        translate_exif_tag("White Balance Mode", Language::Fr),
+        "Balance des blancs"
+    );
+    assert_eq!(
+        translate_exif_val("Center-weighted average", Language::Fr),
+        "Pondérée centrale"
+    );
+    assert_eq!(
+        translate_exif_val("Pattern", Language::Fr),
+        "Multi-zones (Matricielle)"
+    );
+
+    // English
+    assert_eq!(
+        translate_exif_tag("Metering Mode", Language::En),
+        "Metering Mode"
+    );
+    assert_eq!(
+        translate_exif_val("Center-weighted average", Language::En),
+        "Center-weighted average"
+    );
+
+    // Spanish
+    let es_lang = Language::custom("es", "Español");
+    assert_eq!(
+        translate_exif_tag("Metering Mode", es_lang),
+        "Modo de medición"
+    );
+    assert_eq!(
+        translate_exif_val("Center-weighted average", es_lang),
+        "Ponderada al centro"
+    );
+}

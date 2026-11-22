@@ -58,8 +58,70 @@ fn test_inspect_dng_crop_area() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(decoded.metadata.height, 4000);
         assert_eq!(decoded.cfa_signed.width(), 6016);
         assert_eq!(decoded.cfa_signed.height(), 4000);
+        assert!(
+            decoded.metadata.lens_model.is_some(),
+            "Universal lens resolution must automatically extract lens model from DNG MakerNotes"
+        );
+        let lens = decoded
+            .metadata
+            .lens_model
+            .as_ref()
+            .ok_or("lens model must be present")?;
+        assert!(lens.contains("PENTAX") || lens.contains("smc") || lens.contains("Sigma"));
     }
     Ok(())
+}
+
+#[test]
+fn test_universal_makernote_lens_resolution_pentax_synthetic(
+) -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_decode::makernotes::resolve_universal_lens;
+
+    // Construct a synthetic Pentax MakerNote block with tag 0x003F = (8, 31) [Sigma 18-35mm F1.8 DC HSM]
+    let mut synthetic_raw = Vec::new();
+    synthetic_raw.extend_from_slice(b"II*\0\x08\0\0\0"); // TIFF Little Endian header
+    synthetic_raw.extend_from_slice(b"PENTAX \0II"); // Pentax MakerNote header
+    synthetic_raw.extend_from_slice(&1_u16.to_le_bytes()); // 1 entry in MakerNote IFD
+    synthetic_raw.extend_from_slice(&0x003F_u16.to_le_bytes()); // Tag 0x003F (LensRec)
+    synthetic_raw.extend_from_slice(&1_u16.to_le_bytes()); // Type BYTE
+    synthetic_raw.extend_from_slice(&4_u32.to_le_bytes()); // Count 4
+    synthetic_raw.extend_from_slice(&[8_u8, 31_u8, 0_u8, 0_u8]); // Value: (8, 31)
+
+    let resolved = resolve_universal_lens(
+        &synthetic_raw,
+        "Pentax",
+        "PENTAX K-1",
+        Some(31.0),
+        Some(1.8),
+    );
+
+    assert!(
+        resolved.is_some(),
+        "Synthetic Pentax MakerNote must resolve lens"
+    );
+    let name = resolved.ok_or("resolved lens must be present")?;
+    assert_eq!(
+        name, "Sigma 18-35mm F1.8 DC HSM",
+        "Resolved lens must match Sigma 18-35mm F1.8 DC HSM without duplicate maker prefix (got: {name})"
+    );
+    Ok(())
+}
+
+#[test]
+fn test_sanitize_lens_name_deduplication() {
+    use rraw_decode::makernotes::sanitize_lens_name;
+    assert_eq!(
+        sanitize_lens_name("Sigma Sigma 18-35mm F1.8 DC HSM"),
+        "Sigma 18-35mm F1.8 DC HSM"
+    );
+    assert_eq!(
+        sanitize_lens_name("Canon Canon EF 24-70mm"),
+        "Canon EF 24-70mm"
+    );
+    assert_eq!(
+        sanitize_lens_name("smc PENTAX-DA* 300mm F4 ED [IF] SDM"),
+        "smc PENTAX-DA* 300mm F4 ED [IF] SDM"
+    );
 }
 
 #[test]

@@ -282,7 +282,7 @@ pub fn decode_photo_file_payload(
         exif_tags: decoded.exif_tags,
     };
 
-    let matched_lens = rraw_optics::LensDatabase::match_metadata(&meta);
+    let matched_lens = rraw_optics::LensfunDatabase::global().match_metadata(&meta);
     let mut base = BaseRgbPreview::from_cfa_with_color(
         &decoded.cfa_signed,
         [

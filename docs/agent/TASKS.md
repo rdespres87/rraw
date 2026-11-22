@@ -210,7 +210,15 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Wired into `OpticalResolver` Tier 2 (`Tier2LensfunXml`) with priority fallback chain (curated catalog -> full Lensfun database -> generic fallback).
   - Dedicated unit tests in `crates/rraw-optics/tests/lensfun_tests.rs` (4 tests). 316 workspace tests passing across 69 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
-- [ ] **Task 19.2 (`rraw-optics`, `rraw-decode`)**: Tier 1 DNG Embedded Opcode Bridge & UI Profile Matching
+- [x] **Task 19.2 (`rraw-decode`, `rraw-app`)**: Universal MakerNotes Lens ID Resolution & Multilingual EXIF Localization
+  - Implemented `resolve_universal_lens` in `crates/rraw-decode/src/makernotes.rs` extracting vendor MakerNote tags from native RAW and DNG PrivateData (Pentax `0x003F` `LensRec`, Sony `0x0102`, Canon `0x0016`, Nikon `0x0084`).
+  - Integrated with `rawler::lens::LensResolver` and 15,000+ lens database, cross-referencing camera make, mount (`k-mount`, `e-mount`, `ef-mount`, `f-mount`), focal length, and aperture to disambiguate third-party lenses (Sigma, Tamron, Tokina).
+  - Wired into `decode_file`: automatically populates `PhotoMetadata.lens_model` and EXIF `Lens Model` string, triggering automatic Lensfun profile resolution. Added manufacturer deduplication `sanitize_lens_name`.
+  - Added full multilingual dictionary support in `assets/i18n/{fr,en,es}.json` and `crates/rraw-app/src/i18n/` (62 new typed keys for EXIF tags and enum values in FR/EN/ES, zero heap allocation).
+  - Enhanced EXIF UI: removed duplicated tags from the detailed collapsible grid, enforced uniform monoline layout with `.truncate()` and full tooltip `.on_hover_text(...)`.
+  - Dedicated unit and synthetic tests in `crates/rraw-decode/tests/decode_tests.rs` and `crates/rraw-app/tests/i18n_tests.rs`. 319 workspace tests passing across 69 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
+
+- [ ] **Task 19.3 (`rraw-optics`, `rraw-app`)**: Tier 1 DNG Embedded Opcode Bridge & UI Manual Profile Picker Override
   - Bridge decoded DNG `WarpRectilinear` opcodes directly into Stage 4 `UvLutTable` grid.
   - Add UI lens profile picker and manual override in `ui/sections/optics.rs` with fuzzy match confidence indicator and update check.
 

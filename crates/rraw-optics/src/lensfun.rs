@@ -500,7 +500,10 @@ impl LensfunDatabase {
         for lens in &self.lenses {
             let norm_model = normalize_string(&lens.model);
             let full_name = normalize_string(&format!("{} {}", lens.maker, lens.model));
-            if full_name.contains(&norm_query) || norm_query.contains(&norm_model) {
+            if full_name.contains(&norm_query)
+                || norm_model.contains(&norm_query)
+                || norm_query.contains(&norm_model)
+            {
                 return Some(lens);
             }
         }
@@ -687,8 +690,17 @@ impl LensfunDatabase {
             // Priority 2: Full Lensfun database (> 1,000 lenses)
             if let Some(lens) = self.find_lens(lens_name) {
                 let model = self.interpolate_model(lens, focal, aperture);
+                let profile_name = if lens
+                    .model
+                    .to_lowercase()
+                    .starts_with(&lens.maker.to_lowercase())
+                {
+                    lens.model.clone()
+                } else {
+                    format!("{} {}", lens.maker, lens.model)
+                };
                 return MatchedLens {
-                    profile_name: format!("{} {}", lens.maker, lens.model),
+                    profile_name,
                     maker: lens.maker.clone(),
                     model,
                     is_exact_match: true,

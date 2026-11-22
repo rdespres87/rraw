@@ -10,6 +10,7 @@ use crate::i18n::{Catalog, Key, Language};
 
 static FR_JSON: &str = include_str!("../../../../assets/i18n/fr.json");
 static EN_JSON: &str = include_str!("../../../../assets/i18n/en.json");
+static ES_JSON: &str = include_str!("../../../../assets/i18n/es.json");
 
 static GLOBAL_ENGINE: OnceLock<I18nEngine> = OnceLock::new();
 
@@ -44,9 +45,19 @@ impl I18nEngine {
             }
         };
 
+        let es_lang = Language::custom("es", "Español");
+        let default_es = match Catalog::from_json_str(es_lang, ES_JSON, Some(&default_en)) {
+            Ok(c) => Arc::new(c),
+            Err(e) => {
+                eprintln!("rraw-app i18n: failed to load default ES catalog: {e}");
+                default_en.clone()
+            }
+        };
+
         let mut map = HashMap::new();
         map.insert(Language::En, default_en.clone());
         map.insert(Language::Fr, default_fr.clone());
+        map.insert(es_lang, default_es);
 
         Self {
             catalogs: RwLock::new(map),

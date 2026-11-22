@@ -22,18 +22,26 @@ impl RrawApp {
             return;
         };
 
+        let avail_w = ui.available_width();
+        let max_val_w = (avail_w - 85.0).max(120.0);
+
         ui.vertical(|ui| {
             // Summary Table in clean striped grid
             egui::Grid::new("exif_left_panel_grid")
                 .striped(true)
-                .min_col_width(110.0)
+                .min_col_width(80.0)
+                .max_col_width(max_val_w)
                 .show(ui, |ui| {
                     ui.label(
                         egui::RichText::new(self.t(Key::ExifCamera))
                             .strong()
                             .size(12.0),
                     );
-                    ui.label(egui::RichText::new(&photo.camera_model).size(12.0));
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(&photo.camera_model).size(12.0))
+                            .wrap(),
+                    )
+                    .on_hover_text(&photo.camera_model);
                     ui.end_row();
 
                     ui.label(
@@ -50,7 +58,11 @@ impl RrawApp {
                                 .strong()
                                 .size(12.0),
                         );
-                        ui.label(egui::RichText::new(&photo.lens_model).size(12.0));
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(&photo.lens_model).size(12.0))
+                                .wrap(),
+                        )
+                        .on_hover_text(&photo.lens_model);
                         ui.end_row();
                     }
 
@@ -185,13 +197,38 @@ impl RrawApp {
 
                     ui.add_space(4.0);
                     let query = self.library.exif_search_query.to_lowercase();
+                    let lang = self.layout_config.language;
                     let filtered_tags: Vec<&(String, String)> = photo
                         .exif_tags
                         .iter()
                         .filter(|(tag, val)| {
-                            query.is_empty()
-                                || tag.to_lowercase().contains(&query)
-                                || val.to_lowercase().contains(&query)
+                            let trans_tag = crate::i18n::translate_exif_tag(tag, lang);
+                            let trans_val = crate::i18n::translate_exif_val(val, lang);
+
+                            if query.is_empty() {
+                                const SUMMARY_TAGS: &[&str] = &[
+                                    "Camera Make",
+                                    "Camera Model",
+                                    "Lens Model",
+                                    "Lens Make",
+                                    "ISO Sensitivity",
+                                    "Aperture",
+                                    "Exposure Time",
+                                    "Shutter Speed",
+                                    "Focal Length",
+                                    "Exposure Bias",
+                                    "Date/Time Original",
+                                ];
+                                if SUMMARY_TAGS.contains(&tag.as_str()) {
+                                    return false;
+                                }
+                                true
+                            } else {
+                                tag.to_lowercase().contains(&query)
+                                    || trans_tag.to_lowercase().contains(&query)
+                                    || val.to_lowercase().contains(&query)
+                                    || trans_val.to_lowercase().contains(&query)
+                            }
                         })
                         .collect();
 
@@ -205,11 +242,18 @@ impl RrawApp {
                     } else {
                         egui::Grid::new("exif_all_tags_grid")
                             .striped(true)
-                            .min_col_width(110.0)
+                            .min_col_width(80.0)
+                            .max_col_width(max_val_w)
                             .show(ui, |ui| {
                                 for (tag, val) in filtered_tags {
-                                    ui.label(egui::RichText::new(tag).strong().size(11.0));
-                                    ui.label(egui::RichText::new(val).size(11.0));
+                                    let trans_tag = crate::i18n::translate_exif_tag(tag, lang);
+                                    let trans_val = crate::i18n::translate_exif_val(val, lang);
+                                    ui.label(egui::RichText::new(trans_tag).strong().size(11.0));
+                                    ui.add(
+                                        egui::Label::new(egui::RichText::new(trans_val).size(11.0))
+                                            .truncate(),
+                                    )
+                                    .on_hover_text(trans_val);
                                     ui.end_row();
                                 }
                             });
@@ -331,21 +375,31 @@ impl RrawApp {
             ui.separator();
 
             // Summary Table
+            let win_max_val_w = (ui.available_width() - 110.0).max(180.0);
             egui::Grid::new("exif_summary_grid")
                 .striped(true)
-                .min_col_width(140.0)
+                .min_col_width(100.0)
+                .max_col_width(win_max_val_w)
                 .show(ui, |ui| {
                     ui.label(egui::RichText::new("Marque :").strong().size(13.0));
                     ui.label(egui::RichText::new(&photo.camera_make).size(13.0));
                     ui.end_row();
 
                     ui.label(egui::RichText::new("Modèle :").strong().size(13.0));
-                    ui.label(egui::RichText::new(&photo.camera_model).size(13.0));
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(&photo.camera_model).size(13.0))
+                            .wrap(),
+                    )
+                    .on_hover_text(&photo.camera_model);
                     ui.end_row();
 
                     if !photo.lens_model.is_empty() {
                         ui.label(egui::RichText::new("Objectif :").strong().size(13.0));
-                        ui.label(egui::RichText::new(&photo.lens_model).size(13.0));
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(&photo.lens_model).size(13.0))
+                                .wrap(),
+                        )
+                        .on_hover_text(&photo.lens_model);
                         ui.end_row();
                     }
 
@@ -404,13 +458,21 @@ impl RrawApp {
             );
             ui.separator();
 
-            egui::Grid::new("exif_all_tags_grid")
+            let tag_val_w = (ui.available_width() - 140.0).max(200.0);
+            let lang = self.layout_config.language;
+            egui::Grid::new("exif_all_tags_window_grid")
                 .striped(true)
-                .min_col_width(140.0)
+                .min_col_width(120.0)
+                .max_col_width(tag_val_w)
                 .show(ui, |ui| {
                     for (tag, val) in &photo.exif_tags {
-                        ui.label(egui::RichText::new(tag).strong().size(13.0));
-                        ui.label(egui::RichText::new(val).size(13.0));
+                        let trans_tag = crate::i18n::translate_exif_tag(tag, lang);
+                        let trans_val = crate::i18n::translate_exif_val(val, lang);
+                        ui.label(egui::RichText::new(trans_tag).strong().size(13.0));
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(trans_val).size(13.0)).truncate(),
+                        )
+                        .on_hover_text(trans_val);
                         ui.end_row();
                     }
                 });

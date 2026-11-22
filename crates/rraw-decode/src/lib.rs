@@ -8,6 +8,7 @@ use rraw_core::{CfaPattern, ColorLabel, CoreError, PhotoMetadata, PickStatus, Si
 use thiserror::Error;
 
 pub mod cfa;
+pub mod makernotes;
 pub mod noise_profile;
 pub mod opcodes;
 pub mod synthetic;
@@ -237,8 +238,22 @@ impl RawDecoder for PureRustRawDecoder {
                     }
 
                     if let Some(lens) = &exif.lens_model {
-                        dummy_meta.lens_model = Some(lens.clone());
-                        exif_tags.push(("Lens Model".to_string(), lens.clone()));
+                        let clean = makernotes::sanitize_lens_name(lens);
+                        dummy_meta.lens_model = Some(clean.clone());
+                        exif_tags.push(("Lens Model".to_string(), clean));
+                    } else if let Some(lens_desc) = &rmeta.lens {
+                        let clean = makernotes::sanitize_lens_name(&lens_desc.lens_name);
+                        dummy_meta.lens_model = Some(clean.clone());
+                        exif_tags.push(("Lens Model".to_string(), clean));
+                    } else if let Some(lens_name) = makernotes::resolve_universal_lens(
+                        &rawsource,
+                        &dummy_meta.camera_make,
+                        &dummy_meta.camera_model,
+                        dummy_meta.focal_length_mm,
+                        dummy_meta.aperture_f_number,
+                    ) {
+                        dummy_meta.lens_model = Some(lens_name.clone());
+                        exif_tags.push(("Lens Model".to_string(), lens_name));
                     }
 
                     if let Some(make) = &exif.lens_make {
