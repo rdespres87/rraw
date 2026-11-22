@@ -114,8 +114,10 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
     - Enforce the principle of least privilege: each section widget accepts only its specific domain parameter struct (e.g. `&mut ToneGradingParams`) rather than `&mut RrawApp` or full grading state.
     - Encapsulate perspective tool state in `ParallelLinesToolState` eliminating `clippy::too_many_arguments`.
     - Dedicated test suite `crates/rraw-app/tests/section_modularization_tests.rs` (10 tests) passing, Inquisitor APPROVED.
-  - [ ] Step 2: Decompose `crates/rraw-app/src/ui/viewport.rs` (1,231 lines) & `render_central_viewport` (1,134 lines) into modular subcomponents:
-    - `viewport/canvas.rs`, `viewport/hud.rs`, `viewport/split_compare.rs`, `viewport/overlay_masks.rs`, `viewport/navigation.rs`.
+  - [x] Step 2: Decompose `crates/rraw-app/src/ui/viewport.rs` (1,231 lines) & `render_central_viewport` (1,134 lines) into modular subcomponents:
+    - `viewport/mod.rs` (479 lines orchestrator with pan/zoom and paper frames), `viewport/crop_overlay.rs` (interactive crop, handles, validation pill), `viewport/perspective_tools.rs` (leveling horizon, 2-parallel lines), `viewport/hud.rs` (live original, soft proofing, local mask badges), `viewport/brush_overlay.rs` (mouse painting dabs, cursor ring), `viewport/split_compare.rs` (draggable divider).
+    - Encapsulated parameter states into `CropToolState` and `BrushViewportContext` resolving all argument count bloat (`clippy::too_many_arguments`).
+    - Dedicated test suite `crates/rraw-app/tests/viewport_modularization_tests.rs` (6 tests) passing, 263 workspace tests passing across 60 suites, 0 clippy warnings, Qwen 3.6 35B Inquisitor APPROVED.
   - [ ] Step 3: Decompose `crates/rraw-app/src/preview.rs` (2,264 lines) into dedicated processing layers:
     - `preview/pipeline.rs` (rendering execution), `preview/cache.rs` (MRU & texture pooling), `preview/masks.rs` (local adjustments evaluation).
 

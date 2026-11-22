@@ -1,0 +1,206 @@
+#![forbid(unsafe_code)]
+
+//! Interactive perspective leveling and parallel lines tools.
+
+use egui::{Color32, Painter, Pos2, Rect, Response, Stroke, Ui, Vec2};
+
+use crate::grading::GeometryGradingParams;
+use crate::state::ParallelToolPhase;
+use crate::ui::sections::geometry::ParallelLinesToolState;
+
+/// Output result from perspective tool interactions.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct PerspectiveToolOutput {
+    pub mark_custom_preset: bool,
+    pub needs_preview_update: bool,
+    pub save_sidecar: bool,
+}
+
+/// Handles the 2-parallel-lines perspective correction tool.
+#[allow(clippy::too_many_lines)]
+pub fn handle_parallel_lines_tool(
+    ui: &mut Ui,
+    resp: &Response,
+    painter: &Painter,
+    available_rect: Rect,
+    tool_state: &mut ParallelLinesToolState<'_>,
+    geometry: &mut GeometryGradingParams,
+) -> PerspectiveToolOutput {
+    let mut out = PerspectiveToolOutput::default();
+    if *tool_state.phase == ParallelToolPhase::Inactive {
+        return out;
+    }
+
+    ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+
+    let instruction = match *tool_state.phase {
+        ParallelToolPhase::DrawingLine1 => {
+            "Glissez pour tracer la 1ère référence verticale (Ligne 1)"
+        }
+        ParallelToolPhase::WaitingLine2 => {
+            "Ligne 1 validée. Glissez maintenant pour tracer la 2ème référence (Ligne 2)"
+        }
+        ParallelToolPhase::DrawingLine2 => "Tracez la 2ème référence verticale...",
+        _ => "",
+    };
+    painter.rect_filled(
+        Rect::from_min_size(
+            available_rect.left_top() + Vec2::new(16.0, 16.0),
+            Vec2::new(480.0, 32.0),
+        ),
+        6.0,
+        Color32::from_rgba_unmultiplied(16, 20, 28, 230),
+    );
+    painter.text(
+        available_rect.left_top() + Vec2::new(28.0, 32.0),
+        egui::Align2::LEFT_CENTER,
+        format!("📐 {instruction}"),
+        egui::FontId::proportional(14.0),
+        Color32::from_rgb(0, 240, 255),
+    );
+
+    if let Some((p1, p2)) = *tool_state.line1 {
+        painter.line_segment([p1, p2], Stroke::new(2.5, Color32::from_rgb(50, 230, 100)));
+        painter.circle_filled(p1, 5.0, Color32::from_rgb(50, 230, 100));
+        painter.circle_filled(p2, 5.0, Color32::from_rgb(50, 230, 100));
+        painter.text(
+            (p1 + p2.to_vec2()) * 0.5 + Vec2::new(10.0, 0.0),
+            egui::Align2::LEFT_CENTER,
+            "Ligne 1",
+            egui::FontId::proportional(13.0),
+            Color32::WHITE,
+        );
+    }
+
+    if resp.drag_started() {
+        *tool_state.drag_start = resp.interact_pointer_pos();
+    }
+
+    if resp.dragged() {
+        if let (Some(p1), Some(p2)) = (*tool_state.drag_start, resp.interact_pointer_pos()) {
+            let stroke_col = match *tool_state.phase {
+                ParallelToolPhase::DrawingLine1 => Color32::from_rgb(0, 240, 255),
+                _ => Color32::from_rgb(255, 220, 50),
+            };
+            painter.line_segment([p1, p2], Stroke::new(2.5, stroke_col));
+            painter.circle_filled(p1, 5.0, stroke_col);
+            painter.circle_filled(p2, 5.0, stroke_col);
+        }
+    }
+
+    if resp.drag_stopped() {
+        if let (Some(p1), Some(p2)) = (*tool_state.drag_start, resp.interact_pointer_pos()) {
+            let dist_sq = (p2.x - p1.x).powi(2) + (p2.y - p1.y).powi(2);
+            if dist_sq > 64.0 {
+                match *tool_state.phase {
+                    ParallelToolPhase::DrawingLine1 => {
+                        *tool_state.line1 = Some((p1, p2));
+                        *tool_state.phase = ParallelToolPhase::WaitingLine2;
+                    }
+                    ParallelToolPhase::WaitingLine2 | ParallelToolPhase::DrawingLine2 => {
+                        *tool_state.line2 = Some((p1, p2));
+                        if let Some((l1_a, l1_b)) = *tool_state.line1 {
+                            let (a1, b1) = if l1_b.y < l1_a.y {
+                                (l1_a, l1_b)
+                            } else {
+                                (l1_b, l1_a)
+                            };
+                            let (a2, b2) = if p2.y < p1.y { (p1, p2) } else { (p2, p1) };
+
+                            let dx1 = b1.x - a1.x;
+                            let dy1 = a1.y - b1.y;
+                            let dx2 = b2.x - a2.x;
+                            let dy2 = a2.y - b2.y;
+
+                            let slope1 = dx1 / dy1.max(1.0);
+                            let slope2 = dx2 / dy2.max(1.0);
+
+                            let (left_slope, right_slope) = if a1.x < a2.x {
+                                (slope1, slope2)
+                            } else {
+                                (slope2, slope1)
+                            };
+
+                            let convergence = right_slope - left_slope;
+                            let avg_tilt = (slope1 + slope2) * 0.5;
+
+                            let keystone = (-convergence * 65.0).clamp(-50.0, 50.0);
+                            let rotation = (-avg_tilt * 57.29578).clamp(-45.0, 45.0);
+
+                            geometry.keystone_vertical = keystone;
+                            geometry.rotation_degrees = rotation;
+                            out.mark_custom_preset = true;
+                            out.needs_preview_update = true;
+                            out.save_sidecar = true;
+                            *tool_state.status_message = format!(
+                                "Perspective redressée : Keystone V {:.1}, Rotation {:.1}°",
+                                keystone, rotation
+                            );
+                        }
+                        *tool_state.phase = ParallelToolPhase::Inactive;
+                        *tool_state.line1 = None;
+                        *tool_state.line2 = None;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        *tool_state.drag_start = None;
+    }
+
+    out
+}
+
+/// Handles the interactive horizon leveling tool.
+pub fn handle_horizon_tool(
+    ui: &mut Ui,
+    resp: &Response,
+    painter: &Painter,
+    horizon_tool_active: &mut bool,
+    horizon_start_point: &mut Option<Pos2>,
+    geometry: &mut GeometryGradingParams,
+) -> PerspectiveToolOutput {
+    let mut out = PerspectiveToolOutput::default();
+    if !*horizon_tool_active {
+        return out;
+    }
+
+    ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+    if resp.drag_started() {
+        *horizon_start_point = resp.interact_pointer_pos();
+    }
+    if resp.dragged() {
+        if let (Some(p1), Some(p2)) = (*horizon_start_point, resp.interact_pointer_pos()) {
+            let dx = p2.x - p1.x;
+            let dy = p2.y - p1.y;
+            let angle = -dy.atan2(dx).to_degrees();
+            painter.line_segment([p1, p2], Stroke::new(2.5, Color32::from_rgb(0, 240, 255)));
+            painter.circle_filled(p1, 4.0, Color32::from_rgb(0, 240, 255));
+            painter.circle_filled(p2, 4.0, Color32::from_rgb(0, 240, 255));
+            painter.text(
+                (p1 + p2.to_vec2()) * 0.5 + Vec2::new(0.0, -18.0),
+                egui::Align2::CENTER_CENTER,
+                format!("{:.1}°", angle),
+                egui::FontId::proportional(14.0),
+                Color32::WHITE,
+            );
+        }
+    }
+    if resp.drag_stopped() {
+        if let (Some(p1), Some(p2)) = (*horizon_start_point, resp.interact_pointer_pos()) {
+            let dx = p2.x - p1.x;
+            let dy = p2.y - p1.y;
+            if (dx * dx + dy * dy) > 36.0 {
+                let angle = -dy.atan2(dx).to_degrees();
+                geometry.rotation_degrees = angle.clamp(-45.0, 45.0);
+                out.mark_custom_preset = true;
+                out.needs_preview_update = true;
+                out.save_sidecar = true;
+            }
+        }
+        *horizon_start_point = None;
+        *horizon_tool_active = false;
+    }
+
+    out
+}

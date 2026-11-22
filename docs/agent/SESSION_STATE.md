@@ -9,8 +9,19 @@
   - Task 15.1: State De-Obesity & Domain Hierarchy (`rraw-core` & `rraw-app`) — **COMPLETE**
   - Task 15.2: Monolithic File & Function Decomposition (`rraw-app`) — **IN PROGRESS** (Inspector modularized into `ui/sections/`, 1,645 lines pruned from `inspector.rs` ; Viewport & Preview modularization next)
   - Task 15.3: Scalable External Resource-Based i18n Engine (`rraw-app`)
-- **Last Verified Baseline**: 257 tests passants across 59 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Preceding Milestone**: Phase 15 — Task 15.2 Part 1: Inspector UI Modularization **Complete**
+- **Last Verified Baseline**: 263 tests passants across 60 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Preceding Milestone**: Phase 15 — Task 15.2 Step 2: Viewport UI Modularization **Complete**
+  - Décomposition du fichier monolithique `viewport.rs` (1 231 lignes) et de `render_central_viewport` (1 134 lignes) en sous-modules dédiés sous `crates/rraw-app/src/ui/viewport/`:
+    - `crop_overlay.rs`: Boîte de recadrage interactive, poignées de redimensionnement, grille des tiers, pilule flottante de validation.
+    - `perspective_tools.rs`: Outil de niveau d'horizon interactif et correction trapézoïdale à 2 lignes de référence.
+    - `hud.rs`: Badges d'état temps réel (Original Avant/Après, Épreuvage écran, Masques locaux, Pinceau actif).
+    - `brush_overlay.rs`: Peinture manuelle interactive et indicateur circulaire du rayon/adoucissement du pinceau.
+    - `split_compare.rs`: Ligne de division déplaçable Avant/Après.
+    - `mod.rs`: Orchestrateur central (479 lignes) avec gestion du zoom/pan, double-clic, barre d'espace et passe-partout.
+  - Résolution des fonctions à trop grand nombre de paramètres (`clippy::too_many_arguments`) via les structures dédiées `CropToolState` et `BrushViewportContext`.
+  - Suite de tests unitaires dédiée `crates/rraw-app/tests/viewport_modularization_tests.rs` (6 tests).
+  - 263 tests passants across 60 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B.
+- **Preceding Milestone**: Phase 15 — Task 15.2 Step 1: Inspector UI Modularization **Complete**
   - Décomposition de la fonction monolithique `render_darkroom_section` (1 773 lignes) : `inspector.rs` passe de 2 089 à 420 lignes.
   - Création de 11 sous-modules modulaires sous `crates/rraw-app/src/ui/sections/` (`exposure_tone`, `white_balance`, `detail_denoise`, `optics`, `soft_proofing`, `crop`, `straighten`, `geometry`, `masks`, `timelapse`, `mod`).
   - Application stricte du principe de moindre privilège (chaque vue ne reçoit que sa sous-structure de domaine plutôt que `&mut RrawApp` ou l'état global).
