@@ -9,8 +9,14 @@
   - Task 15.1: State De-Obesity & Domain Hierarchy (`rraw-core` & `rraw-app`) — **COMPLETE**
   - Task 15.2: Monolithic File & Function Decomposition (`rraw-app`) — **COMPLETE** (Inspector, Viewport, and Preview decomposed into modular sub-packages)
   - Task 15.3: Scalable External Resource-Based i18n Engine (`rraw-app`) — **COMPLETE**
-- **Last Verified Baseline**: 276 tests passants across 62 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 15 — Task 15.3 Follow-up: Hardcoded Strings Elimination, 100% Spanish Completion & Character Budget Guardrails **Complete**
+- **Last Verified Baseline**: 278 tests passants across 62 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Decoupling of Creative Vignette into Dedicated Effects Section (`DarkroomSection::Effects`, `EffectsGradingParams`, `ui/sections/effects.rs`) **Complete**
+  - Séparation nette entre corrections d'aberrations physiques (`OpticsGradingParams`) et effets artistiques post-recadrage (`EffectsGradingParams`).
+  - Création de la section rétractable dédiée `DarkroomSection::Effects` (12e section, famille `ToolFamily::Light`), accessible indépendamment de l'activation des profils d'objectifs.
+  - Découplage de la réinitialisation : réinitialiser les corrections optiques ne réinitialise plus le vignetage créatif, et `InspectorResetEffects` permet de réinitialiser les effets indépendamment.
+  - Intégration dans le presse-papiers multi-photos `GradingRecipeClipboard` et rétrocompatibilité ascendante de `SidecarRecipe` via `#[serde(flatten)]`.
+  - 278 tests passants across 62 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud). Commit local `61c809f`.
+- **Preceding Milestone**: Phase 15 — Task 15.3 Follow-up: Hardcoded Strings Elimination, 100% Spanish Completion & Character Budget Guardrails **Complete**
   - Élimination de 100% des chaînes en dur restantes dans l'interface utilisateur (`geometry.rs`, `perspective_tools.rs`, `crop_overlay.rs`, `crop.rs`, `detail_denoise.rs`, `soft_proofing.rs`, `masks.rs`, `presets.rs`, `shortcuts.rs`, `filmstrip.rs`, `tone_curves.rs`, `state.rs`).
   - Ajout de 49 nouvelles clés typées dans l'enum `Key` et les catalogues (`fr.json`, `en.json`, `es.json`), portant le total à 375 clés i18n exhaustives.
   - Traduction espagnole (`assets/i18n/es.json`) complétée à 100%, incluant la boîte de dialogue de raccourcis clavier (`shortcuts.rs`) et les descriptions complètes de presets argentiques (`state.rs`).
