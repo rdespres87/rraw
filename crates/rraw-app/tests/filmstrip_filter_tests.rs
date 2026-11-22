@@ -9,7 +9,7 @@ fn test_matches_active_filter_raw_and_raster() {
     let mut app = RrawApp::new_headless();
 
     // With raw_only_filter = true, only genuine RAW formats match
-    app.raw_only_filter = true;
+    app.library.raw_only_filter = true;
     assert!(app.matches_active_filter(Path::new("photo.DNG")));
     assert!(app.matches_active_filter(Path::new("photo.dng")));
     assert!(app.matches_active_filter(Path::new("photo.arw")));
@@ -24,7 +24,7 @@ fn test_matches_active_filter_raw_and_raster() {
     assert!(!app.matches_active_filter(Path::new("rendered.tiff")));
 
     // When raw_only_filter = false, both match
-    app.raw_only_filter = false;
+    app.library.raw_only_filter = false;
     assert!(app.matches_active_filter(Path::new("photo.DNG")));
     assert!(app.matches_active_filter(Path::new("screenshot.png")));
     assert!(app.matches_active_filter(Path::new("export.jpg")));
@@ -34,7 +34,7 @@ fn test_matches_active_filter_raw_and_raster() {
 fn test_first_filtered_entry_skips_non_raw() {
     let mut app = RrawApp::new_headless();
 
-    app.directory_entries = vec![
+    app.library.directory_entries = vec![
         PathBuf::from("Capture d'écran 21.11.2026.png"),
         PathBuf::from("IMGP3879_export.jpg"),
         PathBuf::from("IMGP3879.DNG"),
@@ -42,12 +42,12 @@ fn test_first_filtered_entry_skips_non_raw() {
     ];
 
     // Under raw_only_filter, the first entry should be the first RAW (skipping PNG and JPG)
-    app.raw_only_filter = true;
+    app.library.raw_only_filter = true;
     let first = app.first_filtered_entry();
     assert_eq!(first.as_deref(), Some(Path::new("IMGP3879.DNG")));
 
     // Without raw_only_filter, the first entry should be the first alphabetical file
-    app.raw_only_filter = false;
+    app.library.raw_only_filter = false;
     let first_all = app.first_filtered_entry();
     assert_eq!(
         first_all.as_deref(),
@@ -62,12 +62,12 @@ fn test_matches_active_filter_with_rating() {
     let dng_path = PathBuf::from("IMGP3879.DNG");
     let png_path = PathBuf::from("screenshot.png");
 
-    app.photo_ratings.insert(dng_path.clone(), 3);
-    app.photo_ratings.insert(png_path.clone(), 4);
+    app.library.photo_ratings.insert(dng_path.clone(), 3);
+    app.library.photo_ratings.insert(png_path.clone(), 4);
 
     // Rating filter MinStars(3)
-    app.rating_filter = RatingFilter::MinStars(3);
-    app.raw_only_filter = true;
+    app.library.rating_filter = RatingFilter::MinStars(3);
+    app.library.raw_only_filter = true;
 
     // DNG has 3 stars and is RAW -> matches
     assert!(app.matches_active_filter(&dng_path));
@@ -75,11 +75,11 @@ fn test_matches_active_filter_with_rating() {
     assert!(!app.matches_active_filter(&png_path));
 
     // When raw_only_filter is disabled, PNG matches
-    app.raw_only_filter = false;
+    app.library.raw_only_filter = false;
     assert!(app.matches_active_filter(&png_path));
 
     // When rating filter is MinStars(5), neither matches
-    app.rating_filter = RatingFilter::MinStars(5);
+    app.library.rating_filter = RatingFilter::MinStars(5);
     assert!(!app.matches_active_filter(&dng_path));
     assert!(!app.matches_active_filter(&png_path));
 }
@@ -88,13 +88,13 @@ fn test_matches_active_filter_with_rating() {
 fn test_filter_switch_fallback_when_no_raw_match() {
     let mut app = RrawApp::new_headless();
 
-    app.directory_entries = vec![
+    app.library.directory_entries = vec![
         PathBuf::from("screenshot1.png"),
         PathBuf::from("screenshot2.png"),
         PathBuf::from("photo.jpg"),
     ];
 
-    app.raw_only_filter = true;
+    app.library.raw_only_filter = true;
     assert_eq!(app.first_filtered_entry(), None);
 }
 
@@ -138,17 +138,17 @@ fn test_directory_open_respects_persisted_raw_only_filter() -> Result<(), Box<dy
     // 1. With raw_only_filter = None, opening a folder with RAW files defaults to true
     app.layout_config.raw_only_filter = None;
     app.open_directory(&temp_dir);
-    assert!(app.raw_only_filter);
+    assert!(app.library.raw_only_filter);
 
     // 2. With raw_only_filter = Some(false), opening a folder with RAW files respects user preference (false)
     app.layout_config.raw_only_filter = Some(false);
     app.open_directory(&temp_dir);
-    assert!(!app.raw_only_filter);
+    assert!(!app.library.raw_only_filter);
 
     // 3. With raw_only_filter = Some(true), opening respects user preference (true)
     app.layout_config.raw_only_filter = Some(true);
     app.open_directory(&temp_dir);
-    assert!(app.raw_only_filter);
+    assert!(app.library.raw_only_filter);
 
     let _ = std::fs::remove_dir_all(&temp_dir);
     Ok(())

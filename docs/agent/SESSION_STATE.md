@@ -7,11 +7,20 @@
 - **Active Phase**: Phase 16 — System Robustness, Concurrency Hardening & Controller Decomposition
 - **Active Tasks**:
   - Task 16.1: Concurrency Hardening, Thread Cancellation & VRAM Eviction Engine (`rraw-app`) — **COMPLETE**
-  - Task 16.2: Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (`rraw-app`) — **READY FOR DEV**
-  - Task 16.3: End-to-End Stress Testing, Parity Verification & Adversarial Audit (`rraw-app`) — Planned
-- **Last Verified Baseline**: 284 tests passants across 63 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+  - Task 16.2: Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (`rraw-app`) — **COMPLETE**
+  - Task 16.3: End-to-End Stress Testing, Parity Verification & Adversarial Audit (`rraw-app`) — **READY FOR DEV**
+- **Last Verified Baseline**: 289 tests passants across 64 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
 - **Architectural Study**: `docs/studies/PHASE_16_CONCURRENCY_STATE_ARCHITECTURE.md` (Spécification complète validée le 22 nov. 2026).
-- **Current Milestone**: Phase 16 — Task 16.1 Concurrency Hardening, Thread Cancellation & VRAM Eviction Engine **Complete**
+- **Current Milestone**: Phase 16 — Task 16.2 Architectural Decomposition of `RrawApp` into Specialized Domain Controllers **Complete**
+  - Éclatement architectural du God Object `RrawApp` (73 champs hétérogènes) en 5 contrôleurs de domaine étanches sous `crates/rraw-app/src/controllers/` :
+    - `PhotoSession` : métadonnées de la photo active, tampons CFA, aperçu RGB linéaire, état d'étalonnage sombre, preset actif et textures GPU.
+    - `ViewportController` : caméra, zoom fit/1:1, pan, split screen Before/After, zebra d'écrêtage, histogramme en temps réel, outils d'horizon et lignes parallèles, état de recadrage et canaux de courbes.
+    - `LibraryController` : explorateur de dossiers, entrées d'images, filtres RAW et étoiles, gradings et ratings persistés en mémoire, multi-sélection, historique d'ancrage, presse-papiers de recettes.
+    - `ExportBatchController` : fenêtres modales d'export, raccourcis et à-propos, formats de sortie (JPEG, TIFF, PNG, AVIF, JXL), profondeur de bits, configuration timelapse et deflicker.
+    - `BackgroundWorkers` : canaux de décodage séquentiel, coordinateur d'époque atomique, pool de génération de vignettes asynchrones et cache LRU borné.
+  - Suppression de tout conflit d'emprunt (`cannot borrow *self as mutable more than once`) par isolation des sous-structures disjointes (`&mut self.session` et `&mut self.viewport`).
+  - Suite de tests unitaires dédiée `controller_modularization_tests.rs` (5 tests), 289 tests passants across 64 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 16 — Task 16.1 Concurrency Hardening, Thread Cancellation & VRAM Eviction Engine **Complete**
   - Remplacement des `std::thread::spawn` bruts par un worker thread séquentiel de décodage avec coordination d'époque atomique `Arc<AtomicU64>`.
   - Annulation instantanée des requêtes obsolètes (`req.epoch != active_epoch`) avant et après le dématriçage lourd, protégeant le CPU et garantissant 120 FPS constants.
   - Implémentation de `LruThumbnailCache` borné (256 textures max) avec éviction LRU et purge automatique au changement de dossier dans `open_directory()`.

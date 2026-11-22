@@ -16,7 +16,7 @@ impl RrawApp {
     /// Renders the central viewport with interactive pan, zoom, and vector overlay tools.
     pub fn render_central_viewport(&mut self, ui: &mut egui::Ui) {
         // 6. Central Viewport Area with Interactive Zoom & Pan (Clean & Unobstructed)
-        if self.needs_preview_update {
+        if self.session.needs_preview_update {
             self.update_preview_textures(ui.ctx());
         }
 
@@ -29,15 +29,15 @@ impl RrawApp {
         let painter = ui.painter().with_clip_rect(available_rect);
         let mut split_divider_rect: Option<egui::Rect> = None;
 
-        if let Some(texture) = &self.preview_texture {
+        if let Some(texture) = &self.session.preview_texture {
             let margin = 16.0;
             let max_w = (available_rect.width() - margin * 2.0).max(10.0);
             let max_h = (available_rect.height() - margin * 2.0).max(10.0);
 
             let img_size = texture.size_vec2();
-            let is_cropped_view = self.grading.geometry.crop_enabled && !self.is_crop_editing;
-            let crop_w = (self.grading.geometry.crop_right - self.grading.geometry.crop_left).clamp(0.05, 1.0);
-            let crop_h = (self.grading.geometry.crop_bottom - self.grading.geometry.crop_top).clamp(0.05, 1.0);
+            let is_cropped_view = self.session.grading.geometry.crop_enabled && !self.viewport.is_crop_editing;
+            let crop_w = (self.session.grading.geometry.crop_right - self.session.grading.geometry.crop_left).clamp(0.05, 1.0);
+            let crop_h = (self.session.grading.geometry.crop_bottom - self.session.grading.geometry.crop_top).clamp(0.05, 1.0);
             let effective_img_size = if is_cropped_view {
                 egui::vec2(img_size.x * crop_w, img_size.y * crop_h)
             } else {
@@ -45,32 +45,32 @@ impl RrawApp {
             };
 
             let fit_scale = (max_w / effective_img_size.x).min(max_h / effective_img_size.y);
-            self.last_fit_scale = fit_scale;
+            self.viewport.last_fit_scale = fit_scale;
 
-            let current_scale = if self.zoom_level <= 0.0 {
+            let current_scale = if self.viewport.zoom_level <= 0.0 {
                 fit_scale
             } else {
-                self.zoom_level
+                self.viewport.zoom_level
             };
 
             let display_size = effective_img_size * current_scale;
-            let center = available_rect.center() + self.pan_offset;
+            let center = available_rect.center() + self.viewport.pan_offset;
             let preview_rect = egui::Rect::from_center_size(center, display_size);
 
             let resp = ui.allocate_rect(available_rect, egui::Sense::click_and_drag());
-            let is_brush_active = self.grading.active_brush_mask_idx.is_some_and(|idx| {
-                self.grading.local_masks.get(idx).is_some_and(|m| {
+            let is_brush_active = self.session.grading.active_brush_mask_idx.is_some_and(|idx| {
+                self.session.grading.local_masks.get(idx).is_some_and(|m| {
                     matches!(m.kind, LocalMaskKind::FreehandBrush { .. }) && m.enabled
                 })
             });
-            let is_tool_active = self.horizon_tool_active
-                || self.parallel_tool_phase != ParallelToolPhase::Inactive
+            let is_tool_active = self.viewport.horizon_tool_active
+                || self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive
                 || is_brush_active;
 
             if is_brush_active {
                 if ui.input(|i| i.key_pressed(egui::Key::OpenBracket)) {
-                    if let Some(mask_idx) = self.grading.active_brush_mask_idx {
-                        if let Some(mask) = self.grading.local_masks.get_mut(mask_idx) {
+                    if let Some(mask_idx) = self.session.grading.active_brush_mask_idx {
+                        if let Some(mask) = self.session.grading.local_masks.get_mut(mask_idx) {
                             if let LocalMaskKind::FreehandBrush { brush_radius, .. } =
                                 &mut mask.kind
                             {
@@ -88,8 +88,8 @@ impl RrawApp {
                     }
                 }
                 if ui.input(|i| i.key_pressed(egui::Key::CloseBracket)) {
-                    if let Some(mask_idx) = self.grading.active_brush_mask_idx {
-                        if let Some(mask) = self.grading.local_masks.get_mut(mask_idx) {
+                    if let Some(mask_idx) = self.session.grading.active_brush_mask_idx {
+                        if let Some(mask) = self.session.grading.local_masks.get_mut(mask_idx) {
                             if let LocalMaskKind::FreehandBrush { brush_radius, .. } =
                                 &mut mask.kind
                             {
@@ -111,11 +111,11 @@ impl RrawApp {
             let is_holding_space = ui.input(|i| i.key_down(egui::Key::Space));
             let is_middle_drag = ui.input(|i| i.pointer.button_down(egui::PointerButton::Middle));
             let is_panning_override =
-                (is_holding_space || is_middle_drag) && self.zoom_level > 0.0;
+                (is_holding_space || is_middle_drag) && self.viewport.zoom_level > 0.0;
 
             // Clamping pan offset to ensure image never moves out of viewport
-            if self.zoom_level <= 0.0 {
-                self.pan_offset = egui::Vec2::ZERO;
+            if self.viewport.zoom_level <= 0.0 {
+                self.viewport.pan_offset = egui::Vec2::ZERO;
             } else {
                 let max_pan_x =
                     ((display_size.x - available_rect.width() + margin * 2.0) * 0.5)
@@ -123,33 +123,33 @@ impl RrawApp {
                 let max_pan_y =
                     ((display_size.y - available_rect.height() + margin * 2.0) * 0.5)
                         .max(0.0);
-                self.pan_offset.x = self.pan_offset.x.clamp(-max_pan_x, max_pan_x);
-                self.pan_offset.y = self.pan_offset.y.clamp(-max_pan_y, max_pan_y);
+                self.viewport.pan_offset.x = self.viewport.pan_offset.x.clamp(-max_pan_x, max_pan_x);
+                self.viewport.pan_offset.y = self.viewport.pan_offset.y.clamp(-max_pan_y, max_pan_y);
             }
 
             if resp.dragged()
                 && (!is_tool_active || is_panning_override)
-                && self.crop_drag_handle == CropDragHandle::None
-                && self.zoom_level > 0.0
+                && self.viewport.crop_drag_handle == CropDragHandle::None
+                && self.viewport.zoom_level > 0.0
             {
-                self.pan_offset += resp.drag_delta();
+                self.viewport.pan_offset += resp.drag_delta();
                 let max_pan_x =
                     ((display_size.x - available_rect.width() + margin * 2.0) * 0.5)
                         .max(0.0);
                 let max_pan_y =
                     ((display_size.y - available_rect.height() + margin * 2.0) * 0.5)
                         .max(0.0);
-                self.pan_offset.x = self.pan_offset.x.clamp(-max_pan_x, max_pan_x);
-                self.pan_offset.y = self.pan_offset.y.clamp(-max_pan_y, max_pan_y);
+                self.viewport.pan_offset.x = self.viewport.pan_offset.x.clamp(-max_pan_x, max_pan_x);
+                self.viewport.pan_offset.y = self.viewport.pan_offset.y.clamp(-max_pan_y, max_pan_y);
             }
 
-            if resp.double_clicked() && !self.is_crop_editing && !is_tool_active {
-                if self.zoom_level <= 0.0 {
-                    self.zoom_level = 1.0;
-                    self.pan_offset = egui::Vec2::ZERO;
+            if resp.double_clicked() && !self.viewport.is_crop_editing && !is_tool_active {
+                if self.viewport.zoom_level <= 0.0 {
+                    self.viewport.zoom_level = 1.0;
+                    self.viewport.pan_offset = egui::Vec2::ZERO;
                 } else {
-                    self.zoom_level = 0.0;
-                    self.pan_offset = egui::Vec2::ZERO;
+                    self.viewport.zoom_level = 0.0;
+                    self.viewport.pan_offset = egui::Vec2::ZERO;
                 }
             }
 
@@ -157,7 +157,7 @@ impl RrawApp {
             if scroll.abs() > 0.0
                 && resp.hovered()
                 && (!is_tool_active || is_brush_active)
-                && !self.is_crop_editing
+                && !self.viewport.is_crop_editing
             {
                 let zoom_factor = (scroll * 0.003).exp();
                 let min_scale = fit_scale;
@@ -167,21 +167,21 @@ impl RrawApp {
                 if (new_scale - fit_scale).abs() / fit_scale < 0.015
                     || new_scale <= fit_scale
                 {
-                    self.zoom_level = 0.0;
-                    self.pan_offset = egui::Vec2::ZERO;
+                    self.viewport.zoom_level = 0.0;
+                    self.viewport.pan_offset = egui::Vec2::ZERO;
                 } else {
                     if let Some(mouse_pos) = resp.hover_pos() {
                         let old_offset = mouse_pos - center;
                         let scale_change = new_scale / current_scale;
-                        self.pan_offset -= old_offset * (scale_change - 1.0);
+                        self.viewport.pan_offset -= old_offset * (scale_change - 1.0);
                     }
-                    self.zoom_level = new_scale;
+                    self.viewport.zoom_level = new_scale;
                 }
             }
 
             // Draw image with background frame (paper-white pass-partout frame when Soft Proofing paper simulation is active)
-            if self.grading.soft_proof.enabled && self.grading.soft_proof.simulate_paper_and_ink {
-                let paper_col = match self.grading.soft_proof.profile {
+            if self.session.grading.soft_proof.enabled && self.session.grading.soft_proof.simulate_paper_and_ink {
+                let paper_col = match self.session.grading.soft_proof.profile {
                     rraw_color::SoftProofProfile::FineArtMattePaper => {
                         egui::Color32::from_rgb(244, 240, 230)
                     }
@@ -201,8 +201,8 @@ impl RrawApp {
 
             let uv = if is_cropped_view {
                 egui::Rect::from_min_max(
-                    egui::pos2(self.grading.geometry.crop_left, self.grading.geometry.crop_top),
-                    egui::pos2(self.grading.geometry.crop_right, self.grading.geometry.crop_bottom),
+                    egui::pos2(self.session.grading.geometry.crop_left, self.session.grading.geometry.crop_top),
+                    egui::pos2(self.session.grading.geometry.crop_right, self.session.grading.geometry.crop_bottom),
                 )
             } else {
                 egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
@@ -223,18 +223,18 @@ impl RrawApp {
                 });
 
             if ui.input(|i| i.key_pressed(egui::Key::O)) {
-                if self.grading.show_local_mask_overlay.is_some() {
-                    self.grading.show_local_mask_overlay = None;
-                    self.needs_preview_update = true;
+                if self.session.grading.show_local_mask_overlay.is_some() {
+                    self.session.grading.show_local_mask_overlay = None;
+                    self.session.needs_preview_update = true;
                     ui.ctx().request_repaint();
-                } else if !self.grading.local_masks.is_empty() {
-                    self.grading.show_local_mask_overlay = Some(0);
-                    self.needs_preview_update = true;
+                } else if !self.session.grading.local_masks.is_empty() {
+                    self.session.grading.show_local_mask_overlay = Some(0);
+                    self.session.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
             }
 
-            let is_holding_left_fit = !self.split_compare
+            let is_holding_left_fit = !self.viewport.split_compare
                 && ui.input(|i| {
                     i.pointer.button_down(egui::PointerButton::Primary)
                         && i.pointer
@@ -242,24 +242,24 @@ impl RrawApp {
                             .is_some_and(|p| preview_rect.contains(p))
                 })
                 && !is_tool_active
-                && self.crop_drag_handle == CropDragHandle::None
-                && self.zoom_level <= 0.0;
+                && self.viewport.crop_drag_handle == CropDragHandle::None
+                && self.viewport.zoom_level <= 0.0;
 
-            let show_original = self.is_comparing_original
+            let show_original = self.session.is_comparing_original
                 || is_holding_left_fit
                 || is_holding_right_click
                 || is_holding_shortcut_key;
 
             let active_texture = if show_original {
-                self.original_texture.as_ref().unwrap_or(texture)
+                self.session.original_texture.as_ref().unwrap_or(texture)
             } else {
                 texture
             };
 
-            match (&self.original_texture, self.split_compare && !show_original) {
+            match (&self.session.original_texture, self.viewport.split_compare && !show_original) {
                 (Some(orig), true) => {
                     let (before, after) =
-                        crate::view_tools::split_comparison(preview_rect, uv, self.split_position);
+                        crate::view_tools::split_comparison(preview_rect, uv, self.viewport.split_position);
                     if before.screen.width() >= 1.0 {
                         painter.image(orig.id(), before.screen, before.uv, egui::Color32::WHITE);
                     }
@@ -289,18 +289,19 @@ impl RrawApp {
             }
 
             // Live Soft Proofing HUD Badge
-            if self.grading.soft_proof.enabled || self.grading.soft_proof.show_gamut_warning {
+            if self.session.grading.soft_proof.enabled || self.session.grading.soft_proof.show_gamut_warning {
                 hud::render_soft_proofing_hud(
                     &painter,
                     available_rect,
-                    &self.grading.soft_proof,
-                    self.histogram.out_of_gamut_count,
+                    &self.session.grading.soft_proof,
+                    self.viewport.histogram.out_of_gamut_count,
                 );
             }
 
             // Active Local Mask Overlay HUD Badge
-            if let Some(mask_idx) = self.grading.show_local_mask_overlay {
+            if let Some(mask_idx) = self.session.grading.show_local_mask_overlay {
                 let mask_name = self
+                    .session
                     .grading
                     .local_masks
                     .get(mask_idx)
@@ -321,12 +322,12 @@ impl RrawApp {
                     ui,
                     &resp,
                     &brush_ctx,
-                    &self.grading.geometry,
-                    &mut self.grading.local_masks,
-                    self.grading.active_brush_mask_idx,
+                    &self.session.grading.geometry,
+                    &mut self.session.grading.local_masks,
+                    self.session.grading.active_brush_mask_idx,
                 );
                 if needs_upd {
-                    self.needs_preview_update = true;
+                    self.session.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
                 if save_sidecar {
@@ -334,15 +335,15 @@ impl RrawApp {
                 }
 
                 // Active Brush HUD Badge
-                if let Some(mask_idx) = self.grading.active_brush_mask_idx {
-                    if let Some(mask) = self.grading.local_masks.get(mask_idx) {
-                        let has_mask_overlay = self.grading.show_local_mask_overlay.is_some();
+                if let Some(mask_idx) = self.session.grading.active_brush_mask_idx {
+                    if let Some(mask) = self.session.grading.local_masks.get(mask_idx) {
+                        let has_mask_overlay = self.session.grading.show_local_mask_overlay.is_some();
                         hud::render_brush_hud(
                             &painter,
                             available_rect,
                             mask,
                             has_mask_overlay,
-                            self.zoom_level,
+                            self.viewport.zoom_level,
                         );
                     }
                 }
@@ -351,11 +352,11 @@ impl RrawApp {
             let cur_lang = self.lang();
 
             // Interactive mouse cropping
-            if self.grading.geometry.crop_enabled && self.is_crop_editing {
+            if self.session.grading.geometry.crop_enabled && self.viewport.is_crop_editing {
                 let mut crop_state = crop_overlay::CropToolState {
-                    geometry: &mut self.grading.geometry,
-                    is_crop_editing: &mut self.is_crop_editing,
-                    crop_drag_handle: &mut self.crop_drag_handle,
+                    geometry: &mut self.session.grading.geometry,
+                    is_crop_editing: &mut self.viewport.is_crop_editing,
+                    crop_drag_handle: &mut self.viewport.crop_drag_handle,
                 };
                 let crop_out = crop_overlay::handle_crop_overlay(
                     ui,
@@ -367,7 +368,7 @@ impl RrawApp {
                     cur_lang,
                 );
                 if crop_out.needs_preview_update {
-                    self.needs_preview_update = true;
+                    self.session.needs_preview_update = true;
                 }
                 if crop_out.save_sidecar {
                     self.save_current_photo_sidecar();
@@ -375,12 +376,12 @@ impl RrawApp {
             }
 
             // 2-parallel-lines perspective correction tool interaction
-            if self.parallel_tool_phase != ParallelToolPhase::Inactive {
+            if self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive {
                 let mut tool_state = ParallelLinesToolState {
-                    phase: &mut self.parallel_tool_phase,
-                    line1: &mut self.parallel_line1,
-                    line2: &mut self.parallel_line2,
-                    drag_start: &mut self.parallel_drag_start,
+                    phase: &mut self.viewport.parallel_tool_phase,
+                    line1: &mut self.viewport.parallel_line1,
+                    line2: &mut self.viewport.parallel_line2,
+                    drag_start: &mut self.viewport.parallel_drag_start,
                     status_message: &mut self.status_message,
                 };
                 let p_out = perspective_tools::handle_parallel_lines_tool(
@@ -389,15 +390,15 @@ impl RrawApp {
                     &painter,
                     available_rect,
                     &mut tool_state,
-                    &mut self.grading.geometry,
+                    &mut self.session.grading.geometry,
                     cur_lang,
                 );
                 if p_out.mark_custom_preset {
-                    self.grading.preset = GradingPreset::Custom;
-                    self.current_preset = GradingPreset::Custom;
+                    self.session.grading.preset = GradingPreset::Custom;
+                    self.session.current_preset = GradingPreset::Custom;
                 }
                 if p_out.needs_preview_update {
-                    self.needs_preview_update = true;
+                    self.session.needs_preview_update = true;
                 }
                 if p_out.save_sidecar {
                     self.save_current_photo_sidecar();
@@ -405,21 +406,21 @@ impl RrawApp {
             }
 
             // Leveling horizon line interaction
-            if self.horizon_tool_active {
+            if self.viewport.horizon_tool_active {
                 let h_out = perspective_tools::handle_horizon_tool(
                     ui,
                     &resp,
                     &painter,
-                    &mut self.horizon_tool_active,
-                    &mut self.horizon_start_point,
-                    &mut self.grading.geometry,
+                    &mut self.viewport.horizon_tool_active,
+                    &mut self.viewport.horizon_start_point,
+                    &mut self.session.grading.geometry,
                 );
                 if h_out.mark_custom_preset {
-                    self.grading.preset = GradingPreset::Custom;
-                    self.current_preset = GradingPreset::Custom;
+                    self.session.grading.preset = GradingPreset::Custom;
+                    self.session.current_preset = GradingPreset::Custom;
                 }
                 if h_out.needs_preview_update {
-                    self.needs_preview_update = true;
+                    self.session.needs_preview_update = true;
                 }
                 if h_out.save_sidecar {
                     self.save_current_photo_sidecar();
@@ -433,14 +434,14 @@ impl RrawApp {
                     &resp,
                     &painter,
                     &brush_ctx,
-                    &self.grading.local_masks,
-                    self.grading.active_brush_mask_idx,
+                    &self.session.grading.local_masks,
+                    self.session.grading.active_brush_mask_idx,
                 );
             }
-            if self.split_compare && !show_original && self.original_texture.is_some() {
+            if self.viewport.split_compare && !show_original && self.session.original_texture.is_some() {
                 split_divider_rect = Some(preview_rect);
             }
-        } else if self.is_decoding {
+        } else if self.workers.is_decoding {
             painter.text(
                 available_rect.center(),
                 egui::Align2::CENTER_CENTER,
@@ -475,7 +476,7 @@ impl RrawApp {
         split_compare::render_split_divider(
             ui,
             image_rect,
-            &mut self.split_position,
+            &mut self.viewport.split_position,
             label_before,
             label_after,
         );

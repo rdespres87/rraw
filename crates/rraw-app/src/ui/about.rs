@@ -13,11 +13,11 @@ use crate::i18n::Key;
 impl RrawApp {
     /// Renders the modal "About" version window.
     pub fn render_about_dialog(&mut self, ctx: &egui::Context) {
-        if !self.show_about_dialog {
+        if !self.export.show_about_dialog {
             return;
         }
 
-        let mut is_open = self.show_about_dialog;
+        let mut is_open = self.export.show_about_dialog;
         let mut close_requested = false;
 
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -78,6 +78,6 @@ impl RrawApp {
         if close_requested {
             is_open = false;
         }
-        self.show_about_dialog = is_open;
+        self.export.show_about_dialog = is_open;
     }
 }

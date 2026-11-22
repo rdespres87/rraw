@@ -57,7 +57,7 @@ fn test_smart_lighting_section_active_and_reset() {
     );
 
     // Activate smart lighting
-    app.grading.smart_lighting.mode = SmartLightingMode::Medium;
+    app.session.grading.smart_lighting.mode = SmartLightingMode::Medium;
     assert!(
         app.is_section_active(DarkroomSection::ExposureTone),
         "ExposureTone section must be active when smart lighting is on"
@@ -66,7 +66,7 @@ fn test_smart_lighting_section_active_and_reset() {
     // Reset section
     app.reset_section(DarkroomSection::ExposureTone);
     assert_eq!(
-        app.grading.smart_lighting.mode,
+        app.session.grading.smart_lighting.mode,
         SmartLightingMode::Slight,
         "smart lighting must reset to default Slight"
     );

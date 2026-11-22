@@ -3,16 +3,23 @@
 ## Next Actionable Objective (Immediate Priority)
 
 - **Phase 16 — System Robustness, Concurrency Hardening & Controller Decomposition**:
-  - **Task 16.2 (`rraw-app`)**: Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (Option B) — **READY FOR DEV**
-    - Éclatement des 73 champs de `RrawApp` en 5 sous-contrôleurs : `PhotoSession`, `ViewportController`, `LibraryController`, `ExportBatchController`, `BackgroundWorkers`.
-    - Émancipation du borrow checker (`&mut self`) et passage sous le principe de moindre privilège.
-    - Suite de tests TDD `controller_modularization_tests.rs`.
-  - **Task 16.3 (`rraw-app`)**: End-to-End Stress Testing, Parity Verification & Adversarial Audit — Planned
-    - Stress tests sur 200+ fichiers, clippy 0 warning, audit impitoyable Qwen 3.6 35B Inquisitor.
+  - **Task 16.3 (`rraw-app`)**: End-to-End Stress Testing, Parity Verification & Adversarial Audit — **READY FOR DEV**
+    - High-speed automated navigation stress test across 200+ synthetic RAW files asserting zero CPU thread leaks, bounded VRAM, and zero stale frame displays.
+    - Non-regression parity check and final Phase 16 closure.
+    - Adversarial local code audit via Qwen 3.6 35B Inquisitor at 0 cloud tokens.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 16 — Task 16.2 Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (`rraw-app`)**:
+  - **Éclatement du God Object `RrawApp`** : Décomposition des 73 champs en 5 contrôleurs de domaine étanches : `PhotoSession`, `ViewportController`, `LibraryController`, `ExportBatchController`, `BackgroundWorkers`.
+  - **Émancipation du borrow checker** : Structure de champs disjoints éliminant tout blocage d'emprunt mutable simultané dans les composants d'interface egui.
+  - **Suite de tests & Validation** : `crates/rraw-app/tests/controller_modularization_tests.rs` (5 tests), 289 tests passants across 64 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 16 — Task 16.1 Concurrency Hardening, Thread Cancellation & VRAM Eviction Engine (`rraw-app`)**:
   - **Worker de décodage séquentiel & Annulation par époque atomique** : suppression des `std::thread::spawn` non contrôlés ; introduction de `DecodeCoordinator` (`Arc<AtomicU64>`) et du worker dédié `run_decode_worker` qui annule immédiatement tout calcul rendu obsolète par la navigation rapide au clavier.

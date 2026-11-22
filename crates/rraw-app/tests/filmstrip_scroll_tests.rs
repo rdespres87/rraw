@@ -7,7 +7,7 @@ use std::path::PathBuf;
 fn test_scroll_filmstrip_to_active_initially_false() {
     let app = RrawApp::new_headless();
     assert!(
-        !app.scroll_filmstrip_to_active,
+        !app.library.scroll_filmstrip_to_active,
         "scroll_filmstrip_to_active flag must be false initially"
     );
 }
@@ -16,8 +16,8 @@ fn test_scroll_filmstrip_to_active_initially_false() {
 fn test_scroll_filmstrip_to_active_after_navigate_relative() {
     let mut app = RrawApp::new_headless();
     let base_dir = PathBuf::from("/virtual/photos");
-    app.current_directory = Some(base_dir.clone());
-    app.directory_entries = vec![
+    app.library.current_directory = Some(base_dir.clone());
+    app.library.directory_entries = vec![
         base_dir.join("photo0.dng"),
         base_dir.join("photo1.dng"),
         base_dir.join("photo2.dng"),
@@ -25,7 +25,7 @@ fn test_scroll_filmstrip_to_active_after_navigate_relative() {
 
     app.navigate_relative(1);
     assert!(
-        app.scroll_filmstrip_to_active,
+        app.library.scroll_filmstrip_to_active,
         "navigate_relative(1) must trigger scroll_filmstrip_to_active"
     );
     assert_eq!(
@@ -33,10 +33,10 @@ fn test_scroll_filmstrip_to_active_after_navigate_relative() {
         Some(base_dir.join("photo1.dng").as_path())
     );
 
-    app.scroll_filmstrip_to_active = false;
+    app.library.scroll_filmstrip_to_active = false;
     app.navigate_relative(-1);
     assert!(
-        app.scroll_filmstrip_to_active,
+        app.library.scroll_filmstrip_to_active,
         "navigate_relative(-1) must trigger scroll_filmstrip_to_active"
     );
     assert_eq!(
@@ -49,8 +49,8 @@ fn test_scroll_filmstrip_to_active_after_navigate_relative() {
 fn test_scroll_filmstrip_to_active_after_navigate_to_filtered_index() {
     let mut app = RrawApp::new_headless();
     let base_dir = PathBuf::from("/virtual/photos");
-    app.current_directory = Some(base_dir.clone());
-    app.directory_entries = vec![
+    app.library.current_directory = Some(base_dir.clone());
+    app.library.directory_entries = vec![
         base_dir.join("photo0.dng"),
         base_dir.join("photo1.dng"),
         base_dir.join("photo2.dng"),
@@ -58,7 +58,7 @@ fn test_scroll_filmstrip_to_active_after_navigate_to_filtered_index() {
 
     app.navigate_to_filtered_index(2, false);
     assert!(
-        app.scroll_filmstrip_to_active,
+        app.library.scroll_filmstrip_to_active,
         "navigate_to_filtered_index must trigger scroll_filmstrip_to_active"
     );
     assert_eq!(
@@ -71,8 +71,8 @@ fn test_scroll_filmstrip_to_active_after_navigate_to_filtered_index() {
 fn test_consecutive_navigate_relative_while_decoding_preserves_position() {
     let mut app = RrawApp::new_headless();
     let base_dir = PathBuf::from("/virtual/photos");
-    app.current_directory = Some(base_dir.clone());
-    app.directory_entries = vec![
+    app.library.current_directory = Some(base_dir.clone());
+    app.library.directory_entries = vec![
         base_dir.join("p0.dng"),
         base_dir.join("p1.dng"),
         base_dir.join("p2.dng"),
@@ -88,7 +88,7 @@ fn test_consecutive_navigate_relative_while_decoding_preserves_position() {
     );
 
     // Simulate background decoding in progress: loaded_photo is None
-    app.loaded_photo = None;
+    app.session.loaded_photo = None;
 
     // Navigate again immediately (user tapping Right arrow quickly)
     app.navigate_relative(1);
@@ -99,7 +99,7 @@ fn test_consecutive_navigate_relative_while_decoding_preserves_position() {
     );
 
     // Navigate backward immediately while still decoding
-    app.loaded_photo = None;
+    app.session.loaded_photo = None;
     app.navigate_relative(-1);
     assert_eq!(
         app.layout_config.last_open_photo.as_deref(),

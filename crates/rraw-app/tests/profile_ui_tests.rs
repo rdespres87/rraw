@@ -61,39 +61,39 @@ fn test_optical_profile_sidecar_backward_compatibility() -> Result<(), Box<dyn s
 #[test]
 fn test_optical_profile_reset_section() {
     let mut app = RrawApp::new_headless();
-    app.grading.optics.lens_profile_auto = false;
-    app.grading.optics.lens_distortion_strength = 45.0;
-    app.grading.optics.lens_vignette_strength = 60.0;
-    app.grading.optics.lens_ca_strength = 80.0;
-    app.grading.optics.distortion_amount = 15.0;
+    app.session.grading.optics.lens_profile_auto = false;
+    app.session.grading.optics.lens_distortion_strength = 45.0;
+    app.session.grading.optics.lens_vignette_strength = 60.0;
+    app.session.grading.optics.lens_ca_strength = 80.0;
+    app.session.grading.optics.distortion_amount = 15.0;
 
     app.reset_section(DarkroomSection::OpticalCorrections);
 
-    assert!(app.grading.optics.lens_profile_auto);
-    assert_eq!(app.grading.optics.lens_distortion_strength, 100.0);
-    assert_eq!(app.grading.optics.lens_vignette_strength, 100.0);
-    assert_eq!(app.grading.optics.lens_ca_strength, 100.0);
-    assert_eq!(app.grading.optics.distortion_amount, 0.0);
+    assert!(app.session.grading.optics.lens_profile_auto);
+    assert_eq!(app.session.grading.optics.lens_distortion_strength, 100.0);
+    assert_eq!(app.session.grading.optics.lens_vignette_strength, 100.0);
+    assert_eq!(app.session.grading.optics.lens_ca_strength, 100.0);
+    assert_eq!(app.session.grading.optics.distortion_amount, 0.0);
 }
 
 #[test]
 fn test_effects_independent_from_optical_corrections() {
     let mut app = RrawApp::new_headless();
-    app.grading.effects.creative_vignette_amount = -40.0;
-    app.grading.optics.distortion_amount = 15.0;
+    app.session.grading.effects.creative_vignette_amount = -40.0;
+    app.session.grading.optics.distortion_amount = 15.0;
 
     assert!(app.is_section_active(DarkroomSection::Effects));
     assert!(app.is_section_active(DarkroomSection::OpticalCorrections));
 
     // Resetting optical corrections must NOT reset creative vignette!
     app.reset_section(DarkroomSection::OpticalCorrections);
-    assert_eq!(app.grading.effects.creative_vignette_amount, -40.0);
+    assert_eq!(app.session.grading.effects.creative_vignette_amount, -40.0);
     assert!(app.is_section_active(DarkroomSection::Effects));
     assert!(!app.is_section_active(DarkroomSection::OpticalCorrections));
 
     // Resetting effects resets creative vignette
     app.reset_section(DarkroomSection::Effects);
-    assert_eq!(app.grading.effects.creative_vignette_amount, 0.0);
+    assert_eq!(app.session.grading.effects.creative_vignette_amount, 0.0);
     assert!(!app.is_section_active(DarkroomSection::Effects));
 }
 
@@ -136,26 +136,26 @@ fn test_optical_tab_and_defringe_threshold_defaults_and_reset() {
 
     let mut app = RrawApp::new_headless();
     assert_eq!(
-        app.grading.optics.optical_tab,
+        app.session.grading.optics.optical_tab,
         OpticalCorrectionTab::Profile
     );
-    assert!((app.grading.optics.defringe_threshold - 0.08).abs() < 1e-4);
-    assert!(!app.grading.optics.defringe_preview_mask);
+    assert!((app.session.grading.optics.defringe_threshold - 0.08).abs() < 1e-4);
+    assert!(!app.session.grading.optics.defringe_preview_mask);
 
-    app.grading.optics.optical_tab = OpticalCorrectionTab::Manual;
-    app.grading.optics.defringe_threshold = 0.18;
-    app.grading.optics.defringe_preview_mask = true;
-    app.grading.optics.defringe_purple_amount = 55.0;
+    app.session.grading.optics.optical_tab = OpticalCorrectionTab::Manual;
+    app.session.grading.optics.defringe_threshold = 0.18;
+    app.session.grading.optics.defringe_preview_mask = true;
+    app.session.grading.optics.defringe_purple_amount = 55.0;
 
     app.reset_section(DarkroomSection::OpticalCorrections);
 
     assert_eq!(
-        app.grading.optics.optical_tab,
+        app.session.grading.optics.optical_tab,
         OpticalCorrectionTab::Profile
     );
-    assert!((app.grading.optics.defringe_threshold - 0.08).abs() < 1e-4);
-    assert!(!app.grading.optics.defringe_preview_mask);
-    assert_eq!(app.grading.optics.defringe_purple_amount, 0.0);
+    assert!((app.session.grading.optics.defringe_threshold - 0.08).abs() < 1e-4);
+    assert!(!app.session.grading.optics.defringe_preview_mask);
+    assert_eq!(app.session.grading.optics.defringe_purple_amount, 0.0);
 }
 
 #[test]

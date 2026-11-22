@@ -19,16 +19,16 @@ impl RrawApp {
     /// Compact viewport display toggles rendered in the top bar.
     pub fn render_view_toggles(&mut self, ui: &mut egui::Ui) {
         if ui
-            .selectable_label(self.split_compare, self.t(Key::ToggleBeforeAfter))
+            .selectable_label(self.viewport.split_compare, self.t(Key::ToggleBeforeAfter))
             .on_hover_text(self.t(Key::ToggleBeforeAfterTooltip))
             .clicked()
         {
-            self.split_compare = !self.split_compare;
+            self.viewport.split_compare = !self.viewport.split_compare;
         }
 
         if ui
             .selectable_label(
-                self.clipping_overlay.is_active(),
+                self.viewport.clipping_overlay.is_active(),
                 self.t(Key::ToggleClipping),
             )
             .on_hover_text(self.t(Key::ToggleClippingTooltip))
@@ -62,11 +62,14 @@ impl RrawApp {
         }
 
         if ui
-            .selectable_label(self.show_shortcuts_dialog, self.t(Key::ToggleShortcuts))
+            .selectable_label(
+                self.export.show_shortcuts_dialog,
+                self.t(Key::ToggleShortcuts),
+            )
             .on_hover_text(self.t(Key::ToggleShortcutsTooltip))
             .clicked()
         {
-            self.show_shortcuts_dialog = !self.show_shortcuts_dialog;
+            self.export.show_shortcuts_dialog = !self.export.show_shortcuts_dialog;
         }
     }
 
@@ -76,7 +79,7 @@ impl RrawApp {
         if !self.layout_config.show_canvas_hud {
             return None;
         }
-        let photo = self.loaded_photo.as_ref()?;
+        let photo = self.session.loaded_photo.as_ref()?;
         let painter = ui.painter().with_clip_rect(canvas);
 
         // Bottom-left information card

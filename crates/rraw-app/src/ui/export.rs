@@ -22,12 +22,12 @@ impl RrawApp {
         u8_bytes: &[u8],
         u16_samples: &[u16],
     ) -> Result<(), String> {
-        match self.export_format {
+        match self.export.export_format {
             ExportFormatChoice::Jpeg => {
                 let file = std::fs::File::create(target_path)
                     .map_err(|e| format!("Impossible de créer le fichier: {e}"))?;
                 let mut writer = std::io::BufWriter::new(file);
-                let quality = self.export_jpeg_quality.clamp(1, 100);
+                let quality = self.export.export_jpeg_quality.clamp(1, 100);
                 image::codecs::jpeg::JpegEncoder::new_with_quality(&mut writer, quality)
                     .write_image(
                         u8_bytes,
@@ -41,7 +41,7 @@ impl RrawApp {
                 let file = std::fs::File::create(target_path)
                     .map_err(|e| format!("Impossible de créer le fichier: {e}"))?;
                 let mut writer = std::io::BufWriter::new(file);
-                match self.export_bit_depth {
+                match self.export.export_bit_depth {
                     ExportBitDepth::Bits16 => {
                         let mut encoder =
                             png::Encoder::new(&mut writer, out_w as u32, out_h as u32);
@@ -76,7 +76,7 @@ impl RrawApp {
                 let file = std::fs::File::create(target_path)
                     .map_err(|e| format!("Impossible de créer le fichier: {e}"))?;
                 let mut writer = std::io::BufWriter::new(file);
-                match self.export_bit_depth {
+                match self.export.export_bit_depth {
                     ExportBitDepth::Bits16 => {
                         image::codecs::tiff::TiffEncoder::new(&mut writer)
                             .write_image(
@@ -104,7 +104,7 @@ impl RrawApp {
     }
 
     fn compute_export_target_width(&self, cfa_width: usize, cfa_height: usize) -> usize {
-        match self.export_scale_mode {
+        match self.export.export_scale_mode {
             ExportScaleMode::Original => cfa_width.max(1),
             ExportScaleMode::Percent75 => ((cfa_width * 3) / 4).max(1),
             ExportScaleMode::Percent50 => (cfa_width / 2).max(1),
@@ -146,16 +146,18 @@ impl RrawApp {
         &self,
         photo_path: &Path,
     ) -> Option<(BaseRgbPreview, DarkroomGradingState)> {
-        let is_loaded = self.loaded_photo.as_ref().map(|p| p.path.as_path()) == Some(photo_path);
+        let is_loaded =
+            self.session.loaded_photo.as_ref().map(|p| p.path.as_path()) == Some(photo_path);
         if is_loaded {
-            let base = match (&self.cached_cfa, &self.base_preview) {
+            let base = match (&self.session.cached_cfa, &self.session.base_preview) {
                 (Some(cfa), Some(prev)) => self.build_export_base_from_cfa(cfa, prev),
                 (_, Some(prev)) => prev.clone(),
                 _ => return None,
             };
-            Some((base, self.grading.clone()))
+            Some((base, self.session.grading.clone()))
         } else if let Some(cached) = self.photo_cache.iter().find(|e| e.path == photo_path) {
             let grading = self
+                .library
                 .photo_gradings
                 .get(photo_path)
                 .cloned()
@@ -164,6 +166,7 @@ impl RrawApp {
             Some((base, grading))
         } else if let Some(payload) = decode_photo_file_payload(photo_path, false, 0) {
             let grading = self
+                .library
                 .photo_gradings
                 .get(photo_path)
                 .cloned()
@@ -178,17 +181,18 @@ impl RrawApp {
     /// Returns the ordered list of photos participating in a Timelapse sequence export.
     #[must_use]
     pub fn timelapse_candidate_paths(&self) -> Vec<PathBuf> {
-        if self.selected_photos.len() >= 2 {
-            let mut sorted: Vec<PathBuf> = self.selected_photos.iter().cloned().collect();
+        if self.library.selected_photos.len() >= 2 {
+            let mut sorted: Vec<PathBuf> = self.library.selected_photos.iter().cloned().collect();
             sorted.sort();
             sorted
         } else {
             let mut filtered: Vec<PathBuf> = self
+                .library
                 .directory_entries
                 .iter()
                 .filter(|p| {
-                    let rating = self.photo_ratings.get(*p).copied().unwrap_or(0);
-                    self.rating_filter.matches(rating)
+                    let rating = self.library.photo_ratings.get(*p).copied().unwrap_or(0);
+                    self.library.rating_filter.matches(rating)
                 })
                 .cloned()
                 .collect();
@@ -201,12 +205,12 @@ impl RrawApp {
     /// temporal anti-flicker and keyframe ramping).
     pub fn execute_export(&mut self) -> Result<PathBuf, String> {
         // Keep backward compatibility if export_batch_selection was toggled programmatically
-        let mode = if self.export_target_mode == ExportTargetMode::CurrentPhoto
-            && self.export_batch_selection
+        let mode = if self.export.export_target_mode == ExportTargetMode::CurrentPhoto
+            && self.export.export_batch_selection
         {
             ExportTargetMode::BatchSelection
         } else {
-            self.export_target_mode
+            self.export.export_target_mode
         };
 
         if mode == ExportTargetMode::TimelapseSequence {
@@ -215,20 +219,21 @@ impl RrawApp {
 
         let photos_to_export: Vec<PathBuf> = match mode {
             ExportTargetMode::BatchSelection => {
-                if self.selected_photos.is_empty() {
-                    if let Some(loaded) = &self.loaded_photo {
+                if self.library.selected_photos.is_empty() {
+                    if let Some(loaded) = &self.session.loaded_photo {
                         vec![loaded.path.clone()]
                     } else {
                         return Err("Aucune photo sélectionnée pour l'export par lot.".to_string());
                     }
                 } else {
-                    let mut sorted: Vec<PathBuf> = self.selected_photos.iter().cloned().collect();
+                    let mut sorted: Vec<PathBuf> =
+                        self.library.selected_photos.iter().cloned().collect();
                     sorted.sort();
                     sorted
                 }
             }
             ExportTargetMode::CurrentPhoto | ExportTargetMode::TimelapseSequence => {
-                if let Some(loaded) = &self.loaded_photo {
+                if let Some(loaded) = &self.session.loaded_photo {
                     vec![loaded.path.clone()]
                 } else {
                     return Err("Aucune photo chargée à exporter.".to_string());
@@ -248,19 +253,20 @@ impl RrawApp {
             let (out_w, out_h, u8_bytes, u16_samples) =
                 render_export_image(&base_preview, &grading, 1.0);
 
-            let base_dest = self.export_custom_dir.clone().unwrap_or_else(|| {
+            let base_dest = self.export.export_custom_dir.clone().unwrap_or_else(|| {
                 photo_path
                     .parent()
                     .map(Path::to_path_buf)
                     .unwrap_or_else(|| PathBuf::from("."))
             });
 
-            let final_dest =
-                if self.export_use_subfolder && !self.export_subfolder.trim().is_empty() {
-                    base_dest.join(self.export_subfolder.trim())
-                } else {
-                    base_dest
-                };
+            let final_dest = if self.export.export_use_subfolder
+                && !self.export.export_subfolder.trim().is_empty()
+            {
+                base_dest.join(self.export.export_subfolder.trim())
+            } else {
+                base_dest
+            };
 
             let _ = std::fs::create_dir_all(&final_dest);
 
@@ -268,8 +274,8 @@ impl RrawApp {
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("export");
-            let ext = self.export_format.extension();
-            let suffix = &self.export_suffix;
+            let ext = self.export.export_format.extension();
+            let suffix = &self.export.export_suffix;
             let target_path = final_dest.join(format!("{stem}{suffix}.{ext}"));
 
             self.write_exported_image(&target_path, out_w, out_h, &u8_bytes, &u16_samples)?;
@@ -293,9 +299,10 @@ impl RrawApp {
         }
 
         // Persist current photo grading in memory map before assembling sequence
-        if let Some(loaded) = &self.loaded_photo {
-            self.photo_gradings
-                .insert(loaded.path.clone(), self.grading.clone());
+        if let Some(loaded) = &self.session.loaded_photo {
+            self.library
+                .photo_gradings
+                .insert(loaded.path.clone(), self.session.grading.clone());
         }
 
         let mut decoded_frames: Vec<(PathBuf, BaseRgbPreview, DarkroomGradingState)> =
@@ -318,20 +325,22 @@ impl RrawApp {
 
         let (smoothed_gradings, offsets_ev) = prepare_timelapse_frame_gradings(
             &frame_refs,
-            self.timelapse_keyframe_ramping,
-            &self.timelapse_deflicker,
+            self.export.timelapse_keyframe_ramping,
+            &self.export.timelapse_deflicker,
         );
 
         let first_path = &decoded_frames[0].0;
-        let base_dest = self.export_custom_dir.clone().unwrap_or_else(|| {
+        let base_dest = self.export.export_custom_dir.clone().unwrap_or_else(|| {
             first_path
                 .parent()
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| PathBuf::from("."))
         });
 
-        let final_dest = if self.export_use_subfolder && !self.export_subfolder.trim().is_empty() {
-            base_dest.join(self.export_subfolder.trim())
+        let final_dest = if self.export.export_use_subfolder
+            && !self.export.export_subfolder.trim().is_empty()
+        {
+            base_dest.join(self.export.export_subfolder.trim())
         } else {
             base_dest
         };
@@ -339,7 +348,7 @@ impl RrawApp {
         std::fs::create_dir_all(&final_dest)
             .map_err(|e| format!("Impossible de créer le dossier Timelapse: {e}"))?;
 
-        let ext = self.export_format.extension();
+        let ext = self.export.export_format.extension();
         let mut last_path = None;
 
         for (idx, ((_, base, _), grading)) in decoded_frames
@@ -349,7 +358,7 @@ impl RrawApp {
         {
             let (out_w, out_h, u8_bytes, u16_samples) = render_export_image(base, grading, 1.0);
             let seq_filename = rraw_export::format_sequence_filename(
-                &self.timelapse_sequence_prefix,
+                &self.export.timelapse_sequence_prefix,
                 idx + 1,
                 ext,
             );
@@ -360,9 +369,9 @@ impl RrawApp {
 
         let manifest_path = rraw_export::write_timelapse_manifest(
             &final_dest,
-            &self.timelapse_sequence_prefix,
+            &self.export.timelapse_sequence_prefix,
             ext,
-            self.timelapse_fps,
+            self.export.timelapse_fps,
             decoded_frames.len(),
             &offsets_ev,
         )
@@ -380,7 +389,7 @@ impl RrawApp {
         let t = |key: Key| key.translate(lang);
         let tl_paths = self.timelapse_candidate_paths();
         let frame_count = tl_paths.len();
-        let dur_s = self.timelapse_fps.duration_seconds(frame_count);
+        let dur_s = self.export.timelapse_fps.duration_seconds(frame_count);
 
         let seq_text = if lang == Language::Fr {
             format!("🎞️ Séquence : {} images", frame_count)
@@ -388,12 +397,16 @@ impl RrawApp {
             format!("🎞️ Sequence: {} frames", frame_count)
         };
         let dur_text = if lang == Language::Fr {
-            format!("Durée : {:.2} s @ {} fps", dur_s, self.timelapse_fps.fps())
+            format!(
+                "Durée : {:.2} s @ {} fps",
+                dur_s,
+                self.export.timelapse_fps.fps()
+            )
         } else {
             format!(
                 "Duration: {:.2} s @ {} fps",
                 dur_s,
-                self.timelapse_fps.fps()
+                self.export.timelapse_fps.fps()
             )
         };
         ui.horizontal_wrapped(|ui| {
@@ -414,25 +427,25 @@ impl RrawApp {
         ui.horizontal(|ui| {
             ui.label(t(Key::TimelapseFps));
             egui::ComboBox::from_id_salt(format!("{id_salt_prefix}_timelapse_fps_combo"))
-                .selected_text(self.timelapse_fps.label())
+                .selected_text(self.export.timelapse_fps.label())
                 .show_ui(ui, |ui| {
                     for fps in rraw_export::TimelapseFrameRate::ALL {
-                        ui.selectable_value(&mut self.timelapse_fps, fps, fps.label());
+                        ui.selectable_value(&mut self.export.timelapse_fps, fps, fps.label());
                     }
                 });
         });
 
         ui.separator();
         ui.checkbox(
-            &mut self.timelapse_deflicker.enabled,
+            &mut self.export.timelapse_deflicker.enabled,
             t(Key::TimelapseDeflickerTitle),
         )
         .on_hover_text(t(Key::TimelapseDeflickerTooltip));
 
-        if self.timelapse_deflicker.enabled {
+        if self.export.timelapse_deflicker.enabled {
             ui.horizontal(|ui| {
                 ui.label(t(Key::TimelapseWindowSize));
-                let mut rad = self.timelapse_deflicker.window_radius as u32;
+                let mut rad = self.export.timelapse_deflicker.window_radius as u32;
                 if ui
                     .add(
                         egui::Slider::new(&mut rad, 1..=15).suffix(if lang == Language::Fr {
@@ -443,43 +456,44 @@ impl RrawApp {
                     )
                     .changed()
                 {
-                    self.timelapse_deflicker.window_radius = rad as usize;
+                    self.export.timelapse_deflicker.window_radius = rad as usize;
                 }
             });
             ui.horizontal(|ui| {
                 ui.label(t(Key::TimelapseIntensity));
-                let mut pct = (self.timelapse_deflicker.strength * 100.0).round();
+                let mut pct = (self.export.timelapse_deflicker.strength * 100.0).round();
                 if ui
                     .add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%"))
                     .changed()
                 {
-                    self.timelapse_deflicker.strength = (pct / 100.0).clamp(0.0, 1.0);
+                    self.export.timelapse_deflicker.strength = (pct / 100.0).clamp(0.0, 1.0);
                 }
             });
         }
 
         ui.separator();
         ui.checkbox(
-            &mut self.timelapse_keyframe_ramping,
+            &mut self.export.timelapse_keyframe_ramping,
             t(Key::TimelapseHolyGrailTitle),
         )
         .on_hover_text(t(Key::TimelapseHolyGrailTooltip));
 
-        if self.timelapse_keyframe_ramping && frame_count >= 2 {
+        if self.export.timelapse_keyframe_ramping && frame_count >= 2 {
             let first_path = tl_paths[0].clone();
             let last_path = tl_paths[frame_count - 1].clone();
 
-            if let Some(loaded) = &self.loaded_photo {
-                self.photo_gradings
-                    .insert(loaded.path.clone(), self.grading.clone());
+            if let Some(loaded) = &self.session.loaded_photo {
+                self.library
+                    .photo_gradings
+                    .insert(loaded.path.clone(), self.session.grading.clone());
             }
-            if !self.photo_gradings.contains_key(&first_path) {
+            if !self.library.photo_gradings.contains_key(&first_path) {
                 let g = load_photo_sidecars(&first_path).0.unwrap_or_default();
-                self.photo_gradings.insert(first_path.clone(), g);
+                self.library.photo_gradings.insert(first_path.clone(), g);
             }
-            if !self.photo_gradings.contains_key(&last_path) {
+            if !self.library.photo_gradings.contains_key(&last_path) {
                 let g = load_photo_sidecars(&last_path).0.unwrap_or_default();
-                self.photo_gradings.insert(last_path.clone(), g);
+                self.library.photo_gradings.insert(last_path.clone(), g);
             }
 
             let first_name = first_path
@@ -498,6 +512,7 @@ impl RrawApp {
             ui.add_space(4.0);
             // Keyframe 1 (Start)
             let mut g_first = self
+                .library
                 .photo_gradings
                 .get(&first_path)
                 .cloned()
@@ -547,26 +562,34 @@ impl RrawApp {
                 }
             });
             if first_changed {
-                self.photo_gradings
+                self.library
+                    .photo_gradings
                     .insert(first_path.clone(), g_first.clone());
                 if self
+                    .session
                     .loaded_photo
                     .as_ref()
                     .is_some_and(|p| p.path == first_path)
                 {
-                    self.grading = g_first.clone();
-                    self.needs_preview_update = true;
+                    self.session.grading = g_first.clone();
+                    self.session.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
             }
             if first_commit_disk {
-                let r = self.photo_ratings.get(&first_path).copied().unwrap_or(0);
+                let r = self
+                    .library
+                    .photo_ratings
+                    .get(&first_path)
+                    .copied()
+                    .unwrap_or(0);
                 save_photo_sidecars(&first_path, &g_first, r);
             }
 
             ui.add_space(2.0);
             // Keyframe N (End)
             let mut g_last = self
+                .library
                 .photo_gradings
                 .get(&last_path)
                 .cloned()
@@ -619,20 +642,27 @@ impl RrawApp {
                 }
             });
             if last_changed {
-                self.photo_gradings
+                self.library
+                    .photo_gradings
                     .insert(last_path.clone(), g_last.clone());
                 if self
+                    .session
                     .loaded_photo
                     .as_ref()
                     .is_some_and(|p| p.path == last_path)
                 {
-                    self.grading = g_last.clone();
-                    self.needs_preview_update = true;
+                    self.session.grading = g_last.clone();
+                    self.session.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
             }
             if last_commit_disk {
-                let r = self.photo_ratings.get(&last_path).copied().unwrap_or(0);
+                let r = self
+                    .library
+                    .photo_ratings
+                    .get(&last_path)
+                    .copied()
+                    .unwrap_or(0);
                 save_photo_sidecars(&last_path, &g_last, r);
             }
 
@@ -644,13 +674,13 @@ impl RrawApp {
 
     /// Renders the export configuration dialog window.
     pub fn render_export_dialog(&mut self, ctx: &egui::Context) {
-        if !self.show_export_dialog {
+        if !self.export.show_export_dialog {
             return;
         }
 
         let lang = self.lang();
         let t = |key: Key| key.translate(lang);
-        let mut is_open = self.show_export_dialog;
+        let mut is_open = self.export.show_export_dialog;
         let mut trigger_export = false;
         let mut close_dialog = false;
 
@@ -671,46 +701,46 @@ impl RrawApp {
                 ui.horizontal_wrapped(|ui| {
                     if ui
                         .radio_value(
-                            &mut self.export_target_mode,
+                            &mut self.export.export_target_mode,
                             ExportTargetMode::CurrentPhoto,
                             t(Key::ExportTargetCurrent),
                         )
                         .clicked()
                     {
-                        self.export_batch_selection = false;
+                        self.export.export_batch_selection = false;
                     }
-                    let sel_count = self.selected_photos.len();
+                    let sel_count = self.library.selected_photos.len();
                     let batch_word = t(Key::ExportTargetBatch);
                     let s_suffix = if sel_count > 1 { "s" } else { "" };
                     let batch_label = format!("{batch_word} ({sel_count} photo{s_suffix})");
                     if ui
                         .radio_value(
-                            &mut self.export_target_mode,
+                            &mut self.export.export_target_mode,
                             ExportTargetMode::BatchSelection,
                             batch_label,
                         )
                         .clicked()
                     {
-                        self.export_batch_selection = true;
+                        self.export.export_batch_selection = true;
                     }
                     if ui
                         .radio_value(
-                            &mut self.export_target_mode,
+                            &mut self.export.export_target_mode,
                             ExportTargetMode::TimelapseSequence,
                             t(Key::ExportTargetTimelapse),
                         )
                         .clicked()
                     {
-                        self.export_batch_selection = true;
-                        if self.export_subfolder == "Export" {
-                            self.export_subfolder = "Timelapse".to_string();
+                        self.export.export_batch_selection = true;
+                        if self.export.export_subfolder == "Export" {
+                            self.export.export_subfolder = "Timelapse".to_string();
                         }
                     }
                 });
 
-                match self.export_target_mode {
+                match self.export.export_target_mode {
                     ExportTargetMode::CurrentPhoto => {
-                        if let Some(photo) = &self.loaded_photo {
+                        if let Some(photo) = &self.session.loaded_photo {
                             ui.horizontal(|ui| {
                                 ui.label(egui::RichText::new(t(Key::ExportActivePhoto)).strong());
                                 if let Some(name) = photo.path.file_name().and_then(|n| n.to_str())
@@ -721,7 +751,7 @@ impl RrawApp {
                                     );
                                 }
                             });
-                            let crop_text = if self.grading.geometry.crop_enabled {
+                            let crop_text = if self.session.grading.geometry.crop_enabled {
                                 t(Key::ExportCropApplied)
                             } else {
                                 ""
@@ -738,7 +768,7 @@ impl RrawApp {
                         }
                     }
                     ExportTargetMode::BatchSelection => {
-                        if self.selected_photos.is_empty() {
+                        if self.library.selected_photos.is_empty() {
                             ui.label(
                                 egui::RichText::new(t(Key::ExportNoBatchWarning))
                                     .small()
@@ -760,24 +790,36 @@ impl RrawApp {
                 ui.separator();
                 ui.heading(t(Key::ExportFormatHeading));
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut self.export_format, ExportFormatChoice::Jpeg, "JPEG");
-                    ui.selectable_value(&mut self.export_format, ExportFormatChoice::Png, "PNG");
-                    ui.selectable_value(&mut self.export_format, ExportFormatChoice::Tiff, "TIFF");
+                    ui.selectable_value(
+                        &mut self.export.export_format,
+                        ExportFormatChoice::Jpeg,
+                        "JPEG",
+                    );
+                    ui.selectable_value(
+                        &mut self.export.export_format,
+                        ExportFormatChoice::Png,
+                        "PNG",
+                    );
+                    ui.selectable_value(
+                        &mut self.export.export_format,
+                        ExportFormatChoice::Tiff,
+                        "TIFF",
+                    );
                 });
 
                 ui.add_space(4.0);
-                match self.export_format {
+                match self.export.export_format {
                     ExportFormatChoice::Jpeg => {
                         ui.horizontal(|ui| {
                             ui.label(t(Key::ExportJpegQuality));
                             ui.add(
-                                egui::Slider::new(&mut self.export_jpeg_quality, 1..=100)
+                                egui::Slider::new(&mut self.export.export_jpeg_quality, 1..=100)
                                     .suffix("%"),
                             );
                         });
-                        let quality_desc = if self.export_jpeg_quality >= 92 {
+                        let quality_desc = if self.export.export_jpeg_quality >= 92 {
                             t(Key::ExportJpegQualityMax)
-                        } else if self.export_jpeg_quality >= 80 {
+                        } else if self.export.export_jpeg_quality >= 80 {
                             t(Key::ExportJpegQualityBalanced)
                         } else {
                             t(Key::ExportJpegQualityLow)
@@ -792,12 +834,12 @@ impl RrawApp {
                         ui.horizontal(|ui| {
                             ui.label(t(Key::ExportBitDepth));
                             ui.radio_value(
-                                &mut self.export_bit_depth,
+                                &mut self.export.export_bit_depth,
                                 ExportBitDepth::Bits8,
                                 t(Key::ExportBitDepth8Standard),
                             );
                             ui.radio_value(
-                                &mut self.export_bit_depth,
+                                &mut self.export.export_bit_depth,
                                 ExportBitDepth::Bits16,
                                 t(Key::ExportBitDepth16Lossless),
                             );
@@ -807,12 +849,12 @@ impl RrawApp {
                         ui.horizontal(|ui| {
                             ui.label(t(Key::ExportBitDepth));
                             ui.radio_value(
-                                &mut self.export_bit_depth,
+                                &mut self.export.export_bit_depth,
                                 ExportBitDepth::Bits8,
                                 t(Key::ExportBitDepth8),
                             );
                             ui.radio_value(
-                                &mut self.export_bit_depth,
+                                &mut self.export.export_bit_depth,
                                 ExportBitDepth::Bits16,
                                 t(Key::ExportBitDepth16Studio),
                             );
@@ -823,30 +865,30 @@ impl RrawApp {
                 ui.separator();
                 ui.heading(t(Key::ExportResizeHeading));
                 egui::ComboBox::from_id_salt("export_scale_combo")
-                    .selected_text(self.export_scale_mode.label_lang(lang))
+                    .selected_text(self.export.export_scale_mode.label_lang(lang))
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
-                            &mut self.export_scale_mode,
+                            &mut self.export.export_scale_mode,
                             ExportScaleMode::Original,
                             ExportScaleMode::Original.label_lang(lang),
                         );
                         ui.selectable_value(
-                            &mut self.export_scale_mode,
+                            &mut self.export.export_scale_mode,
                             ExportScaleMode::Percent75,
                             ExportScaleMode::Percent75.label_lang(lang),
                         );
                         ui.selectable_value(
-                            &mut self.export_scale_mode,
+                            &mut self.export.export_scale_mode,
                             ExportScaleMode::Percent50,
                             ExportScaleMode::Percent50.label_lang(lang),
                         );
                         ui.selectable_value(
-                            &mut self.export_scale_mode,
+                            &mut self.export.export_scale_mode,
                             ExportScaleMode::FitLongEdge2048,
                             ExportScaleMode::FitLongEdge2048.label_lang(lang),
                         );
                         ui.selectable_value(
-                            &mut self.export_scale_mode,
+                            &mut self.export.export_scale_mode,
                             ExportScaleMode::FitLongEdge3840,
                             ExportScaleMode::FitLongEdge3840.label_lang(lang),
                         );
@@ -855,9 +897,9 @@ impl RrawApp {
                 ui.separator();
                 ui.heading(t(Key::ExportDestinationHeading));
                 ui.horizontal(|ui| {
-                    let dest_label = if let Some(dir) = &self.export_custom_dir {
+                    let dest_label = if let Some(dir) = &self.export.export_custom_dir {
                         dir.to_string_lossy().to_string()
-                    } else if let Some(photo) = &self.loaded_photo {
+                    } else if let Some(photo) = &self.session.loaded_photo {
                         photo
                             .path
                             .parent()
@@ -869,31 +911,34 @@ impl RrawApp {
                     ui.label(egui::RichText::new(dest_label).small().monospace());
                     if ui.button(t(Key::SidebarBrowseButton)).clicked() {
                         if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                            self.export_custom_dir = Some(folder);
+                            self.export.export_custom_dir = Some(folder);
                         }
                     }
                 });
 
                 ui.horizontal(|ui| {
-                    ui.checkbox(&mut self.export_use_subfolder, t(Key::ExportUseSubfolder));
-                    if self.export_use_subfolder {
+                    ui.checkbox(
+                        &mut self.export.export_use_subfolder,
+                        t(Key::ExportUseSubfolder),
+                    );
+                    if self.export.export_use_subfolder {
                         ui.add(
-                            egui::TextEdit::singleline(&mut self.export_subfolder)
+                            egui::TextEdit::singleline(&mut self.export.export_subfolder)
                                 .desired_width(120.0),
                         );
                     }
                 });
 
-                if self.export_target_mode == ExportTargetMode::TimelapseSequence {
+                if self.export.export_target_mode == ExportTargetMode::TimelapseSequence {
                     ui.horizontal(|ui| {
                         ui.label(t(Key::ExportSequencePrefix));
                         ui.add(
-                            egui::TextEdit::singleline(&mut self.timelapse_sequence_prefix)
+                            egui::TextEdit::singleline(&mut self.export.timelapse_sequence_prefix)
                                 .desired_width(120.0),
                         );
-                        let ext = self.export_format.extension();
+                        let ext = self.export.export_format.extension();
                         let sample = rraw_export::format_sequence_filename(
-                            &self.timelapse_sequence_prefix,
+                            &self.export.timelapse_sequence_prefix,
                             1,
                             ext,
                         );
@@ -907,13 +952,13 @@ impl RrawApp {
                     ui.horizontal(|ui| {
                         ui.label(t(Key::ExportFileSuffix));
                         ui.add(
-                            egui::TextEdit::singleline(&mut self.export_suffix)
+                            egui::TextEdit::singleline(&mut self.export.export_suffix)
                                 .desired_width(120.0),
                         );
                     });
                 }
 
-                if let Some((msg, success)) = &self.export_status {
+                if let Some((msg, success)) = &self.export.export_status {
                     ui.add_space(6.0);
                     let col = if *success {
                         Color32::from_rgb(100, 220, 120)
@@ -929,7 +974,7 @@ impl RrawApp {
                     if ui.button(t(Key::ExportCancel)).clicked() {
                         close_dialog = true;
                     }
-                    let export_btn_text = match self.export_target_mode {
+                    let export_btn_text = match self.export.export_target_mode {
                         ExportTargetMode::CurrentPhoto => t(Key::ExportBtnSingle),
                         ExportTargetMode::BatchSelection => t(Key::ExportBtnBatch),
                         ExportTargetMode::TimelapseSequence => t(Key::ExportBtnTimelapse),
@@ -949,18 +994,18 @@ impl RrawApp {
         if close_dialog {
             is_open = false;
         }
-        self.show_export_dialog = is_open;
+        self.export.show_export_dialog = is_open;
 
         if trigger_export {
             match self.execute_export() {
                 Ok(path) => {
                     let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("image");
-                    let status_txt = match self.export_target_mode {
+                    let status_txt = match self.export.export_target_mode {
                         ExportTargetMode::CurrentPhoto => {
                             format!("{}{file_name}", t(Key::ExportSuccessSinglePrefix))
                         }
                         ExportTargetMode::BatchSelection => {
-                            let count = self.selected_photos.len().max(1);
+                            let count = self.library.selected_photos.len().max(1);
                             if lang == Language::Fr {
                                 format!("✅ Export par lot réussi ({count} fichier(s))")
                             } else {
@@ -969,7 +1014,7 @@ impl RrawApp {
                         }
                         ExportTargetMode::TimelapseSequence => {
                             let frames = self.timelapse_candidate_paths().len();
-                            let fps = self.timelapse_fps.fps();
+                            let fps = self.export.timelapse_fps.fps();
                             if lang == Language::Fr {
                                 format!("✅ Séquence Timelapse exportée ({frames} images @ {fps} fps + manifeste JSON)")
                             } else {
@@ -978,11 +1023,11 @@ impl RrawApp {
                         }
                     };
                     self.status_message = status_txt.clone();
-                    self.export_status = Some((status_txt, true));
-                    self.show_export_dialog = false;
+                    self.export.export_status = Some((status_txt, true));
+                    self.export.show_export_dialog = false;
                 }
                 Err(err) => {
-                    self.export_status =
+                    self.export.export_status =
                         Some((format!("{}{err}", t(Key::ExportFailedPrefix)), false));
                 }
             }

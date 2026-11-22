@@ -13,58 +13,73 @@ impl RrawApp {
     pub fn is_section_active(&self, section: DarkroomSection) -> bool {
         match section {
             DarkroomSection::ExposureTone => {
-                self.grading.tone.exposure_ev != 0.0
-                    || self.grading.tone.contrast != 0.0
-                    || self.grading.tone.highlights != 0.0
-                    || self.grading.tone.shadows != 0.0
-                    || self.grading.tone.blacks != 0.0
-                    || self.grading.tone.saturation != 0.0
-                    || self.grading.tone.vibrance != 0.0
-                    || self.grading.smart_lighting.mode != rraw_core::SmartLightingMode::Slight
-                    || (self.grading.smart_lighting.intensity - 1.0).abs() > 0.01
-                    || self.grading.smart_lighting.custom_shadow_lift != 0.0
-                    || self.grading.smart_lighting.custom_highlight_compression != 0.0
+                self.session.grading.tone.exposure_ev != 0.0
+                    || self.session.grading.tone.contrast != 0.0
+                    || self.session.grading.tone.highlights != 0.0
+                    || self.session.grading.tone.shadows != 0.0
+                    || self.session.grading.tone.blacks != 0.0
+                    || self.session.grading.tone.saturation != 0.0
+                    || self.session.grading.tone.vibrance != 0.0
+                    || self.session.grading.smart_lighting.mode
+                        != rraw_core::SmartLightingMode::Slight
+                    || (self.session.grading.smart_lighting.intensity - 1.0).abs() > 0.01
+                    || self.session.grading.smart_lighting.custom_shadow_lift != 0.0
+                    || self
+                        .session
+                        .grading
+                        .smart_lighting
+                        .custom_highlight_compression
+                        != 0.0
             }
-            DarkroomSection::ToneCurves => !self.grading.tone_curves.is_identity(),
+            DarkroomSection::ToneCurves => !self.session.grading.tone_curves.is_identity(),
             DarkroomSection::WhiteBalanceColor => {
-                (self.grading.color.kelvin - 5500.0).abs() > 1.0
-                    || self.grading.color.tint != 0.0
-                    || self.grading.custom_clut.is_some()
-                    || self.grading.color.is_monochrome
+                (self.session.grading.color.kelvin - 5500.0).abs() > 1.0
+                    || self.session.grading.color.tint != 0.0
+                    || self.session.grading.custom_clut.is_some()
+                    || self.session.grading.color.is_monochrome
             }
-            DarkroomSection::SoftProofing => self.grading.soft_proof.enabled,
+            DarkroomSection::SoftProofing => self.session.grading.soft_proof.enabled,
             DarkroomSection::DetailDenoise => {
-                (self.grading.denoise_sharpen.wavelet_denoise_sigma - 1.0).abs() > 0.01
-                    || (self.grading.denoise_sharpen.color_denoise - 25.0).abs() > 0.01
-                    || self.grading.denoise_sharpen.luma_denoise > 0.0
-                    || (self.grading.denoise_sharpen.capture_sharpening_amount - 0.5).abs() > 0.01
+                (self.session.grading.denoise_sharpen.wavelet_denoise_sigma - 1.0).abs() > 0.01
+                    || (self.session.grading.denoise_sharpen.color_denoise - 25.0).abs() > 0.01
+                    || self.session.grading.denoise_sharpen.luma_denoise > 0.0
+                    || (self
+                        .session
+                        .grading
+                        .denoise_sharpen
+                        .capture_sharpening_amount
+                        - 0.5)
+                        .abs()
+                        > 0.01
             }
-            DarkroomSection::Crop => self.grading.geometry.crop_enabled,
+            DarkroomSection::Crop => self.session.grading.geometry.crop_enabled,
             DarkroomSection::Straighten => {
-                self.grading.geometry.rotation_degrees != 0.0
-                    || self.grading.geometry.flip_horizontal
-                    || self.grading.geometry.flip_vertical
+                self.session.grading.geometry.rotation_degrees != 0.0
+                    || self.session.grading.geometry.flip_horizontal
+                    || self.session.grading.geometry.flip_vertical
             }
             DarkroomSection::Geometry => {
-                self.grading.geometry.keystone_vertical != 0.0
-                    || self.grading.geometry.keystone_horizontal != 0.0
+                self.session.grading.geometry.keystone_vertical != 0.0
+                    || self.session.grading.geometry.keystone_horizontal != 0.0
             }
             DarkroomSection::OpticalCorrections => {
-                self.grading.optics.optical_tab != crate::state::OpticalCorrectionTab::Profile
-                    || !self.grading.optics.lens_profile_auto
-                    || (self.grading.optics.lens_distortion_strength - 100.0).abs() > 0.01
-                    || (self.grading.optics.lens_vignette_strength - 100.0).abs() > 0.01
-                    || (self.grading.optics.lens_ca_strength - 100.0).abs() > 0.01
-                    || self.grading.optics.distortion_amount != 0.0
-                    || self.grading.optics.defringe_purple_amount != 0.0
-                    || self.grading.optics.defringe_green_amount != 0.0
-                    || (self.grading.optics.defringe_threshold - 0.08).abs() > 0.005
-                    || self.grading.optics.defringe_preview_mask
-                    || (self.grading.optics.vignette_amount - 50.0).abs() > 0.01
+                self.session.grading.optics.optical_tab
+                    != crate::state::OpticalCorrectionTab::Profile
+                    || !self.session.grading.optics.lens_profile_auto
+                    || (self.session.grading.optics.lens_distortion_strength - 100.0).abs() > 0.01
+                    || (self.session.grading.optics.lens_vignette_strength - 100.0).abs() > 0.01
+                    || (self.session.grading.optics.lens_ca_strength - 100.0).abs() > 0.01
+                    || self.session.grading.optics.distortion_amount != 0.0
+                    || self.session.grading.optics.defringe_purple_amount != 0.0
+                    || self.session.grading.optics.defringe_green_amount != 0.0
+                    || (self.session.grading.optics.defringe_threshold - 0.08).abs() > 0.005
+                    || self.session.grading.optics.defringe_preview_mask
+                    || (self.session.grading.optics.vignette_amount - 50.0).abs() > 0.01
             }
-            DarkroomSection::Effects => self.grading.effects.is_active(),
+            DarkroomSection::Effects => self.session.grading.effects.is_active(),
             DarkroomSection::AiSemanticMasks => {
-                !self.grading.semantic_masks.is_empty() || !self.grading.local_masks.is_empty()
+                !self.session.grading.semantic_masks.is_empty()
+                    || !self.session.grading.local_masks.is_empty()
             }
             DarkroomSection::Timelapse => false,
             DarkroomSection::LegacyOther => false,
@@ -75,83 +90,88 @@ impl RrawApp {
     pub fn reset_section(&mut self, section: DarkroomSection) {
         match section {
             DarkroomSection::ExposureTone => {
-                self.grading.tone.exposure_ev = 0.0;
-                self.grading.tone.contrast = 0.0;
-                self.grading.tone.highlights = 0.0;
-                self.grading.tone.shadows = 0.0;
-                self.grading.tone.blacks = 0.0;
-                self.grading.tone.saturation = 0.0;
-                self.grading.tone.vibrance = 0.0;
-                self.grading.smart_lighting = DarkroomGradingState::default().smart_lighting;
+                self.session.grading.tone.exposure_ev = 0.0;
+                self.session.grading.tone.contrast = 0.0;
+                self.session.grading.tone.highlights = 0.0;
+                self.session.grading.tone.shadows = 0.0;
+                self.session.grading.tone.blacks = 0.0;
+                self.session.grading.tone.saturation = 0.0;
+                self.session.grading.tone.vibrance = 0.0;
+                self.session.grading.smart_lighting =
+                    DarkroomGradingState::default().smart_lighting;
             }
             DarkroomSection::ToneCurves => {
-                self.grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();
+                self.session.grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();
             }
             DarkroomSection::WhiteBalanceColor => {
-                self.grading.color.kelvin = 5500.0;
-                self.grading.color.tint = 0.0;
-                self.grading.custom_clut = None;
-                self.grading.color.is_monochrome = false;
-                self.grading.color.display_transform = rraw_color::DisplayTransform::AgX;
+                self.session.grading.color.kelvin = 5500.0;
+                self.session.grading.color.tint = 0.0;
+                self.session.grading.custom_clut = None;
+                self.session.grading.color.is_monochrome = false;
+                self.session.grading.color.display_transform = rraw_color::DisplayTransform::AgX;
             }
             DarkroomSection::SoftProofing => {
-                self.grading.soft_proof.enabled = false;
-                self.grading.soft_proof.show_gamut_warning = false;
+                self.session.grading.soft_proof.enabled = false;
+                self.session.grading.soft_proof.show_gamut_warning = false;
             }
             DarkroomSection::DetailDenoise => {
-                self.grading.denoise_sharpen.wavelet_denoise_sigma = 1.0;
-                self.grading.denoise_sharpen.color_denoise = 25.0;
-                self.grading.denoise_sharpen.luma_denoise = 0.0;
-                self.grading.denoise_sharpen.capture_sharpening_amount = 0.5;
+                self.session.grading.denoise_sharpen.wavelet_denoise_sigma = 1.0;
+                self.session.grading.denoise_sharpen.color_denoise = 25.0;
+                self.session.grading.denoise_sharpen.luma_denoise = 0.0;
+                self.session
+                    .grading
+                    .denoise_sharpen
+                    .capture_sharpening_amount = 0.5;
             }
             DarkroomSection::Crop => {
-                self.grading.geometry.crop_enabled = false;
-                self.grading.geometry.crop_left = 0.0;
-                self.grading.geometry.crop_top = 0.0;
-                self.grading.geometry.crop_right = 1.0;
-                self.grading.geometry.crop_bottom = 1.0;
+                self.session.grading.geometry.crop_enabled = false;
+                self.session.grading.geometry.crop_left = 0.0;
+                self.session.grading.geometry.crop_top = 0.0;
+                self.session.grading.geometry.crop_right = 1.0;
+                self.session.grading.geometry.crop_bottom = 1.0;
             }
             DarkroomSection::Straighten => {
-                self.grading.geometry.rotation_degrees = 0.0;
-                self.grading.geometry.flip_horizontal = false;
-                self.grading.geometry.flip_vertical = false;
+                self.session.grading.geometry.rotation_degrees = 0.0;
+                self.session.grading.geometry.flip_horizontal = false;
+                self.session.grading.geometry.flip_vertical = false;
             }
             DarkroomSection::Geometry => {
-                self.grading.geometry.geometry_enabled = true;
-                self.grading.geometry.keystone_vertical = 0.0;
-                self.grading.geometry.keystone_horizontal = 0.0;
-                self.grading.geometry.auto_crop_geometry = true;
+                self.session.grading.geometry.geometry_enabled = true;
+                self.session.grading.geometry.keystone_vertical = 0.0;
+                self.session.grading.geometry.keystone_horizontal = 0.0;
+                self.session.grading.geometry.auto_crop_geometry = true;
             }
             DarkroomSection::OpticalCorrections => {
-                self.grading.optics.optical_tab = crate::state::OpticalCorrectionTab::Profile;
-                self.grading.optics.lens_profile_auto = true;
-                self.grading.optics.lens_distortion_strength = 100.0;
-                self.grading.optics.lens_vignette_strength = 100.0;
-                self.grading.optics.lens_ca_strength = 100.0;
-                self.grading.optics.distortion_correction = true;
-                self.grading.optics.distortion_amount = 0.0;
-                self.grading.optics.chromatic_aberration_correction = true;
-                self.grading.optics.defringe_purple_amount = 0.0;
-                self.grading.optics.defringe_green_amount = 0.0;
-                self.grading.optics.defringe_threshold = 0.08;
-                self.grading.optics.defringe_preview_mask = false;
-                self.grading.optics.vignette_correction = true;
-                self.grading.optics.vignette_amount = 50.0;
+                self.session.grading.optics.optical_tab =
+                    crate::state::OpticalCorrectionTab::Profile;
+                self.session.grading.optics.lens_profile_auto = true;
+                self.session.grading.optics.lens_distortion_strength = 100.0;
+                self.session.grading.optics.lens_vignette_strength = 100.0;
+                self.session.grading.optics.lens_ca_strength = 100.0;
+                self.session.grading.optics.distortion_correction = true;
+                self.session.grading.optics.distortion_amount = 0.0;
+                self.session.grading.optics.chromatic_aberration_correction = true;
+                self.session.grading.optics.defringe_purple_amount = 0.0;
+                self.session.grading.optics.defringe_green_amount = 0.0;
+                self.session.grading.optics.defringe_threshold = 0.08;
+                self.session.grading.optics.defringe_preview_mask = false;
+                self.session.grading.optics.vignette_correction = true;
+                self.session.grading.optics.vignette_amount = 50.0;
             }
             DarkroomSection::Effects => {
-                self.grading.effects = EffectsGradingParams::default();
+                self.session.grading.effects = EffectsGradingParams::default();
             }
             DarkroomSection::AiSemanticMasks => {
-                self.grading.semantic_masks.clear();
-                self.grading.local_masks.clear();
-                self.grading.active_brush_mask_idx = None;
+                self.session.grading.semantic_masks.clear();
+                self.session.grading.local_masks.clear();
+                self.session.grading.active_brush_mask_idx = None;
             }
             DarkroomSection::Timelapse | DarkroomSection::LegacyOther => {}
         }
 
-        self.grading.preset = GradingPreset::Custom;
-        self.current_preset = GradingPreset::Custom;
-        self.needs_preview_update = true;
+        self.session.grading.preset = GradingPreset::Custom;
+        self.session.current_preset = GradingPreset::Custom;
+        self.session.needs_preview_update = true;
         self.save_current_photo_sidecar();
     }
 
@@ -396,29 +416,29 @@ impl RrawApp {
                         let out = match section {
                             DarkroomSection::ExposureTone => sections::exposure_tone::render(
                                 ui,
-                                &mut self.grading.tone,
-                                &mut self.grading.smart_lighting,
+                                &mut self.session.grading.tone,
+                                &mut self.session.grading.smart_lighting,
                                 cur_lang,
                             ),
                             DarkroomSection::WhiteBalanceColor => sections::white_balance::render(
                                 ui,
-                                &mut self.grading.color,
-                                &mut self.grading.tone,
+                                &mut self.session.grading.color,
+                                &mut self.session.grading.tone,
                                 cur_lang,
                             ),
                             DarkroomSection::AiSemanticMasks => sections::masks::render(
                                 ui,
-                                &mut self.grading.local_masks,
-                                &mut self.grading.show_local_mask_overlay,
-                                &mut self.grading.active_brush_mask_idx,
-                                &mut self.grading.semantic_masks,
-                                &mut self.grading.show_semantic_mask_overlay,
+                                &mut self.session.grading.local_masks,
+                                &mut self.session.grading.show_local_mask_overlay,
+                                &mut self.session.grading.active_brush_mask_idx,
+                                &mut self.session.grading.semantic_masks,
+                                &mut self.session.grading.show_semantic_mask_overlay,
                                 cur_lang,
                             ),
                             DarkroomSection::SoftProofing => sections::soft_proofing::render(
                                 ui,
-                                &mut self.grading.soft_proof,
-                                self.histogram.out_of_gamut_count,
+                                &mut self.session.grading.soft_proof,
+                                self.viewport.histogram.out_of_gamut_count,
                                 cur_lang,
                             ),
                             DarkroomSection::ToneCurves => {
@@ -426,60 +446,61 @@ impl RrawApp {
                                 sections::SectionOutput::nothing()
                             }
                             DarkroomSection::Crop => {
-                                let dims = self.loaded_photo.as_ref().map(|p| p.dimensions);
+                                let dims = self.session.loaded_photo.as_ref().map(|p| p.dimensions);
                                 sections::crop::render(
                                     ui,
-                                    &mut self.grading.geometry,
-                                    &mut self.is_crop_editing,
+                                    &mut self.session.grading.geometry,
+                                    &mut self.viewport.is_crop_editing,
                                     dims,
                                     cur_lang,
                                 )
                             }
                             DarkroomSection::Straighten => sections::straighten::render(
                                 ui,
-                                &mut self.grading.geometry,
-                                &mut self.horizon_tool_active,
-                                &mut self.horizon_start_point,
+                                &mut self.session.grading.geometry,
+                                &mut self.viewport.horizon_tool_active,
+                                &mut self.viewport.horizon_start_point,
                                 &mut self.status_message,
                                 cur_lang,
                             ),
                             DarkroomSection::Geometry => {
                                 let mut tool_state = sections::geometry::ParallelLinesToolState {
-                                    phase: &mut self.parallel_tool_phase,
-                                    line1: &mut self.parallel_line1,
-                                    line2: &mut self.parallel_line2,
-                                    drag_start: &mut self.parallel_drag_start,
+                                    phase: &mut self.viewport.parallel_tool_phase,
+                                    line1: &mut self.viewport.parallel_line1,
+                                    line2: &mut self.viewport.parallel_line2,
+                                    drag_start: &mut self.viewport.parallel_drag_start,
                                     status_message: &mut self.status_message,
                                 };
                                 sections::geometry::render(
                                     ui,
-                                    &mut self.grading.geometry,
+                                    &mut self.session.grading.geometry,
                                     &mut tool_state,
                                     cur_lang,
                                 )
                             }
                             DarkroomSection::DetailDenoise => sections::detail_denoise::render(
                                 ui,
-                                &mut self.grading.denoise_sharpen,
+                                &mut self.session.grading.denoise_sharpen,
                                 cur_lang,
                             ),
                             DarkroomSection::OpticalCorrections => {
-                                let lens_info = if let Some(base) = &self.base_preview {
+                                let lens_info = if let Some(base) = &self.session.base_preview {
                                     if let Some(matched) = &base.matched_lens {
-                                        let meta_str = if let Some(photo) = &self.loaded_photo {
-                                            if !photo.focal_length_str.is_empty()
-                                                && !photo.aperture_str.is_empty()
-                                            {
-                                                format!(
-                                                    "{} · {}",
-                                                    photo.focal_length_str, photo.aperture_str
-                                                )
+                                        let meta_str =
+                                            if let Some(photo) = &self.session.loaded_photo {
+                                                if !photo.focal_length_str.is_empty()
+                                                    && !photo.aperture_str.is_empty()
+                                                {
+                                                    format!(
+                                                        "{} · {}",
+                                                        photo.focal_length_str, photo.aperture_str
+                                                    )
+                                                } else {
+                                                    photo.focal_length_str.clone()
+                                                }
                                             } else {
-                                                photo.focal_length_str.clone()
-                                            }
-                                        } else {
-                                            String::new()
-                                        };
+                                                String::new()
+                                            };
                                         Some(sections::optics::DetectedLensInfo {
                                             name: matched.profile_name.clone(),
                                             is_exact: matched.is_exact_match,
@@ -488,7 +509,7 @@ impl RrawApp {
                                     } else {
                                         None
                                     }
-                                } else if let Some(photo) = &self.loaded_photo {
+                                } else if let Some(photo) = &self.session.loaded_photo {
                                     let meta_str = if !photo.focal_length_str.is_empty()
                                         && !photo.aperture_str.is_empty()
                                     {
@@ -514,21 +535,24 @@ impl RrawApp {
 
                                 sections::optics::render(
                                     ui,
-                                    &mut self.grading.optics,
+                                    &mut self.session.grading.optics,
                                     lens_info,
                                     cur_lang,
                                 )
                             }
-                            DarkroomSection::Effects => {
-                                sections::effects::render(ui, &mut self.grading.effects, cur_lang)
-                            }
+                            DarkroomSection::Effects => sections::effects::render(
+                                ui,
+                                &mut self.session.grading.effects,
+                                cur_lang,
+                            ),
                             DarkroomSection::Timelapse => {
                                 self.render_timelapse_controls_ui(ui, "inspector");
                                 if sections::timelapse::render_export_button(ui, cur_lang) {
-                                    self.export_target_mode = ExportTargetMode::TimelapseSequence;
-                                    self.export_subfolder = "Timelapse".to_string();
-                                    self.show_export_dialog = true;
-                                    self.export_status = None;
+                                    self.export.export_target_mode =
+                                        ExportTargetMode::TimelapseSequence;
+                                    self.export.export_subfolder = "Timelapse".to_string();
+                                    self.export.show_export_dialog = true;
+                                    self.export.export_status = None;
                                 }
                                 sections::SectionOutput::nothing()
                             }
@@ -536,11 +560,11 @@ impl RrawApp {
                         };
 
                         if out.mark_custom_preset {
-                            self.grading.preset = GradingPreset::Custom;
-                            self.current_preset = GradingPreset::Custom;
+                            self.session.grading.preset = GradingPreset::Custom;
+                            self.session.current_preset = GradingPreset::Custom;
                         }
                         if out.needs_preview_update {
-                            self.needs_preview_update = true;
+                            self.session.needs_preview_update = true;
                             ui.ctx().request_repaint();
                         }
                         if out.save_sidecar {
@@ -549,16 +573,18 @@ impl RrawApp {
                     });
             });
 
-        if self.needs_preview_update {
-            if let Some(photo) = &self.loaded_photo {
-                self.photo_gradings
-                    .insert(photo.path.clone(), self.grading.clone());
+        if self.session.needs_preview_update {
+            if let Some(photo) = &self.session.loaded_photo {
+                self.library
+                    .photo_gradings
+                    .insert(photo.path.clone(), self.session.grading.clone());
                 let rating = self
+                    .library
                     .photo_ratings
                     .get(&photo.path)
                     .copied()
                     .unwrap_or(photo.rating);
-                save_photo_sidecars(&photo.path, &self.grading, rating);
+                save_photo_sidecars(&photo.path, &self.session.grading, rating);
             }
         }
 

@@ -26,12 +26,12 @@ impl RrawApp {
 
                     let mut filter_changed = false;
 
-                    let all_label = format!("Toutes ({})", self.directory_entries.len());
+                    let all_label = format!("Toutes ({})", self.library.directory_entries.len());
                     if ui
-                        .selectable_label(self.rating_filter == RatingFilter::All, all_label)
+                        .selectable_label(self.library.rating_filter == RatingFilter::All, all_label)
                         .clicked()
                     {
-                        self.rating_filter = RatingFilter::All;
+                        self.library.rating_filter = RatingFilter::All;
                         filter_changed = true;
                     }
 
@@ -40,12 +40,12 @@ impl RrawApp {
                         let label = format!("★ {}+ ({})", stars, count);
                         if ui
                             .selectable_label(
-                                self.rating_filter == RatingFilter::MinStars(stars),
+                                self.library.rating_filter == RatingFilter::MinStars(stars),
                                 label,
                             )
                             .clicked()
                         {
-                            self.rating_filter = RatingFilter::MinStars(stars);
+                            self.library.rating_filter = RatingFilter::MinStars(stars);
                             filter_changed = true;
                         }
                     }
@@ -54,16 +54,17 @@ impl RrawApp {
                     let unrated_label = format!("0★ ({})", unrated_count);
                     if ui
                         .selectable_label(
-                            self.rating_filter == RatingFilter::Unrated,
+                            self.library.rating_filter == RatingFilter::Unrated,
                             unrated_label,
                         )
                         .clicked()
                     {
-                        self.rating_filter = RatingFilter::Unrated;
+                        self.library.rating_filter = RatingFilter::Unrated;
                         filter_changed = true;
                     }
 
                     let raw_count = self
+                        .library
                         .directory_entries
                         .iter()
                         .filter(|p| {
@@ -72,25 +73,25 @@ impl RrawApp {
                                 .is_some_and(crate::preview::is_raw_extension)
                         })
                         .count();
-                    let has_non_raw = raw_count < self.directory_entries.len() && raw_count > 0;
+                    let has_non_raw = raw_count < self.library.directory_entries.len() && raw_count > 0;
                     if has_non_raw {
                         let raw_chip_text = format!("📷 RAW ({raw_count})");
                         if ui
-                            .selectable_label(self.raw_only_filter, raw_chip_text)
+                            .selectable_label(self.library.raw_only_filter, raw_chip_text)
                             .on_hover_text(
                                 "Masquer les fichiers JPG/PNG pour n'afficher que les fichiers RAW d'origine",
                             )
                             .clicked()
                         {
-                            self.raw_only_filter = !self.raw_only_filter;
-                            self.layout_config.raw_only_filter = Some(self.raw_only_filter);
+                            self.library.raw_only_filter = !self.library.raw_only_filter;
+                            self.layout_config.raw_only_filter = Some(self.library.raw_only_filter);
                             self.layout_config.save();
                             filter_changed = true;
                         }
                     }
 
                     if filter_changed {
-                        if let Some(loaded) = &self.loaded_photo {
+                        if let Some(loaded) = &self.session.loaded_photo {
                             if !self.matches_active_filter(&loaded.path) {
                                 if let Some(target) = self.first_filtered_entry() {
                                     self.open_raw_file(&target);
@@ -100,7 +101,7 @@ impl RrawApp {
                     }
 
                     ui.separator();
-                    let sel_count = self.selected_photos.len();
+                    let sel_count = self.library.selected_photos.len();
                     let sel_text = if sel_count > 0 {
                         format!(
                             "Lot d'export : ✓ {} cochée{}",
@@ -125,21 +126,21 @@ impl RrawApp {
                         .on_hover_text(self.t(Key::FilmstripSelectAllTooltip))
                         .clicked()
                     {
-                        for entry in &self.directory_entries {
-                            self.selected_photos.insert(entry.clone());
+                        for entry in &self.library.directory_entries {
+                            self.library.selected_photos.insert(entry.clone());
                         }
                     }
                     if sel_count > 0 && ui.small_button(self.t(Key::FilmstripDeselectAll)).clicked() {
-                        self.selected_photos.clear();
+                        self.library.selected_photos.clear();
                     }
-                    if let Some(photo) = &self.loaded_photo {
-                        if !self.selected_photos.contains(&photo.path)
+                    if let Some(photo) = &self.session.loaded_photo {
+                        if !self.library.selected_photos.contains(&photo.path)
                             && ui
                                 .small_button("+ Cocher active")
                                 .on_hover_text("Ajouter la photo courante à la sélection d'export")
                                 .clicked()
                         {
-                            self.selected_photos.insert(photo.path.clone());
+                            self.library.selected_photos.insert(photo.path.clone());
                         }
                     }
 
@@ -157,15 +158,15 @@ impl RrawApp {
                             )
                             .clicked()
                         {
-                            self.export_batch_selection = true;
-                            self.show_export_dialog = true;
-                            self.export_status = None;
+                            self.export.export_batch_selection = true;
+                            self.export.show_export_dialog = true;
+                            self.export.export_status = None;
                         }
                     }
 
                     // Clipboard quick actions in filmstrip toolbar
                     ui.separator();
-                    let has_clip = self.recipe_clipboard.is_some();
+                    let has_clip = self.library.recipe_clipboard.is_some();
                     let copy_btn = ui
                         .small_button(self.t(Key::FilmstripToolbarCopy))
                         .on_hover_text(self.t(Key::FilmstripToolbarCopyTooltip));
@@ -175,6 +176,7 @@ impl RrawApp {
 
                     if has_clip {
                         let clip_summary = self
+                            .library
                             .recipe_clipboard
                             .as_ref()
                             .map(|c| c.summary())
@@ -249,6 +251,7 @@ impl RrawApp {
                         ui.vertical(|ui| {
                             ui.horizontal(|ui| {
                                 let active_path = self
+                                    .session
                                     .loaded_photo
                                     .as_ref()
                                     .map(|p| p.path.clone())
@@ -256,10 +259,10 @@ impl RrawApp {
                                 let mut file_to_open = None;
                                 let mut star_change: Option<(PathBuf, u8)> = None;
                                 let mut thumbs_to_request = Vec::new();
-                                let entries = self.directory_entries.clone();
-                                let has_clipboard = self.recipe_clipboard.is_some();
+                                let entries = self.library.directory_entries.clone();
+                                let has_clipboard = self.library.recipe_clipboard.is_some();
                                 let clipboard_summary =
-                                    self.recipe_clipboard.as_ref().map(|c| c.summary());
+                                    self.library.recipe_clipboard.as_ref().map(|c| c.summary());
                                 let mut copy_recipe_path = None;
                                 let mut paste_recipe_path = None;
                                 let mut toggle_export_path = None;
@@ -269,10 +272,10 @@ impl RrawApp {
                                         continue;
                                     }
                                     let rating =
-                                        self.photo_ratings.get(entry).copied().unwrap_or(0);
+                                        self.library.photo_ratings.get(entry).copied().unwrap_or(0);
 
                                     let is_selected = active_path.as_ref() == Some(entry);
-                                    let is_multi_selected = self.selected_photos.contains(entry);
+                                    let is_multi_selected = self.library.selected_photos.contains(entry);
                                     let is_cached =
                                         self.photo_cache.iter().any(|e| &e.path == entry);
 
@@ -312,9 +315,9 @@ impl RrawApp {
                                         ui.allocate_exact_size(card_size, egui::Sense::click());
 
                                     // Follow active thumbnail card into view when navigating via keyboard or controls
-                                    if is_selected && self.scroll_filmstrip_to_active {
+                                    if is_selected && self.library.scroll_filmstrip_to_active {
                                         response.scroll_to_me(None);
-                                        self.scroll_filmstrip_to_active = false;
+                                        self.library.scroll_filmstrip_to_active = false;
                                     }
 
                                     // Contextual right-click menu for batch development & clipboard
@@ -325,14 +328,14 @@ impl RrawApp {
                                             ui.close();
                                         }
 
-                                        let is_in_selection = self.selected_photos.contains(entry);
+                                        let is_in_selection = self.library.selected_photos.contains(entry);
                                         let paste_label = if is_in_selection
-                                            && self.selected_photos.len() > 1
+                                            && self.library.selected_photos.len() > 1
                                         {
                                             format!(
                                                 "{} ({})",
                                                 self.t(Key::FilmstripPasteRecipeSelection),
-                                                self.selected_photos.len()
+                                                self.library.selected_photos.len()
                                             )
                                         } else {
                                             self.t(Key::FilmstripPasteRecipeThis).to_string()
@@ -387,7 +390,7 @@ impl RrawApp {
                                         Color32::from_rgb(14, 16, 20),
                                     );
 
-                                    if let Some(tex) = self.thumbnail_textures.get(entry) {
+                                    if let Some(tex) = self.workers.thumbnail_textures.get(entry) {
                                         let tex_size = tex.size_vec2();
                                         let tex_aspect = tex_size.x / tex_size.y.max(1.0);
                                         let frame_aspect = thumb_rect.width() / thumb_rect.height().max(1.0);
@@ -596,12 +599,12 @@ impl RrawApp {
                                     // Classical mouse selection: Click opens photo, Cmd/Ctrl+Click or Checkbox toggles batch selection, Shift+Click selects range
                                     if response.clicked() && star_change.is_none() && !clicked_chk {
                                         if ui.input(|i| i.modifiers.shift) {
-                                            let anchor = self.last_selected_index.unwrap_or(0);
+                                            let anchor = self.library.last_selected_index.unwrap_or(0);
                                             let min_i = anchor.min(entry_idx);
                                             let max_i = anchor.max(entry_idx);
                                             for i in min_i..=max_i {
                                                 if let Some(p) = entries.get(i) {
-                                                    self.selected_photos.insert(p.clone());
+                                                    self.library.selected_photos.insert(p.clone());
                                                 }
                                             }
                                             file_to_open = Some(entry.clone());
@@ -609,20 +612,20 @@ impl RrawApp {
                                             .input(|i| i.modifiers.command || i.modifiers.ctrl)
                                         {
                                             toggle_select = true;
-                                            self.last_selected_index = Some(entry_idx);
+                                            self.library.last_selected_index = Some(entry_idx);
                                         } else {
-                                            self.last_selected_index = Some(entry_idx);
+                                            self.library.last_selected_index = Some(entry_idx);
                                             file_to_open = Some(entry.clone());
                                         }
                                     }
 
                                     if toggle_select {
-                                        if self.selected_photos.contains(entry) {
-                                            self.selected_photos.remove(entry);
+                                        if self.library.selected_photos.contains(entry) {
+                                            self.library.selected_photos.remove(entry);
                                         } else {
-                                            self.selected_photos.insert(entry.clone());
+                                            self.library.selected_photos.insert(entry.clone());
                                         }
-                                        self.last_selected_index = Some(entry_idx);
+                                        self.library.last_selected_index = Some(entry_idx);
                                     }
                                 }
 
@@ -631,8 +634,8 @@ impl RrawApp {
                                 }
                                 if let Some(path) = paste_recipe_path {
                                     let ctx = ui.ctx().clone();
-                                    if self.selected_photos.contains(&path)
-                                        && self.selected_photos.len() > 1
+                                    if self.library.selected_photos.contains(&path)
+                                        && self.library.selected_photos.len() > 1
                                     {
                                         self.paste_recipe_to_selection(&ctx);
                                     } else {
@@ -640,16 +643,16 @@ impl RrawApp {
                                     }
                                 }
                                 if let Some(path) = toggle_export_path {
-                                    if self.selected_photos.contains(&path) {
-                                        self.selected_photos.remove(&path);
+                                    if self.library.selected_photos.contains(&path) {
+                                        self.library.selected_photos.remove(&path);
                                     } else {
-                                        self.selected_photos.insert(path);
+                                        self.library.selected_photos.insert(path);
                                     }
                                 }
 
                                 if let Some((path, new_r)) = star_change {
-                                    self.photo_ratings.insert(path.clone(), new_r);
-                                    if let Some(photo) = &mut self.loaded_photo {
+                                    self.library.photo_ratings.insert(path.clone(), new_r);
+                                    if let Some(photo) = &mut self.session.loaded_photo {
                                         if photo.path == path {
                                             photo.rating = new_r;
                                         }
@@ -662,7 +665,7 @@ impl RrawApp {
 
                                     // Immediately persist rating to <photo>.rraw.json and <photo>.xmp
                                     let current_grading =
-                                        self.photo_gradings.get(&path).cloned().unwrap_or_default();
+                                        self.library.photo_gradings.get(&path).cloned().unwrap_or_default();
                                     save_photo_sidecars(&path, &current_grading, new_r);
 
                                     let star_text = if new_r > 0 {

@@ -12,29 +12,29 @@ use crate::state::CurveChannel;
 impl RrawApp {
     /// Returns a mutable reference to the currently active channel curve.
     fn active_curve_mut(&mut self) -> &mut ChannelCurve {
-        match self.active_curve_channel {
-            CurveChannel::CombinedRgb => &mut self.grading.tone_curves.combined_rgb,
-            CurveChannel::Red => &mut self.grading.tone_curves.red,
-            CurveChannel::Green => &mut self.grading.tone_curves.green,
-            CurveChannel::Blue => &mut self.grading.tone_curves.blue,
-            CurveChannel::Luma => &mut self.grading.tone_curves.luma,
+        match self.viewport.active_curve_channel {
+            CurveChannel::CombinedRgb => &mut self.session.grading.tone_curves.combined_rgb,
+            CurveChannel::Red => &mut self.session.grading.tone_curves.red,
+            CurveChannel::Green => &mut self.session.grading.tone_curves.green,
+            CurveChannel::Blue => &mut self.session.grading.tone_curves.blue,
+            CurveChannel::Luma => &mut self.session.grading.tone_curves.luma,
         }
     }
 
     /// Returns a shared reference to the currently active channel curve.
     fn active_curve(&self) -> &ChannelCurve {
-        match self.active_curve_channel {
-            CurveChannel::CombinedRgb => &self.grading.tone_curves.combined_rgb,
-            CurveChannel::Red => &self.grading.tone_curves.red,
-            CurveChannel::Green => &self.grading.tone_curves.green,
-            CurveChannel::Blue => &self.grading.tone_curves.blue,
-            CurveChannel::Luma => &self.grading.tone_curves.luma,
+        match self.viewport.active_curve_channel {
+            CurveChannel::CombinedRgb => &self.session.grading.tone_curves.combined_rgb,
+            CurveChannel::Red => &self.session.grading.tone_curves.red,
+            CurveChannel::Green => &self.session.grading.tone_curves.green,
+            CurveChannel::Blue => &self.session.grading.tone_curves.blue,
+            CurveChannel::Luma => &self.session.grading.tone_curves.luma,
         }
     }
 
     /// Color representing the active curve in canvas rendering.
     fn active_curve_color(&self) -> Color32 {
-        match self.active_curve_channel {
+        match self.viewport.active_curve_channel {
             CurveChannel::CombinedRgb => Color32::from_rgb(240, 240, 245),
             CurveChannel::Red => Color32::from_rgb(255, 90, 90),
             CurveChannel::Green => Color32::from_rgb(90, 230, 110),
@@ -46,11 +46,13 @@ impl RrawApp {
     /// Checks whether a specific channel's curve is modified from identity.
     fn is_channel_modified(&self, ch: CurveChannel) -> bool {
         match ch {
-            CurveChannel::CombinedRgb => !self.grading.tone_curves.combined_rgb.is_identity(),
-            CurveChannel::Red => !self.grading.tone_curves.red.is_identity(),
-            CurveChannel::Green => !self.grading.tone_curves.green.is_identity(),
-            CurveChannel::Blue => !self.grading.tone_curves.blue.is_identity(),
-            CurveChannel::Luma => !self.grading.tone_curves.luma.is_identity(),
+            CurveChannel::CombinedRgb => {
+                !self.session.grading.tone_curves.combined_rgb.is_identity()
+            }
+            CurveChannel::Red => !self.session.grading.tone_curves.red.is_identity(),
+            CurveChannel::Green => !self.session.grading.tone_curves.green.is_identity(),
+            CurveChannel::Blue => !self.session.grading.tone_curves.blue.is_identity(),
+            CurveChannel::Luma => !self.session.grading.tone_curves.luma.is_identity(),
         }
     }
 
@@ -61,7 +63,7 @@ impl RrawApp {
             let cur_lang = self.lang();
             ui.horizontal(|ui| {
                 for ch in CurveChannel::ALL {
-                    let is_active = self.active_curve_channel == ch;
+                    let is_active = self.viewport.active_curve_channel == ch;
                     let is_mod = self.is_channel_modified(ch);
                     let label = if is_mod {
                         format!("{} •", ch.label_lang(cur_lang))
@@ -69,8 +71,8 @@ impl RrawApp {
                         ch.label_lang(cur_lang).to_string()
                     };
                     if ui.selectable_label(is_active, label).clicked() {
-                        self.active_curve_channel = ch;
-                        self.dragging_curve_point = None;
+                        self.viewport.active_curve_channel = ch;
+                        self.viewport.dragging_curve_point = None;
                     }
                 }
             });
@@ -118,29 +120,29 @@ impl RrawApp {
             );
 
             // Live sqrt-scaled histogram underlay in background (tinted to active channel)
-            let (hist_bins, hist_color) = match self.active_curve_channel {
+            let (hist_bins, hist_color) = match self.viewport.active_curve_channel {
                 CurveChannel::Red => (
-                    &self.histogram.r[..],
+                    &self.viewport.histogram.r[..],
                     Color32::from_rgba_unmultiplied(225, 80, 80, 48),
                 ),
                 CurveChannel::Green => (
-                    &self.histogram.g[..],
+                    &self.viewport.histogram.g[..],
                     Color32::from_rgba_unmultiplied(75, 205, 95, 48),
                 ),
                 CurveChannel::Blue => (
-                    &self.histogram.b[..],
+                    &self.viewport.histogram.b[..],
                     Color32::from_rgba_unmultiplied(75, 150, 235, 48),
                 ),
                 CurveChannel::CombinedRgb => (
-                    &self.histogram.lum[..],
+                    &self.viewport.histogram.lum[..],
                     Color32::from_rgba_unmultiplied(160, 165, 185, 45),
                 ),
                 CurveChannel::Luma => (
-                    &self.histogram.lum[..],
+                    &self.viewport.histogram.lum[..],
                     Color32::from_rgba_unmultiplied(235, 200, 70, 48),
                 ),
             };
-            let max_c = (self.histogram.max_count as f32).sqrt().max(1.0);
+            let max_c = (self.viewport.histogram.max_count as f32).sqrt().max(1.0);
             let bin_denom = hist_bins.len().saturating_sub(1).max(1) as f32;
 
             for (i, &count) in hist_bins.iter().enumerate() {
@@ -157,8 +159,9 @@ impl RrawApp {
             let steps = 100;
 
             // Ghost curve: show master Combined RGB curve in faint opacity when editing other channels
-            if self.active_curve_channel != CurveChannel::CombinedRgb {
-                let master_spline = PchipSpline::new(&self.grading.tone_curves.combined_rgb);
+            if self.viewport.active_curve_channel != CurveChannel::CombinedRgb {
+                let master_spline =
+                    PchipSpline::new(&self.session.grading.tone_curves.combined_rgb);
                 let ghost_color = Color32::from_rgba_unmultiplied(200, 205, 220, 50);
                 let mut prev_ghost_pos: Option<Pos2> = None;
                 for s in 0..=steps {
@@ -209,7 +212,7 @@ impl RrawApp {
                 let py = rect.bottom() - pt.y * rect.height();
                 let pt_canvas = Pos2::new(px, py);
 
-                let is_dragging = self.dragging_curve_point == Some(idx);
+                let is_dragging = self.viewport.dragging_curve_point == Some(idx);
                 let is_hovered = pointer_pos.is_some_and(|pos| pos.distance(pt_canvas) < 8.0);
 
                 if is_dragging || is_hovered {
@@ -271,7 +274,7 @@ impl RrawApp {
             // Handle removing point
             if let Some(idx) = point_to_remove {
                 self.active_curve_mut().remove_point(idx);
-                self.dragging_curve_point = None;
+                self.viewport.dragging_curve_point = None;
                 modified = true;
             }
 
@@ -280,7 +283,7 @@ impl RrawApp {
             let primary_down = ui.input(|i| i.pointer.primary_down());
 
             if (response.drag_started() || (response.hovered() && primary_pressed))
-                && self.dragging_curve_point.is_none()
+                && self.viewport.dragging_curve_point.is_none()
             {
                 if let Some(pos) = pointer_pos {
                     if rect.contains(pos) {
@@ -298,14 +301,14 @@ impl RrawApp {
                         }
 
                         if let Some(idx) = closest_idx {
-                            self.dragging_curve_point = Some(idx);
+                            self.viewport.dragging_curve_point = Some(idx);
                         } else {
                             // Clicked/pressed on empty canvas: add new control point and immediately grab it
                             let new_x = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
                             let new_y = ((rect.bottom() - pos.y) / rect.height()).clamp(0.0, 1.0);
                             if let Ok(new_pt) = CurvePoint::new(new_x, new_y) {
                                 let inserted_idx = self.active_curve_mut().add_point(new_pt);
-                                self.dragging_curve_point = Some(inserted_idx);
+                                self.viewport.dragging_curve_point = Some(inserted_idx);
                                 modified = true;
                             }
                         }
@@ -314,8 +317,11 @@ impl RrawApp {
             }
 
             // Handle ongoing dragging
-            if (response.dragged() || primary_down) && self.dragging_curve_point.is_some() {
-                if let (Some(drag_idx), Some(pos)) = (self.dragging_curve_point, pointer_pos) {
+            if (response.dragged() || primary_down) && self.viewport.dragging_curve_point.is_some()
+            {
+                if let (Some(drag_idx), Some(pos)) =
+                    (self.viewport.dragging_curve_point, pointer_pos)
+                {
                     let len = self.active_curve().points.len();
                     if drag_idx < len {
                         let is_first = drag_idx == 0;
@@ -349,11 +355,11 @@ impl RrawApp {
 
             // Stop dragging on release
             if response.drag_stopped() || ui.input(|i| i.pointer.primary_released()) {
-                self.dragging_curve_point = None;
+                self.viewport.dragging_curve_point = None;
             }
 
             if modified {
-                self.needs_preview_update = true;
+                self.session.needs_preview_update = true;
             }
 
             ui.add_space(3.0);
@@ -392,8 +398,8 @@ impl RrawApp {
                     .clicked()
                 {
                     *self.active_curve_mut() = ChannelCurve::new_linear();
-                    self.dragging_curve_point = None;
-                    self.needs_preview_update = true;
+                    self.viewport.dragging_curve_point = None;
+                    self.session.needs_preview_update = true;
                 }
 
                 if ui
@@ -401,9 +407,10 @@ impl RrawApp {
                     .on_hover_text(self.t(crate::i18n::Key::ToneCurvesResetAllTooltip))
                     .clicked()
                 {
-                    self.grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();
-                    self.dragging_curve_point = None;
-                    self.needs_preview_update = true;
+                    self.session.grading.tone_curves =
+                        rraw_core::curves::ToneCurvesRecipe::default();
+                    self.viewport.dragging_curve_point = None;
+                    self.session.needs_preview_update = true;
                 }
             });
         });

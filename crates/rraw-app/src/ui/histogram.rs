@@ -18,45 +18,49 @@ impl RrawApp {
                         .size(11.0),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if self.histogram.out_of_gamut_count > 0
-                        && (self.grading.soft_proof.enabled
-                            || self.grading.soft_proof.show_gamut_warning)
+                    if self.viewport.histogram.out_of_gamut_count > 0
+                        && (self.session.grading.soft_proof.enabled
+                            || self.session.grading.soft_proof.show_gamut_warning)
                     {
                         ui.label(
                             egui::RichText::new(format!(
                                 "⚠️ Gamut ({})",
-                                self.histogram.out_of_gamut_count
+                                self.viewport.histogram.out_of_gamut_count
                             ))
                             .small()
                             .color(Color32::from_rgb(255, 110, 230)),
                         );
                     }
                     // Clickable clipping toggles: paint blown highlights / crushed shadows on canvas
-                    let hl_on = self.clipping_overlay.highlights;
-                    let hl_text =
-                        egui::RichText::new(format!("HL {}", self.histogram.highlight_clipped))
-                            .small()
-                            .color(Color32::from_rgb(255, 90, 90));
+                    let hl_on = self.viewport.clipping_overlay.highlights;
+                    let hl_text = egui::RichText::new(format!(
+                        "HL {}",
+                        self.viewport.histogram.highlight_clipped
+                    ))
+                    .small()
+                    .color(Color32::from_rgb(255, 90, 90));
                     if ui
                         .selectable_label(hl_on, hl_text)
                         .on_hover_text(self.t(Key::HistogramHighlightClippingTooltip))
                         .clicked()
                     {
-                        self.clipping_overlay.highlights = !hl_on;
-                        self.needs_preview_update = true;
+                        self.viewport.clipping_overlay.highlights = !hl_on;
+                        self.session.needs_preview_update = true;
                     }
-                    let sh_on = self.clipping_overlay.shadows;
-                    let sh_text =
-                        egui::RichText::new(format!("Noirs {}", self.histogram.shadow_clipped))
-                            .small()
-                            .color(Color32::from_rgb(80, 160, 255));
+                    let sh_on = self.viewport.clipping_overlay.shadows;
+                    let sh_text = egui::RichText::new(format!(
+                        "Noirs {}",
+                        self.viewport.histogram.shadow_clipped
+                    ))
+                    .small()
+                    .color(Color32::from_rgb(80, 160, 255));
                     if ui
                         .selectable_label(sh_on, sh_text)
                         .on_hover_text(self.t(Key::HistogramShadowClippingTooltip))
                         .clicked()
                     {
-                        self.clipping_overlay.shadows = !sh_on;
-                        self.needs_preview_update = true;
+                        self.viewport.clipping_overlay.shadows = !sh_on;
+                        self.session.needs_preview_update = true;
                     }
                 });
             });
@@ -90,7 +94,7 @@ impl RrawApp {
             }
 
             // Sqrt-scaled height for beautiful smooth curves
-            let max_c = (self.histogram.max_count as f32).sqrt().max(1.0);
+            let max_c = (self.viewport.histogram.max_count as f32).sqrt().max(1.0);
 
             let channel_points = |bins: &[u32; 256]| -> Vec<egui::Pos2> {
                 bins.iter()
@@ -106,7 +110,7 @@ impl RrawApp {
 
             // Luminance backdrop filled shape
             let mut lum_polygon = vec![egui::pos2(rect.left(), rect.bottom() - 14.0)];
-            lum_polygon.extend(channel_points(&self.histogram.lum));
+            lum_polygon.extend(channel_points(&self.viewport.histogram.lum));
             lum_polygon.push(egui::pos2(rect.right(), rect.bottom() - 14.0));
             painter.add(egui::Shape::convex_polygon(
                 lum_polygon,
@@ -116,15 +120,15 @@ impl RrawApp {
 
             // Translucent glowing RGB curves
             painter.add(egui::Shape::line(
-                channel_points(&self.histogram.r),
+                channel_points(&self.viewport.histogram.r),
                 egui::Stroke::new(1.3, Color32::from_rgba_unmultiplied(255, 75, 75, 200)),
             ));
             painter.add(egui::Shape::line(
-                channel_points(&self.histogram.g),
+                channel_points(&self.viewport.histogram.g),
                 egui::Stroke::new(1.3, Color32::from_rgba_unmultiplied(75, 230, 85, 200)),
             ));
             painter.add(egui::Shape::line(
-                channel_points(&self.histogram.b),
+                channel_points(&self.viewport.histogram.b),
                 egui::Stroke::new(1.3, Color32::from_rgba_unmultiplied(75, 160, 255, 200)),
             ));
 
@@ -164,7 +168,7 @@ impl RrawApp {
                 if let Some(pos) = response.hover_pos() {
                     let pct = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
                     let bin_idx = (pct * 255.0).round() as usize;
-                    let lum_v = self.histogram.lum[bin_idx.min(255)];
+                    let lum_v = self.viewport.histogram.lum[bin_idx.min(255)];
                     painter.line_segment(
                         [
                             egui::pos2(pos.x, rect.top()),

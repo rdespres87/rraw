@@ -140,7 +140,7 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Unit/integration test suite `concurrency_and_cache_tests.rs` verifying epoch abort and bounded VRAM allocation (6 tests).
   - 284 workspace tests passing across 63 suites, 0 clippy warnings under `-D warnings`, zero unwrap/expect in production code, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
-- [ ] **Task 16.2 (`rraw-app`)**: Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (Option B)
+- [x] **Task 16.2 (`rraw-app`)**: Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (Option B)
   - Decompose monolithic 73-field `RrawApp` into 5 cohesive sub-structures:
     - `PhotoSession`: Active photo view, CFA buffers, base RGB preview, active grading state, preset, textures.
     - `ViewportController`: Camera pan/zoom, guides, split comparison, clipping indicators, histogram, interactive tool states.
@@ -148,7 +148,8 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
     - `ExportBatchController`: Export dialog settings, formats, bit-depth, subfolder targets, timelapse sequence configuration.
     - `BackgroundWorkers`: Thread channels, active epoch, thumbnail worker, decode worker.
   - Refactor all call-sites in `app.rs`, `ui/`, `preview/` and main event loop to eliminate borrow-checker conflicts and enforce least privilege.
-  - Dedicated test suite `controller_modularization_tests.rs` validating independent controller instantiation and state integrity.
+  - Dedicated test suite `controller_modularization_tests.rs` validating independent controller instantiation and state integrity (5 tests).
+  - 289 workspace tests passing across 64 suites, 0 clippy warnings under `-D warnings`, zero unwrap/expect in production code, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
 - [ ] **Task 16.3 (`rraw-app`)**: End-to-End Stress Testing, Parity Verification & Adversarial Audit
   - High-speed automated navigation stress test across 200+ synthetic RAW files asserting zero CPU thread leaks, bounded VRAM, and zero stale frame displays.

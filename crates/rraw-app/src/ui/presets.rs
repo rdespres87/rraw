@@ -21,21 +21,21 @@ impl RrawApp {
                 );
                 let combo_w = (ui.available_width() - 32.0).max(80.0);
                 egui::ComboBox::from_id_salt("left_panel_preset_combo")
-                    .selected_text(self.current_preset.name_lang(cur_lang))
+                    .selected_text(self.session.current_preset.name_lang(cur_lang))
                     .width(combo_w)
                     .show_ui(ui, |ui| {
                         for preset in GradingPreset::ALL {
                             if preset == GradingPreset::Custom {
                                 continue;
                             }
-                            let is_sel = self.current_preset == preset;
+                            let is_sel = self.session.current_preset == preset;
                             if ui
                                 .selectable_label(is_sel, preset.name_lang(cur_lang))
                                 .clicked()
                             {
-                                self.current_preset = preset;
-                                preset.apply(&mut self.grading);
-                                self.needs_preview_update = true;
+                                self.session.current_preset = preset;
+                                preset.apply(&mut self.session.grading);
+                                self.session.needs_preview_update = true;
                                 self.save_current_photo_sidecar();
                                 ui.ctx().request_repaint();
                             }
@@ -47,20 +47,20 @@ impl RrawApp {
                     .on_hover_text(self.t(Key::PresetsResetTooltip))
                     .clicked()
                 {
-                    GradingPreset::AsShot.apply(&mut self.grading);
-                    self.current_preset = GradingPreset::AsShot;
-                    self.needs_preview_update = true;
+                    GradingPreset::AsShot.apply(&mut self.session.grading);
+                    self.session.current_preset = GradingPreset::AsShot;
+                    self.session.needs_preview_update = true;
                     self.save_current_photo_sidecar();
                     ui.ctx().request_repaint();
                 }
             });
 
-            if self.current_preset != GradingPreset::AsShot
-                && self.current_preset != GradingPreset::Custom
+            if self.session.current_preset != GradingPreset::AsShot
+                && self.session.current_preset != GradingPreset::Custom
             {
                 ui.add_space(2.0);
                 ui.label(
-                    egui::RichText::new(self.current_preset.description_lang(cur_lang))
+                    egui::RichText::new(self.session.current_preset.description_lang(cur_lang))
                         .small()
                         .italics()
                         .color(Color32::from_rgb(180, 190, 205)),
@@ -90,14 +90,14 @@ impl RrawApp {
                                     .and_then(|s| s.to_str())
                                     .unwrap_or("Custom LUT")
                                     .to_string();
-                                self.grading.custom_clut = Some(CustomClutState {
+                                self.session.grading.custom_clut = Some(CustomClutState {
                                     name,
                                     path: Some(path),
                                     lut: std::sync::Arc::new(lut),
                                     strength: 1.0,
                                 });
-                                self.current_preset = GradingPreset::Custom;
-                                self.needs_preview_update = true;
+                                self.session.current_preset = GradingPreset::Custom;
+                                self.session.needs_preview_update = true;
                                 self.save_current_photo_sidecar();
                                 ui.ctx().request_repaint();
                             }
@@ -109,7 +109,7 @@ impl RrawApp {
             let mut remove_lut = false;
             let remove_lut_tooltip = self.t(Key::PresetsRemoveLutTooltip);
             let lut_intensity_label = self.t(Key::PresetsLutIntensity);
-            if let Some(clut) = &mut self.grading.custom_clut {
+            if let Some(clut) = &mut self.session.grading.custom_clut {
                 ui.add_space(2.0);
                 ui.horizontal(|ui| {
                     ui.label(
@@ -134,7 +134,7 @@ impl RrawApp {
                         .changed()
                     {
                         clut.strength = pct / 100.0;
-                        self.needs_preview_update = true;
+                        self.session.needs_preview_update = true;
                         self.save_current_photo_sidecar();
                         ui.ctx().request_repaint();
                     }
@@ -142,8 +142,8 @@ impl RrawApp {
             }
 
             if remove_lut {
-                self.grading.custom_clut = None;
-                self.needs_preview_update = true;
+                self.session.grading.custom_clut = None;
+                self.session.needs_preview_update = true;
                 self.save_current_photo_sidecar();
                 ui.ctx().request_repaint();
             }

@@ -100,12 +100,12 @@ fn about_text_embeds_version_commit_and_date() {
 #[test]
 fn about_dialog_state_defaults_closed_and_toggles() {
     let mut app = RrawApp::new_headless();
-    assert!(!app.show_about_dialog);
-    app.show_about_dialog = true;
-    assert!(app.show_about_dialog);
+    assert!(!app.export.show_about_dialog);
+    app.export.show_about_dialog = true;
+    assert!(app.export.show_about_dialog);
     // Escape must dismiss the About dialog first in the hierarchy.
     assert!(app.handle_escape_key());
-    assert!(!app.show_about_dialog);
+    assert!(!app.export.show_about_dialog);
 }
 
 /// The compile-time VERSION_TAG must start with 'v' and match the version.

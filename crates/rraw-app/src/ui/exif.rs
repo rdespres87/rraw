@@ -11,7 +11,7 @@ use crate::state::*;
 impl RrawApp {
     /// Renders the complete, clear EXIF table in the left panel.
     pub fn render_exif_panel(&mut self, ui: &mut egui::Ui) {
-        let Some(photo) = self.loaded_photo.clone() else {
+        let Some(photo) = self.session.loaded_photo.clone() else {
             ui.add_space(4.0);
             ui.label(
                 egui::RichText::new(self.t(Key::SidebarNoPhotoLoaded))
@@ -172,17 +172,19 @@ impl RrawApp {
                         ui.label(egui::RichText::new("🔎").size(11.0));
                         let filter_hint = self.t(Key::ExifFilterTags);
                         ui.add(
-                            egui::TextEdit::singleline(&mut self.exif_search_query)
+                            egui::TextEdit::singleline(&mut self.library.exif_search_query)
                                 .hint_text(filter_hint)
                                 .desired_width(140.0),
                         );
-                        if !self.exif_search_query.is_empty() && ui.small_button("✖").clicked() {
-                            self.exif_search_query.clear();
+                        if !self.library.exif_search_query.is_empty()
+                            && ui.small_button("✖").clicked()
+                        {
+                            self.library.exif_search_query.clear();
                         }
                     });
 
                     ui.add_space(4.0);
-                    let query = self.exif_search_query.to_lowercase();
+                    let query = self.library.exif_search_query.to_lowercase();
                     let filtered_tags: Vec<&(String, String)> = photo
                         .exif_tags
                         .iter()
@@ -224,7 +226,7 @@ impl RrawApp {
 
     /// Renders a concise EXIF card in the reorderable inspector sections.
     pub fn render_exif_card(&mut self, ui: &mut egui::Ui) {
-        if let Some(photo) = &self.loaded_photo {
+        if let Some(photo) = &self.session.loaded_photo {
             ui.vertical(|ui| {
                 ui.label(egui::RichText::new(&photo.camera_model).strong());
                 if !photo.lens_model.is_empty() {
@@ -277,7 +279,7 @@ impl RrawApp {
 
     /// Renders the complete, detailed EXIF and metadata inspector with export controls.
     pub fn render_exif_full_panel(&mut self, ui: &mut egui::Ui) {
-        let Some(photo) = self.loaded_photo.clone() else {
+        let Some(photo) = self.session.loaded_photo.clone() else {
             ui.add_space(20.0);
             ui.label(
                 egui::RichText::new("Aucune photo RAW chargée.")

@@ -11,7 +11,7 @@ use crate::i18n::Key;
 impl RrawApp {
     /// Renders the folder explorer navigation in the left panel with breadcrumbs and `..` parent navigation.
     pub fn render_explorer_tab(&mut self, ui: &mut egui::Ui) {
-        let dir_opt = self.current_directory.clone();
+        let dir_opt = self.library.current_directory.clone();
         let mut dir_to_open = None;
 
         ui.vertical(|ui| {
@@ -27,7 +27,7 @@ impl RrawApp {
                             dir_to_open = Some(folder);
                         }
                     }
-                    let count = self.directory_entries.len();
+                    let count = self.library.directory_entries.len();
                     let unit = if count > 1 {
                         self.t(Key::SidebarPhotosCountPlural)
                     } else {
@@ -124,7 +124,7 @@ impl RrawApp {
             self.open_directory(&d);
             if let Some(first) = self
                 .first_filtered_entry()
-                .or_else(|| self.directory_entries.first().cloned())
+                .or_else(|| self.library.directory_entries.first().cloned())
             {
                 self.open_raw_file(&first);
             }
