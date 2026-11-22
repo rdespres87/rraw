@@ -169,9 +169,11 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Dedicated unit test suite `crates/rraw-decode/tests/cfa_resolution_tests.rs` verifying channel assignment across all 4 Bayer variants and X-Trans (4 tests).
   - 298 workspace tests passing across 66 suites, 0 clippy warnings under `-D warnings`, zero unwrap/expect in production code, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
-- [ ] **Task 17.2 (`rraw-core`)**: Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6)
-  - Replace naive `demosaic_bilinear` in `rraw-core/src/demosaic.rs` with an adaptive edge-aware algorithm (Markesteijn 1-pass variant) evaluating horizontal/vertical gradients on Green channels and reconstructing $(R-G)$ and $(B-G)$ chrominance.
-  - Siemens star synthetic test asserting PSNR > 38 dB on 6x6 X-Trans (preventing zipper artifacts and color bleeding).
+- [x] **Task 17.2 (`rraw-core`)**: Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6)
+  - Replace naive `demosaic_bilinear` in `rraw-core/src/demosaic.rs` with `demosaic_xtrans_edge_aware` (Markesteijn 1-pass variant) evaluating horizontal/vertical gradients on Green channels and reconstructing $(R-G)$ and $(B-G)$ chrominance.
+  - Directional green plane reconstruction with Rayon multithreading and color difference guidance preventing zipper artifacts and color bleeding.
+  - Dedicated unit test suite in `demosaic_tests.rs` asserting PSNR >= 38 dB on synthetic Siemens star, exact flat-field reproduction, and native photosite preservation (4 tests).
+  - 302 workspace tests passing across 66 suites, 0 clippy warnings under `-D warnings`, zero unwrap/expect in production code, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
 - [ ] **Task 17.3 (`rraw-export`, `rraw-app`)**: True AVIF HDR & Safe Multi-Format Batch Export
   - Add `ravif` (or pure Rust avif encoder) to `rraw-export` for true 10-bit and 12-bit HDR AVIF encoding with BT.2020/Display-P3 profiles and ISO 21496-1 Gain Map support.

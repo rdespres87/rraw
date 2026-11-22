@@ -3,16 +3,21 @@
 ## Next Actionable Objective (Immediate Priority)
 
 - **Phase 17 — Sensor Fidelity, Dynamic CFA & True Multi-Format Export**:
-  - **Task 17.2 (`rraw-core`)**: Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6) — **READY FOR DEV**
-    - Replace naive `demosaic_bilinear` in `rraw-core/src/demosaic.rs` with an adaptive edge-aware algorithm (Markesteijn 1-pass variant) evaluating horizontal/vertical gradients on Green channels and reconstructing $(R-G)$ and $(B-G)$ chrominance.
-    - Siemens star synthetic test asserting PSNR > 38 dB on 6x6 X-Trans (preventing zipper artifacts and color bleeding).
+  - **Task 17.3 (`rraw-export`, `rraw-app`)**: True AVIF HDR & Safe Multi-Format Batch Export — **READY FOR DEV**
+    - Integrate `ravif` (or pure Rust avif encoder) in `rraw-export` for true 10-bit and 12-bit HDR AVIF encoding with BT.2020 / Display-P3 profiles and ISO 21496-1 Gain Map support.
+    - Eliminate silent PNG fallback: reject unsupported formats cleanly with `ExportError::UnsupportedFormat`.
+    - Expose AVIF (10-bit / 12-bit HDR) in `rraw-app` UI export modal with bit-depth and quality sliders.
     - Zero token policy via local LM Studio Maker + Inquisitor, atomic commit gate.
 
 ---
 
 ## Last Completed Milestone
 
-- **Phase 17 — Task 17.1 Dynamic CFA Pattern Resolution & Phase Alignment (`rraw-decode`) — COMPLETE**:
+- **Phase 17 — Task 17.2 Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6) (`rraw-core`) — COMPLETE**:
+  - **Dématriçage adaptatif X-Trans 6x6** : Implémentation de `demosaic_xtrans_edge_aware` remplaçant le bilinéaire naïf.
+  - **Reconstruction du canal Vert** : Directionnelle le long des arêtes à fort gradient avec seuillage 0.70 et parallélisation Rayon par ligne.
+  - **Reconstruction Rouge et Bleu** : Guidée par différences de chrominance $(R - G)$ et $(B - G)$ pondérées par l'inverse de la distance dans une fenêtre 5x5 bornée.
+  - **Validation & Tests** : Suite de tests `demosaic_tests.rs` (4 nouveaux tests X-Trans, dont PSNR >= 38 dB sur mire de Siemens), 302 tests passants across 66 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
   - **Résolution dynamique du motif CFA** : Détection et mapping automatique depuis `raw_image.camera.cfa` (`rawler`) vers `CfaPattern::Bayer(Rggb | Bggr | Grbg | Gbrg)` et `CfaPattern::fujifilm_xtrans()`.
   - **Suppression du RGGB hardcodé** : Élimination du forçage RGGB aux lignes 102/118 de `rraw-decode/src/lib.rs`.
   - **Alignement de phase lors du recadrage** : `align_crop_to_cfa_phase` préserve l'alignement modulo 6 (X-Trans) et modulo 2 (Bayer) avec clamping de sécurité saturé contre tout débordement.

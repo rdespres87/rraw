@@ -52,7 +52,9 @@ pub fn demosaic_cfa(
         DemosaicMethod::Bilinear => demosaic_bilinear(cfa),
         DemosaicMethod::EdgeAwareAdaptive => match cfa.pattern() {
             CfaPattern::Bayer(origin) => demosaic_bayer_edge_aware(width, height, origin, samples),
-            CfaPattern::XTrans(_) => demosaic_bilinear(cfa),
+            CfaPattern::XTrans(_) => {
+                demosaic_xtrans_edge_aware(width, height, &cfa.pattern(), samples)
+            }
         },
     }
 }
@@ -230,6 +232,228 @@ fn demosaic_bayer_edge_aware(
                         0.5 * (blue_diff_at(ix, iy - 1) + blue_diff_at(ix, iy + 1))
                     };
                     g + diff_b
+                };
+
+                *out_px = [r, g, b];
+            }
+        });
+
+    Ok(out_rgb)
+}
+
+/// Demosaics a 6x6 Fujifilm X-Trans CFA mosaic using edge-aware directional green reconstruction
+/// and smooth chrominance difference interpolation (R - G, B - G).
+fn demosaic_xtrans_edge_aware(
+    width: usize,
+    height: usize,
+    pattern: &CfaPattern,
+    samples: &[f32],
+) -> Result<Vec<[f32; 3]>, CoreError> {
+    // Precompute 6x6 periodic CFA color LUT
+    let mut cfa_lut = [[CfaColor::Green; 6]; 6];
+    for (ly, row_lut) in cfa_lut.iter_mut().enumerate() {
+        for (lx, cell) in row_lut.iter_mut().enumerate() {
+            *cell = pattern.color_at(lx, ly);
+        }
+    }
+
+    let sample_at = |x: isize, y: isize| -> f32 {
+        let cx = x.clamp(0, width as isize - 1) as usize;
+        let cy = y.clamp(0, height as isize - 1) as usize;
+        samples[cy * width + cx]
+    };
+
+    let color_at = |x: isize, y: isize| -> CfaColor {
+        let lx = (x.rem_euclid(6)) as usize;
+        let ly = (y.rem_euclid(6)) as usize;
+        cfa_lut[ly][lx]
+    };
+
+    // Step 1: Directional Green plane reconstruction
+    let mut full_green = vec![0.0_f32; width * height];
+
+    full_green
+        .par_chunks_mut(width)
+        .enumerate()
+        .for_each(|(y, row_g)| {
+            let iy = y as isize;
+            for (x, g_val) in row_g.iter_mut().enumerate() {
+                let ix = x as isize;
+                let center_color = color_at(ix, iy);
+                if center_color == CfaColor::Green {
+                    *g_val = sample_at(ix, iy);
+                    continue;
+                }
+
+                // Search nearest green neighbors horizontally (left & right)
+                let mut left_g = None;
+                for dx in 1..=3 {
+                    let nx = ix - dx;
+                    if nx >= 0 && color_at(nx, iy) == CfaColor::Green {
+                        left_g = Some((sample_at(nx, iy), dx as f32));
+                        break;
+                    }
+                }
+                let mut right_g = None;
+                for dx in 1..=3 {
+                    let nx = ix + dx;
+                    if nx < width as isize && color_at(nx, iy) == CfaColor::Green {
+                        right_g = Some((sample_at(nx, iy), dx as f32));
+                        break;
+                    }
+                }
+
+                // Search nearest green neighbors vertically (up & down)
+                let mut up_g = None;
+                for dy in 1..=3 {
+                    let ny = iy - dy;
+                    if ny >= 0 && color_at(ix, ny) == CfaColor::Green {
+                        up_g = Some((sample_at(ix, ny), dy as f32));
+                        break;
+                    }
+                }
+                let mut down_g = None;
+                for dy in 1..=3 {
+                    let ny = iy + dy;
+                    if ny < height as isize && color_at(ix, ny) == CfaColor::Green {
+                        down_g = Some((sample_at(ix, ny), dy as f32));
+                        break;
+                    }
+                }
+
+                let c_center = sample_at(ix, iy);
+
+                // Horizontal estimate and gradient
+                let (g_est_h, grad_h) = match (left_g, right_g) {
+                    (Some((gl, dl)), Some((gr, dr))) => {
+                        let w_total = dl + dr;
+                        let g_lin = (gl * dr + gr * dl) / w_total;
+                        let grad = (gl - gr).abs();
+                        (g_lin, grad)
+                    }
+                    (Some((gl, _)), None) => (gl, 1.0),
+                    (None, Some((gr, _))) => (gr, 1.0),
+                    (None, None) => (c_center, 10.0),
+                };
+
+                // Vertical estimate and gradient
+                let (g_est_v, grad_v) = match (up_g, down_g) {
+                    (Some((gu, du)), Some((gd, dd))) => {
+                        let w_total = du + dd;
+                        let g_lin = (gu * dd + gd * du) / w_total;
+                        let grad = (gu - gd).abs();
+                        (g_lin, grad)
+                    }
+                    (Some((gu, _)), None) => (gu, 1.0),
+                    (None, Some((gd, _))) => (gd, 1.0),
+                    (None, None) => (c_center, 10.0),
+                };
+
+                const EPS: f32 = 1e-5;
+                if (grad_v + EPS) < (grad_h + EPS) * 0.70 {
+                    *g_val = g_est_v;
+                } else if (grad_h + EPS) < (grad_v + EPS) * 0.70 {
+                    *g_val = g_est_h;
+                } else {
+                    let w_h = 1.0 / (grad_h + 1e-4);
+                    let w_v = 1.0 / (grad_v + 1e-4);
+                    *g_val = (w_h * g_est_h + w_v * g_est_v) / (w_h + w_v);
+                }
+            }
+        });
+
+    // Step 2 & 3: Reconstruct Red and Blue channels guided by Green color difference
+    let mut out_rgb = vec![[0.0_f32; 3]; width * height];
+
+    out_rgb
+        .par_chunks_mut(width)
+        .enumerate()
+        .for_each(|(y, out_row)| {
+            let iy = y as isize;
+            for (x, out_px) in out_row.iter_mut().enumerate() {
+                let ix = x as isize;
+                let center_color = color_at(ix, iy);
+                let g = full_green[y * width + x];
+                let center_sample = sample_at(ix, iy);
+
+                let red_diff_at = |sx: isize, sy: isize| -> f32 {
+                    let cx = sx.clamp(0, width as isize - 1) as usize;
+                    let cy = sy.clamp(0, height as isize - 1) as usize;
+                    samples[cy * width + cx] - full_green[cy * width + cx]
+                };
+
+                let blue_diff_at = |sx: isize, sy: isize| -> f32 {
+                    let cx = sx.clamp(0, width as isize - 1) as usize;
+                    let cy = sy.clamp(0, height as isize - 1) as usize;
+                    samples[cy * width + cx] - full_green[cy * width + cx]
+                };
+
+                // Compute Red
+                let r = if center_color == CfaColor::Red {
+                    center_sample
+                } else {
+                    let mut diff_sum = 0.0_f32;
+                    let mut weight_sum = 0.0_f32;
+                    for dy in -2..=2 {
+                        let ny = iy + dy;
+                        if ny < 0 || ny >= height as isize {
+                            continue;
+                        }
+                        for dx in -2..=2 {
+                            if dx == 0 && dy == 0 {
+                                continue;
+                            }
+                            let nx = ix + dx;
+                            if nx < 0 || nx >= width as isize {
+                                continue;
+                            }
+                            if color_at(nx, ny) == CfaColor::Red {
+                                let dist2 = (dx * dx + dy * dy) as f32;
+                                let w = 1.0 / dist2;
+                                diff_sum += w * red_diff_at(nx, ny);
+                                weight_sum += w;
+                            }
+                        }
+                    }
+                    if weight_sum > 0.0 {
+                        g + (diff_sum / weight_sum)
+                    } else {
+                        g
+                    }
+                };
+
+                // Compute Blue
+                let b = if center_color == CfaColor::Blue {
+                    center_sample
+                } else {
+                    let mut diff_sum = 0.0_f32;
+                    let mut weight_sum = 0.0_f32;
+                    for dy in -2..=2 {
+                        let ny = iy + dy;
+                        if ny < 0 || ny >= height as isize {
+                            continue;
+                        }
+                        for dx in -2..=2 {
+                            if dx == 0 && dy == 0 {
+                                continue;
+                            }
+                            let nx = ix + dx;
+                            if nx < 0 || nx >= width as isize {
+                                continue;
+                            }
+                            if color_at(nx, ny) == CfaColor::Blue {
+                                let dist2 = (dx * dx + dy * dy) as f32;
+                                let w = 1.0 / dist2;
+                                diff_sum += w * blue_diff_at(nx, ny);
+                                weight_sum += w;
+                            }
+                        }
+                    }
+                    if weight_sum > 0.0 {
+                        g + (diff_sum / weight_sum)
+                    } else {
+                        g
+                    }
                 };
 
                 *out_px = [r, g, b];

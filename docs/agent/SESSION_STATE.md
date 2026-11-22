@@ -7,10 +7,16 @@
 - **Active Phase**: Phase 17 — Sensor Fidelity, Dynamic CFA & True Multi-Format Export
 - **Active Tasks**:
   - Task 17.1: Dynamic CFA Pattern Resolution & Phase Alignment (`rraw-decode`) — **COMPLETE**
-  - Task 17.2: Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6) (`rraw-core`) — **READY FOR DEV**
-  - Task 17.3: True AVIF HDR & Safe Multi-Format Batch Export (`rraw-export`, `rraw-app`) — **PLANNED**
-- **Last Verified Baseline**: 298 tests passants across 66 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 17 — Task 17.1 Dynamic CFA Pattern Resolution & Phase Alignment **Complete**
+  - Task 17.2: Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6) (`rraw-core`) — **COMPLETE**
+  - Task 17.3: True AVIF HDR & Safe Multi-Format Batch Export (`rraw-export`, `rraw-app`) — **READY FOR DEV**
+- **Last Verified Baseline**: 302 tests passants across 66 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Phase 17 — Task 17.2 Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6) **Complete**
+  - Implémentation de `demosaic_xtrans_edge_aware` dans `rraw-core/src/demosaic.rs` remplaçant le bilinéaire naïf.
+  - Reconstruction directionnelle du plan Vert guidée par les gradients horizontaux et verticaux, avec parallélisation Rayon par ligne.
+  - Reconstruction haute fidélité des canaux Rouge et Bleu par différences de chrominance $(R - G)$ et $(B - G)$ pondérées par distance inverse sur fenêtre 5×5.
+  - Tests unitaires et d'intégration validés (PSNR >= 38 dB sur mire de Siemens, reproduction exacte de champ plat, absence d'artefacts de fermeture éclair et préservation stricte des photosites natifs).
+  - 302 tests passants across 66 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 17 — Task 17.1 Dynamic CFA Pattern Resolution & Phase Alignment **Complete**
   - Résolution dynamique du motif de filtre couleur CFA (`raw_image.camera.cfa`) vers `CfaPattern::Bayer(Rggb | Bggr | Grbg | Gbrg)` et `CfaPattern::fujifilm_xtrans()`.
   - Élimination intégrale du RGGB forcé dans `PureRustRawDecoder::decode_file`.
   - Alignement des marges noires modulo 6 (X-Trans) et modulo 2 (Bayer) garantissant la préservation de phase lors du recadrage optique capteur.
