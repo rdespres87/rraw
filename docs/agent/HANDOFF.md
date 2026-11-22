@@ -2,14 +2,41 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 15 — Architectural Hardening: State De-Obesity, UI Modularization & Scalable i18n**:
-  - **Task 15.2 (`rraw-app`)**: Monolithic File & Function Decomposition.
-    - Étape 1 : **TERMINÉE** (`inspector.rs` découpé en 11 sous-modules sous `ui/sections/`, 1 645 lignes supprimées du fichier principal).
-    - Étape 2 : **TERMINÉE** (`viewport.rs` 1 231 lignes découpé en 6 sous-modules sous `ui/viewport/`: `crop_overlay.rs`, `perspective_tools.rs`, `hud.rs`, `brush_overlay.rs`, `split_compare.rs`, `mod.rs`).
-    - Étape 3 (Immédiate) : Découper `crates/rraw-app/src/preview.rs` (2 264 lignes) en couches spécialisées (`preview/pipeline.rs`, `preview/cache.rs`, `preview/masks.rs`).
-  - **Task 15.3 (`rraw-app`)**: Scalable External Resource-Based i18n Engine.
-    - Découpler les traductions du code Rust source (ressources externes sous `assets/i18n/`).
-    - Permettre l'ajout d'une langue par simple dépôt de fichier sans recompiler les composants UI.
+- **Phase 15 — Architectural Hardening: State De-Obesity, UI Modularization & Scalable i18n — ALL COMPLETE**:
+  - **Task 15.1 (`rraw-core` & `rraw-app`)**: State De-Obesity & Domain Hierarchy — **COMPLETE** (commit `5b57ead`).
+  - **Task 15.2 (`rraw-app`)**: Monolithic File & Function Decomposition — **COMPLETE**:
+    - Étape 1 : **TERMINÉE** (`inspector.rs` découpé en 11 sous-modules sous `ui/sections/`, commit `1aec13c`).
+    - Étape 2 : **TERMINÉE** (`viewport.rs` 1 231 lignes découpé en 6 sous-modules sous `ui/viewport/`, commit `ca37430`).
+    - Étape 3 : **TERMINÉE** (`preview.rs` 2 264 lignes découpé en 5 sous-modules sous `preview/`, commit `a61361a`).
+  - **Task 15.3 (`rraw-app`)**: Scalable External Resource-Based i18n Engine — **COMPLETE**:
+    - Découplage complet des traductions du code source Rust via catalogues JSON externes sous `assets/i18n/`.
+    - Architecture modulaire `key.rs`, `language.rs`, `catalog.rs`, `engine.rs`, `mod.rs`.
+    - Découverte zero-code dynamique au démarrage depuis `assets/i18n` et `~/.config/rraw/i18n`.
+    - Zéro allocation heap ($O(1)$ direct par index de tableau `Box<[&'static str; Key::COUNT]>`) pendant la boucle de rendu 120 Hz Metal.
+    - 275 tests passants across 62 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B.
+
+---
+
+## Last Completed Milestone
+
+- **Phase 15 — Task 15.3: Scalable External Resource-Based i18n Engine (`rraw-app`)**:
+  - Remplacement du match codé en dur de 1 380 lignes par `I18nEngine` et catalogues externes `fr.json`, `en.json`, `es.json`.
+  - Intégration du sélecteur dynamique dans la barre d'état et persistance automatique dans `layout.json`.
+  - Validation complète par tests unitaires `i18n_catalog_tests.rs` et suite workspace (275 tests, 0 warning clippy).
+
+---
+
+## Last Completed Milestone
+
+- **Phase 15 — Task 15.2 Step 3: Preview Pipeline Modularization (`rraw-app`)**:
+  - **Décomposition modulaire de `preview.rs`** : décomposition du monolithe de 2 264 lignes en 5 sous-modules spécialisés sous `crates/rraw-app/src/preview/`:
+    - `masks.rs` (109 lignes) : Inférence de masques sémantiques IA et évaluation des ajustements locaux.
+    - `orientation.rs` (314 lignes) : Transformations d'orientation EXIF, analyseur de tags TIFF/SubIFD et parcours de répertoires.
+    - `types.rs` (414 lignes) : `LoadedPhotoView` et exporteur JSON, calcul matriciel calibration boîtier vers sRGB `compute_cam_to_srgb_matrix`, `BaseRgbPreview`, `CachedPhotoEntry`, `BackgroundDecodePayload`.
+    - `decoder.rs` (370 lignes) : Génération de vignettes rapides, décodage en arrière-plan et calculs de timelapse deflicker.
+    - `pipeline.rs` (1 112 lignes) : Pipeline de rendu couleur darkroom, rastérisation pour export et helper `generate_preview_image`.
+    - `mod.rs` (15 lignes) : Ré-exportation exhaustive assurant une rétrocompatibilité ascendante stricte à 100%.
+  - **Validation & Tests** : suite de tests `preview_modularization_tests.rs` (5 tests unitaires), 268 tests passants dans le workspace across 61 suites, 0 avertissement clippy, Inquisitor APPROVED via Qwen 3.6 35B A3B, commit `a61361a`.
 
 ---
 

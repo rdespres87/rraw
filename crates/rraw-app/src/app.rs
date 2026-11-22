@@ -13,7 +13,7 @@ use rraw_macos_edr::MacOsDisplayHeadroomProvider;
 #[cfg(not(target_os = "macos"))]
 use rraw_macos_edr::SdrFallbackHeadroomProvider;
 
-pub use crate::i18n::{Key, Language};
+pub use crate::i18n::{I18nEngine, Key, Language};
 pub use crate::preview::*;
 pub use crate::state::*;
 
@@ -201,6 +201,15 @@ impl RrawApp {
                     let _ = tx.send((path, img));
                 }
             });
+        }
+
+        // Discover external translation catalogs from assets/i18n and ~/.config/rraw/i18n
+        let i18n_engine = crate::i18n::I18nEngine::global();
+        let _ = i18n_engine.load_from_directory(std::path::Path::new("assets/i18n"));
+        if let Some(mut user_config_i18n) = AppLayoutConfig::config_path() {
+            user_config_i18n.pop();
+            user_config_i18n.push("i18n");
+            let _ = i18n_engine.load_from_directory(&user_config_i18n);
         }
 
         let layout_config = AppLayoutConfig::load();
@@ -1676,26 +1685,24 @@ impl eframe::App for RrawApp {
                         ui.label(self.t(Key::StatusSurfaceInfo));
                         ui.label(egui::RichText::new("·").weak());
 
-                        // Compact FR | EN language toggle
+                        // Dynamic language selector from all registered catalogs
                         let cur_lang = self.layout_config.language;
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
-                            if ui
-                                .selectable_label(cur_lang == Language::Fr, "FR")
-                                .clicked()
-                                && cur_lang != Language::Fr
-                            {
-                                self.layout_config.language = Language::Fr;
-                                self.layout_config.save();
-                            }
-                            ui.label(egui::RichText::new("|").weak());
-                            if ui
-                                .selectable_label(cur_lang == Language::En, "EN")
-                                .clicked()
-                                && cur_lang != Language::En
-                            {
-                                self.layout_config.language = Language::En;
-                                self.layout_config.save();
+                            let available = I18nEngine::global().available_languages();
+                            for (i, &lang) in available.iter().enumerate() {
+                                if i > 0 {
+                                    ui.label(egui::RichText::new("|").weak());
+                                }
+                                if ui
+                                    .selectable_label(cur_lang == lang, lang.code())
+                                    .on_hover_text(lang.name())
+                                    .clicked()
+                                    && cur_lang != lang
+                                {
+                                    self.layout_config.language = lang;
+                                    self.layout_config.save();
+                                }
                             }
                         });
                     });

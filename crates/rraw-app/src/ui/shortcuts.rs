@@ -80,7 +80,7 @@ impl RrawApp {
                                 ("Clic droit", "Gommer / effacer des portions du masque"),
                             ][..],
                         ),
-                        Language::En => (
+                        _ => (
                             &[
                                 ("Y", "Toggle Before | After split comparison (movable divider)"),
                                 ("D, P, \\", "Hold to preview untouched camera original (Before)"),

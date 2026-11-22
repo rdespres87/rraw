@@ -39,23 +39,23 @@ impl CurveChannel {
     ];
 
     #[must_use]
-    pub const fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         self.label_lang(Language::Fr)
     }
 
     #[must_use]
-    pub const fn label_lang(self, lang: Language) -> &'static str {
+    pub fn label_lang(self, lang: Language) -> &'static str {
         match (self, lang) {
             (Self::CombinedRgb, Language::Fr) => "RVB",
-            (Self::CombinedRgb, Language::En) => "RGB",
+            (Self::CombinedRgb, _) => "RGB",
             (Self::Red, Language::Fr) => "Rouge",
-            (Self::Red, Language::En) => "Red",
+            (Self::Red, _) => "Red",
             (Self::Green, Language::Fr) => "Vert",
-            (Self::Green, Language::En) => "Green",
+            (Self::Green, _) => "Green",
             (Self::Blue, Language::Fr) => "Bleu",
-            (Self::Blue, Language::En) => "Blue",
+            (Self::Blue, _) => "Blue",
             (Self::Luma, Language::Fr) => "Luminance",
-            (Self::Luma, Language::En) => "Luma",
+            (Self::Luma, _) => "Luma",
         }
     }
 }
@@ -245,12 +245,12 @@ impl ExportScaleMode {
     pub fn label_lang(&self, lang: Language) -> &'static str {
         match (self, lang) {
             (Self::Original, Language::Fr) => "100% (Pleine résolution)",
-            (Self::Original, Language::En) => "100% (Full resolution)",
-            (Self::Percent75, Language::Fr | Language::En) => "75%",
-            (Self::Percent50, Language::Fr | Language::En) => "50%",
+            (Self::Original, _) => "100% (Full resolution)",
+            (Self::Percent75, _) => "75%",
+            (Self::Percent50, _) => "50%",
             (Self::FitLongEdge2048, Language::Fr) => "2048 px (Format Web optimal)",
-            (Self::FitLongEdge2048, Language::En) => "2048 px (Optimal Web size)",
-            (Self::FitLongEdge3840, Language::Fr | Language::En) => "3840 px (4K UHD)",
+            (Self::FitLongEdge2048, _) => "2048 px (Optimal Web size)",
+            (Self::FitLongEdge3840, _) => "3840 px (4K UHD)",
         }
     }
 }
@@ -279,12 +279,12 @@ impl ToolFamily {
     ];
 
     #[must_use]
-    pub const fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         self.label_lang(Language::Fr)
     }
 
     #[must_use]
-    pub const fn label_lang(self, lang: Language) -> &'static str {
+    pub fn label_lang(self, lang: Language) -> &'static str {
         match self {
             Self::All => Key::FamilyAll.translate(lang),
             Self::Light => Key::FamilyLight.translate(lang),
@@ -297,12 +297,12 @@ impl ToolFamily {
     }
 
     #[must_use]
-    pub const fn short_label(self) -> &'static str {
+    pub fn short_label(self) -> &'static str {
         self.short_label_lang(Language::Fr)
     }
 
     #[must_use]
-    pub const fn short_label_lang(self, lang: Language) -> &'static str {
+    pub fn short_label_lang(self, lang: Language) -> &'static str {
         match self {
             Self::All => Key::FamilyAllShort.translate(lang),
             Self::Light => Key::FamilyLightShort.translate(lang),
@@ -372,12 +372,12 @@ impl DarkroomSection {
     }
 
     #[must_use]
-    pub const fn title(self) -> &'static str {
+    pub fn title(self) -> &'static str {
         self.title_lang(Language::Fr)
     }
 
     #[must_use]
-    pub const fn title_lang(self, lang: Language) -> &'static str {
+    pub fn title_lang(self, lang: Language) -> &'static str {
         match self {
             Self::ExposureTone => Key::SectionExposureTone.translate(lang),
             Self::AiSemanticMasks => Key::SectionAiSemanticMasks.translate(lang),
@@ -445,7 +445,8 @@ impl Default for AppLayoutConfig {
 }
 
 impl AppLayoutConfig {
-    fn config_path() -> Option<PathBuf> {
+    #[must_use]
+    pub fn config_path() -> Option<PathBuf> {
         std::env::var_os("HOME").map(|h| {
             PathBuf::from(h)
                 .join(".config")
@@ -559,15 +560,15 @@ impl GradingPreset {
     ];
 
     #[must_use]
-    pub const fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         self.name_lang(Language::Fr)
     }
 
     #[must_use]
-    pub const fn name_lang(self, lang: Language) -> &'static str {
+    pub fn name_lang(self, lang: Language) -> &'static str {
         match (self, lang) {
             (Self::AsShot, Language::Fr) => "À la prise de vue (D'origine)",
-            (Self::AsShot, Language::En) => "As Shot (Camera Original)",
+            (Self::AsShot, _) => "As Shot (Camera Original)",
             (Self::DaylightPunch, _) => "Daylight Punch (+0.3 EV, 5600K)",
             (Self::PortraitSoft, _) => "Portrait Soft (+0.6 EV, 5200K)",
             (Self::CinematicAgX, _) => "Cinematic AgX (+0.2 EV, 6000K)",
@@ -583,128 +584,115 @@ impl GradingPreset {
             (Self::KodakPortra400, _) => "Kodak Portra 400",
             (Self::FujiVelvia50, _) => "Fujifilm Velvia 50",
             (Self::KodakTriX400, Language::Fr) => "Kodak Tri-X 400 (N&B)",
-            (Self::KodakTriX400, Language::En) => "Kodak Tri-X 400 (B&W)",
+            (Self::KodakTriX400, _) => "Kodak Tri-X 400 (B&W)",
             (Self::IlfordHp5, Language::Fr) => "Ilford HP5 Plus (N&B)",
-            (Self::IlfordHp5, Language::En) => "Ilford HP5 Plus (B&W)",
+            (Self::IlfordHp5, _) => "Ilford HP5 Plus (B&W)",
             (Self::SepiaVintage, Language::Fr) => "Sépia Vintage (Virage chaud)",
-            (Self::SepiaVintage, Language::En) => "Sepia Vintage (Warm Toning)",
+            (Self::SepiaVintage, _) => "Sepia Vintage (Warm Toning)",
             (Self::Custom, Language::Fr) => "Personnalisé",
-            (Self::Custom, Language::En) => "Custom",
+            (Self::Custom, _) => "Custom",
         }
     }
 
     #[must_use]
-    pub const fn description(self) -> &'static str {
+    pub fn description(self) -> &'static str {
         self.description_lang(Language::Fr)
     }
 
     #[must_use]
-    pub const fn description_lang(self, lang: Language) -> &'static str {
-        match (self, lang) {
-            (Self::AsShot, Language::Fr) => "Réglages d'origine du boîtier sans retouche",
-            (Self::AsShot, Language::En) => "Original camera settings without adjustments",
-            (Self::DaylightPunch, Language::Fr) => {
-                "Contraste dynamique & ombres relevées pour plein jour"
+    pub fn description_lang(self, lang: Language) -> &'static str {
+        if lang == Language::Fr {
+            match self {
+                Self::AsShot => "Réglages d'origine du boîtier sans retouche",
+                Self::DaylightPunch => {
+                    "Contraste dynamique & ombres relevées pour plein jour"
+                }
+                Self::PortraitSoft => {
+                    "Teinte douce, tons chair chauds et contraste atténué"
+                }
+                Self::CinematicAgX => {
+                    "Rendu cinéma argentique avec compression douce des hautes lumières"
+                }
+                Self::MonochromeFineArt => {
+                    "Noir & blanc artistique profond et modelé fin"
+                }
+                Self::LandscapeVivid => {
+                    "Couleurs riches, ombres débouchées et netteté paysagère"
+                }
+                Self::GoldenHourWarmth => {
+                    "Lumière dorée du coucher de soleil (6300K) et ombres chaudes"
+                }
+                Self::MoodyMatte => {
+                    "Ambiance cinématographique feutrée, noirs légèrement décollés"
+                }
+                Self::HighKeyAiry => {
+                    "Tonalité lumineuse, surexposition maîtrisée et teintes éthérées"
+                }
+                Self::StreetContrastBW => {
+                    "Noir & blanc urbain percutant, micro-contraste élevé"
+                }
+                Self::VintageFilm => "Grain et patine argentique vintage, vignetage marqué",
+                Self::NightAstro => {
+                    "Ciel nocturne clarifié (4200K), débruitage ondelettes renforcé"
+                }
+                Self::FujiClassicChrome => {
+                    "Rendu documentaire feutré, ombres denses, saturation atténuée et bleus cyan"
+                }
+                Self::KodakPortra400 => {
+                    "Couleurs pastel, tons chair flatteurs, ombres décollées et hautes lumières soyeuses"
+                }
+                Self::FujiVelvia50 => {
+                    "Diapositive mythique à saturation éclatante, noirs d'encre et ciels profonds"
+                }
+                Self::KodakTriX400 => {
+                    "Noir & blanc photojournalisme classique, contraste affirmé et noirs profonds"
+                }
+                Self::IlfordHp5 => {
+                    "Noir & blanc argentique à grande latitude, modelé doux et dégradés subtils"
+                }
+                Self::SepiaVintage => {
+                    "Virage au sulfure d'époque : ombres chaudes brun-chocolat & hautes lumières ambrées"
+                }
+                Self::Custom => "Réglages personnalisés par l'utilisateur",
             }
-            (Self::DaylightPunch, Language::En) => {
-                "Dynamic contrast & boosted shadows for bright daylight"
+        } else {
+            match self {
+                Self::AsShot => "Original camera settings without adjustments",
+                Self::DaylightPunch => "Dynamic contrast & boosted shadows for bright daylight",
+                Self::PortraitSoft => "Soft tint, flattering skin tones and gentle contrast",
+                Self::CinematicAgX => "Film cinematic look with smooth highlight compression",
+                Self::MonochromeFineArt => {
+                    "Deep fine-art black & white with subtle midtone tonality"
+                }
+                Self::LandscapeVivid => "Rich vibrant colors, opened shadows and landscape clarity",
+                Self::GoldenHourWarmth => "Sunset golden hour light (6300K) and warm shadows",
+                Self::MoodyMatte => "Subdued moody cinema atmosphere with lifted matte blacks",
+                Self::HighKeyAiry => {
+                    "Bright airy tonality, controlled exposure and ethereal highlights"
+                }
+                Self::StreetContrastBW => "Punchy urban street B&W with high micro-contrast",
+                Self::VintageFilm => "Vintage analog film look with warm patina and vignetting",
+                Self::NightAstro => "Clarified night sky (4200K) with enhanced wavelet denoise",
+                Self::FujiClassicChrome => {
+                    "Documentary editorial look, dense shadows and muted tones with cyan blues"
+                }
+                Self::KodakPortra400 => {
+                    "Pastel colors, flattering skin tones, lifted shadows and smooth highlights"
+                }
+                Self::FujiVelvia50 => {
+                    "Legendary slide film with vivid saturation, ink blacks and deep skies"
+                }
+                Self::KodakTriX400 => {
+                    "Classic photojournalism B&W with assertive contrast and deep blacks"
+                }
+                Self::IlfordHp5 => {
+                    "Wide latitude analog B&W with soft tonality and subtle gradients"
+                }
+                Self::SepiaVintage => {
+                    "Antique sulfide toning: warm chocolate shadows & amber highlights"
+                }
+                Self::Custom => "Custom user adjustments",
             }
-            (Self::PortraitSoft, Language::Fr) => {
-                "Teinte douce, tons chair chauds et contraste atténué"
-            }
-            (Self::PortraitSoft, Language::En) => {
-                "Soft tint, flattering skin tones and gentle contrast"
-            }
-            (Self::CinematicAgX, Language::Fr) => {
-                "Rendu cinéma argentique avec compression douce des hautes lumières"
-            }
-            (Self::CinematicAgX, Language::En) => {
-                "Film cinematic look with smooth highlight compression"
-            }
-            (Self::MonochromeFineArt, Language::Fr) => {
-                "Noir & blanc artistique profond et modelé fin"
-            }
-            (Self::MonochromeFineArt, Language::En) => {
-                "Deep fine-art black & white with subtle midtone tonality"
-            }
-            (Self::LandscapeVivid, Language::Fr) => {
-                "Couleurs riches, ombres débouchées et netteté paysagère"
-            }
-            (Self::LandscapeVivid, Language::En) => {
-                "Rich vibrant colors, opened shadows and landscape clarity"
-            }
-            (Self::GoldenHourWarmth, Language::Fr) => {
-                "Lumière dorée du coucher de soleil (6300K) et ombres chaudes"
-            }
-            (Self::GoldenHourWarmth, Language::En) => {
-                "Sunset golden hour light (6300K) and warm shadows"
-            }
-            (Self::MoodyMatte, Language::Fr) => {
-                "Ambiance cinématographique feutrée, noirs légèrement décollés"
-            }
-            (Self::MoodyMatte, Language::En) => {
-                "Subdued moody cinema atmosphere with lifted matte blacks"
-            }
-            (Self::HighKeyAiry, Language::Fr) => {
-                "Tonalité lumineuse, surexposition maîtrisée et teintes éthérées"
-            }
-            (Self::HighKeyAiry, Language::En) => {
-                "Bright airy tonality, controlled exposure and ethereal highlights"
-            }
-            (Self::StreetContrastBW, Language::Fr) => {
-                "Noir & blanc urbain percutant, micro-contraste élevé"
-            }
-            (Self::StreetContrastBW, Language::En) => {
-                "Punchy urban street B&W with high micro-contrast"
-            }
-            (Self::VintageFilm, Language::Fr) => "Grain et patine argentique vintage, vignetage marqué",
-            (Self::VintageFilm, Language::En) => {
-                "Vintage analog film look with warm patina and vignetting"
-            }
-            (Self::NightAstro, Language::Fr) => {
-                "Ciel nocturne clarifié (4200K), débruitage ondelettes renforcé"
-            }
-            (Self::NightAstro, Language::En) => {
-                "Clarified night sky (4200K) with enhanced wavelet denoise"
-            }
-            (Self::FujiClassicChrome, Language::Fr) => {
-                "Rendu documentaire feutré, ombres denses, saturation atténuée et bleus cyan"
-            }
-            (Self::FujiClassicChrome, Language::En) => {
-                "Documentary editorial look, dense shadows and muted tones with cyan blues"
-            }
-            (Self::KodakPortra400, Language::Fr) => {
-                "Couleurs pastel, tons chair flatteurs, ombres décollées et hautes lumières soyeuses"
-            }
-            (Self::KodakPortra400, Language::En) => {
-                "Pastel colors, flattering skin tones, lifted shadows and smooth highlights"
-            }
-            (Self::FujiVelvia50, Language::Fr) => {
-                "Diapositive mythique à saturation éclatante, noirs d'encre et ciels profonds"
-            }
-            (Self::FujiVelvia50, Language::En) => {
-                "Legendary slide film with vivid saturation, ink blacks and deep skies"
-            }
-            (Self::KodakTriX400, Language::Fr) => {
-                "Noir & blanc photojournalisme classique, contraste affirmé et noirs profonds"
-            }
-            (Self::KodakTriX400, Language::En) => {
-                "Classic photojournalism B&W with assertive contrast and deep blacks"
-            }
-            (Self::IlfordHp5, Language::Fr) => {
-                "Noir & blanc argentique à grande latitude, modelé doux et dégradés subtils"
-            }
-            (Self::IlfordHp5, Language::En) => {
-                "Wide latitude analog B&W with soft tonality and subtle gradients"
-            }
-            (Self::SepiaVintage, Language::Fr) => {
-                "Virage au sulfure d'époque : ombres chaudes brun-chocolat & hautes lumières ambrées"
-            }
-            (Self::SepiaVintage, Language::En) => {
-                "Antique sulfide toning: warm chocolate shadows & amber highlights"
-            }
-            (Self::Custom, Language::Fr) => "Réglages personnalisés par l'utilisateur",
-            (Self::Custom, Language::En) => "Custom user adjustments",
         }
     }
 
@@ -1140,25 +1128,25 @@ impl SemanticMaskLayer {
 
     /// Human-readable French UI label for a semantic category.
     #[must_use]
-    pub const fn category_label(category: rraw_core::SemanticMaskCategory) -> &'static str {
+    pub fn category_label(category: rraw_core::SemanticMaskCategory) -> &'static str {
         Self::category_label_lang(category, Language::Fr)
     }
 
     /// Language-aware UI label for a semantic category.
     #[must_use]
-    pub const fn category_label_lang(
+    pub fn category_label_lang(
         category: rraw_core::SemanticMaskCategory,
         lang: Language,
     ) -> &'static str {
         match (category, lang) {
             (rraw_core::SemanticMaskCategory::Subject, Language::Fr) => "🧍 Sujet",
-            (rraw_core::SemanticMaskCategory::Subject, Language::En) => "🧍 Subject",
+            (rraw_core::SemanticMaskCategory::Subject, _) => "🧍 Subject",
             (rraw_core::SemanticMaskCategory::Sky, Language::Fr) => "☁️ Ciel",
-            (rraw_core::SemanticMaskCategory::Sky, Language::En) => "☁️ Sky",
+            (rraw_core::SemanticMaskCategory::Sky, _) => "☁️ Sky",
             (rraw_core::SemanticMaskCategory::Background, Language::Fr) => "🏞️ Arrière-plan",
-            (rraw_core::SemanticMaskCategory::Background, Language::En) => "🏞️ Background",
+            (rraw_core::SemanticMaskCategory::Background, _) => "🏞️ Background",
             (rraw_core::SemanticMaskCategory::Portrait, Language::Fr) => "👤 Portrait (Peau)",
-            (rraw_core::SemanticMaskCategory::Portrait, Language::En) => "👤 Portrait (Skin)",
+            (rraw_core::SemanticMaskCategory::Portrait, _) => "👤 Portrait (Skin)",
         }
     }
 }

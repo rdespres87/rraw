@@ -8,8 +8,19 @@
 - **Active Tasks**:
   - Task 15.1: State De-Obesity & Domain Hierarchy (`rraw-core` & `rraw-app`) — **COMPLETE**
   - Task 15.2: Monolithic File & Function Decomposition (`rraw-app`) — **COMPLETE** (Inspector, Viewport, and Preview decomposed into modular sub-packages)
-  - Task 15.3: Scalable External Resource-Based i18n Engine (`rraw-app`)
-- **Last Verified Baseline**: 268 tests passants across 61 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+  - Task 15.3: Scalable External Resource-Based i18n Engine (`rraw-app`) — **COMPLETE**
+- **Last Verified Baseline**: 275 tests passants across 62 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Preceding Milestone**: Phase 15 — Task 15.3: Scalable External Resource-Based i18n Engine **Complete**
+  - Remplacement du match monolithique codé en dur de 1 380 lignes dans `crates/rraw-app/src/i18n/mod.rs` par une architecture de catalogage externe scalable sous `assets/i18n/` :
+    - Catalogues par défaut `fr.json` (326 clés), `en.json` (326 clés) et catalogue d'extension `es.json` (Espagnol).
+    - `crates/rraw-app/src/i18n/key.rs` (1 367 lignes) : 326 clés typées `Key`, indexation $O(1)$ directe, conversion bidirectionnelle.
+    - `crates/rraw-app/src/i18n/language.rs` (153 lignes) : Représentation unifiée `Language` avec support natif `Fr`, `En` et codes personnalisés dynamiques `Custom([u8; 8])`, interning statique thread-safe et rétrocompatibilité Serde.
+    - `crates/rraw-app/src/i18n/catalog.rs` (105 lignes) : Structure `Catalog` immuable avec stockage en tableau indexé `Box<[&'static str; Key::COUNT]>`, garantissant un accès direct $O(1)$ sans allocation heap pendant la boucle de rendu 120 Hz Metal d'egui.
+    - `crates/rraw-app/src/i18n/engine.rs` (183 lignes) : Registre thread-safe `I18nEngine` (`RwLock`), catalogues par défaut intégrés (`include_str!`) pour un fonctionnement autonome, et découverte automatique de fichiers `*.json` dans `assets/i18n/` et `~/.config/rraw/i18n/`.
+    - `crates/rraw-app/src/i18n/mod.rs` (30 lignes) : Façade concise et rétrocompatible.
+  - Découverte zero-code : déposer un fichier `*.json` dans `assets/i18n/` ou `~/.config/rraw/i18n/` enregistre la langue automatiquement au démarrage et l'affiche dans le sélecteur de la barre d'état.
+  - Suite de tests dédiée `crates/rraw-app/tests/i18n_catalog_tests.rs` (7 tests) + `i18n_tests.rs` (5 tests).
+  - 275 tests passants across 62 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 - **Preceding Milestone**: Phase 15 — Task 15.2 Step 3: Preview Pipeline Modularization **Complete**
   - Décomposition du fichier monolithique `preview.rs` (2 264 lignes) en sous-modules dédiés sous `crates/rraw-app/src/preview/`:
     - `masks.rs` (109 lignes) : Inférence de masques sémantiques IA (`infer_preview_semantic_masks`) et évaluation des ajustements locaux (`eval_all_mask_adjustments`).
