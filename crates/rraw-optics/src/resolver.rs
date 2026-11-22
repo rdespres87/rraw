@@ -1,4 +1,4 @@
-use crate::db::LensDatabase;
+use crate::lensfun::LensfunDatabase;
 use crate::model::{DistortionPoly, LateralTca, OpticalCorrectionModel, RadialVignette};
 use crate::OpticalResolutionTier;
 use rraw_core::PhotoMetadata;
@@ -33,7 +33,9 @@ impl OpticalResolver {
                 lateral_ca: LateralTca::default(),
                 vignette: RadialVignette::default(),
             },
-            OpticalResolutionTier::Tier2LensfunXml => LensDatabase::match_metadata(metadata).model,
+            OpticalResolutionTier::Tier2LensfunXml => {
+                LensfunDatabase::global().match_metadata(metadata).model
+            }
             OpticalResolutionTier::Tier3LocalAdobeLcp => OpticalCorrectionModel {
                 distortion: DistortionPoly::default(),
                 lateral_ca: LateralTca::default(),

@@ -203,10 +203,12 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 ---
 
 ## Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database
-- [ ] **Task 19.1 (`rraw-optics`)**: Embedded & External Lensfun XML Database Engine
-  - Embed compressed official Lensfun XML catalog (> 1,000 lenses) into `rraw-optics` using pure Rust XML parser (`quick-xml` or `roxmltree`).
-  - Add search/discovery of local system database (`/usr/share/lensfun` on Linux, Homebrew on macOS, `~/Library/Application Support/rraw/lensfun/`).
-  - Dynamic interpolation of polynomial distortion, lateral TCA, and radial vignetting across focal length and aperture ranges.
+- [x] **Task 19.1 (`rraw-optics`)**: Embedded & External Lensfun XML Database Engine
+  - Embedded compressed official Lensfun XML catalog (> 1,500 lenses, 511 KB gzip) into `rraw-optics` using streaming pure-Rust `quick-xml` reader (`data/lensfun_database.xml.gz`).
+  - Added discovery and merging of host system databases (`RRAW_LENSFUN_PATH`, `~/Library/Application Support/rraw/lensfun/`, macOS Homebrew `/opt/homebrew/share/lensfun/`, `/usr/share/lensfun/`, etc.).
+  - Continuous interpolation across focal length and aperture brackets for polynomial distortion (ptlens, poly3, poly5), lateral TCA (poly3, linear), and radial vignetting (pa model converted to inverse gain).
+  - Wired into `OpticalResolver` Tier 2 (`Tier2LensfunXml`) with priority fallback chain (curated catalog -> full Lensfun database -> generic fallback).
+  - Dedicated unit tests in `crates/rraw-optics/tests/lensfun_tests.rs` (4 tests). 316 workspace tests passing across 69 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
 - [ ] **Task 19.2 (`rraw-optics`, `rraw-decode`)**: Tier 1 DNG Embedded Opcode Bridge & UI Profile Matching
   - Bridge decoded DNG `WarpRectilinear` opcodes directly into Stage 4 `UvLutTable` grid.

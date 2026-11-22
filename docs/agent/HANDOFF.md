@@ -3,14 +3,25 @@
 ## Next Actionable Objective (Immediate Priority)
 
 - **Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database**:
-  - **Task 19.1 (`rraw-optics`)**: Embedded & External Lensfun XML Database Engine — **READY FOR DEV**
-    - Embed compressed official Lensfun XML catalog (> 1,000 lenses) into `rraw-optics` using pure Rust XML parser (`quick-xml`).
-    - Add search/discovery of local system database (`/usr/share/lensfun` on Linux, Homebrew on macOS, `~/Library/Application Support/rraw/lensfun/`).
-    - Dynamic interpolation of polynomial distortion, lateral TCA, and radial vignetting across focal length and aperture ranges.
+  - **Task 19.2 (`rraw-optics`, `rraw-decode`)**: Tier 1 DNG Embedded Opcode Bridge & UI Profile Matching — **READY FOR DEV**
+    - Bridge decoded DNG `WarpRectilinear` opcodes directly into Stage 4 `UvLutTable` grid.
+    - Add UI lens profile picker and manual override in `ui/sections/optics.rs` with fuzzy match confidence indicator and update check.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 19 — Task 19.1 Embedded & External Lensfun XML Database Engine (`rraw-optics`) — COMPLETE**:
+  - **Embedded Official Catalog**: Compressed database of > 1,500 lenses (511 KB gzip) embedded in `crates/rraw-optics/data/lensfun_database.xml.gz`.
+  - **Streaming Pure-Rust XML Parser**: Fast, memory-efficient parsing via `quick-xml` without DOM allocation.
+  - **Host System Discovery**: Transparent search and merging of external Lensfun directories (`RRAW_LENSFUN_PATH`, `~/Library/Application Support/rraw/lensfun/`, macOS Homebrew, Linux paths).
+  - **Dynamic Optical Interpolation**: Continuous interpolation for polynomial distortion (`ptlens`, `poly3`, `poly5`), lateral TCA (`poly3`, `linear`), and radial vignetting (`pa` converted to inverse gain).
+  - **Tier 2 Resolver Integration**: Connected to `OpticalResolver` (`Tier2LensfunXml`) with priority fallback chain.
+  - **Validation & Tests**: Dedicated test suite in `lensfun_tests.rs` (4 tests), 316 workspace tests passing across 69 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 18 — Task 18.2 Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering (`rraw-app`) — COMPLETE**:
   - **LibraryController DAM Integration**: Wired `SqliteDamIndex` via `session_dam: Option<SqliteDamIndex>`.

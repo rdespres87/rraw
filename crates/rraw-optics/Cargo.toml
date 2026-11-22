@@ -7,9 +7,12 @@ authors.workspace = true
 description = "4-tier optical correction resolver, UV LUT generator, and Richardson-Lucy deconvolution"
 
 [dependencies]
+flate2 = "1.0"
+quick-xml.workspace = true
 rayon.workspace = true
 rraw-core.workspace = true
 rraw-decode.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 rraw-gpu.workspace = true

@@ -3934,10 +3934,13 @@ dependencies = [
 name = "rraw-optics"
 version = "0.1.0"
 dependencies = [
+ "flate2",
+ "quick-xml 0.37.5",
  "rayon",
  "rraw-core",
  "rraw-decode",
  "rraw-gpu",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

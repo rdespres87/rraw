@@ -4,13 +4,21 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 18 — High-Performance Directory Session DAM (Option A: `.rraw/cache.db`)
+- **Active Phase**: Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database
 - **Active Tasks**:
-  - Task 18.1: Session-Mode SQLite Engine & High-Concurrency WAL Pragmas (`rraw-storage`) — **COMPLETE**
-  - Task 18.2: Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering (`rraw-app`) — **COMPLETE**
-- **Next Phase**: Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database
-- **Last Verified Baseline**: 312 tests passants across 68 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 18 — Task 18.2 Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering **Complete**
+  - Task 19.1: Embedded & External Lensfun XML Database Engine (`rraw-optics`) — **COMPLETE**
+  - Task 19.2: Tier 1 DNG Embedded Opcode Bridge & UI Profile Matching (`rraw-optics`, `rraw-decode`) — **READY FOR DEV**
+- **Next Phase**: Phase 20 — Native Apple Silicon Neural Engine Bridge (CoreML)
+- **Last Verified Baseline**: 316 tests passants across 69 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Phase 19 — Task 19.1 Embedded & External Lensfun XML Database Engine **Complete**
+  - Intégration du catalogue officiel Lensfun compressé (> 1 500 objectifs, 511 Ko gzip) embarqué dans `rraw-optics` (`data/lensfun_database.xml.gz`).
+  - Moteur de parsing streaming en pur Rust sans allocations DOM superflues via `quick-xml`.
+  - Découverte et fusion transparente des bases système externes (`RRAW_LENSFUN_PATH`, `~/Library/Application Support/rraw/lensfun/`, Homebrew `/opt/homebrew/share/lensfun/`, Linux `/usr/share/lensfun/`).
+  - Interpolation dynamique continue des modèles optiques : distorsion polynomiale (`ptlens`, `poly3`, `poly5`), aberration chromatique latérale TCA (`poly3`, `linear`) et vignettage radial (`pa` converti en gain de correction).
+  - Intégration dans `OpticalResolver` (Tier 2 `Tier2LensfunXml`) avec chaîne de priorité (catalogue calibré -> base complète Lensfun -> modèle générique).
+  - Suite de tests unitaires dédiée `crates/rraw-optics/tests/lensfun_tests.rs` (4 tests).
+  - 316 tests passants across 69 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 18 — Task 18.2 Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering **Complete**
   - Câblage de `SqliteDamIndex` dans `LibraryController` (`session_dam: Option<SqliteDamIndex>`).
   - Ouverture/création automatique de `.rraw/cache.db` dès l'ouverture d'un dossier (`open_directory`) en < 0.05 ms sur le thread UI.
   - Worker d'arrière-plan d'indexation asynchrone avec annulation par époque atomique (`spawn_directory_indexer`).

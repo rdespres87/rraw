@@ -4,6 +4,7 @@
 
 pub mod db;
 pub mod defringe;
+pub mod lensfun;
 pub mod lut;
 pub mod model;
 pub mod resolver;
@@ -11,6 +12,9 @@ pub mod rl;
 
 pub use db::{CalibratedFocalPoint, LensDatabase, LensProfile, MatchedLens};
 pub use defringe::{defringe_mask_rgb, defringe_rgb, DefringeConfig};
+pub use lensfun::{
+    LensfunDatabase, LensfunDistortion, LensfunError, LensfunLens, LensfunTca, LensfunVignetting,
+};
 pub use lut::{UvLutGenerator, UvLutTable};
 pub use model::{DistortionPoly, LateralTca, OpticalCorrectionModel, RadialVignette};
 pub use resolver::OpticalResolver;
