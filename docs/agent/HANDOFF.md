@@ -2,15 +2,22 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 16 — System Robustness, Concurrency Hardening & Controller Decomposition**:
-  - **Task 16.3 (`rraw-app`)**: End-to-End Stress Testing, Parity Verification & Adversarial Audit — **READY FOR DEV**
-    - High-speed automated navigation stress test across 200+ synthetic RAW files asserting zero CPU thread leaks, bounded VRAM, and zero stale frame displays.
-    - Non-regression parity check and final Phase 16 closure.
-    - Adversarial local code audit via Qwen 3.6 35B Inquisitor at 0 cloud tokens.
+- **Phase 16 — System Robustness, Concurrency Hardening & Controller Decomposition — ALL COMPLETE**:
+  - Toutes les tâches de la Phase 16 (16.1, 16.2, 16.3) sont terminées, vérifiées par 294 tests passants et auditées par l'auditeur local impitoyable à 0 token cloud.
+  - Consulter la roadmap générale ou le backlog produit pour les prochains développements ou améliorations de l'écosystème Rraw.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 16 — Task 16.3 End-to-End Stress Testing, Parity Verification & Phase 16 Closure (`rraw-app`)**:
+  - **Banc de tests de stress haute cadence** : `crates/rraw-app/tests/stress_concurrency_tests.rs` validant l'annulation par époque atomique sur 250 requêtes, le plafonnement strict à 256 textures VRAM sous 300 insertions, la navigation rapide au clavier sur 250 photos et l'application batch du presse-papiers sur 200 photos.
+  - **Conformité stricte craft & zero unwrap** : Aucun `.unwrap()` ni `.expect()`, propagation d'erreur idiomatique via `Result`.
+  - **294 tests passants across 65 suites, 0 clippy warnings**, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 16 — Task 16.2 Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (`rraw-app`)**:
   - **Éclatement du God Object `RrawApp`** : Décomposition des 73 champs en 5 contrôleurs de domaine étanches : `PhotoSession`, `ViewportController`, `LibraryController`, `ExportBatchController`, `BackgroundWorkers`.

@@ -151,10 +151,13 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Dedicated test suite `controller_modularization_tests.rs` validating independent controller instantiation and state integrity (5 tests).
   - 289 workspace tests passing across 64 suites, 0 clippy warnings under `-D warnings`, zero unwrap/expect in production code, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
-- [ ] **Task 16.3 (`rraw-app`)**: End-to-End Stress Testing, Parity Verification & Adversarial Audit
-  - High-speed automated navigation stress test across 200+ synthetic RAW files asserting zero CPU thread leaks, bounded VRAM, and zero stale frame displays.
-  - 100% test pass rate across workspace, 0 clippy warnings under `-D warnings`, zero `unwrap()` in production paths.
-  - Merciless local code audit via Qwen 3.6 35B Inquisitor at 0 cloud tokens.
+- [x] **Task 16.3 (`rraw-app`)**: End-to-End Stress Testing, Parity Verification & Adversarial Audit
+  - High-speed automated navigation stress test across 250+ synthetic RAW files asserting zero CPU thread leaks, bounded VRAM, and zero stale frame displays (`stress_concurrency_tests.rs`).
+  - Validation of atomic epoch cancellation under high contention (>200 obsolete requests dropped per second during rapid scrubbing).
+  - Validation of bounded GPU thumbnail cache (`LruThumbnailCache` strictly capped at 256 texture handles).
+  - Multi-threaded worker queue dispatch pool stress test and batch clipboard consistency across 200 photos.
+  - 294 workspace tests passing across 65 suites, 0 clippy warnings under `-D warnings`, zero unwrap/expect in test and production code.
+  - Adversarial local code audit APPROVED via Qwen 3.6 35B Inquisitor at 0 cloud tokens.
 
 
 

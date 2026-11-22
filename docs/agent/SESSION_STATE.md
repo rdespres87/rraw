@@ -4,14 +4,22 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 16 — System Robustness, Concurrency Hardening & Controller Decomposition
+- **Active Phase**: Phase 16 — System Robustness, Concurrency Hardening & Controller Decomposition — **COMPLETE**
 - **Active Tasks**:
   - Task 16.1: Concurrency Hardening, Thread Cancellation & VRAM Eviction Engine (`rraw-app`) — **COMPLETE**
   - Task 16.2: Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (`rraw-app`) — **COMPLETE**
-  - Task 16.3: End-to-End Stress Testing, Parity Verification & Adversarial Audit (`rraw-app`) — **READY FOR DEV**
-- **Last Verified Baseline**: 289 tests passants across 64 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+  - Task 16.3: End-to-End Stress Testing, Parity Verification & Adversarial Audit (`rraw-app`) — **COMPLETE**
+- **Last Verified Baseline**: 294 tests passants across 65 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
 - **Architectural Study**: `docs/studies/PHASE_16_CONCURRENCY_STATE_ARCHITECTURE.md` (Spécification complète validée le 22 nov. 2026).
-- **Current Milestone**: Phase 16 — Task 16.2 Architectural Decomposition of `RrawApp` into Specialized Domain Controllers **Complete**
+- **Current Milestone**: Phase 16 — Task 16.3 End-to-End Stress Testing, Parity Verification & Phase 16 Closure **Complete**
+  - Implémentation du banc de tests de stress d'intégration et de concurrence `crates/rraw-app/tests/stress_concurrency_tests.rs` (5 tests de stress) :
+    1. Annulation atomique par époque lors d'un défilement haute cadence (250 requêtes : plus de 200 requêtes obsolètes annulées instantanément, seule la requête active finale de l'époque 250 est traitée).
+    2. Plafonnement strict du cache de miniatures LRU (`LruThumbnailCache`) fixé à 256 textures (éviction ordonnée des 44 premières entrées sur 300 insertions, rafraîchissement par `touch()` et purge par `prune_not_in()`).
+    3. Traitement concurrent et déduplication thread-safe des requêtes de miniatures via `BackgroundWorkers` sans condition de course.
+    4. Défilement rapide au clavier (250 pas avant, 50 pas arrière, sauts absolus) dans `RrawApp::new_headless()` sans dérive d'état ni panique.
+    5. Cohérence de l'application par lot du presse-papiers (`GradingRecipeClipboard`) sur 200 photos sélectionnées simultanément.
+  - 294 tests passants across 65 suites, 0 clippy warnings sous `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 16 — Task 16.2 Architectural Decomposition of `RrawApp` into Specialized Domain Controllers **Complete**
   - Éclatement architectural du God Object `RrawApp` (73 champs hétérogènes) en 5 contrôleurs de domaine étanches sous `crates/rraw-app/src/controllers/` :
     - `PhotoSession` : métadonnées de la photo active, tampons CFA, aperçu RGB linéaire, état d'étalonnage sombre, preset actif et textures GPU.
     - `ViewportController` : caméra, zoom fit/1:1, pan, split screen Before/After, zebra d'écrêtage, histogramme en temps réel, outils d'horizon et lignes parallèles, état de recadrage et canaux de courbes.
