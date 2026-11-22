@@ -4,13 +4,18 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 15 — Architectural Hardening: State De-Obesity, UI Modularization & Scalable i18n
+- **Active Phase**: Phase 16 — System Robustness, Concurrency Hardening & Controller Decomposition
 - **Active Tasks**:
-  - Task 15.1: State De-Obesity & Domain Hierarchy (`rraw-core` & `rraw-app`) — **COMPLETE**
-  - Task 15.2: Monolithic File & Function Decomposition (`rraw-app`) — **COMPLETE** (Inspector, Viewport, and Preview decomposed into modular sub-packages)
-  - Task 15.3: Scalable External Resource-Based i18n Engine (`rraw-app`) — **COMPLETE**
-- **Last Verified Baseline**: 278 tests passants across 62 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Decoupling of Creative Vignette into Dedicated Effects Section (`DarkroomSection::Effects`, `EffectsGradingParams`, `ui/sections/effects.rs`) **Complete**
+  - Task 16.1: Concurrency Hardening, Thread Cancellation & VRAM Eviction Engine (`rraw-app`) — **COMPLETE**
+  - Task 16.2: Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (`rraw-app`) — **READY FOR DEV**
+  - Task 16.3: End-to-End Stress Testing, Parity Verification & Adversarial Audit (`rraw-app`) — Planned
+- **Last Verified Baseline**: 284 tests passants across 63 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Architectural Study**: `docs/studies/PHASE_16_CONCURRENCY_STATE_ARCHITECTURE.md` (Spécification complète validée le 22 nov. 2026).
+- **Current Milestone**: Phase 16 — Task 16.1 Concurrency Hardening, Thread Cancellation & VRAM Eviction Engine **Complete**
+  - Remplacement des `std::thread::spawn` bruts par un worker thread séquentiel de décodage avec coordination d'époque atomique `Arc<AtomicU64>`.
+  - Annulation instantanée des requêtes obsolètes (`req.epoch != active_epoch`) avant et après le dématriçage lourd, protégeant le CPU et garantissant 120 FPS constants.
+  - Implémentation de `LruThumbnailCache` borné (256 textures max) avec éviction LRU et purge automatique au changement de dossier dans `open_directory()`.
+  - Suite de tests `concurrency_and_cache_tests.rs` (6 tests unitaires/intégration), 284 tests passants across 63 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
   - Séparation nette entre corrections d'aberrations physiques (`OpticsGradingParams`) et effets artistiques post-recadrage (`EffectsGradingParams`).
   - Création de la section rétractable dédiée `DarkroomSection::Effects` (12e section, famille `ToolFamily::Light`), accessible indépendamment de l'activation des profils d'objectifs.
   - Découplage de la réinitialisation : réinitialiser les corrections optiques ne réinitialise plus le vignetage créatif, et `InspectorResetEffects` permet de réinitialiser les effets indépendamment.

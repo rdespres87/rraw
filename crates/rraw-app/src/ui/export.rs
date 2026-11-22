@@ -162,7 +162,7 @@ impl RrawApp {
                 .unwrap_or_else(|| load_photo_sidecars(photo_path).0.unwrap_or_default());
             let base = self.build_export_base_from_cfa(&cached.cfa, &cached.base_preview);
             Some((base, grading))
-        } else if let Some(payload) = decode_photo_file_payload(photo_path, false) {
+        } else if let Some(payload) = decode_photo_file_payload(photo_path, false, 0) {
             let grading = self
                 .photo_gradings
                 .get(photo_path)

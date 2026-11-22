@@ -406,6 +406,8 @@ pub struct CachedPhotoEntry {
 
 /// Payload sent from the background decoding thread to the main UI thread.
 pub struct BackgroundDecodePayload {
+    /// Epoch sequence counter under which this decode was requested.
+    pub epoch: u64,
     pub path: PathBuf,
     pub photo_view: LoadedPhotoView,
     pub base_preview: BaseRgbPreview,

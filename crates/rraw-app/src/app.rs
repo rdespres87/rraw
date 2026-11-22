@@ -92,8 +92,12 @@ pub struct RrawApp {
     pub photo_ratings: HashMap<PathBuf, u8>,
     /// Active rating filter applied to bottom filmstrip.
     pub rating_filter: RatingFilter,
-    /// Loaded GPU textures for filmstrip thumbnails.
-    pub thumbnail_textures: HashMap<PathBuf, egui::TextureHandle>,
+    /// Loaded GPU textures for filmstrip thumbnails bounded by LRU eviction.
+    pub thumbnail_textures: crate::preview::LruThumbnailCache,
+    /// Epoch/generation coordinator for atomic cancellation of obsolete decode tasks.
+    pub decode_coordinator: crate::preview::DecodeCoordinator,
+    /// Request sender to the sequential background decode worker.
+    pub decode_req_tx: Sender<crate::preview::DecodeRequest>,
     /// Background sender for asynchronous thumbnail generation.
     pub thumbnail_sender: Sender<(PathBuf, egui::ColorImage)>,
     /// Background receiver for completed thumbnails.
@@ -183,6 +187,19 @@ impl RrawApp {
         let (decode_sender, decode_receiver) = channel();
         let (thumbnail_sender, thumbnail_receiver) = channel();
         let (thumbnail_req_tx, thumbnail_req_rx) = channel::<PathBuf>();
+
+        let decode_coordinator = crate::preview::DecodeCoordinator::new();
+        let (decode_req_tx, decode_req_rx) = channel::<crate::preview::DecodeRequest>();
+
+        // Dedicated background decode worker sequentially processing requests with cancellation
+        {
+            let rx = decode_req_rx;
+            let tx = decode_sender.clone();
+            let epoch_handle = decode_coordinator.epoch_handle();
+            std::thread::spawn(move || {
+                crate::preview::run_decode_worker(rx, tx, epoch_handle);
+            });
+        }
 
         // Dedicated background thumbnail generator workers (pooled to avoid CPU saturation)
         let req_rx_arc = std::sync::Arc::new(std::sync::Mutex::new(thumbnail_req_rx));
@@ -287,7 +304,9 @@ impl RrawApp {
             photo_gradings: HashMap::new(),
             photo_ratings: HashMap::new(),
             rating_filter: RatingFilter::All,
-            thumbnail_textures: HashMap::new(),
+            thumbnail_textures: crate::preview::LruThumbnailCache::default(),
+            decode_coordinator,
+            decode_req_tx,
             thumbnail_sender,
             thumbnail_receiver,
             thumbnail_req_tx,
@@ -348,6 +367,8 @@ impl RrawApp {
         let (decode_sender, decode_receiver) = channel();
         let (thumbnail_sender, thumbnail_receiver) = channel();
         let (thumbnail_req_tx, _thumbnail_req_rx) = channel::<PathBuf>();
+        let decode_coordinator = crate::preview::DecodeCoordinator::new();
+        let (decode_req_tx, _decode_req_rx) = channel::<crate::preview::DecodeRequest>();
         #[cfg(target_os = "macos")]
         let headroom_provider: Box<dyn DisplayHeadroomProvider> =
             Box::new(MacOsDisplayHeadroomProvider);
@@ -394,7 +415,9 @@ impl RrawApp {
             photo_gradings: HashMap::new(),
             photo_ratings: HashMap::new(),
             rating_filter: RatingFilter::All,
-            thumbnail_textures: HashMap::new(),
+            thumbnail_textures: crate::preview::LruThumbnailCache::default(),
+            decode_coordinator,
+            decode_req_tx,
             thumbnail_sender,
             thumbnail_receiver,
             thumbnail_req_tx,
@@ -682,6 +705,12 @@ impl RrawApp {
         self.current_directory = Some(abs_dir.clone());
         self.directory_entries = scan_directory_for_images(&abs_dir);
 
+        // Evict GPU textures of thumbnails belonging to previously opened folders
+        self.thumbnail_textures
+            .prune_not_in(&self.directory_entries);
+        self.thumbnail_pending
+            .retain(|p| self.directory_entries.contains(p));
+
         let raw_count = self
             .directory_entries
             .iter()
@@ -761,12 +790,8 @@ impl RrawApp {
 
             for path in candidates {
                 if !self.photo_cache.iter().any(|e| e.path == path) {
-                    let tx = self.decode_sender.clone();
-                    std::thread::spawn(move || {
-                        if let Some(payload) = decode_photo_file_payload(&path, true) {
-                            let _ = tx.send(payload);
-                        }
-                    });
+                    let req = self.decode_coordinator.create_request(path, true);
+                    let _ = self.decode_req_tx.send(req);
                 }
             }
         }
@@ -1104,14 +1129,8 @@ impl RrawApp {
         self.original_texture = None;
         self.needs_preview_update = false;
 
-        let tx = self.decode_sender.clone();
-        let target_path = abs_path;
-
-        std::thread::spawn(move || {
-            if let Some(payload) = decode_photo_file_payload(&target_path, false) {
-                let _ = tx.send(payload);
-            }
-        });
+        let req = self.decode_coordinator.create_request(abs_path, false);
+        let _ = self.decode_req_tx.send(req);
     }
 }
 
@@ -1310,10 +1329,13 @@ impl eframe::App for RrawApp {
             }
 
             let is_still_active_target = self
-                .layout_config
-                .last_open_photo
-                .as_ref()
-                .is_some_and(|target| target == &payload.path);
+                .decode_coordinator
+                .is_current(payload.epoch, payload.is_prefetch)
+                && self
+                    .layout_config
+                    .last_open_photo
+                    .as_ref()
+                    .is_some_and(|target| target == &payload.path);
 
             if !is_still_active_target {
                 // If the user already switched to another photo while this background thread was running,

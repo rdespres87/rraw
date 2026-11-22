@@ -2,10 +2,32 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
+- **Phase 16 — System Robustness, Concurrency Hardening & Controller Decomposition**:
+  - **Task 16.2 (`rraw-app`)**: Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (Option B) — **READY FOR DEV**
+    - Éclatement des 73 champs de `RrawApp` en 5 sous-contrôleurs : `PhotoSession`, `ViewportController`, `LibraryController`, `ExportBatchController`, `BackgroundWorkers`.
+    - Émancipation du borrow checker (`&mut self`) et passage sous le principe de moindre privilège.
+    - Suite de tests TDD `controller_modularization_tests.rs`.
+  - **Task 16.3 (`rraw-app`)**: End-to-End Stress Testing, Parity Verification & Adversarial Audit — Planned
+    - Stress tests sur 200+ fichiers, clippy 0 warning, audit impitoyable Qwen 3.6 35B Inquisitor.
+
+---
+
+## Last Completed Milestone
+
+- **Phase 16 — Task 16.1 Concurrency Hardening, Thread Cancellation & VRAM Eviction Engine (`rraw-app`)**:
+  - **Worker de décodage séquentiel & Annulation par époque atomique** : suppression des `std::thread::spawn` non contrôlés ; introduction de `DecodeCoordinator` (`Arc<AtomicU64>`) et du worker dédié `run_decode_worker` qui annule immédiatement tout calcul rendu obsolète par la navigation rapide au clavier.
+  - **Plafond VRAM des miniatures** : structure `LruThumbnailCache` fixant la capacité maximale à 256 textures GPU (environ 64 Mo VRAM max) avec éviction automatique LRU.
+  - **Purge au changement de dossier** : purge systématique des textures obsolètes dans `open_directory()` et rafraîchissement des tâches en attente.
+  - **Validation & Tests** : suite de tests `concurrency_and_cache_tests.rs` (6 tests unitaires/intégration), 284 tests passants across 63 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+
+---
+
+## Last Completed Milestone
+
 - **Phase 15 — Architectural Hardening: State De-Obesity, UI Modularization & Scalable i18n — ALL COMPLETE**:
   - **Task 15.1 (`rraw-core` & `rraw-app`)**: State De-Obesity & Domain Hierarchy — **COMPLETE** (commit `5b57ead`).
   - **Task 15.2 (`rraw-app`)**: Monolithic File & Function Decomposition — **COMPLETE** (commits `1aec13c`, `ca37430`, `a61361a`).
-  - **Task 15.3 (`rraw-app`)**: Scalable External Resource-Based i18n Engine — **COMPLETE** (commit `d157587` + suivi garde-fous / chaînes en dur).
+  - **Task 15.3 (`rraw-app`)**: Scalable External Resource-Based i18n Engine — **COMPLETE** (commit `d157587` + suivi garde-fous / chaînes en dur commit `0ba31c7`).
     - Découplage complet des traductions du code source Rust via catalogues JSON externes sous `assets/i18n/` (375 clés i18n).
     - Élimination de 100% des chaînes en dur restantes dans l'interface et complétion de l'espagnol à 100%.
     - Garde-fous anti-débordement de panneau (`.truncate()`, dimensions proportionnelles, test automatisé de budget de caractères).

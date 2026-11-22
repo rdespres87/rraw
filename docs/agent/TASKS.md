@@ -129,5 +129,32 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Preserve zero-allocation runtime lookup for static labels during the 120 Hz render loop and instant live-switch without application restart.
   - Dedicated test suite `crates/rraw-app/tests/i18n_catalog_tests.rs` (7 tests) + `i18n_tests.rs` (5 tests) passing, 275 workspace tests passing across 62 suites, 0 clippy warnings, Qwen 3.6 35B Inquisitor APPROVED.
 
+---
+
+## Phase 16 — System Robustness, Concurrency Hardening & Controller Decomposition
+- [x] **Task 16.1 (`rraw-app`)**: Concurrency Hardening, Thread Cancellation & VRAM Eviction Engine (Option A)
+  - Dedicated background decode worker replacing raw uncontrolled `std::thread::spawn` calls.
+  - Atomic generation counter (`active_epoch: Arc<AtomicU64>`) / request cancellation to instantly abort stale decode jobs during rapid filmstrip scrubbing.
+  - Bounded GPU thumbnail cache `LruThumbnailCache` (cap of 256 active texture handles) with LRU eviction to prevent VRAM saturation on 5,000+ photo directories.
+  - Automatic VRAM purge and sidecar pruning on directory change (`open_directory`).
+  - Unit/integration test suite `concurrency_and_cache_tests.rs` verifying epoch abort and bounded VRAM allocation (6 tests).
+  - 284 workspace tests passing across 63 suites, 0 clippy warnings under `-D warnings`, zero unwrap/expect in production code, Inquisitor APPROVED via Qwen 3.6 35B A3B.
+
+- [ ] **Task 16.2 (`rraw-app`)**: Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (Option B)
+  - Decompose monolithic 73-field `RrawApp` into 5 cohesive sub-structures:
+    - `PhotoSession`: Active photo view, CFA buffers, base RGB preview, active grading state, preset, textures.
+    - `ViewportController`: Camera pan/zoom, guides, split comparison, clipping indicators, histogram, interactive tool states.
+    - `LibraryController`: Current directory, photo entries, multi-selection, star ratings, RAW filters, EXIF query, recipe clipboard.
+    - `ExportBatchController`: Export dialog settings, formats, bit-depth, subfolder targets, timelapse sequence configuration.
+    - `BackgroundWorkers`: Thread channels, active epoch, thumbnail worker, decode worker.
+  - Refactor all call-sites in `app.rs`, `ui/`, `preview/` and main event loop to eliminate borrow-checker conflicts and enforce least privilege.
+  - Dedicated test suite `controller_modularization_tests.rs` validating independent controller instantiation and state integrity.
+
+- [ ] **Task 16.3 (`rraw-app`)**: End-to-End Stress Testing, Parity Verification & Adversarial Audit
+  - High-speed automated navigation stress test across 200+ synthetic RAW files asserting zero CPU thread leaks, bounded VRAM, and zero stale frame displays.
+  - 100% test pass rate across workspace, 0 clippy warnings under `-D warnings`, zero `unwrap()` in production paths.
+  - Merciless local code audit via Qwen 3.6 35B Inquisitor at 0 cloud tokens.
+
+
 
 

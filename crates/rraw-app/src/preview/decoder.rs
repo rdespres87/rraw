@@ -158,6 +158,7 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
 pub fn decode_photo_file_payload(
     target_path: &Path,
     is_prefetch: bool,
+    epoch: u64,
 ) -> Option<BackgroundDecodePayload> {
     let ext_lower = target_path
         .extension()
@@ -203,6 +204,7 @@ pub fn decode_photo_file_payload(
             };
 
             return Some(BackgroundDecodePayload {
+                epoch,
                 path: target_path.to_path_buf(),
                 photo_view,
                 base_preview: base,
@@ -294,6 +296,7 @@ pub fn decode_photo_file_payload(
     base.matched_lens = Some(matched_lens);
 
     Some(BackgroundDecodePayload {
+        epoch,
         path: target_path.to_path_buf(),
         photo_view,
         base_preview: base,
