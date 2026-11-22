@@ -2,6 +2,7 @@
 
 //! State definitions, darkroom configuration, grading presets, and sidecar serialization.
 
+pub use crate::grading::*;
 use crate::i18n::{Key, Language};
 use rraw_color::DisplayTransform;
 use rraw_storage::{SidecarPaths, XmpEditor};
@@ -771,153 +772,153 @@ impl GradingPreset {
                 grading.preset = p;
             }
             Self::DaylightPunch => {
-                grading.exposure_ev = 0.3;
-                grading.contrast = 15.0;
-                grading.highlights = -10.0;
-                grading.shadows = 10.0;
-                grading.kelvin = 5600.0;
-                grading.tint = 0.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.vignette_amount = 35.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = 0.3;
+                grading.tone.contrast = 15.0;
+                grading.tone.highlights = -10.0;
+                grading.tone.shadows = 10.0;
+                grading.color.kelvin = 5600.0;
+                grading.color.tint = 0.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.optics.vignette_amount = 35.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
             }
             Self::PortraitSoft => {
-                grading.exposure_ev = 0.6;
-                grading.contrast = -8.0;
-                grading.highlights = -15.0;
-                grading.shadows = 20.0;
-                grading.kelvin = 5200.0;
-                grading.tint = 2.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.wavelet_denoise_sigma = 1.5;
-                grading.vignette_amount = 20.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = 0.6;
+                grading.tone.contrast = -8.0;
+                grading.tone.highlights = -15.0;
+                grading.tone.shadows = 20.0;
+                grading.color.kelvin = 5200.0;
+                grading.color.tint = 2.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.denoise_sharpen.wavelet_denoise_sigma = 1.5;
+                grading.optics.vignette_amount = 20.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
             }
             Self::CinematicAgX => {
-                grading.exposure_ev = 0.2;
-                grading.contrast = 25.0;
-                grading.highlights = -20.0;
-                grading.shadows = -10.0;
-                grading.kelvin = 6000.0;
-                grading.tint = -4.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.vignette_amount = 60.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = 0.2;
+                grading.tone.contrast = 25.0;
+                grading.tone.highlights = -20.0;
+                grading.tone.shadows = -10.0;
+                grading.color.kelvin = 6000.0;
+                grading.color.tint = -4.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.optics.vignette_amount = 60.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
             }
             Self::MonochromeFineArt => {
-                grading.exposure_ev = 0.0;
-                grading.contrast = 35.0;
-                grading.highlights = 15.0;
-                grading.shadows = -15.0;
-                grading.wavelet_denoise_sigma = 0.5;
-                grading.capture_sharpening_amount = 0.8;
-                grading.vignette_amount = 60.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = true;
+                grading.tone.exposure_ev = 0.0;
+                grading.tone.contrast = 35.0;
+                grading.tone.highlights = 15.0;
+                grading.tone.shadows = -15.0;
+                grading.denoise_sharpen.wavelet_denoise_sigma = 0.5;
+                grading.denoise_sharpen.capture_sharpening_amount = 0.8;
+                grading.optics.vignette_amount = 60.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = true;
             }
             Self::LandscapeVivid => {
-                grading.exposure_ev = 0.35;
-                grading.contrast = 22.0;
-                grading.highlights = -25.0;
-                grading.shadows = 18.0;
-                grading.kelvin = 5400.0;
-                grading.tint = -3.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.capture_sharpening_amount = 0.7;
-                grading.vignette_amount = 30.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = 0.35;
+                grading.tone.contrast = 22.0;
+                grading.tone.highlights = -25.0;
+                grading.tone.shadows = 18.0;
+                grading.color.kelvin = 5400.0;
+                grading.color.tint = -3.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.denoise_sharpen.capture_sharpening_amount = 0.7;
+                grading.optics.vignette_amount = 30.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
             }
             Self::GoldenHourWarmth => {
-                grading.exposure_ev = 0.5;
-                grading.contrast = 12.0;
-                grading.highlights = -20.0;
-                grading.shadows = 22.0;
-                grading.kelvin = 6300.0;
-                grading.tint = 5.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.vignette_amount = 40.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = 0.5;
+                grading.tone.contrast = 12.0;
+                grading.tone.highlights = -20.0;
+                grading.tone.shadows = 22.0;
+                grading.color.kelvin = 6300.0;
+                grading.color.tint = 5.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.optics.vignette_amount = 40.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
             }
             Self::MoodyMatte => {
-                grading.exposure_ev = -0.25;
-                grading.contrast = -15.0;
-                grading.highlights = -15.0;
-                grading.shadows = 32.0;
-                grading.kelvin = 5100.0;
-                grading.tint = -6.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.vignette_amount = 50.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = -0.25;
+                grading.tone.contrast = -15.0;
+                grading.tone.highlights = -15.0;
+                grading.tone.shadows = 32.0;
+                grading.color.kelvin = 5100.0;
+                grading.color.tint = -6.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.optics.vignette_amount = 50.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
             }
             Self::HighKeyAiry => {
-                grading.exposure_ev = 0.9;
-                grading.contrast = -10.0;
-                grading.highlights = -30.0;
-                grading.shadows = 15.0;
-                grading.kelvin = 5300.0;
-                grading.tint = 2.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.wavelet_denoise_sigma = 1.2;
-                grading.vignette_amount = 15.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = 0.9;
+                grading.tone.contrast = -10.0;
+                grading.tone.highlights = -30.0;
+                grading.tone.shadows = 15.0;
+                grading.color.kelvin = 5300.0;
+                grading.color.tint = 2.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.denoise_sharpen.wavelet_denoise_sigma = 1.2;
+                grading.optics.vignette_amount = 15.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
             }
             Self::StreetContrastBW => {
-                grading.exposure_ev = 0.1;
-                grading.contrast = 48.0;
-                grading.highlights = 20.0;
-                grading.shadows = -28.0;
-                grading.capture_sharpening_amount = 1.0;
-                grading.vignette_amount = 45.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = true;
+                grading.tone.exposure_ev = 0.1;
+                grading.tone.contrast = 48.0;
+                grading.tone.highlights = 20.0;
+                grading.tone.shadows = -28.0;
+                grading.denoise_sharpen.capture_sharpening_amount = 1.0;
+                grading.optics.vignette_amount = 45.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = true;
             }
             Self::VintageFilm => {
-                grading.exposure_ev = 0.15;
-                grading.contrast = 8.0;
-                grading.highlights = -12.0;
-                grading.shadows = 18.0;
-                grading.kelvin = 5800.0;
-                grading.tint = 8.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.vignette_amount = 65.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = 0.15;
+                grading.tone.contrast = 8.0;
+                grading.tone.highlights = -12.0;
+                grading.tone.shadows = 18.0;
+                grading.color.kelvin = 5800.0;
+                grading.color.tint = 8.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.optics.vignette_amount = 65.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
             }
             Self::NightAstro => {
-                grading.exposure_ev = 0.75;
-                grading.contrast = 28.0;
-                grading.highlights = -12.0;
-                grading.shadows = 10.0;
-                grading.kelvin = 4200.0;
-                grading.tint = -5.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.wavelet_denoise_sigma = 2.2;
-                grading.capture_sharpening_amount = 0.6;
-                grading.vignette_amount = 40.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = 0.75;
+                grading.tone.contrast = 28.0;
+                grading.tone.highlights = -12.0;
+                grading.tone.shadows = 10.0;
+                grading.color.kelvin = 4200.0;
+                grading.color.tint = -5.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.denoise_sharpen.wavelet_denoise_sigma = 2.2;
+                grading.denoise_sharpen.capture_sharpening_amount = 0.6;
+                grading.optics.vignette_amount = 40.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
             }
             Self::FujiClassicChrome => {
-                grading.exposure_ev = 0.0;
-                grading.contrast = 14.0;
-                grading.highlights = -10.0;
-                grading.shadows = 6.0;
-                grading.blacks = -8.0;
-                grading.saturation = -18.0;
-                grading.vibrance = -6.0;
-                grading.kelvin = 5400.0;
-                grading.tint = -2.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.vignette_amount = 25.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = 0.0;
+                grading.tone.contrast = 14.0;
+                grading.tone.highlights = -10.0;
+                grading.tone.shadows = 6.0;
+                grading.tone.blacks = -8.0;
+                grading.tone.saturation = -18.0;
+                grading.tone.vibrance = -6.0;
+                grading.color.kelvin = 5400.0;
+                grading.color.tint = -2.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.optics.vignette_amount = 25.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
                 grading.tone_curves.luma =
                     curve_from_points(&[(0.0, 0.0), (0.25, 0.22), (0.75, 0.77), (1.0, 1.0)]);
                 grading.tone_curves.red =
@@ -926,81 +927,81 @@ impl GradingPreset {
                     curve_from_points(&[(0.0, 0.0), (0.65, 0.67), (1.0, 1.0)]);
             }
             Self::KodakPortra400 => {
-                grading.exposure_ev = 0.25;
-                grading.contrast = -6.0;
-                grading.highlights = -16.0;
-                grading.shadows = 18.0;
-                grading.blacks = 8.0;
-                grading.saturation = 4.0;
-                grading.vibrance = 10.0;
-                grading.kelvin = 5800.0;
-                grading.tint = 4.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.vignette_amount = 20.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = 0.25;
+                grading.tone.contrast = -6.0;
+                grading.tone.highlights = -16.0;
+                grading.tone.shadows = 18.0;
+                grading.tone.blacks = 8.0;
+                grading.tone.saturation = 4.0;
+                grading.tone.vibrance = 10.0;
+                grading.color.kelvin = 5800.0;
+                grading.color.tint = 4.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.optics.vignette_amount = 20.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
                 grading.tone_curves.luma =
                     curve_from_points(&[(0.0, 0.025), (0.5, 0.52), (1.0, 0.98)]);
                 grading.tone_curves.red = curve_from_points(&[(0.0, 0.0), (0.5, 0.53), (1.0, 1.0)]);
             }
             Self::FujiVelvia50 => {
-                grading.exposure_ev = -0.1;
-                grading.contrast = 28.0;
-                grading.highlights = 8.0;
-                grading.shadows = -14.0;
-                grading.blacks = -15.0;
-                grading.saturation = 28.0;
-                grading.vibrance = 20.0;
-                grading.kelvin = 5600.0;
-                grading.tint = 0.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.vignette_amount = 35.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = -0.1;
+                grading.tone.contrast = 28.0;
+                grading.tone.highlights = 8.0;
+                grading.tone.shadows = -14.0;
+                grading.tone.blacks = -15.0;
+                grading.tone.saturation = 28.0;
+                grading.tone.vibrance = 20.0;
+                grading.color.kelvin = 5600.0;
+                grading.color.tint = 0.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.optics.vignette_amount = 35.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = false;
                 grading.tone_curves.luma =
                     curve_from_points(&[(0.0, 0.0), (0.25, 0.20), (0.75, 0.80), (1.0, 1.0)]);
             }
             Self::KodakTriX400 => {
-                grading.exposure_ev = 0.15;
-                grading.contrast = 36.0;
-                grading.highlights = 12.0;
-                grading.shadows = -18.0;
-                grading.blacks = -15.0;
-                grading.capture_sharpening_amount = 0.8;
-                grading.vignette_amount = 40.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = true;
+                grading.tone.exposure_ev = 0.15;
+                grading.tone.contrast = 36.0;
+                grading.tone.highlights = 12.0;
+                grading.tone.shadows = -18.0;
+                grading.tone.blacks = -15.0;
+                grading.denoise_sharpen.capture_sharpening_amount = 0.8;
+                grading.optics.vignette_amount = 40.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = true;
                 grading.tone_curves.luma =
                     curve_from_points(&[(0.0, 0.0), (0.30, 0.24), (0.70, 0.78), (1.0, 1.0)]);
             }
             Self::IlfordHp5 => {
-                grading.exposure_ev = 0.2;
-                grading.contrast = 10.0;
-                grading.highlights = -12.0;
-                grading.shadows = 16.0;
-                grading.blacks = 5.0;
-                grading.capture_sharpening_amount = 0.5;
-                grading.vignette_amount = 25.0;
-                grading.vignette_correction = true;
-                grading.is_monochrome = true;
+                grading.tone.exposure_ev = 0.2;
+                grading.tone.contrast = 10.0;
+                grading.tone.highlights = -12.0;
+                grading.tone.shadows = 16.0;
+                grading.tone.blacks = 5.0;
+                grading.denoise_sharpen.capture_sharpening_amount = 0.5;
+                grading.optics.vignette_amount = 25.0;
+                grading.optics.vignette_correction = true;
+                grading.color.is_monochrome = true;
                 grading.tone_curves.luma =
                     curve_from_points(&[(0.0, 0.02), (0.5, 0.51), (1.0, 0.985)]);
             }
             Self::SepiaVintage => {
-                grading.exposure_ev = 0.20;
-                grading.contrast = 22.0;
-                grading.highlights = -15.0;
-                grading.shadows = 15.0;
-                grading.blacks = 5.0;
-                grading.saturation = -35.0;
-                grading.vibrance = 10.0;
-                grading.kelvin = 6800.0;
-                grading.tint = 8.0;
-                grading.display_transform = DisplayTransform::AgX;
-                grading.vignette_amount = 30.0;
-                grading.vignette_correction = true;
-                grading.creative_vignette_amount = -35.0;
-                grading.is_monochrome = false;
+                grading.tone.exposure_ev = 0.20;
+                grading.tone.contrast = 22.0;
+                grading.tone.highlights = -15.0;
+                grading.tone.shadows = 15.0;
+                grading.tone.blacks = 5.0;
+                grading.tone.saturation = -35.0;
+                grading.tone.vibrance = 10.0;
+                grading.color.kelvin = 6800.0;
+                grading.color.tint = 8.0;
+                grading.color.display_transform = DisplayTransform::AgX;
+                grading.optics.vignette_amount = 30.0;
+                grading.optics.vignette_correction = true;
+                grading.optics.creative_vignette_amount = -35.0;
+                grading.color.is_monochrome = false;
                 grading.tone_curves.luma =
                     curve_from_points(&[(0.0, 0.04), (0.35, 0.32), (0.75, 0.78), (1.0, 0.98)]);
                 grading.tone_curves.red =
@@ -1036,17 +1037,8 @@ impl GradingPreset {
         ] {
             let mut test = DarkroomGradingState::default();
             preset.apply(&mut test);
-            if (grading.exposure_ev - test.exposure_ev).abs() < 1e-4
-                && (grading.contrast - test.contrast).abs() < 1e-4
-                && (grading.highlights - test.highlights).abs() < 1e-4
-                && (grading.shadows - test.shadows).abs() < 1e-4
-                && (grading.blacks - test.blacks).abs() < 1e-4
-                && (grading.saturation - test.saturation).abs() < 1e-4
-                && (grading.vibrance - test.vibrance).abs() < 1e-4
-                && (grading.kelvin - test.kelvin).abs() < 1e-4
-                && (grading.tint - test.tint).abs() < 1e-4
-                && grading.display_transform == test.display_transform
-                && grading.is_monochrome == test.is_monochrome
+            if grading.tone == test.tone
+                && grading.color == test.color
                 && grading.tone_curves == test.tone_curves
             {
                 return preset;
@@ -1462,82 +1454,19 @@ pub struct CustomClutState {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DarkroomGradingState {
     pub preset: GradingPreset,
-    pub exposure_ev: f32,
-    pub contrast: f32,
-    pub highlights: f32,
-    pub shadows: f32,
-    pub blacks: f32,
-    pub saturation: f32,
-    pub vibrance: f32,
-    pub kelvin: f32,
-    pub tint: f32,
-    pub display_transform: DisplayTransform,
-    pub wavelet_denoise_sigma: f32,
-    pub color_denoise: f32,
-    pub luma_denoise: f32,
-    pub capture_sharpening_amount: f32,
-    pub optical_tab: OpticalCorrectionTab,
-    pub lens_profile_auto: bool,
-    pub lens_distortion_strength: f32,
-    pub lens_vignette_strength: f32,
-    pub lens_ca_strength: f32,
-    pub distortion_correction: bool,
-    pub distortion_amount: f32,
-    pub chromatic_aberration_correction: bool,
-    pub defringe_purple_amount: f32,
-    pub defringe_green_amount: f32,
-    pub defringe_threshold: f32,
-    pub defringe_preview_mask: bool,
-    pub vignette_correction: bool,
-    pub vignette_amount: f32,
-    pub creative_vignette_amount: f32,
-    pub creative_vignette_midpoint: f32,
-    pub creative_vignette_feather: f32,
-    pub creative_vignette_roundness: f32,
-    pub is_monochrome: bool,
-
-    // Crop settings
-    pub crop_enabled: bool,
-    pub crop_aspect: CropAspectRatio,
-    pub crop_left: f32,
-    pub crop_top: f32,
-    pub crop_right: f32,
-    pub crop_bottom: f32,
-    pub crop_show_grid: bool,
-
-    // Straighten settings
-    pub rotation_degrees: f32,
-    pub flip_horizontal: bool,
-    pub flip_vertical: bool,
-
-    // Geometry / Perspective settings
-    pub geometry_enabled: bool,
-    pub keystone_vertical: f32,
-    pub keystone_horizontal: f32,
-    pub auto_crop_geometry: bool,
-
-    // Tone curves
+    pub tone: ToneGradingParams,
+    pub color: ColorGradingParams,
+    pub denoise_sharpen: DenoiseSharpenParams,
+    pub optics: OpticsGradingParams,
+    pub geometry: GeometryGradingParams,
     pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
-
-    // 3D CLUT (.cube)
     pub custom_clut: Option<CustomClutState>,
-
-    // CoreML AI Semantic Segmentation Masks (Stage 6)
     pub semantic_masks: Vec<SemanticMaskLayer>,
-    /// Optional active semantic category overlay displayed in ruby-magenta over the viewport.
     pub show_semantic_mask_overlay: Option<rraw_core::SemanticMaskCategory>,
-
-    // Local Retouching & Masking (Linear, Radial, Freehand Brush)
     pub local_masks: Vec<LocalMaskLayer>,
-    /// Optional index of the active local mask to overlay in ruby red on the viewport.
     pub show_local_mask_overlay: Option<usize>,
-    /// Optional index of the active freehand brush mask currently painting on the viewport.
     pub active_brush_mask_idx: Option<usize>,
-
-    // Color Management & Soft Proofing (Task 6.4)
     pub soft_proof: rraw_color::SoftProofConfig,
-
-    // Smart Lighting & Adaptive Dynamic Range (Phase 14)
     pub smart_lighting: rraw_core::SmartLightingParams,
 }
 
@@ -1549,53 +1478,11 @@ impl DarkroomGradingState {
     pub fn untouched_raw() -> Self {
         Self {
             preset: GradingPreset::AsShot,
-            exposure_ev: 0.0,
-            contrast: 0.0,
-            highlights: 0.0,
-            shadows: 0.0,
-            blacks: 0.0,
-            saturation: 0.0,
-            vibrance: 0.0,
-            kelvin: 5500.0,
-            tint: 0.0,
-            display_transform: DisplayTransform::AgX,
-            wavelet_denoise_sigma: 0.0,
-            color_denoise: 0.0,
-            luma_denoise: 0.0,
-            capture_sharpening_amount: 0.0,
-            optical_tab: OpticalCorrectionTab::Manual,
-            lens_profile_auto: false,
-            lens_distortion_strength: 0.0,
-            lens_vignette_strength: 0.0,
-            lens_ca_strength: 0.0,
-            distortion_correction: false,
-            distortion_amount: 0.0,
-            chromatic_aberration_correction: false,
-            defringe_purple_amount: 0.0,
-            defringe_green_amount: 0.0,
-            defringe_threshold: 0.08,
-            defringe_preview_mask: false,
-            vignette_correction: false,
-            vignette_amount: 0.0,
-            creative_vignette_amount: 0.0,
-            creative_vignette_midpoint: 50.0,
-            creative_vignette_feather: 50.0,
-            creative_vignette_roundness: 0.0,
-            is_monochrome: false,
-            crop_enabled: false,
-            crop_aspect: CropAspectRatio::Free,
-            crop_left: 0.0,
-            crop_top: 0.0,
-            crop_right: 1.0,
-            crop_bottom: 1.0,
-            crop_show_grid: false,
-            rotation_degrees: 0.0,
-            flip_horizontal: false,
-            flip_vertical: false,
-            geometry_enabled: false,
-            keystone_vertical: 0.0,
-            keystone_horizontal: 0.0,
-            auto_crop_geometry: false,
+            tone: ToneGradingParams::untouched_raw(),
+            color: ColorGradingParams::untouched_raw(),
+            denoise_sharpen: DenoiseSharpenParams::untouched_raw(),
+            optics: OpticsGradingParams::untouched_raw(),
+            geometry: GeometryGradingParams::untouched_raw(),
             tone_curves: rraw_core::curves::ToneCurvesRecipe::default(),
             custom_clut: None,
             semantic_masks: Vec::new(),
@@ -1714,150 +1601,15 @@ impl DarkroomGradingState {
     }
 }
 
-/// In-memory clipboard holding a snapshot of color & tone grading parameters
-/// for copying and pasting across photographs in the darkroom and filmstrip.
-///
-/// Strictly isolates creative parameters (exposure, contrast, tone curves, white balance,
-/// saturation, film emulations, styles, custom LUTs, and creative vignetting) while
-/// preserving photo-dependent settings (crop, straighten, geometry, local brush/gradient masks,
-/// lens optical corrections, ISO denoise, and sharpening).
-#[derive(Debug, Clone, PartialEq)]
-pub struct GradingRecipeClipboard {
-    pub preset: GradingPreset,
-    pub exposure_ev: f32,
-    pub contrast: f32,
-    pub highlights: f32,
-    pub shadows: f32,
-    pub blacks: f32,
-    pub saturation: f32,
-    pub vibrance: f32,
-    pub kelvin: f32,
-    pub tint: f32,
-    pub display_transform: DisplayTransform,
-    pub is_monochrome: bool,
-    pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
-    pub custom_clut: Option<CustomClutState>,
-    pub creative_vignette_amount: f32,
-    pub creative_vignette_midpoint: f32,
-    pub creative_vignette_feather: f32,
-    pub creative_vignette_roundness: f32,
-    pub smart_lighting: rraw_core::SmartLightingParams,
-}
-
-impl GradingRecipeClipboard {
-    /// Creates a new snapshot from the provided `DarkroomGradingState`.
-    #[must_use]
-    pub fn from_grading(grading: &DarkroomGradingState) -> Self {
-        Self {
-            preset: grading.preset,
-            exposure_ev: grading.exposure_ev,
-            contrast: grading.contrast,
-            highlights: grading.highlights,
-            shadows: grading.shadows,
-            blacks: grading.blacks,
-            saturation: grading.saturation,
-            vibrance: grading.vibrance,
-            kelvin: grading.kelvin,
-            tint: grading.tint,
-            display_transform: grading.display_transform,
-            is_monochrome: grading.is_monochrome,
-            tone_curves: grading.tone_curves.clone(),
-            custom_clut: grading.custom_clut.clone(),
-            creative_vignette_amount: grading.creative_vignette_amount,
-            creative_vignette_midpoint: grading.creative_vignette_midpoint,
-            creative_vignette_feather: grading.creative_vignette_feather,
-            creative_vignette_roundness: grading.creative_vignette_roundness,
-            smart_lighting: grading.smart_lighting.clone(),
-        }
-    }
-
-    /// Applies the color and tone recipe to target `DarkroomGradingState`,
-    /// leaving photo-dependent geometry, crop, masks, optical corrections, and denoise intact.
-    pub fn apply_to_grading(&self, grading: &mut DarkroomGradingState) {
-        grading.preset = self.preset;
-        grading.exposure_ev = self.exposure_ev;
-        grading.contrast = self.contrast;
-        grading.highlights = self.highlights;
-        grading.shadows = self.shadows;
-        grading.blacks = self.blacks;
-        grading.saturation = self.saturation;
-        grading.vibrance = self.vibrance;
-        grading.kelvin = self.kelvin;
-        grading.tint = self.tint;
-        grading.display_transform = self.display_transform;
-        grading.is_monochrome = self.is_monochrome;
-        grading.tone_curves = self.tone_curves.clone();
-        grading.custom_clut = self.custom_clut.clone();
-        grading.creative_vignette_amount = self.creative_vignette_amount;
-        grading.creative_vignette_midpoint = self.creative_vignette_midpoint;
-        grading.creative_vignette_feather = self.creative_vignette_feather;
-        grading.creative_vignette_roundness = self.creative_vignette_roundness;
-        grading.smart_lighting = self.smart_lighting.clone();
-    }
-
-    /// Formats a concise human-readable summary of the clipboard recipe.
-    #[must_use]
-    pub fn summary(&self) -> String {
-        let preset_name = self.preset.name();
-        let exp_sign = if self.exposure_ev >= 0.0 { "+" } else { "" };
-        format!(
-            "{} · {}{:0.2} EV · {:0.0}K",
-            preset_name, exp_sign, self.exposure_ev, self.kelvin
-        )
-    }
-}
-
 impl Default for DarkroomGradingState {
     fn default() -> Self {
         Self {
             preset: GradingPreset::AsShot,
-            exposure_ev: 0.0,
-            contrast: 0.0,
-            highlights: 0.0,
-            shadows: 0.0,
-            blacks: 0.0,
-            saturation: 0.0,
-            vibrance: 0.0,
-            kelvin: 5500.0,
-            tint: 0.0,
-            display_transform: DisplayTransform::AgX,
-            wavelet_denoise_sigma: 1.0,
-            color_denoise: 25.0,
-            luma_denoise: 0.0,
-            capture_sharpening_amount: 0.5,
-            optical_tab: OpticalCorrectionTab::Profile,
-            lens_profile_auto: true,
-            lens_distortion_strength: 100.0,
-            lens_vignette_strength: 100.0,
-            lens_ca_strength: 100.0,
-            distortion_correction: true,
-            distortion_amount: 0.0,
-            chromatic_aberration_correction: true,
-            defringe_purple_amount: 0.0,
-            defringe_green_amount: 0.0,
-            defringe_threshold: 0.08,
-            defringe_preview_mask: false,
-            vignette_correction: true,
-            vignette_amount: 50.0,
-            creative_vignette_amount: 0.0,
-            creative_vignette_midpoint: 50.0,
-            creative_vignette_feather: 50.0,
-            creative_vignette_roundness: 0.0,
-            is_monochrome: false,
-            crop_enabled: false,
-            crop_aspect: CropAspectRatio::Free,
-            crop_left: 0.0,
-            crop_top: 0.0,
-            crop_right: 1.0,
-            crop_bottom: 1.0,
-            crop_show_grid: true,
-            rotation_degrees: 0.0,
-            flip_horizontal: false,
-            flip_vertical: false,
-            geometry_enabled: true,
-            keystone_vertical: 0.0,
-            keystone_horizontal: 0.0,
-            auto_crop_geometry: true,
+            tone: ToneGradingParams::default(),
+            color: ColorGradingParams::default(),
+            denoise_sharpen: DenoiseSharpenParams::default(),
+            optics: OpticsGradingParams::default(),
+            geometry: GeometryGradingParams::default(),
             tone_curves: rraw_core::curves::ToneCurvesRecipe::default(),
             custom_clut: None,
             semantic_masks: Vec::new(),
@@ -1876,119 +1628,89 @@ impl Default for DarkroomGradingState {
     }
 }
 
-const fn default_true_bool() -> bool {
-    true
+#[derive(Debug, Clone, PartialEq)]
+pub struct GradingRecipeClipboard {
+    pub preset: GradingPreset,
+    pub tone: ToneGradingParams,
+    pub color: ColorGradingParams,
+    pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
+    pub custom_clut: Option<CustomClutState>,
+    pub creative_vignette_amount: f32,
+    pub creative_vignette_midpoint: f32,
+    pub creative_vignette_feather: f32,
+    pub creative_vignette_roundness: f32,
+    pub smart_lighting: rraw_core::SmartLightingParams,
 }
 
-const fn default_one_f32() -> f32 {
-    1.0
-}
+impl GradingRecipeClipboard {
+    /// Creates a new snapshot from the provided `DarkroomGradingState`.
+    #[must_use]
+    pub fn from_grading(grading: &DarkroomGradingState) -> Self {
+        Self {
+            preset: grading.preset,
+            tone: grading.tone.clone(),
+            color: grading.color.clone(),
+            tone_curves: grading.tone_curves.clone(),
+            custom_clut: grading.custom_clut.clone(),
+            creative_vignette_amount: grading.optics.creative_vignette_amount,
+            creative_vignette_midpoint: grading.optics.creative_vignette_midpoint,
+            creative_vignette_feather: grading.optics.creative_vignette_feather,
+            creative_vignette_roundness: grading.optics.creative_vignette_roundness,
+            smart_lighting: grading.smart_lighting.clone(),
+        }
+    }
 
-const fn default_color_denoise() -> f32 {
-    25.0
-}
+    /// Applies the color and tone recipe to target `DarkroomGradingState`,
+    /// leaving photo-dependent geometry, crop, masks, optical corrections, and denoise intact.
+    pub fn apply_to_grading(&self, grading: &mut DarkroomGradingState) {
+        grading.preset = self.preset;
+        grading.tone = self.tone.clone();
+        grading.color = self.color.clone();
+        grading.tone_curves = self.tone_curves.clone();
+        grading.custom_clut = self.custom_clut.clone();
+        grading.optics.creative_vignette_amount = self.creative_vignette_amount;
+        grading.optics.creative_vignette_midpoint = self.creative_vignette_midpoint;
+        grading.optics.creative_vignette_feather = self.creative_vignette_feather;
+        grading.optics.creative_vignette_roundness = self.creative_vignette_roundness;
+        grading.smart_lighting = self.smart_lighting.clone();
+    }
 
-const fn default_midpoint() -> f32 {
-    50.0
-}
-
-const fn default_feather() -> f32 {
-    50.0
-}
-
-const fn default_100_f32() -> f32 {
-    100.0
-}
-
-const fn default_defringe_threshold() -> f32 {
-    0.08
+    /// Formats a concise human-readable summary of the clipboard recipe.
+    #[must_use]
+    pub fn summary(&self) -> String {
+        let preset_name = self.preset.name();
+        let exp_sign = if self.tone.exposure_ev >= 0.0 {
+            "+"
+        } else {
+            ""
+        };
+        format!(
+            "{} · {}{:0.2} EV · {:0.0}K",
+            preset_name, exp_sign, self.tone.exposure_ev, self.color.kelvin
+        )
+    }
 }
 
 /// Serialized recipe saved into adjacent `<photo>.rraw.json` sidecar.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SidecarRecipe {
     pub schema_version: u32,
     #[serde(default)]
     pub preset: Option<String>,
-    pub exposure_ev: f32,
-    pub contrast: f32,
-    pub highlights: f32,
-    pub shadows: f32,
     #[serde(default)]
-    pub blacks: f32,
-    #[serde(default)]
-    pub saturation: f32,
-    #[serde(default)]
-    pub vibrance: f32,
-    pub kelvin: f32,
-    pub tint: f32,
-    pub display_transform: String,
-    pub wavelet_denoise_sigma: f32,
-    #[serde(default = "default_color_denoise")]
-    pub color_denoise: f32,
-    #[serde(default)]
-    pub luma_denoise: f32,
-    pub capture_sharpening_amount: f32,
-    #[serde(default)]
-    pub optical_tab: OpticalCorrectionTab,
-    #[serde(default = "default_true_bool")]
-    pub lens_profile_auto: bool,
-    #[serde(default = "default_100_f32")]
-    pub lens_distortion_strength: f32,
-    #[serde(default = "default_100_f32")]
-    pub lens_vignette_strength: f32,
-    #[serde(default = "default_100_f32")]
-    pub lens_ca_strength: f32,
-    pub distortion_correction: bool,
-    pub distortion_amount: f32,
-    pub chromatic_aberration_correction: bool,
-    #[serde(default)]
-    pub defringe_purple_amount: f32,
-    #[serde(default)]
-    pub defringe_green_amount: f32,
-    #[serde(default = "default_defringe_threshold")]
-    pub defringe_threshold: f32,
-    #[serde(default)]
-    pub defringe_preview_mask: bool,
-    pub vignette_correction: bool,
-    pub vignette_amount: f32,
-    #[serde(default)]
-    pub creative_vignette_amount: f32,
-    #[serde(default = "default_midpoint")]
-    pub creative_vignette_midpoint: f32,
-    #[serde(default = "default_feather")]
-    pub creative_vignette_feather: f32,
-    #[serde(default)]
-    pub creative_vignette_roundness: f32,
-    pub is_monochrome: bool,
     pub rating: u8,
-    #[serde(default)]
-    pub crop_enabled: bool,
-    #[serde(default)]
-    pub crop_aspect: Option<String>,
-    #[serde(default)]
-    pub crop_left: f32,
-    #[serde(default)]
-    pub crop_top: f32,
-    #[serde(default = "default_one_f32")]
-    pub crop_right: f32,
-    #[serde(default = "default_one_f32")]
-    pub crop_bottom: f32,
-    #[serde(default)]
-    pub rotation_degrees: f32,
-    #[serde(default)]
-    pub flip_horizontal: bool,
-    #[serde(default)]
-    pub flip_vertical: bool,
-    #[serde(default = "default_true_bool")]
-    pub geometry_enabled: bool,
-    #[serde(default)]
-    pub keystone_vertical: f32,
-    #[serde(default)]
-    pub keystone_horizontal: f32,
+    #[serde(flatten)]
+    pub tone: ToneGradingParams,
+    #[serde(flatten)]
+    pub color: ColorRecipeParams,
+    #[serde(flatten)]
+    pub denoise_sharpen: DenoiseSharpenParams,
+    #[serde(flatten)]
+    pub optics: OpticsGradingParams,
+    #[serde(flatten)]
+    pub geometry: GeometryRecipeParams,
     #[serde(default)]
     pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
-    #[serde(default)]
     pub custom_lut_path: Option<String>,
     #[serde(default = "default_one_f32")]
     pub custom_lut_strength: f32,
@@ -2008,55 +1730,12 @@ impl SidecarRecipe {
         Self {
             schema_version: 1,
             preset: Some(grading.preset.id_str().to_string()),
-            exposure_ev: grading.exposure_ev,
-            contrast: grading.contrast,
-            highlights: grading.highlights,
-            shadows: grading.shadows,
-            blacks: grading.blacks,
-            saturation: grading.saturation,
-            vibrance: grading.vibrance,
-            kelvin: grading.kelvin,
-            tint: grading.tint,
-            display_transform: match grading.display_transform {
-                DisplayTransform::AgX => "AgX".to_string(),
-                DisplayTransform::OpenDrt => "OpenDrt".to_string(),
-            },
-            wavelet_denoise_sigma: grading.wavelet_denoise_sigma,
-            color_denoise: grading.color_denoise,
-            luma_denoise: grading.luma_denoise,
-            capture_sharpening_amount: grading.capture_sharpening_amount,
-            optical_tab: grading.optical_tab,
-            lens_profile_auto: grading.lens_profile_auto,
-            lens_distortion_strength: grading.lens_distortion_strength,
-            lens_vignette_strength: grading.lens_vignette_strength,
-            lens_ca_strength: grading.lens_ca_strength,
-            distortion_correction: grading.distortion_correction,
-            distortion_amount: grading.distortion_amount,
-            chromatic_aberration_correction: grading.chromatic_aberration_correction,
-            defringe_purple_amount: grading.defringe_purple_amount,
-            defringe_green_amount: grading.defringe_green_amount,
-            defringe_threshold: grading.defringe_threshold,
-            defringe_preview_mask: grading.defringe_preview_mask,
-            vignette_correction: grading.vignette_correction,
-            vignette_amount: grading.vignette_amount,
-            creative_vignette_amount: grading.creative_vignette_amount,
-            creative_vignette_midpoint: grading.creative_vignette_midpoint,
-            creative_vignette_feather: grading.creative_vignette_feather,
-            creative_vignette_roundness: grading.creative_vignette_roundness,
-            is_monochrome: grading.is_monochrome,
             rating,
-            crop_enabled: grading.crop_enabled,
-            crop_aspect: Some(format!("{:?}", grading.crop_aspect)),
-            crop_left: grading.crop_left,
-            crop_top: grading.crop_top,
-            crop_right: grading.crop_right,
-            crop_bottom: grading.crop_bottom,
-            rotation_degrees: grading.rotation_degrees,
-            flip_horizontal: grading.flip_horizontal,
-            flip_vertical: grading.flip_vertical,
-            geometry_enabled: grading.geometry_enabled,
-            keystone_vertical: grading.keystone_vertical,
-            keystone_horizontal: grading.keystone_horizontal,
+            tone: grading.tone.clone(),
+            color: ColorRecipeParams::from(&grading.color),
+            denoise_sharpen: grading.denoise_sharpen.clone(),
+            optics: grading.optics.clone(),
+            geometry: GeometryRecipeParams::from(&grading.geometry),
             tone_curves: grading.tone_curves.clone(),
             custom_lut_path: grading
                 .custom_clut
@@ -2071,88 +1750,12 @@ impl SidecarRecipe {
     }
 
     pub fn apply_to(&self, grading: &mut DarkroomGradingState) {
-        grading.exposure_ev = self.exposure_ev;
-        grading.contrast = self.contrast;
-        grading.highlights = self.highlights;
-        grading.shadows = self.shadows;
-        grading.blacks = self.blacks;
-        grading.saturation = self.saturation;
-        grading.vibrance = self.vibrance;
-        grading.kelvin = self.kelvin;
-        grading.tint = self.tint;
-        grading.display_transform = if self.display_transform == "OpenDrt" {
-            DisplayTransform::OpenDrt
-        } else {
-            DisplayTransform::AgX
-        };
-        grading.wavelet_denoise_sigma = self.wavelet_denoise_sigma;
-        grading.color_denoise = self.color_denoise;
-        grading.luma_denoise = self.luma_denoise;
-        grading.capture_sharpening_amount = self.capture_sharpening_amount;
-        grading.optical_tab = self.optical_tab;
-        grading.lens_profile_auto = self.lens_profile_auto;
-        grading.lens_distortion_strength = self.lens_distortion_strength;
-        grading.lens_vignette_strength = self.lens_vignette_strength;
-        grading.lens_ca_strength = self.lens_ca_strength;
-        grading.distortion_correction = self.distortion_correction;
-        grading.distortion_amount = self.distortion_amount;
-        grading.chromatic_aberration_correction = self.chromatic_aberration_correction;
-        grading.defringe_purple_amount = self.defringe_purple_amount;
-        grading.defringe_green_amount = self.defringe_green_amount;
-        grading.defringe_threshold = self.defringe_threshold;
-        grading.defringe_preview_mask = self.defringe_preview_mask;
-        grading.vignette_correction = self.vignette_correction;
-        grading.vignette_amount = self.vignette_amount;
-        grading.creative_vignette_amount = self.creative_vignette_amount;
-        grading.creative_vignette_midpoint = self.creative_vignette_midpoint;
-        grading.creative_vignette_feather = self.creative_vignette_feather;
-        grading.creative_vignette_roundness = self.creative_vignette_roundness;
-        grading.smart_lighting = self.smart_lighting.clone();
-        grading.is_monochrome = self.is_monochrome;
+        grading.tone = self.tone.clone();
+        self.color.apply_to(&mut grading.color);
+        grading.denoise_sharpen = self.denoise_sharpen.clone();
+        grading.optics = self.optics.clone();
+        self.geometry.apply_to(&mut grading.geometry);
         grading.tone_curves = self.tone_curves.clone();
-        grading.semantic_masks = self.semantic_masks.clone();
-        grading.show_semantic_mask_overlay = None;
-        grading.local_masks = self.local_masks.clone();
-        grading.show_local_mask_overlay = None;
-        grading.active_brush_mask_idx = None;
-        grading.soft_proof = self.soft_proof;
-        grading.smart_lighting = self.smart_lighting.clone();
-        grading.preset = if let Some(p_str) = &self.preset {
-            GradingPreset::from_id_str(p_str)
-                .unwrap_or_else(|| GradingPreset::detect_preset(grading))
-        } else {
-            GradingPreset::detect_preset(grading)
-        };
-        grading.crop_enabled = self.crop_enabled;
-        grading.crop_aspect = match self.crop_aspect.as_deref() {
-            Some("Square1x1") => CropAspectRatio::Square1x1,
-            Some("Ratio3x2") => CropAspectRatio::Ratio3x2,
-            Some("Ratio4x3") => CropAspectRatio::Ratio4x3,
-            Some("Ratio16x9") => CropAspectRatio::Ratio16x9,
-            Some("Ratio5x4") => CropAspectRatio::Ratio5x4,
-            Some("Ratio9x16") => CropAspectRatio::Ratio9x16,
-            Some("Original") => CropAspectRatio::Original,
-            _ => CropAspectRatio::Free,
-        };
-        grading.crop_left = self.crop_left;
-        grading.crop_top = self.crop_top;
-        grading.crop_right = if self.crop_right <= 0.01 {
-            1.0
-        } else {
-            self.crop_right
-        };
-        grading.crop_bottom = if self.crop_bottom <= 0.01 {
-            1.0
-        } else {
-            self.crop_bottom
-        };
-        grading.rotation_degrees = self.rotation_degrees;
-        grading.flip_horizontal = self.flip_horizontal;
-        grading.flip_vertical = self.flip_vertical;
-        grading.geometry_enabled = self.geometry_enabled;
-        grading.keystone_vertical = self.keystone_vertical;
-        grading.keystone_horizontal = self.keystone_horizontal;
-
         if let Some(path_str) = &self.custom_lut_path {
             let path = std::path::PathBuf::from(path_str);
             if path.exists() {
@@ -2175,6 +1778,15 @@ impl SidecarRecipe {
         } else {
             grading.custom_clut = None;
         }
+        grading.semantic_masks = self.semantic_masks.clone();
+        grading.local_masks = self.local_masks.clone();
+        grading.soft_proof = self.soft_proof;
+        grading.smart_lighting = self.smart_lighting.clone();
+        if let Some(ref pid) = self.preset {
+            if let Some(preset) = GradingPreset::from_id_str(pid) {
+                grading.preset = preset;
+            }
+        }
     }
 }
 
@@ -2193,7 +1805,6 @@ fn default_xmp_template() -> String {
         .to_string()
 }
 
-/// Saves non-destructive development parameters to `<photo>.rraw.json` and standard metadata to `<photo>.xmp`.
 pub fn save_photo_sidecars(photo_path: &Path, grading: &DarkroomGradingState, rating: u8) {
     let sidecars = SidecarPaths::from_raw_path(photo_path);
 

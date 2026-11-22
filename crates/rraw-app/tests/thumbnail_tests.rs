@@ -40,11 +40,14 @@ fn test_create_thumbnail_from_preview_cropped() {
 
     // Crop to right half only: crop_left = 0.5, crop_right = 1.0
     let grading = DarkroomGradingState {
-        crop_enabled: true,
-        crop_left: 0.5,
-        crop_right: 1.0,
-        crop_top: 0.0,
-        crop_bottom: 1.0,
+        geometry: rraw_app::state::GeometryGradingParams {
+            crop_enabled: true,
+            crop_left: 0.5,
+            crop_right: 1.0,
+            crop_top: 0.0,
+            crop_bottom: 1.0,
+            ..Default::default()
+        },
         ..Default::default()
     };
 

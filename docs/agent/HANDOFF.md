@@ -1,5 +1,30 @@
 # HANDOFF.md — Next Action & Session Continuity
 
+## Next Actionable Objective (Immediate Priority)
+
+- **Phase 15 — Architectural Hardening: State De-Obesity, UI Modularization & Scalable i18n**:
+  - **Task 15.2 (`rraw-app`)**: Monolithic File & Function Decomposition.
+    - Découper `render_darkroom_section` (1 773 lignes) et `inspector.rs` (2 087 lignes) en sous-modules dédiés sous `crates/rraw-app/src/ui/sections/` :
+      - `sections/exposure_tone.rs`, `sections/white_balance.rs`, `sections/optics.rs`, `sections/denoise_sharpen.rs`, `sections/geometry.rs`, `sections/smart_lighting.rs`, `sections/curves.rs`, `sections/soft_proofing.rs`.
+      - Chaque widget reçoit sa sous-structure de domaine dédiée (ex. `&mut ToneGradingParams`) plutôt que la structure globale.
+    - Découper `render_central_viewport` (1 134 lignes) et `viewport.rs` (1 231 lignes) en sous-composants canvas/hud/split/masks.
+    - Découper `preview.rs` (2 264 lignes) en couches pipeline/cache/masques.
+  - **Task 15.3 (`rraw-app`)**: Scalable External Resource-Based i18n Engine.
+    - Découpler les traductions du code Rust source (ressources externes `.ftl` sous `assets/i18n/`).
+    - Permettre l'ajout d'une langue par simple dépôt de fichier sans recompiler les composants UI.
+
+---
+
+## Last Completed Milestone
+
+- **Phase 15 — Task 15.1: State De-Obesity & Domain Hierarchy (`rraw-core` & `rraw-app`)**:
+  - **Décomposition modulaire de `DarkroomGradingState`** : 57 champs plats éclatés en 5 sous-structures de domaine cohésives sous `crates/rraw-app/src/grading/` (`ToneGradingParams`, `ColorGradingParams`, `DenoiseSharpenParams`, `OpticsGradingParams`, `GeometryGradingParams`).
+  - **Rétrocompatibilité Serde intégrale** : `SidecarRecipe` utilise `#[serde(flatten)]` pour aplatir les 5 sous-structures à la sérialisation JSON. Les fichiers de recette existants `.rraw.json` continuent de se charger avec une fidélité numérique parfaite et sans collision de clés.
+  - **Migration complète des call sites** : mise à niveau de l'ensemble de l'interface et du moteur (`inspector.rs`, `viewport.rs`, `preview.rs`, `export.rs`, `app.rs`, presse-papier, préréglages).
+  - **Tests et validation** : suite de tests TDD `state_de_obesity_tests.rs` ajoutée, 247/247 tests passants dans le workspace, 0 avertissement clippy avec `-D warnings`, audit adversarial impitoyable Qwen 3.6 35B APPROVED (0 token cloud consommés).
+
+---
+
 ## Last Completed Milestone
 
 - **Filmstrip RAW Filter Persistence Across Sessions (`rraw-app`)**:

@@ -15,13 +15,13 @@ impl RrawApp {
     pub fn is_section_active(&self, section: DarkroomSection) -> bool {
         match section {
             DarkroomSection::ExposureTone => {
-                self.grading.exposure_ev != 0.0
-                    || self.grading.contrast != 0.0
-                    || self.grading.highlights != 0.0
-                    || self.grading.shadows != 0.0
-                    || self.grading.blacks != 0.0
-                    || self.grading.saturation != 0.0
-                    || self.grading.vibrance != 0.0
+                self.grading.tone.exposure_ev != 0.0
+                    || self.grading.tone.contrast != 0.0
+                    || self.grading.tone.highlights != 0.0
+                    || self.grading.tone.shadows != 0.0
+                    || self.grading.tone.blacks != 0.0
+                    || self.grading.tone.saturation != 0.0
+                    || self.grading.tone.vibrance != 0.0
                     || self.grading.smart_lighting.mode != rraw_core::SmartLightingMode::Slight
                     || (self.grading.smart_lighting.intensity - 1.0).abs() > 0.01
                     || self.grading.smart_lighting.custom_shadow_lift != 0.0
@@ -29,40 +29,41 @@ impl RrawApp {
             }
             DarkroomSection::ToneCurves => !self.grading.tone_curves.is_identity(),
             DarkroomSection::WhiteBalanceColor => {
-                (self.grading.kelvin - 5500.0).abs() > 1.0
-                    || self.grading.tint != 0.0
+                (self.grading.color.kelvin - 5500.0).abs() > 1.0
+                    || self.grading.color.tint != 0.0
                     || self.grading.custom_clut.is_some()
-                    || self.grading.is_monochrome
+                    || self.grading.color.is_monochrome
             }
             DarkroomSection::SoftProofing => self.grading.soft_proof.enabled,
             DarkroomSection::DetailDenoise => {
-                (self.grading.wavelet_denoise_sigma - 1.0).abs() > 0.01
-                    || (self.grading.color_denoise - 25.0).abs() > 0.01
-                    || self.grading.luma_denoise > 0.0
-                    || (self.grading.capture_sharpening_amount - 0.5).abs() > 0.01
+                (self.grading.denoise_sharpen.wavelet_denoise_sigma - 1.0).abs() > 0.01
+                    || (self.grading.denoise_sharpen.color_denoise - 25.0).abs() > 0.01
+                    || self.grading.denoise_sharpen.luma_denoise > 0.0
+                    || (self.grading.denoise_sharpen.capture_sharpening_amount - 0.5).abs() > 0.01
             }
-            DarkroomSection::Crop => self.grading.crop_enabled,
+            DarkroomSection::Crop => self.grading.geometry.crop_enabled,
             DarkroomSection::Straighten => {
-                self.grading.rotation_degrees != 0.0
-                    || self.grading.flip_horizontal
-                    || self.grading.flip_vertical
+                self.grading.geometry.rotation_degrees != 0.0
+                    || self.grading.geometry.flip_horizontal
+                    || self.grading.geometry.flip_vertical
             }
             DarkroomSection::Geometry => {
-                self.grading.keystone_vertical != 0.0 || self.grading.keystone_horizontal != 0.0
+                self.grading.geometry.keystone_vertical != 0.0
+                    || self.grading.geometry.keystone_horizontal != 0.0
             }
             DarkroomSection::OpticalCorrections => {
-                self.grading.optical_tab != crate::state::OpticalCorrectionTab::Profile
-                    || !self.grading.lens_profile_auto
-                    || (self.grading.lens_distortion_strength - 100.0).abs() > 0.01
-                    || (self.grading.lens_vignette_strength - 100.0).abs() > 0.01
-                    || (self.grading.lens_ca_strength - 100.0).abs() > 0.01
-                    || self.grading.distortion_amount != 0.0
-                    || self.grading.defringe_purple_amount != 0.0
-                    || self.grading.defringe_green_amount != 0.0
-                    || (self.grading.defringe_threshold - 0.08).abs() > 0.005
-                    || self.grading.defringe_preview_mask
-                    || self.grading.creative_vignette_amount != 0.0
-                    || (self.grading.vignette_amount - 50.0).abs() > 0.01
+                self.grading.optics.optical_tab != crate::state::OpticalCorrectionTab::Profile
+                    || !self.grading.optics.lens_profile_auto
+                    || (self.grading.optics.lens_distortion_strength - 100.0).abs() > 0.01
+                    || (self.grading.optics.lens_vignette_strength - 100.0).abs() > 0.01
+                    || (self.grading.optics.lens_ca_strength - 100.0).abs() > 0.01
+                    || self.grading.optics.distortion_amount != 0.0
+                    || self.grading.optics.defringe_purple_amount != 0.0
+                    || self.grading.optics.defringe_green_amount != 0.0
+                    || (self.grading.optics.defringe_threshold - 0.08).abs() > 0.005
+                    || self.grading.optics.defringe_preview_mask
+                    || self.grading.optics.creative_vignette_amount != 0.0
+                    || (self.grading.optics.vignette_amount - 50.0).abs() > 0.01
             }
             DarkroomSection::AiSemanticMasks => {
                 !self.grading.semantic_masks.is_empty() || !self.grading.local_masks.is_empty()
@@ -76,72 +77,72 @@ impl RrawApp {
     pub fn reset_section(&mut self, section: DarkroomSection) {
         match section {
             DarkroomSection::ExposureTone => {
-                self.grading.exposure_ev = 0.0;
-                self.grading.contrast = 0.0;
-                self.grading.highlights = 0.0;
-                self.grading.shadows = 0.0;
-                self.grading.blacks = 0.0;
-                self.grading.saturation = 0.0;
-                self.grading.vibrance = 0.0;
+                self.grading.tone.exposure_ev = 0.0;
+                self.grading.tone.contrast = 0.0;
+                self.grading.tone.highlights = 0.0;
+                self.grading.tone.shadows = 0.0;
+                self.grading.tone.blacks = 0.0;
+                self.grading.tone.saturation = 0.0;
+                self.grading.tone.vibrance = 0.0;
                 self.grading.smart_lighting = DarkroomGradingState::default().smart_lighting;
             }
             DarkroomSection::ToneCurves => {
                 self.grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();
             }
             DarkroomSection::WhiteBalanceColor => {
-                self.grading.kelvin = 5500.0;
-                self.grading.tint = 0.0;
+                self.grading.color.kelvin = 5500.0;
+                self.grading.color.tint = 0.0;
                 self.grading.custom_clut = None;
-                self.grading.is_monochrome = false;
-                self.grading.display_transform = rraw_color::DisplayTransform::AgX;
+                self.grading.color.is_monochrome = false;
+                self.grading.color.display_transform = rraw_color::DisplayTransform::AgX;
             }
             DarkroomSection::SoftProofing => {
                 self.grading.soft_proof.enabled = false;
                 self.grading.soft_proof.show_gamut_warning = false;
             }
             DarkroomSection::DetailDenoise => {
-                self.grading.wavelet_denoise_sigma = 1.0;
-                self.grading.color_denoise = 25.0;
-                self.grading.luma_denoise = 0.0;
-                self.grading.capture_sharpening_amount = 0.5;
+                self.grading.denoise_sharpen.wavelet_denoise_sigma = 1.0;
+                self.grading.denoise_sharpen.color_denoise = 25.0;
+                self.grading.denoise_sharpen.luma_denoise = 0.0;
+                self.grading.denoise_sharpen.capture_sharpening_amount = 0.5;
             }
             DarkroomSection::Crop => {
-                self.grading.crop_enabled = false;
-                self.grading.crop_left = 0.0;
-                self.grading.crop_top = 0.0;
-                self.grading.crop_right = 1.0;
-                self.grading.crop_bottom = 1.0;
+                self.grading.geometry.crop_enabled = false;
+                self.grading.geometry.crop_left = 0.0;
+                self.grading.geometry.crop_top = 0.0;
+                self.grading.geometry.crop_right = 1.0;
+                self.grading.geometry.crop_bottom = 1.0;
             }
             DarkroomSection::Straighten => {
-                self.grading.rotation_degrees = 0.0;
-                self.grading.flip_horizontal = false;
-                self.grading.flip_vertical = false;
+                self.grading.geometry.rotation_degrees = 0.0;
+                self.grading.geometry.flip_horizontal = false;
+                self.grading.geometry.flip_vertical = false;
             }
             DarkroomSection::Geometry => {
-                self.grading.geometry_enabled = true;
-                self.grading.keystone_vertical = 0.0;
-                self.grading.keystone_horizontal = 0.0;
-                self.grading.auto_crop_geometry = true;
+                self.grading.geometry.geometry_enabled = true;
+                self.grading.geometry.keystone_vertical = 0.0;
+                self.grading.geometry.keystone_horizontal = 0.0;
+                self.grading.geometry.auto_crop_geometry = true;
             }
             DarkroomSection::OpticalCorrections => {
-                self.grading.optical_tab = crate::state::OpticalCorrectionTab::Profile;
-                self.grading.lens_profile_auto = true;
-                self.grading.lens_distortion_strength = 100.0;
-                self.grading.lens_vignette_strength = 100.0;
-                self.grading.lens_ca_strength = 100.0;
-                self.grading.distortion_correction = true;
-                self.grading.distortion_amount = 0.0;
-                self.grading.chromatic_aberration_correction = true;
-                self.grading.defringe_purple_amount = 0.0;
-                self.grading.defringe_green_amount = 0.0;
-                self.grading.defringe_threshold = 0.08;
-                self.grading.defringe_preview_mask = false;
-                self.grading.vignette_correction = true;
-                self.grading.vignette_amount = 50.0;
-                self.grading.creative_vignette_amount = 0.0;
-                self.grading.creative_vignette_midpoint = 50.0;
-                self.grading.creative_vignette_feather = 50.0;
-                self.grading.creative_vignette_roundness = 0.0;
+                self.grading.optics.optical_tab = crate::state::OpticalCorrectionTab::Profile;
+                self.grading.optics.lens_profile_auto = true;
+                self.grading.optics.lens_distortion_strength = 100.0;
+                self.grading.optics.lens_vignette_strength = 100.0;
+                self.grading.optics.lens_ca_strength = 100.0;
+                self.grading.optics.distortion_correction = true;
+                self.grading.optics.distortion_amount = 0.0;
+                self.grading.optics.chromatic_aberration_correction = true;
+                self.grading.optics.defringe_purple_amount = 0.0;
+                self.grading.optics.defringe_green_amount = 0.0;
+                self.grading.optics.defringe_threshold = 0.08;
+                self.grading.optics.defringe_preview_mask = false;
+                self.grading.optics.vignette_correction = true;
+                self.grading.optics.vignette_amount = 50.0;
+                self.grading.optics.creative_vignette_amount = 0.0;
+                self.grading.optics.creative_vignette_midpoint = 50.0;
+                self.grading.optics.creative_vignette_feather = 50.0;
+                self.grading.optics.creative_vignette_roundness = 0.0;
             }
             DarkroomSection::AiSemanticMasks => {
                 self.grading.semantic_masks.clear();
@@ -397,7 +398,7 @@ impl RrawApp {
             DarkroomSection::ExposureTone => {
                 ui.label(t(Key::InspectorParamExposure));
                 let r1 = ui.add(
-                    egui::Slider::new(&mut self.grading.exposure_ev, -5.0..=5.0).show_value(true),
+                    egui::Slider::new(&mut self.grading.tone.exposure_ev, -5.0..=5.0).show_value(true),
                 );
                 if r1.changed() {
                     self.grading.preset = GradingPreset::Custom;
@@ -408,7 +409,7 @@ impl RrawApp {
 
                 ui.label(t(Key::InspectorParamContrast));
                 let r2 = ui.add(
-                    egui::Slider::new(&mut self.grading.contrast, -100.0..=100.0).show_value(true),
+                    egui::Slider::new(&mut self.grading.tone.contrast, -100.0..=100.0).show_value(true),
                 );
                 if r2.changed() {
                     self.grading.preset = GradingPreset::Custom;
@@ -419,7 +420,7 @@ impl RrawApp {
 
                 ui.label(t(Key::InspectorParamHighlights));
                 let r3 = ui.add(
-                    egui::Slider::new(&mut self.grading.highlights, -100.0..=100.0)
+                    egui::Slider::new(&mut self.grading.tone.highlights, -100.0..=100.0)
                         .show_value(true),
                 );
                 if r3.changed() {
@@ -431,7 +432,7 @@ impl RrawApp {
 
                 ui.label(t(Key::InspectorParamShadows));
                 let r4 = ui.add(
-                    egui::Slider::new(&mut self.grading.shadows, -100.0..=100.0).show_value(true),
+                    egui::Slider::new(&mut self.grading.tone.shadows, -100.0..=100.0).show_value(true),
                 );
                 if r4.changed() {
                     self.grading.preset = GradingPreset::Custom;
@@ -442,7 +443,7 @@ impl RrawApp {
 
                 ui.label(t(Key::InspectorParamBlacks));
                 let r5 = ui.add(
-                    egui::Slider::new(&mut self.grading.blacks, -100.0..=100.0).show_value(true),
+                    egui::Slider::new(&mut self.grading.tone.blacks, -100.0..=100.0).show_value(true),
                 );
                 if r5.changed() {
                     self.grading.preset = GradingPreset::Custom;
@@ -581,11 +582,11 @@ impl RrawApp {
                 ui.add_space(4.0);
 
                 if ui.button(t(Key::InspectorResetTone)).clicked() {
-                    self.grading.exposure_ev = 0.0;
-                    self.grading.contrast = 0.0;
-                    self.grading.highlights = 0.0;
-                    self.grading.shadows = 0.0;
-                    self.grading.blacks = 0.0;
+                    self.grading.tone.exposure_ev = 0.0;
+                    self.grading.tone.contrast = 0.0;
+                    self.grading.tone.highlights = 0.0;
+                    self.grading.tone.shadows = 0.0;
+                    self.grading.tone.blacks = 0.0;
                     self.grading.smart_lighting = rraw_core::SmartLightingParams::default();
                     self.grading.preset = GradingPreset::detect_preset(&self.grading);
                     self.current_preset = self.grading.preset;
@@ -596,7 +597,7 @@ impl RrawApp {
             DarkroomSection::WhiteBalanceColor => {
                 ui.label(t(Key::InspectorParamKelvin));
                 let r_k = ui.add(
-                    egui::Slider::new(&mut self.grading.kelvin, 2000.0..=12000.0).show_value(true),
+                    egui::Slider::new(&mut self.grading.color.kelvin, 2000.0..=12000.0).show_value(true),
                 );
                 if r_k.changed() {
                     self.grading.preset = GradingPreset::Custom;
@@ -607,7 +608,7 @@ impl RrawApp {
 
                 ui.label(t(Key::InspectorParamTint));
                 let r_t = ui
-                    .add(egui::Slider::new(&mut self.grading.tint, -50.0..=50.0).show_value(true));
+                    .add(egui::Slider::new(&mut self.grading.color.tint, -50.0..=50.0).show_value(true));
                 if r_t.changed() {
                     self.grading.preset = GradingPreset::Custom;
                     self.current_preset = GradingPreset::Custom;
@@ -617,7 +618,7 @@ impl RrawApp {
 
                 ui.label(t(Key::InspectorParamVibrance));
                 let r_vib = ui.add(
-                    egui::Slider::new(&mut self.grading.vibrance, -100.0..=100.0).show_value(true),
+                    egui::Slider::new(&mut self.grading.tone.vibrance, -100.0..=100.0).show_value(true),
                 );
                 if r_vib.changed() {
                     self.grading.preset = GradingPreset::Custom;
@@ -628,7 +629,7 @@ impl RrawApp {
 
                 ui.label(t(Key::InspectorParamSaturation));
                 let r_sat = ui.add(
-                    egui::Slider::new(&mut self.grading.saturation, -100.0..=100.0)
+                    egui::Slider::new(&mut self.grading.tone.saturation, -100.0..=100.0)
                         .show_value(true),
                 );
                 if r_sat.changed() {
@@ -641,16 +642,16 @@ impl RrawApp {
                 ui.label(t(Key::InspectorParamDrt));
                 let drt_w = (ui.available_width() - 8.0).max(100.0);
                 egui::ComboBox::from_id_salt("drt_select")
-                    .selected_text(format!("{:?}", self.grading.display_transform))
+                    .selected_text(format!("{:?}", self.grading.color.display_transform))
                     .width(drt_w)
                     .show_ui(ui, |ui| {
                         let c1 = ui.selectable_value(
-                            &mut self.grading.display_transform,
+                            &mut self.grading.color.display_transform,
                             DisplayTransform::AgX,
                             t(Key::InspectorDrtAgx),
                         );
                         let c2 = ui.selectable_value(
-                            &mut self.grading.display_transform,
+                            &mut self.grading.color.display_transform,
                             DisplayTransform::OpenDrt,
                             t(Key::InspectorDrtOpenDrt),
                         );
@@ -663,7 +664,7 @@ impl RrawApp {
                     });
 
                 let c_mono = ui.checkbox(
-                    &mut self.grading.is_monochrome,
+                    &mut self.grading.color.is_monochrome,
                     t(Key::InspectorParamMonochrome),
                 );
                 if c_mono.changed() {
@@ -674,11 +675,11 @@ impl RrawApp {
                 }
 
                 if ui.button(t(Key::InspectorResetColor)).clicked() {
-                    self.grading.kelvin = 5500.0;
-                    self.grading.tint = 0.0;
-                    self.grading.vibrance = 0.0;
-                    self.grading.saturation = 0.0;
-                    self.grading.is_monochrome = false;
+                    self.grading.color.kelvin = 5500.0;
+                    self.grading.color.tint = 0.0;
+                    self.grading.tone.vibrance = 0.0;
+                    self.grading.tone.saturation = 0.0;
+                    self.grading.color.is_monochrome = false;
                     self.grading.preset = GradingPreset::detect_preset(&self.grading);
                     self.current_preset = self.grading.preset;
                     self.needs_preview_update = true;
@@ -1397,22 +1398,22 @@ impl RrawApp {
                 self.render_tone_curves_section(ui);
             }
             DarkroomSection::Crop => {
-                let c_crop = ui.checkbox(&mut self.grading.crop_enabled, t(Key::InspectorEnableCrop));
+                let c_crop = ui.checkbox(&mut self.grading.geometry.crop_enabled, t(Key::InspectorEnableCrop));
                 if c_crop.changed() {
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
 
-                if self.grading.crop_enabled {
+                if self.grading.geometry.crop_enabled {
                     ui.horizontal(|ui| {
                         ui.label(t(Key::InspectorParamCropRatio));
                         egui::ComboBox::from_id_salt("crop_ratio_select")
-                            .selected_text(self.grading.crop_aspect.label())
+                            .selected_text(self.grading.geometry.crop_aspect.label())
                             .show_ui(ui, |ui| {
                                 for ratio in CropAspectRatio::ALL {
-                                    let is_sel = self.grading.crop_aspect == ratio;
+                                    let is_sel = self.grading.geometry.crop_aspect == ratio;
                                     if ui.selectable_label(is_sel, ratio.label()).clicked() {
-                                        self.grading.crop_aspect = ratio;
+                                        self.grading.geometry.crop_aspect = ratio;
                                         let (orig_w, orig_h) = if let Some(photo) =
                                             &self.loaded_photo
                                         {
@@ -1428,14 +1429,14 @@ impl RrawApp {
                                             } else {
                                                 (1.0, 1.0 / norm_aspect)
                                             };
-                                            self.grading.crop_left =
+                                            self.grading.geometry.crop_left =
                                                 ((1.0 - crop_w) * 0.5).clamp(0.0, 0.45);
-                                            self.grading.crop_right =
-                                                (self.grading.crop_left + crop_w).clamp(0.55, 1.0);
-                                            self.grading.crop_top =
+                                            self.grading.geometry.crop_right =
+                                                (self.grading.geometry.crop_left + crop_w).clamp(0.55, 1.0);
+                                            self.grading.geometry.crop_top =
                                                 ((1.0 - crop_h) * 0.5).clamp(0.0, 0.45);
-                                            self.grading.crop_bottom =
-                                                (self.grading.crop_top + crop_h).clamp(0.55, 1.0);
+                                            self.grading.geometry.crop_bottom =
+                                                (self.grading.geometry.crop_top + crop_h).clamp(0.55, 1.0);
                                         }
                                         self.is_crop_editing = true;
                                         self.needs_preview_update = true;
@@ -1473,11 +1474,11 @@ impl RrawApp {
                         }
 
                         if ui.button(t(Key::InspectorResetCrop)).clicked() {
-                            self.grading.crop_left = 0.0;
-                            self.grading.crop_top = 0.0;
-                            self.grading.crop_right = 1.0;
-                            self.grading.crop_bottom = 1.0;
-                            self.grading.crop_aspect = CropAspectRatio::Free;
+                            self.grading.geometry.crop_left = 0.0;
+                            self.grading.geometry.crop_top = 0.0;
+                            self.grading.geometry.crop_right = 1.0;
+                            self.grading.geometry.crop_bottom = 1.0;
+                            self.grading.geometry.crop_aspect = CropAspectRatio::Free;
                             self.is_crop_editing = false;
                             self.needs_preview_update = true;
                             self.save_current_photo_sidecar();
@@ -1486,7 +1487,7 @@ impl RrawApp {
                     });
 
                     let c_grid = ui.checkbox(
-                        &mut self.grading.crop_show_grid,
+                        &mut self.grading.geometry.crop_show_grid,
                         t(Key::InspectorShowCropGrid),
                     );
                     if c_grid.changed() {
@@ -1505,7 +1506,7 @@ impl RrawApp {
             DarkroomSection::Straighten => {
                 ui.label(t(Key::InspectorParamStraightenAngle));
                 let r_rot = ui.add(
-                    egui::Slider::new(&mut self.grading.rotation_degrees, -45.0..=45.0)
+                    egui::Slider::new(&mut self.grading.geometry.rotation_degrees, -45.0..=45.0)
                         .step_by(0.1)
                         .suffix("°")
                         .show_value(true),
@@ -1519,23 +1520,23 @@ impl RrawApp {
 
                 ui.horizontal(|ui| {
                     if ui.button(t(Key::InspectorResetAngle)).clicked() {
-                        self.grading.rotation_degrees = 0.0;
+                        self.grading.geometry.rotation_degrees = 0.0;
                         self.grading.preset = GradingPreset::Custom;
                         self.current_preset = GradingPreset::Custom;
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
                     if ui.button(t(Key::InspectorRotate90Left)).clicked() {
-                        self.grading.rotation_degrees =
-                            (self.grading.rotation_degrees - 90.0).clamp(-45.0, 45.0);
+                        self.grading.geometry.rotation_degrees =
+                            (self.grading.geometry.rotation_degrees - 90.0).clamp(-45.0, 45.0);
                         self.grading.preset = GradingPreset::Custom;
                         self.current_preset = GradingPreset::Custom;
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
                     if ui.button(t(Key::InspectorRotate90Right)).clicked() {
-                        self.grading.rotation_degrees =
-                            (self.grading.rotation_degrees + 90.0).clamp(-45.0, 45.0);
+                        self.grading.geometry.rotation_degrees =
+                            (self.grading.geometry.rotation_degrees + 90.0).clamp(-45.0, 45.0);
                         self.grading.preset = GradingPreset::Custom;
                         self.current_preset = GradingPreset::Custom;
                         self.needs_preview_update = true;
@@ -1559,8 +1560,8 @@ impl RrawApp {
                 }
 
                 ui.horizontal(|ui| {
-                    let c_fx = ui.checkbox(&mut self.grading.flip_horizontal, t(Key::InspectorParamFlipH));
-                    let c_fy = ui.checkbox(&mut self.grading.flip_vertical, t(Key::InspectorParamFlipV));
+                    let c_fx = ui.checkbox(&mut self.grading.geometry.flip_horizontal, t(Key::InspectorParamFlipH));
+                    let c_fy = ui.checkbox(&mut self.grading.geometry.flip_vertical, t(Key::InspectorParamFlipV));
                     if c_fx.changed() || c_fy.changed() {
                         self.grading.preset = GradingPreset::Custom;
                         self.current_preset = GradingPreset::Custom;
@@ -1571,13 +1572,13 @@ impl RrawApp {
             }
             DarkroomSection::Geometry => {
                 let c_geom =
-                    ui.checkbox(&mut self.grading.geometry_enabled, t(Key::InspectorEnableGeometry));
+                    ui.checkbox(&mut self.grading.geometry.geometry_enabled, t(Key::InspectorEnableGeometry));
                 if c_geom.changed() {
                     self.needs_preview_update = true;
                     ui.ctx().request_repaint();
                 }
 
-                if self.grading.geometry_enabled {
+                if self.grading.geometry.geometry_enabled {
                     let is_parallel_active =
                         self.parallel_tool_phase != ParallelToolPhase::Inactive;
                     let parallel_btn_label = if is_parallel_active {
@@ -1605,7 +1606,7 @@ impl RrawApp {
 
                     ui.label(t(Key::InspectorParamKeystoneV));
                     let r_kv = ui.add(
-                        egui::Slider::new(&mut self.grading.keystone_vertical, -50.0..=50.0)
+                        egui::Slider::new(&mut self.grading.geometry.keystone_vertical, -50.0..=50.0)
                             .step_by(0.5)
                             .show_value(true),
                     );
@@ -1618,7 +1619,7 @@ impl RrawApp {
 
                     ui.label(t(Key::InspectorParamKeystoneH));
                     let r_kh = ui.add(
-                        egui::Slider::new(&mut self.grading.keystone_horizontal, -50.0..=50.0)
+                        egui::Slider::new(&mut self.grading.geometry.keystone_horizontal, -50.0..=50.0)
                             .step_by(0.5)
                             .show_value(true),
                     );
@@ -1630,7 +1631,7 @@ impl RrawApp {
                     }
 
                     let c_ac = ui.checkbox(
-                        &mut self.grading.auto_crop_geometry,
+                        &mut self.grading.geometry.auto_crop_geometry,
                         t(Key::InspectorAutoCrop),
                     );
                     if c_ac.changed() {
@@ -1639,11 +1640,11 @@ impl RrawApp {
                     }
 
                     if ui.button(t(Key::InspectorResetGeometry)).clicked() {
-                        self.grading.keystone_vertical = 0.0;
-                        self.grading.keystone_horizontal = 0.0;
-                        self.grading.rotation_degrees = 0.0;
-                        self.grading.flip_horizontal = false;
-                        self.grading.flip_vertical = false;
+                        self.grading.geometry.keystone_vertical = 0.0;
+                        self.grading.geometry.keystone_horizontal = 0.0;
+                        self.grading.geometry.rotation_degrees = 0.0;
+                        self.grading.geometry.flip_horizontal = false;
+                        self.grading.geometry.flip_vertical = false;
                         self.grading.preset = GradingPreset::Custom;
                         self.current_preset = GradingPreset::Custom;
                         self.needs_preview_update = true;
@@ -1655,13 +1656,13 @@ impl RrawApp {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new(t(Key::InspectorParamChromaDenoise)).strong());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if (self.grading.color_denoise - 25.0).abs() > 0.1
+                        if (self.grading.denoise_sharpen.color_denoise - 25.0).abs() > 0.1
                             && ui
                                 .small_button("Auto (25)")
                                 .on_hover_text("Rétablir la valeur automatique recommandée")
                                 .clicked()
                         {
-                            self.grading.color_denoise = 25.0;
+                            self.grading.denoise_sharpen.color_denoise = 25.0;
                             self.needs_preview_update = true;
                             ui.ctx().request_repaint();
                         }
@@ -1669,7 +1670,7 @@ impl RrawApp {
                 });
                 let r_cd = ui
                     .add(
-                        egui::Slider::new(&mut self.grading.color_denoise, 0.0..=100.0)
+                        egui::Slider::new(&mut self.grading.denoise_sharpen.color_denoise, 0.0..=100.0)
                             .show_value(true)
                             .suffix("%"),
                     )
@@ -1685,7 +1686,7 @@ impl RrawApp {
                 ui.label(egui::RichText::new(t(Key::InspectorParamLumaDenoise)).strong());
                 let r_ld = ui
                     .add(
-                        egui::Slider::new(&mut self.grading.luma_denoise, 0.0..=100.0)
+                        egui::Slider::new(&mut self.grading.denoise_sharpen.luma_denoise, 0.0..=100.0)
                             .show_value(true)
                             .suffix("%"),
                     )
@@ -1700,7 +1701,7 @@ impl RrawApp {
                 ui.add_space(4.0);
                 ui.label(t(Key::InspectorParamCaptureSharpening));
                 let r_s = ui.add(
-                    egui::Slider::new(&mut self.grading.capture_sharpening_amount, 0.0..=2.0)
+                    egui::Slider::new(&mut self.grading.denoise_sharpen.capture_sharpening_amount, 0.0..=2.0)
                         .show_value(true),
                 );
                 if r_s.changed() {
@@ -1712,9 +1713,9 @@ impl RrawApp {
 
                 ui.add_space(4.0);
                 if ui.button(t(Key::InspectorResetDetailDenoise)).clicked() {
-                    self.grading.color_denoise = 25.0;
-                    self.grading.luma_denoise = 0.0;
-                    self.grading.capture_sharpening_amount = 0.5;
+                    self.grading.denoise_sharpen.color_denoise = 25.0;
+                    self.grading.denoise_sharpen.luma_denoise = 0.0;
+                    self.grading.denoise_sharpen.capture_sharpening_amount = 0.5;
                     self.grading.preset = GradingPreset::detect_preset(&self.grading);
                     self.current_preset = self.grading.preset;
                     self.needs_preview_update = true;
@@ -1726,8 +1727,8 @@ impl RrawApp {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = egui::vec2(4.0, 0.0);
                     let tab_w = ((ui.available_width() - 4.0) / 2.0).max(60.0);
-                    let is_prof = self.grading.optical_tab == OpticalCorrectionTab::Profile;
-                    let is_man = self.grading.optical_tab == OpticalCorrectionTab::Manual;
+                    let is_prof = self.grading.optics.optical_tab == OpticalCorrectionTab::Profile;
+                    let is_man = self.grading.optics.optical_tab == OpticalCorrectionTab::Manual;
 
                     if ui
                         .add_sized(
@@ -1739,7 +1740,7 @@ impl RrawApp {
                         )
                         .clicked()
                     {
-                        self.grading.optical_tab = OpticalCorrectionTab::Profile;
+                        self.grading.optics.optical_tab = OpticalCorrectionTab::Profile;
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
@@ -1753,7 +1754,7 @@ impl RrawApp {
                         )
                         .clicked()
                     {
-                        self.grading.optical_tab = OpticalCorrectionTab::Manual;
+                        self.grading.optics.optical_tab = OpticalCorrectionTab::Manual;
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
@@ -1761,12 +1762,12 @@ impl RrawApp {
 
                 ui.add_space(4.0);
 
-                if self.grading.optical_tab == OpticalCorrectionTab::Profile {
+                if self.grading.optics.optical_tab == OpticalCorrectionTab::Profile {
                     ui.label(egui::RichText::new(t(Key::InspectorLensProfileTitle)).strong());
 
                     let c_auto = ui
                         .checkbox(
-                            &mut self.grading.lens_profile_auto,
+                            &mut self.grading.optics.lens_profile_auto,
                             t(Key::InspectorLensProfileAuto),
                         )
                         .on_hover_text(t(Key::InspectorLensProfileAutoTooltip));
@@ -1775,7 +1776,7 @@ impl RrawApp {
                         ui.ctx().request_repaint();
                     }
 
-                    if self.grading.lens_profile_auto {
+                    if self.grading.optics.lens_profile_auto {
                         let (lens_name, is_exact, extra_meta) = if let Some(base) = &self.base_preview {
                             if let Some(matched) = &base.matched_lens {
                                 let meta_str = if let Some(photo) = &self.loaded_photo {
@@ -1846,7 +1847,7 @@ impl RrawApp {
                         ui.add_space(2.0);
                         ui.label(t(Key::InspectorLensProfileDistortion));
                         let s_ld = ui.add(
-                            egui::Slider::new(&mut self.grading.lens_distortion_strength, 0.0..=200.0)
+                            egui::Slider::new(&mut self.grading.optics.lens_distortion_strength, 0.0..=200.0)
                                 .show_value(true)
                                 .suffix(" %"),
                         );
@@ -1857,7 +1858,7 @@ impl RrawApp {
 
                         ui.label(t(Key::InspectorLensProfileVignette));
                         let s_lv = ui.add(
-                            egui::Slider::new(&mut self.grading.lens_vignette_strength, 0.0..=200.0)
+                            egui::Slider::new(&mut self.grading.optics.lens_vignette_strength, 0.0..=200.0)
                                 .show_value(true)
                                 .suffix(" %"),
                         );
@@ -1868,7 +1869,7 @@ impl RrawApp {
 
                         ui.label(t(Key::InspectorLensProfileCa));
                         let s_lca = ui.add(
-                            egui::Slider::new(&mut self.grading.lens_ca_strength, 0.0..=200.0)
+                            egui::Slider::new(&mut self.grading.optics.lens_ca_strength, 0.0..=200.0)
                                 .show_value(true)
                                 .suffix(" %"),
                         );
@@ -1886,11 +1887,11 @@ impl RrawApp {
                     }
                 }
 
-                if self.grading.optical_tab == OpticalCorrectionTab::Manual {
+                if self.grading.optics.optical_tab == OpticalCorrectionTab::Manual {
                     ui.label(egui::RichText::new(t(Key::InspectorLensManualTitle)).strong());
 
                     let c_dist = ui.checkbox(
-                        &mut self.grading.distortion_correction,
+                        &mut self.grading.optics.distortion_correction,
                         t(Key::InspectorLensDistortion),
                     );
                     if c_dist.changed() {
@@ -1900,7 +1901,7 @@ impl RrawApp {
 
                     ui.label(t(Key::InspectorParamDistortion));
                     let r_da = ui.add(
-                        egui::Slider::new(&mut self.grading.distortion_amount, -50.0..=50.0)
+                        egui::Slider::new(&mut self.grading.optics.distortion_amount, -50.0..=50.0)
                             .show_value(true),
                     );
                     if r_da.changed() {
@@ -1911,7 +1912,7 @@ impl RrawApp {
                     ui.separator();
 
                     let c_ca = ui.checkbox(
-                        &mut self.grading.chromatic_aberration_correction,
+                        &mut self.grading.optics.chromatic_aberration_correction,
                         t(Key::InspectorLensCa),
                     );
                     if c_ca.changed() {
@@ -1921,7 +1922,7 @@ impl RrawApp {
 
                     ui.label(t(Key::InspectorParamDefringePurple));
                     let r_dp = ui.add(
-                        egui::Slider::new(&mut self.grading.defringe_purple_amount, 0.0..=100.0)
+                        egui::Slider::new(&mut self.grading.optics.defringe_purple_amount, 0.0..=100.0)
                             .show_value(true)
                             .suffix(" %"),
                     );
@@ -1932,7 +1933,7 @@ impl RrawApp {
 
                     ui.label(t(Key::InspectorParamDefringeGreen));
                     let r_dg = ui.add(
-                        egui::Slider::new(&mut self.grading.defringe_green_amount, 0.0..=100.0)
+                        egui::Slider::new(&mut self.grading.optics.defringe_green_amount, 0.0..=100.0)
                             .show_value(true)
                             .suffix(" %"),
                     );
@@ -1942,21 +1943,21 @@ impl RrawApp {
                     }
 
                     ui.label(t(Key::InspectorParamDefringeThreshold));
-                    let mut thresh_pct = self.grading.defringe_threshold * 100.0;
+                    let mut thresh_pct = self.grading.optics.defringe_threshold * 100.0;
                     let r_dt = ui.add(
                         egui::Slider::new(&mut thresh_pct, 1.0..=30.0)
                             .show_value(true)
                             .suffix(" %"),
                     );
                     if r_dt.changed() {
-                        self.grading.defringe_threshold = (thresh_pct / 100.0).clamp(0.01, 0.30);
+                        self.grading.optics.defringe_threshold = (thresh_pct / 100.0).clamp(0.01, 0.30);
                         self.needs_preview_update = true;
                         ui.ctx().request_repaint();
                     }
 
                     let c_dpm = ui
                         .checkbox(
-                            &mut self.grading.defringe_preview_mask,
+                            &mut self.grading.optics.defringe_preview_mask,
                             t(Key::InspectorDefringePreviewMask),
                         )
                         .on_hover_text(t(Key::InspectorDefringePreviewMaskTooltip));
@@ -1969,7 +1970,7 @@ impl RrawApp {
 
                     ui.label(egui::RichText::new(t(Key::InspectorLensVignetteTitle)).strong());
                     let c_vig = ui.checkbox(
-                        &mut self.grading.vignette_correction,
+                        &mut self.grading.optics.vignette_correction,
                         t(Key::InspectorLensVignette),
                     );
                     if c_vig.changed() {
@@ -1979,7 +1980,7 @@ impl RrawApp {
 
                     ui.label(t(Key::InspectorCorrectionStrength));
                     let r_va = ui.add(
-                        egui::Slider::new(&mut self.grading.vignette_amount, 0.0..=100.0)
+                        egui::Slider::new(&mut self.grading.optics.vignette_amount, 0.0..=100.0)
                             .show_value(true),
                     );
                     if r_va.changed() {
@@ -1992,7 +1993,7 @@ impl RrawApp {
                     ui.label(egui::RichText::new(t(Key::InspectorCreativeVignetteTitle)).strong());
                     ui.label(t(Key::InspectorParamVignetteAmount));
                     let r_cva = ui.add(
-                        egui::Slider::new(&mut self.grading.creative_vignette_amount, -100.0..=100.0)
+                        egui::Slider::new(&mut self.grading.optics.creative_vignette_amount, -100.0..=100.0)
                             .show_value(true),
                     );
                     if r_cva.changed() {
@@ -2000,11 +2001,11 @@ impl RrawApp {
                         ui.ctx().request_repaint();
                     }
 
-                    if self.grading.creative_vignette_amount.abs() > 0.1 {
+                    if self.grading.optics.creative_vignette_amount.abs() > 0.1 {
                         ui.label(t(Key::InspectorParamVignetteMidpoint));
                         let r_cvm = ui.add(
                             egui::Slider::new(
-                                &mut self.grading.creative_vignette_midpoint,
+                                &mut self.grading.optics.creative_vignette_midpoint,
                                 10.0..=90.0,
                             )
                             .show_value(true),
@@ -2016,7 +2017,7 @@ impl RrawApp {
 
                         ui.label(t(Key::InspectorParamVignetteFeather));
                         let r_cvf = ui.add(
-                            egui::Slider::new(&mut self.grading.creative_vignette_feather, 10.0..=90.0)
+                            egui::Slider::new(&mut self.grading.optics.creative_vignette_feather, 10.0..=90.0)
                                 .show_value(true),
                         );
                         if r_cvf.changed() {
@@ -2027,7 +2028,7 @@ impl RrawApp {
                         ui.label(t(Key::InspectorParamVignetteRoundness));
                         let r_cvr = ui.add(
                             egui::Slider::new(
-                                &mut self.grading.creative_vignette_roundness,
+                                &mut self.grading.optics.creative_vignette_roundness,
                                 -100.0..=100.0,
                             )
                             .show_value(true),

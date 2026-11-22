@@ -782,12 +782,12 @@ pub fn create_thumbnail_from_preview(
         return egui::ColorImage::example();
     }
 
-    let (u_min, u_max, v_min, v_max) = if grading.crop_enabled {
+    let (u_min, u_max, v_min, v_max) = if grading.geometry.crop_enabled {
         (
-            grading.crop_left.clamp(0.0, 0.95),
-            grading.crop_right.clamp(0.05, 1.0),
-            grading.crop_top.clamp(0.0, 0.95),
-            grading.crop_bottom.clamp(0.05, 1.0),
+            grading.geometry.crop_left.clamp(0.0, 0.95),
+            grading.geometry.crop_right.clamp(0.05, 1.0),
+            grading.geometry.crop_top.clamp(0.0, 0.95),
+            grading.geometry.crop_bottom.clamp(0.05, 1.0),
         )
     } else {
         (0.0, 1.0, 0.0, 1.0)
@@ -919,12 +919,12 @@ pub fn render_preview_from_base(
     let preview_w = base.width;
     let preview_h = base.height;
 
-    let exposure_gain = 2.0_f32.powf(grading.exposure_ev);
+    let exposure_gain = 2.0_f32.powf(grading.tone.exposure_ev);
 
-    let kelvin_ratio = (grading.kelvin / 5500.0).clamp(0.4, 2.5);
+    let kelvin_ratio = (grading.color.kelvin / 5500.0).clamp(0.4, 2.5);
     let r_temp_scale = kelvin_ratio.powf(0.85);
     let b_temp_scale = (1.0 / kelvin_ratio).powf(0.85);
-    let tint_scale = 1.0 - (grading.tint / 100.0);
+    let tint_scale = 1.0 - (grading.color.tint / 100.0);
 
     let eff_wb_r = base.as_shot_wb[0] * r_temp_scale;
     let eff_wb_g = base.as_shot_wb[1] * tint_scale;
@@ -936,12 +936,12 @@ pub fn render_preview_from_base(
     let cy = preview_h as f32 * 0.5;
     let max_radius_sq = (cx * cx + cy * cy).max(1.0);
 
-    let (k_dist, v_gain) = match grading.optical_tab {
+    let (k_dist, v_gain) = match grading.optics.optical_tab {
         OpticalCorrectionTab::Profile => {
             if let Some(matched) = &base.matched_lens {
-                if grading.lens_profile_auto {
-                    let dist_scale = (grading.lens_distortion_strength / 100.0).max(0.0);
-                    let vig_scale = (grading.lens_vignette_strength / 100.0).max(0.0);
+                if grading.optics.lens_profile_auto {
+                    let dist_scale = (grading.optics.lens_distortion_strength / 100.0).max(0.0);
+                    let vig_scale = (grading.optics.lens_vignette_strength / 100.0).max(0.0);
                     (
                         matched.model.distortion.k1 * dist_scale,
                         matched.model.vignette.v1 * vig_scale,
@@ -954,13 +954,13 @@ pub fn render_preview_from_base(
             }
         }
         OpticalCorrectionTab::Manual => {
-            let kd = if grading.distortion_correction {
-                (grading.distortion_amount / 100.0) * 0.15
+            let kd = if grading.optics.distortion_correction {
+                (grading.optics.distortion_amount / 100.0) * 0.15
             } else {
                 0.0
             };
-            let vg = if grading.vignette_correction {
-                (grading.vignette_amount / 100.0) * 0.65
+            let vg = if grading.optics.vignette_correction {
+                (grading.optics.vignette_amount / 100.0) * 0.65
             } else {
                 0.0
             };
@@ -968,35 +968,43 @@ pub fn render_preview_from_base(
         }
     };
 
-    let rot_deg = grading.rotation_degrees;
+    let rot_deg = grading.geometry.rotation_degrees;
     let rot_rad = rot_deg.to_radians();
     let cos_rot = rot_rad.cos();
     let sin_rot = rot_rad.sin();
 
-    let flip_x = if grading.flip_horizontal { -1.0 } else { 1.0 };
-    let flip_y = if grading.flip_vertical { -1.0 } else { 1.0 };
+    let flip_x = if grading.geometry.flip_horizontal {
+        -1.0
+    } else {
+        1.0
+    };
+    let flip_y = if grading.geometry.flip_vertical {
+        -1.0
+    } else {
+        1.0
+    };
 
-    let (keystone_v, keystone_h) = if grading.geometry_enabled {
+    let (keystone_v, keystone_h) = if grading.geometry.geometry_enabled {
         (
-            grading.keystone_vertical / 100.0,
-            grading.keystone_horizontal / 100.0,
+            grading.geometry.keystone_vertical / 100.0,
+            grading.geometry.keystone_horizontal / 100.0,
         )
     } else {
         (0.0, 0.0)
     };
 
     let denoise_cfg = rraw_core::DenoiseConfig {
-        chroma_amount: (grading.color_denoise / 100.0).clamp(0.0, 1.0),
-        luma_amount: (grading.luma_denoise / 100.0).clamp(0.0, 1.0),
+        chroma_amount: (grading.denoise_sharpen.color_denoise / 100.0).clamp(0.0, 1.0),
+        luma_amount: (grading.denoise_sharpen.luma_denoise / 100.0).clamp(0.0, 1.0),
     };
     let defringe_cfg = rraw_optics::DefringeConfig {
-        purple_amount: (grading.defringe_purple_amount / 100.0).clamp(0.0, 1.0),
-        green_amount: (grading.defringe_green_amount / 100.0).clamp(0.0, 1.0),
-        threshold: grading.defringe_threshold.clamp(0.01, 0.50),
+        purple_amount: (grading.optics.defringe_purple_amount / 100.0).clamp(0.0, 1.0),
+        green_amount: (grading.optics.defringe_green_amount / 100.0).clamp(0.0, 1.0),
+        threshold: grading.optics.defringe_threshold.clamp(0.01, 0.50),
     };
     let need_denoise = denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4;
     let need_defringe = defringe_cfg.purple_amount > 1e-4 || defringe_cfg.green_amount > 1e-4;
-    let show_defringe_mask = grading.defringe_preview_mask;
+    let show_defringe_mask = grading.optics.defringe_preview_mask;
 
     let processed_samples = if need_denoise || need_defringe || show_defringe_mask {
         let mut s = base.samples_rgb.clone();
@@ -1020,11 +1028,11 @@ pub fn render_preview_from_base(
     };
     let effective_samples = processed_samples.as_deref().unwrap_or(&base.samples_rgb);
 
-    let has_creative_vignette = grading.creative_vignette_amount.abs() > 0.1;
-    let cv_amt = grading.creative_vignette_amount / 100.0;
-    let cv_mid = (grading.creative_vignette_midpoint / 100.0).clamp(0.05, 0.95);
-    let cv_feather = (grading.creative_vignette_feather / 100.0).clamp(0.05, 0.95);
-    let cv_round = (grading.creative_vignette_roundness / 100.0).clamp(-1.0, 1.0);
+    let has_creative_vignette = grading.optics.creative_vignette_amount.abs() > 0.1;
+    let cv_amt = grading.optics.creative_vignette_amount / 100.0;
+    let cv_mid = (grading.optics.creative_vignette_midpoint / 100.0).clamp(0.05, 0.95);
+    let cv_feather = (grading.optics.creative_vignette_feather / 100.0).clamp(0.05, 0.95);
+    let cv_round = (grading.optics.creative_vignette_roundness / 100.0).clamp(-1.0, 1.0);
 
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();
@@ -1046,14 +1054,15 @@ pub fn render_preview_from_base(
         1.0
     };
 
-    let geom_zoom = if grading.geometry_enabled && grading.auto_crop_geometry {
+    let geom_zoom = if grading.geometry.geometry_enabled && grading.geometry.auto_crop_geometry {
         let abs_rot = rot_deg.abs().to_radians();
         let rot_zoom = abs_rot.cos() + abs_rot.sin() * (cy / cx.max(1.0));
         let k_zoom = 1.0
             + (grading
+                .geometry
                 .keystone_vertical
                 .abs()
-                .max(grading.keystone_horizontal.abs())
+                .max(grading.geometry.keystone_horizontal.abs())
                 / 100.0)
                 * 0.5;
         (rot_zoom * k_zoom).max(1.0)
@@ -1070,9 +1079,9 @@ pub fn render_preview_from_base(
         && flip_y > 0.0
         && (auto_zoom - 1.0).abs() < 1e-4;
 
-    let has_tonal_adjustment = grading.shadows.abs() > 0.01
-        || grading.highlights.abs() > 0.01
-        || grading.blacks.abs() > 0.01;
+    let has_tonal_adjustment = grading.tone.shadows.abs() > 0.01
+        || grading.tone.highlights.abs() > 0.01
+        || grading.tone.blacks.abs() > 0.01;
 
     let combined_mat = [
         mat[0] * eff_wb_r * exposure_gain,
@@ -1086,10 +1095,10 @@ pub fn render_preview_from_base(
         mat[8] * eff_wb_b * exposure_gain,
     ];
 
-    let factor = 1.0 + (grading.contrast / 100.0).clamp(-0.8, 2.0);
+    let factor = 1.0 + (grading.tone.contrast / 100.0).clamp(-0.8, 2.0);
     let base_vibrance = 0.10_f32;
-    let user_vibrance = grading.vibrance / 100.0;
-    let user_sat = grading.saturation / 100.0;
+    let user_vibrance = grading.tone.vibrance / 100.0;
+    let user_sat = grading.tone.saturation / 100.0;
 
     let to_u8_fast = |x: f32| -> u8 {
         let clamped = x.clamp(0.0, 1.0);
@@ -1260,10 +1269,11 @@ pub fn render_preview_from_base(
                     let y_norm = lum / (lum + 0.18);
                     let shadow_weight = (1.0 - y_norm).powi(2);
                     let highlight_weight = y_norm.powi(2);
-                    let shadow_shift = (grading.shadows / 100.0) * 2.5 * shadow_weight;
-                    let highlight_shift = (grading.highlights / 100.0) * 2.5 * highlight_weight;
+                    let shadow_shift = (grading.tone.shadows / 100.0) * 2.5 * shadow_weight;
+                    let highlight_shift =
+                        (grading.tone.highlights / 100.0) * 2.5 * highlight_weight;
                     let blacks_weight = (1.0 - y_norm).powi(4);
-                    let blacks_shift = (grading.blacks / 100.0) * 1.5 * blacks_weight;
+                    let blacks_shift = (grading.tone.blacks / 100.0) * 1.5 * blacks_weight;
                     let tone_gain = 2.0_f32.powf(shadow_shift + highlight_shift + blacks_shift);
                     (
                         (r_scaled * tone_gain).max(0.0),
@@ -1327,7 +1337,7 @@ pub fn render_preview_from_base(
                     (r_lut, g_lut, b_lut)
                 };
 
-                let (r_drt, g_drt, b_drt) = match grading.display_transform {
+                let (r_drt, g_drt, b_drt) = match grading.color.display_transform {
                     DisplayTransform::AgX => (
                         apply_agx_edr(r_sem, 1.0),
                         apply_agx_edr(g_sem, 1.0),
@@ -1401,7 +1411,7 @@ pub fn render_preview_from_base(
                     (r_s.max(0.0), g_s.max(0.0), b_s.max(0.0))
                 };
 
-                let (mut u8_r, mut u8_g, mut u8_b) = if grading.is_monochrome {
+                let (mut u8_r, mut u8_g, mut u8_b) = if grading.color.is_monochrome {
                     let lum_val = ((to_u8_fast(r_post) as u32 * 54
                         + to_u8_fast(g_post) as u32 * 183
                         + to_u8_fast(b_post) as u32 * 19)
@@ -1539,13 +1549,13 @@ pub fn render_export_image(
     let preview_w = base.width;
     let preview_h = base.height;
 
-    let (crop_x0, crop_y0, crop_x1, crop_y1) = if grading.crop_enabled {
-        let x0 = (grading.crop_left.clamp(0.0, 0.95) * preview_w as f32).round() as usize;
-        let y0 = (grading.crop_top.clamp(0.0, 0.95) * preview_h as f32).round() as usize;
-        let x1 = (grading.crop_right.clamp(0.05, 1.0) * preview_w as f32)
+    let (crop_x0, crop_y0, crop_x1, crop_y1) = if grading.geometry.crop_enabled {
+        let x0 = (grading.geometry.crop_left.clamp(0.0, 0.95) * preview_w as f32).round() as usize;
+        let y0 = (grading.geometry.crop_top.clamp(0.0, 0.95) * preview_h as f32).round() as usize;
+        let x1 = (grading.geometry.crop_right.clamp(0.05, 1.0) * preview_w as f32)
             .round()
             .max(x0 as f32 + 1.0) as usize;
-        let y1 = (grading.crop_bottom.clamp(0.05, 1.0) * preview_h as f32)
+        let y1 = (grading.geometry.crop_bottom.clamp(0.05, 1.0) * preview_h as f32)
             .round()
             .max(y0 as f32 + 1.0) as usize;
         (
@@ -1564,12 +1574,12 @@ pub fn render_export_image(
     let out_w = ((cropped_w as f32 * scale).round() as usize).max(1);
     let out_h = ((cropped_h as f32 * scale).round() as usize).max(1);
 
-    let exposure_gain = 2.0_f32.powf(grading.exposure_ev);
+    let exposure_gain = 2.0_f32.powf(grading.tone.exposure_ev);
 
-    let kelvin_ratio = (grading.kelvin / 5500.0).clamp(0.4, 2.5);
+    let kelvin_ratio = (grading.color.kelvin / 5500.0).clamp(0.4, 2.5);
     let r_temp_scale = kelvin_ratio.powf(0.85);
     let b_temp_scale = (1.0 / kelvin_ratio).powf(0.85);
-    let tint_scale = 1.0 - (grading.tint / 100.0);
+    let tint_scale = 1.0 - (grading.color.tint / 100.0);
 
     let eff_wb_r = base.as_shot_wb[0] * r_temp_scale;
     let eff_wb_g = base.as_shot_wb[1] * tint_scale;
@@ -1581,12 +1591,12 @@ pub fn render_export_image(
     let cy = preview_h as f32 * 0.5;
     let max_radius_sq = (cx * cx + cy * cy).max(1.0);
 
-    let (k_dist, v_gain) = match grading.optical_tab {
+    let (k_dist, v_gain) = match grading.optics.optical_tab {
         OpticalCorrectionTab::Profile => {
             if let Some(matched) = &base.matched_lens {
-                if grading.lens_profile_auto {
-                    let dist_scale = (grading.lens_distortion_strength / 100.0).max(0.0);
-                    let vig_scale = (grading.lens_vignette_strength / 100.0).max(0.0);
+                if grading.optics.lens_profile_auto {
+                    let dist_scale = (grading.optics.lens_distortion_strength / 100.0).max(0.0);
+                    let vig_scale = (grading.optics.lens_vignette_strength / 100.0).max(0.0);
                     (
                         matched.model.distortion.k1 * dist_scale,
                         matched.model.vignette.v1 * vig_scale,
@@ -1599,13 +1609,13 @@ pub fn render_export_image(
             }
         }
         OpticalCorrectionTab::Manual => {
-            let kd = if grading.distortion_correction {
-                (grading.distortion_amount / 100.0) * 0.15
+            let kd = if grading.optics.distortion_correction {
+                (grading.optics.distortion_amount / 100.0) * 0.15
             } else {
                 0.0
             };
-            let vg = if grading.vignette_correction {
-                (grading.vignette_amount / 100.0) * 0.65
+            let vg = if grading.optics.vignette_correction {
+                (grading.optics.vignette_amount / 100.0) * 0.65
             } else {
                 0.0
             };
@@ -1613,31 +1623,39 @@ pub fn render_export_image(
         }
     };
 
-    let rot_deg = grading.rotation_degrees;
+    let rot_deg = grading.geometry.rotation_degrees;
     let rot_rad = rot_deg.to_radians();
     let cos_rot = rot_rad.cos();
     let sin_rot = rot_rad.sin();
 
-    let flip_x = if grading.flip_horizontal { -1.0 } else { 1.0 };
-    let flip_y = if grading.flip_vertical { -1.0 } else { 1.0 };
+    let flip_x = if grading.geometry.flip_horizontal {
+        -1.0
+    } else {
+        1.0
+    };
+    let flip_y = if grading.geometry.flip_vertical {
+        -1.0
+    } else {
+        1.0
+    };
 
-    let (keystone_v, keystone_h) = if grading.geometry_enabled {
+    let (keystone_v, keystone_h) = if grading.geometry.geometry_enabled {
         (
-            grading.keystone_vertical / 100.0,
-            grading.keystone_horizontal / 100.0,
+            grading.geometry.keystone_vertical / 100.0,
+            grading.geometry.keystone_horizontal / 100.0,
         )
     } else {
         (0.0, 0.0)
     };
 
     let denoise_cfg = rraw_core::DenoiseConfig {
-        chroma_amount: (grading.color_denoise / 100.0).clamp(0.0, 1.0),
-        luma_amount: (grading.luma_denoise / 100.0).clamp(0.0, 1.0),
+        chroma_amount: (grading.denoise_sharpen.color_denoise / 100.0).clamp(0.0, 1.0),
+        luma_amount: (grading.denoise_sharpen.luma_denoise / 100.0).clamp(0.0, 1.0),
     };
     let defringe_cfg = rraw_optics::DefringeConfig {
-        purple_amount: (grading.defringe_purple_amount / 100.0).clamp(0.0, 1.0),
-        green_amount: (grading.defringe_green_amount / 100.0).clamp(0.0, 1.0),
-        threshold: grading.defringe_threshold.clamp(0.01, 0.50),
+        purple_amount: (grading.optics.defringe_purple_amount / 100.0).clamp(0.0, 1.0),
+        green_amount: (grading.optics.defringe_green_amount / 100.0).clamp(0.0, 1.0),
+        threshold: grading.optics.defringe_threshold.clamp(0.01, 0.50),
     };
     let need_denoise = denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4;
     let need_defringe = defringe_cfg.purple_amount > 1e-4 || defringe_cfg.green_amount > 1e-4;
@@ -1665,11 +1683,11 @@ pub fn render_export_image(
     };
     let effective_samples = processed_samples.as_deref().unwrap_or(&base.samples_rgb);
 
-    let has_creative_vignette = grading.creative_vignette_amount.abs() > 0.1;
-    let cv_amt = grading.creative_vignette_amount / 100.0;
-    let cv_mid = (grading.creative_vignette_midpoint / 100.0).clamp(0.05, 0.95);
-    let cv_feather = (grading.creative_vignette_feather / 100.0).clamp(0.05, 0.95);
-    let cv_round = (grading.creative_vignette_roundness / 100.0).clamp(-1.0, 1.0);
+    let has_creative_vignette = grading.optics.creative_vignette_amount.abs() > 0.1;
+    let cv_amt = grading.optics.creative_vignette_amount / 100.0;
+    let cv_mid = (grading.optics.creative_vignette_midpoint / 100.0).clamp(0.05, 0.95);
+    let cv_feather = (grading.optics.creative_vignette_feather / 100.0).clamp(0.05, 0.95);
+    let cv_round = (grading.optics.creative_vignette_roundness / 100.0).clamp(-1.0, 1.0);
 
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();
@@ -1691,14 +1709,15 @@ pub fn render_export_image(
         1.0
     };
 
-    let geom_zoom = if grading.geometry_enabled && grading.auto_crop_geometry {
+    let geom_zoom = if grading.geometry.geometry_enabled && grading.geometry.auto_crop_geometry {
         let abs_rot = rot_deg.abs().to_radians();
         let rot_zoom = abs_rot.cos() + abs_rot.sin() * (cy / cx.max(1.0));
         let k_zoom = 1.0
             + (grading
+                .geometry
                 .keystone_vertical
                 .abs()
-                .max(grading.keystone_horizontal.abs())
+                .max(grading.geometry.keystone_horizontal.abs())
                 / 100.0)
                 * 0.5;
         (rot_zoom * k_zoom).max(1.0)
@@ -1828,10 +1847,10 @@ pub fn render_export_image(
             let y_norm = lum / (lum + 0.18);
             let shadow_weight = (1.0 - y_norm).powi(2);
             let highlight_weight = y_norm.powi(2);
-            let shadow_shift = (grading.shadows / 100.0) * 2.5 * shadow_weight;
-            let highlight_shift = (grading.highlights / 100.0) * 2.5 * highlight_weight;
+            let shadow_shift = (grading.tone.shadows / 100.0) * 2.5 * shadow_weight;
+            let highlight_shift = (grading.tone.highlights / 100.0) * 2.5 * highlight_weight;
             let blacks_weight = (1.0 - y_norm).powi(4);
-            let blacks_shift = (grading.blacks / 100.0) * 1.5 * blacks_weight;
+            let blacks_shift = (grading.tone.blacks / 100.0) * 1.5 * blacks_weight;
             let tone_gain = 2.0_f32.powf(shadow_shift + highlight_shift + blacks_shift);
 
             let r_toned = (r_scaled * tone_gain).max(0.0);
@@ -1890,7 +1909,7 @@ pub fn render_export_image(
                 (r_lut, g_lut, b_lut)
             };
 
-            let (r_drt, g_drt, b_drt) = match grading.display_transform {
+            let (r_drt, g_drt, b_drt) = match grading.color.display_transform {
                 DisplayTransform::AgX => (
                     apply_agx_edr(r_sem, 1.0),
                     apply_agx_edr(g_sem, 1.0),
@@ -1903,7 +1922,7 @@ pub fn render_export_image(
                 ),
             };
 
-            let factor = (1.0 + (grading.contrast / 100.0).clamp(-0.8, 2.0))
+            let factor = (1.0 + (grading.tone.contrast / 100.0).clamp(-0.8, 2.0))
                 * (1.0 + (sem_contrast / 100.0).clamp(-0.8, 2.0));
             let r_c = ((r_drt - 0.18) * factor + 0.18).max(0.0);
             let g_c = ((g_drt - 0.18) * factor + 0.18).max(0.0);
@@ -1918,8 +1937,8 @@ pub fn render_export_image(
                 0.0
             };
             let base_vibrance = 0.10_f32;
-            let user_vibrance = grading.vibrance / 100.0;
-            let user_sat = grading.saturation / 100.0;
+            let user_vibrance = grading.tone.vibrance / 100.0;
+            let user_sat = grading.tone.saturation / 100.0;
             let vib_weight = (1.0 - current_sat).clamp(0.0, 1.0);
             let eff_sat = ((1.0 + user_sat + (sem_sat / 100.0))
                 * (1.0 + (base_vibrance + user_vibrance) * vib_weight))
@@ -1959,7 +1978,7 @@ pub fn render_export_image(
                 toe.powf(1.0 / 2.2)
             };
 
-            let (f_r, f_g, f_b) = if grading.is_monochrome {
+            let (f_r, f_g, f_b) = if grading.color.is_monochrome {
                 let lum_val = map_f32(0.2126 * r_s + 0.7152 * g_s + 0.0722 * b_s);
                 (lum_val, lum_val, lum_val)
             } else {
@@ -2217,29 +2236,29 @@ pub fn prepare_timelapse_frame_gradings(
         let kfs = [
             rraw_export::TimelapseKeyframe {
                 frame_index: 0,
-                exposure_ev: g_first.exposure_ev,
-                kelvin: g_first.kelvin,
-                tint: g_first.tint,
-                contrast: g_first.contrast,
-                saturation: g_first.saturation,
+                exposure_ev: g_first.tone.exposure_ev,
+                kelvin: g_first.color.kelvin,
+                tint: g_first.color.tint,
+                contrast: g_first.tone.contrast,
+                saturation: g_first.tone.saturation,
             },
             rraw_export::TimelapseKeyframe {
                 frame_index: n - 1,
-                exposure_ev: g_last.exposure_ev,
-                kelvin: g_last.kelvin,
-                tint: g_last.tint,
-                contrast: g_last.contrast,
-                saturation: g_last.saturation,
+                exposure_ev: g_last.tone.exposure_ev,
+                kelvin: g_last.color.kelvin,
+                tint: g_last.color.tint,
+                contrast: g_last.tone.contrast,
+                saturation: g_last.tone.saturation,
             },
         ];
 
         let interpolated = rraw_export::interpolate_keyframes(n, &kfs);
         for (g, kf) in gradings.iter_mut().zip(interpolated.iter()) {
-            g.exposure_ev = kf.exposure_ev;
-            g.kelvin = kf.kelvin;
-            g.tint = kf.tint;
-            g.contrast = kf.contrast;
-            g.saturation = kf.saturation;
+            g.tone.exposure_ev = kf.exposure_ev;
+            g.color.kelvin = kf.kelvin;
+            g.color.tint = kf.tint;
+            g.tone.contrast = kf.contrast;
+            g.tone.saturation = kf.saturation;
         }
     }
 
@@ -2251,13 +2270,13 @@ pub fn prepare_timelapse_frame_gradings(
             .flat_map(|px| [px[0], px[1], px[2]])
             .collect();
         let sensor_log_y = rraw_export::compute_frame_log_luminance(&flat_rgb);
-        measured_log_lumas.push(sensor_log_y + g.exposure_ev);
+        measured_log_lumas.push(sensor_log_y + g.tone.exposure_ev);
     }
 
     let offsets_ev =
         rraw_export::compute_deflicker_ev_offsets(&measured_log_lumas, deflicker_config);
     for (g, &delta_ev) in gradings.iter_mut().zip(offsets_ev.iter()) {
-        g.exposure_ev = (g.exposure_ev + delta_ev).clamp(-5.0, 5.0);
+        g.tone.exposure_ev = (g.tone.exposure_ev + delta_ev).clamp(-5.0, 5.0);
     }
 
     (gradings, offsets_ev)

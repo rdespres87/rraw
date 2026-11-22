@@ -523,7 +523,7 @@ impl RrawApp {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(t(Key::TimelapseExpShort)).small());
                 let r_exp = ui.add(
-                    egui::Slider::new(&mut g_first.exposure_ev, -4.0..=4.0)
+                    egui::Slider::new(&mut g_first.tone.exposure_ev, -4.0..=4.0)
                         .step_by(0.05)
                         .suffix(" EV"),
                 );
@@ -535,7 +535,7 @@ impl RrawApp {
                 }
                 ui.label(egui::RichText::new(t(Key::TimelapseTempShort)).small());
                 let r_tmp = ui.add(
-                    egui::Slider::new(&mut g_first.kelvin, 2000.0..=12000.0)
+                    egui::Slider::new(&mut g_first.color.kelvin, 2000.0..=12000.0)
                         .step_by(50.0)
                         .suffix(" K"),
                 );
@@ -595,7 +595,7 @@ impl RrawApp {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(t(Key::TimelapseExpShort)).small());
                 let r_exp = ui.add(
-                    egui::Slider::new(&mut g_last.exposure_ev, -4.0..=4.0)
+                    egui::Slider::new(&mut g_last.tone.exposure_ev, -4.0..=4.0)
                         .step_by(0.05)
                         .suffix(" EV"),
                 );
@@ -607,7 +607,7 @@ impl RrawApp {
                 }
                 ui.label(egui::RichText::new(t(Key::TimelapseTempShort)).small());
                 let r_tmp = ui.add(
-                    egui::Slider::new(&mut g_last.kelvin, 2000.0..=12000.0)
+                    egui::Slider::new(&mut g_last.color.kelvin, 2000.0..=12000.0)
                         .step_by(50.0)
                         .suffix(" K"),
                 );
@@ -721,7 +721,7 @@ impl RrawApp {
                                     );
                                 }
                             });
-                            let crop_text = if self.grading.crop_enabled {
+                            let crop_text = if self.grading.geometry.crop_enabled {
                                 t(Key::ExportCropApplied)
                             } else {
                                 ""

@@ -31,9 +31,9 @@ impl RrawApp {
             let max_h = (available_rect.height() - margin * 2.0).max(10.0);
 
             let img_size = texture.size_vec2();
-            let is_cropped_view = self.grading.crop_enabled && !self.is_crop_editing;
-            let crop_w = (self.grading.crop_right - self.grading.crop_left).clamp(0.05, 1.0);
-            let crop_h = (self.grading.crop_bottom - self.grading.crop_top).clamp(0.05, 1.0);
+            let is_cropped_view = self.grading.geometry.crop_enabled && !self.is_crop_editing;
+            let crop_w = (self.grading.geometry.crop_right - self.grading.geometry.crop_left).clamp(0.05, 1.0);
+            let crop_h = (self.grading.geometry.crop_bottom - self.grading.geometry.crop_top).clamp(0.05, 1.0);
             let effective_img_size = if is_cropped_view {
                 egui::vec2(img_size.x * crop_w, img_size.y * crop_h)
             } else {
@@ -197,8 +197,8 @@ impl RrawApp {
 
             let uv = if is_cropped_view {
                 egui::Rect::from_min_max(
-                    egui::pos2(self.grading.crop_left, self.grading.crop_top),
-                    egui::pos2(self.grading.crop_right, self.grading.crop_bottom),
+                    egui::pos2(self.grading.geometry.crop_left, self.grading.geometry.crop_top),
+                    egui::pos2(self.grading.geometry.crop_right, self.grading.geometry.crop_bottom),
                 )
             } else {
                 egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
@@ -388,10 +388,10 @@ impl RrawApp {
                                 let frac_y = (p.y - preview_rect.min.y) / ph;
                                 let (u, v) = if is_cropped_view {
                                     (
-                                        self.grading.crop_left
-                                            + frac_x * (self.grading.crop_right - self.grading.crop_left),
-                                        self.grading.crop_top
-                                            + frac_y * (self.grading.crop_bottom - self.grading.crop_top),
+                                        self.grading.geometry.crop_left
+                                            + frac_x * (self.grading.geometry.crop_right - self.grading.geometry.crop_left),
+                                        self.grading.geometry.crop_top
+                                            + frac_y * (self.grading.geometry.crop_bottom - self.grading.geometry.crop_top),
                                     )
                                 } else {
                                     (frac_x, frac_y)
@@ -460,17 +460,17 @@ impl RrawApp {
             }
 
             // Interactive mouse cropping with locked aspect ratio and dimmed mask
-            if self.grading.crop_enabled && self.is_crop_editing {
+            if self.grading.geometry.crop_enabled && self.is_crop_editing {
                 let pw = preview_rect.width();
                 let ph = preview_rect.height();
 
                 let crop_screen_min = egui::pos2(
-                    preview_rect.min.x + self.grading.crop_left * pw,
-                    preview_rect.min.y + self.grading.crop_top * ph,
+                    preview_rect.min.x + self.grading.geometry.crop_left * pw,
+                    preview_rect.min.y + self.grading.geometry.crop_top * ph,
                 );
                 let crop_screen_max = egui::pos2(
-                    preview_rect.min.x + self.grading.crop_right * pw,
-                    preview_rect.min.y + self.grading.crop_bottom * ph,
+                    preview_rect.min.x + self.grading.geometry.crop_right * pw,
+                    preview_rect.min.y + self.grading.geometry.crop_bottom * ph,
                 );
                 let crop_screen_rect =
                     egui::Rect::from_min_max(crop_screen_min, crop_screen_max);
@@ -519,7 +519,7 @@ impl RrawApp {
                 );
 
                 // 3. Rule-of-thirds composition grid
-                if self.grading.crop_show_grid {
+                if self.grading.geometry.crop_show_grid {
                     let grid_stroke = egui::Stroke::new(
                         1.0,
                         Color32::from_rgba_unmultiplied(255, 255, 255, 110),
@@ -672,126 +672,126 @@ impl RrawApp {
                     let dx = delta.x / pw;
                     let dy = delta.y / ph;
                     let img_aspect = pw / ph.max(1.0);
-                    let target_aspect = self.grading.crop_aspect.ratio(pw, ph);
+                    let target_aspect = self.grading.geometry.crop_aspect.ratio(pw, ph);
 
                     match self.crop_drag_handle {
                         CropDragHandle::Center => {
-                            let w = self.grading.crop_right - self.grading.crop_left;
-                            let h = self.grading.crop_bottom - self.grading.crop_top;
-                            let new_left = (self.grading.crop_left + dx).clamp(0.0, 1.0 - w);
-                            let new_top = (self.grading.crop_top + dy).clamp(0.0, 1.0 - h);
-                            self.grading.crop_left = new_left;
-                            self.grading.crop_right = new_left + w;
-                            self.grading.crop_top = new_top;
-                            self.grading.crop_bottom = new_top + h;
+                            let w = self.grading.geometry.crop_right - self.grading.geometry.crop_left;
+                            let h = self.grading.geometry.crop_bottom - self.grading.geometry.crop_top;
+                            let new_left = (self.grading.geometry.crop_left + dx).clamp(0.0, 1.0 - w);
+                            let new_top = (self.grading.geometry.crop_top + dy).clamp(0.0, 1.0 - h);
+                            self.grading.geometry.crop_left = new_left;
+                            self.grading.geometry.crop_right = new_left + w;
+                            self.grading.geometry.crop_top = new_top;
+                            self.grading.geometry.crop_bottom = new_top + h;
                             ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
                         }
                         CropDragHandle::BottomRight => {
-                            let new_right = (self.grading.crop_right + dx)
-                                .clamp(self.grading.crop_left + 0.05, 1.0);
+                            let new_right = (self.grading.geometry.crop_right + dx)
+                                .clamp(self.grading.geometry.crop_left + 0.05, 1.0);
                             if let Some(ratio) = target_aspect {
-                                let w_norm = new_right - self.grading.crop_left;
+                                let w_norm = new_right - self.grading.geometry.crop_left;
                                 let h_norm = w_norm * (img_aspect / ratio);
-                                if self.grading.crop_top + h_norm <= 1.0 {
-                                    self.grading.crop_bottom = self.grading.crop_top + h_norm;
-                                    self.grading.crop_right = new_right;
+                                if self.grading.geometry.crop_top + h_norm <= 1.0 {
+                                    self.grading.geometry.crop_bottom = self.grading.geometry.crop_top + h_norm;
+                                    self.grading.geometry.crop_right = new_right;
                                 }
                             } else {
-                                self.grading.crop_right = new_right;
-                                self.grading.crop_bottom = (self.grading.crop_bottom + dy)
-                                    .clamp(self.grading.crop_top + 0.05, 1.0);
+                                self.grading.geometry.crop_right = new_right;
+                                self.grading.geometry.crop_bottom = (self.grading.geometry.crop_bottom + dy)
+                                    .clamp(self.grading.geometry.crop_top + 0.05, 1.0);
                             }
                         }
                         CropDragHandle::BottomLeft => {
-                            let new_left = (self.grading.crop_left + dx)
-                                .clamp(0.0, self.grading.crop_right - 0.05);
+                            let new_left = (self.grading.geometry.crop_left + dx)
+                                .clamp(0.0, self.grading.geometry.crop_right - 0.05);
                             if let Some(ratio) = target_aspect {
-                                let w_norm = self.grading.crop_right - new_left;
+                                let w_norm = self.grading.geometry.crop_right - new_left;
                                 let h_norm = w_norm * (img_aspect / ratio);
-                                if self.grading.crop_top + h_norm <= 1.0 {
-                                    self.grading.crop_bottom = self.grading.crop_top + h_norm;
-                                    self.grading.crop_left = new_left;
+                                if self.grading.geometry.crop_top + h_norm <= 1.0 {
+                                    self.grading.geometry.crop_bottom = self.grading.geometry.crop_top + h_norm;
+                                    self.grading.geometry.crop_left = new_left;
                                 }
                             } else {
-                                self.grading.crop_left = new_left;
-                                self.grading.crop_bottom = (self.grading.crop_bottom + dy)
-                                    .clamp(self.grading.crop_top + 0.05, 1.0);
+                                self.grading.geometry.crop_left = new_left;
+                                self.grading.geometry.crop_bottom = (self.grading.geometry.crop_bottom + dy)
+                                    .clamp(self.grading.geometry.crop_top + 0.05, 1.0);
                             }
                         }
                         CropDragHandle::TopRight => {
-                            let new_right = (self.grading.crop_right + dx)
-                                .clamp(self.grading.crop_left + 0.05, 1.0);
+                            let new_right = (self.grading.geometry.crop_right + dx)
+                                .clamp(self.grading.geometry.crop_left + 0.05, 1.0);
                             if let Some(ratio) = target_aspect {
-                                let w_norm = new_right - self.grading.crop_left;
+                                let w_norm = new_right - self.grading.geometry.crop_left;
                                 let h_norm = w_norm * (img_aspect / ratio);
-                                if self.grading.crop_bottom >= h_norm {
-                                    self.grading.crop_top = self.grading.crop_bottom - h_norm;
-                                    self.grading.crop_right = new_right;
+                                if self.grading.geometry.crop_bottom >= h_norm {
+                                    self.grading.geometry.crop_top = self.grading.geometry.crop_bottom - h_norm;
+                                    self.grading.geometry.crop_right = new_right;
                                 }
                             } else {
-                                self.grading.crop_right = new_right;
-                                self.grading.crop_top = (self.grading.crop_top + dy)
-                                    .clamp(0.0, self.grading.crop_bottom - 0.05);
+                                self.grading.geometry.crop_right = new_right;
+                                self.grading.geometry.crop_top = (self.grading.geometry.crop_top + dy)
+                                    .clamp(0.0, self.grading.geometry.crop_bottom - 0.05);
                             }
                         }
                         CropDragHandle::TopLeft => {
-                            let new_left = (self.grading.crop_left + dx)
-                                .clamp(0.0, self.grading.crop_right - 0.05);
+                            let new_left = (self.grading.geometry.crop_left + dx)
+                                .clamp(0.0, self.grading.geometry.crop_right - 0.05);
                             if let Some(ratio) = target_aspect {
-                                let w_norm = self.grading.crop_right - new_left;
+                                let w_norm = self.grading.geometry.crop_right - new_left;
                                 let h_norm = w_norm * (img_aspect / ratio);
-                                if self.grading.crop_bottom >= h_norm {
-                                    self.grading.crop_top = self.grading.crop_bottom - h_norm;
-                                    self.grading.crop_left = new_left;
+                                if self.grading.geometry.crop_bottom >= h_norm {
+                                    self.grading.geometry.crop_top = self.grading.geometry.crop_bottom - h_norm;
+                                    self.grading.geometry.crop_left = new_left;
                                 }
                             } else {
-                                self.grading.crop_left = new_left;
-                                self.grading.crop_top = (self.grading.crop_top + dy)
-                                    .clamp(0.0, self.grading.crop_bottom - 0.05);
+                                self.grading.geometry.crop_left = new_left;
+                                self.grading.geometry.crop_top = (self.grading.geometry.crop_top + dy)
+                                    .clamp(0.0, self.grading.geometry.crop_bottom - 0.05);
                             }
                         }
                         CropDragHandle::Right => {
-                            self.grading.crop_right = (self.grading.crop_right + dx)
-                                .clamp(self.grading.crop_left + 0.05, 1.0);
+                            self.grading.geometry.crop_right = (self.grading.geometry.crop_right + dx)
+                                .clamp(self.grading.geometry.crop_left + 0.05, 1.0);
                             if let Some(ratio) = target_aspect {
-                                let w_norm = self.grading.crop_right - self.grading.crop_left;
+                                let w_norm = self.grading.geometry.crop_right - self.grading.geometry.crop_left;
                                 let h_norm = (w_norm * (img_aspect / ratio)).min(1.0);
-                                let cy = (self.grading.crop_top + self.grading.crop_bottom) * 0.5;
-                                self.grading.crop_top = (cy - h_norm * 0.5).clamp(0.0, 1.0 - h_norm);
-                                self.grading.crop_bottom = self.grading.crop_top + h_norm;
+                                let cy = (self.grading.geometry.crop_top + self.grading.geometry.crop_bottom) * 0.5;
+                                self.grading.geometry.crop_top = (cy - h_norm * 0.5).clamp(0.0, 1.0 - h_norm);
+                                self.grading.geometry.crop_bottom = self.grading.geometry.crop_top + h_norm;
                             }
                         }
                         CropDragHandle::Left => {
-                            self.grading.crop_left = (self.grading.crop_left + dx)
-                                .clamp(0.0, self.grading.crop_right - 0.05);
+                            self.grading.geometry.crop_left = (self.grading.geometry.crop_left + dx)
+                                .clamp(0.0, self.grading.geometry.crop_right - 0.05);
                             if let Some(ratio) = target_aspect {
-                                let w_norm = self.grading.crop_right - self.grading.crop_left;
+                                let w_norm = self.grading.geometry.crop_right - self.grading.geometry.crop_left;
                                 let h_norm = (w_norm * (img_aspect / ratio)).min(1.0);
-                                let cy = (self.grading.crop_top + self.grading.crop_bottom) * 0.5;
-                                self.grading.crop_top = (cy - h_norm * 0.5).clamp(0.0, 1.0 - h_norm);
-                                self.grading.crop_bottom = self.grading.crop_top + h_norm;
+                                let cy = (self.grading.geometry.crop_top + self.grading.geometry.crop_bottom) * 0.5;
+                                self.grading.geometry.crop_top = (cy - h_norm * 0.5).clamp(0.0, 1.0 - h_norm);
+                                self.grading.geometry.crop_bottom = self.grading.geometry.crop_top + h_norm;
                             }
                         }
                         CropDragHandle::Top => {
-                            self.grading.crop_top = (self.grading.crop_top + dy)
-                                .clamp(0.0, self.grading.crop_bottom - 0.05);
+                            self.grading.geometry.crop_top = (self.grading.geometry.crop_top + dy)
+                                .clamp(0.0, self.grading.geometry.crop_bottom - 0.05);
                             if let Some(ratio) = target_aspect {
-                                let h_norm = self.grading.crop_bottom - self.grading.crop_top;
+                                let h_norm = self.grading.geometry.crop_bottom - self.grading.geometry.crop_top;
                                 let w_norm = (h_norm * (ratio / img_aspect)).min(1.0);
-                                let cx = (self.grading.crop_left + self.grading.crop_right) * 0.5;
-                                self.grading.crop_left = (cx - w_norm * 0.5).clamp(0.0, 1.0 - w_norm);
-                                self.grading.crop_right = self.grading.crop_left + w_norm;
+                                let cx = (self.grading.geometry.crop_left + self.grading.geometry.crop_right) * 0.5;
+                                self.grading.geometry.crop_left = (cx - w_norm * 0.5).clamp(0.0, 1.0 - w_norm);
+                                self.grading.geometry.crop_right = self.grading.geometry.crop_left + w_norm;
                             }
                         }
                         CropDragHandle::Bottom => {
-                            self.grading.crop_bottom = (self.grading.crop_bottom + dy)
-                                .clamp(self.grading.crop_top + 0.05, 1.0);
+                            self.grading.geometry.crop_bottom = (self.grading.geometry.crop_bottom + dy)
+                                .clamp(self.grading.geometry.crop_top + 0.05, 1.0);
                             if let Some(ratio) = target_aspect {
-                                let h_norm = self.grading.crop_bottom - self.grading.crop_top;
+                                let h_norm = self.grading.geometry.crop_bottom - self.grading.geometry.crop_top;
                                 let w_norm = (h_norm * (ratio / img_aspect)).min(1.0);
-                                let cx = (self.grading.crop_left + self.grading.crop_right) * 0.5;
-                                self.grading.crop_left = (cx - w_norm * 0.5).clamp(0.0, 1.0 - w_norm);
-                                self.grading.crop_right = self.grading.crop_left + w_norm;
+                                let cx = (self.grading.geometry.crop_left + self.grading.geometry.crop_right) * 0.5;
+                                self.grading.geometry.crop_left = (cx - w_norm * 0.5).clamp(0.0, 1.0 - w_norm);
+                                self.grading.geometry.crop_right = self.grading.geometry.crop_left + w_norm;
                             }
                         }
                         CropDragHandle::None => {}
@@ -994,8 +994,8 @@ impl RrawApp {
                                         let rotation =
                                             (-avg_tilt * 57.29578).clamp(-45.0, 45.0);
 
-                                        self.grading.keystone_vertical = keystone;
-                                        self.grading.rotation_degrees = rotation;
+                                        self.grading.geometry.keystone_vertical = keystone;
+                                        self.grading.geometry.rotation_degrees = rotation;
                                         self.grading.preset = GradingPreset::Custom;
                                         self.current_preset = GradingPreset::Custom;
                                         self.needs_preview_update = true;
@@ -1053,7 +1053,7 @@ impl RrawApp {
                         let dy = p2.y - p1.y;
                         if (dx * dx + dy * dy) > 36.0 {
                             let angle = -dy.atan2(dx).to_degrees();
-                            self.grading.rotation_degrees = angle.clamp(-45.0, 45.0);
+                            self.grading.geometry.rotation_degrees = angle.clamp(-45.0, 45.0);
                             self.grading.preset = GradingPreset::Custom;
                             self.current_preset = GradingPreset::Custom;
                             self.needs_preview_update = true;

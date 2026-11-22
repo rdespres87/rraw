@@ -69,15 +69,15 @@ fn grading_presets_modify_parameters_correctly() {
     let mut grading = DarkroomGradingState::default();
 
     GradingPreset::DaylightPunch.apply(&mut grading);
-    assert!((grading.exposure_ev - 0.3).abs() < 1e-5);
-    assert!((grading.contrast - 15.0).abs() < 1e-5);
+    assert!((grading.tone.exposure_ev - 0.3).abs() < 1e-5);
+    assert!((grading.tone.contrast - 15.0).abs() < 1e-5);
 
     GradingPreset::MonochromeFineArt.apply(&mut grading);
-    assert!(grading.is_monochrome);
+    assert!(grading.color.is_monochrome);
 
     GradingPreset::AsShot.apply(&mut grading);
-    assert!(!grading.is_monochrome);
-    assert!((grading.exposure_ev - 0.0).abs() < 1e-5);
+    assert!(!grading.color.is_monochrome);
+    assert!((grading.tone.exposure_ev - 0.0).abs() < 1e-5);
 }
 
 #[test]
@@ -120,43 +120,49 @@ fn film_simulation_presets_configure_curves_and_parameters() {
     let mut chrome = DarkroomGradingState::default();
     GradingPreset::FujiClassicChrome.apply(&mut chrome);
     assert!(
-        chrome.saturation < -10.0,
+        chrome.tone.saturation < -10.0,
         "Classic Chrome should have muted saturation"
     );
-    assert!(!chrome.is_monochrome);
+    assert!(!chrome.color.is_monochrome);
 
     let mut portra = DarkroomGradingState::default();
     GradingPreset::KodakPortra400.apply(&mut portra);
-    assert!(portra.shadows > 10.0, "Portra 400 should lift shadows");
-    assert!(!portra.is_monochrome);
+    assert!(portra.tone.shadows > 10.0, "Portra 400 should lift shadows");
+    assert!(!portra.color.is_monochrome);
 
     let mut velvia = DarkroomGradingState::default();
     GradingPreset::FujiVelvia50.apply(&mut velvia);
     assert!(
-        velvia.saturation > 20.0,
+        velvia.tone.saturation > 20.0,
         "Velvia 50 should boost saturation"
     );
-    assert!(!velvia.is_monochrome);
+    assert!(!velvia.color.is_monochrome);
 
     let mut tri_x = DarkroomGradingState::default();
     GradingPreset::KodakTriX400.apply(&mut tri_x);
-    assert!(tri_x.is_monochrome, "Tri-X 400 must be monochrome");
-    assert!(tri_x.contrast > 30.0, "Tri-X 400 must have high contrast");
+    assert!(tri_x.color.is_monochrome, "Tri-X 400 must be monochrome");
+    assert!(
+        tri_x.tone.contrast > 30.0,
+        "Tri-X 400 must have high contrast"
+    );
 
     let mut hp5 = DarkroomGradingState::default();
     GradingPreset::IlfordHp5.apply(&mut hp5);
-    assert!(hp5.is_monochrome, "Ilford HP5 must be monochrome");
-    assert!(hp5.shadows > 10.0, "HP5 should preserve shadow latitude");
+    assert!(hp5.color.is_monochrome, "Ilford HP5 must be monochrome");
+    assert!(
+        hp5.tone.shadows > 10.0,
+        "HP5 should preserve shadow latitude"
+    );
 
     let mut sepia = DarkroomGradingState::default();
     GradingPreset::SepiaVintage.apply(&mut sepia);
     assert_eq!(sepia.preset, GradingPreset::SepiaVintage);
-    assert!(sepia.kelvin > 6500.0, "Sepia should have warm kelvin");
+    assert!(sepia.color.kelvin > 6500.0, "Sepia should have warm kelvin");
     assert!(
-        sepia.creative_vignette_amount < -20.0,
+        sepia.optics.creative_vignette_amount < -20.0,
         "Sepia should have subtle dark creative vignette"
     );
-    assert!(!sepia.is_monochrome);
+    assert!(!sepia.color.is_monochrome);
 }
 
 #[test]
@@ -263,16 +269,25 @@ fn sidecar_saving_and_loading_roundtrip() -> Result<(), Box<dyn std::error::Erro
 
     let grading = DarkroomGradingState {
         preset: app::GradingPreset::DaylightPunch,
-        exposure_ev: 1.25,
-        contrast: 20.0,
-        highlights: -15.0,
-        shadows: 25.0,
-        kelvin: 6200.0,
-        defringe_purple_amount: 45.0,
-        defringe_green_amount: 30.0,
-        creative_vignette_amount: -35.0,
-        creative_vignette_midpoint: 40.0,
-        is_monochrome: true,
+        tone: rraw_app::grading::ToneGradingParams {
+            exposure_ev: 1.25,
+            contrast: 20.0,
+            highlights: -15.0,
+            shadows: 25.0,
+            ..Default::default()
+        },
+        color: rraw_app::grading::ColorGradingParams {
+            kelvin: 6200.0,
+            is_monochrome: true,
+            ..Default::default()
+        },
+        optics: rraw_app::grading::OpticsGradingParams {
+            defringe_purple_amount: 45.0,
+            defringe_green_amount: 30.0,
+            creative_vignette_amount: -35.0,
+            creative_vignette_midpoint: 40.0,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let rating = 4_u8;
@@ -303,16 +318,16 @@ fn sidecar_saving_and_loading_roundtrip() -> Result<(), Box<dyn std::error::Erro
     let (loaded_grading, loaded_rating) = app::load_photo_sidecars(&photo_path);
     let g = loaded_grading.ok_or("grading must be loaded from recipe")?;
     assert_eq!(g.preset, app::GradingPreset::DaylightPunch);
-    assert!((g.exposure_ev - 1.25).abs() < 1e-4);
-    assert!((g.contrast - 20.0).abs() < 1e-4);
-    assert!((g.highlights - (-15.0)).abs() < 1e-4);
-    assert!((g.shadows - 25.0).abs() < 1e-4);
-    assert!((g.kelvin - 6200.0).abs() < 1e-4);
-    assert!((g.defringe_purple_amount - 45.0).abs() < 1e-4);
-    assert!((g.defringe_green_amount - 30.0).abs() < 1e-4);
-    assert!((g.creative_vignette_amount - (-35.0)).abs() < 1e-4);
-    assert!((g.creative_vignette_midpoint - 40.0).abs() < 1e-4);
-    assert!(g.is_monochrome);
+    assert!((g.tone.exposure_ev - 1.25).abs() < 1e-4);
+    assert!((g.tone.contrast - 20.0).abs() < 1e-4);
+    assert!((g.tone.highlights - (-15.0)).abs() < 1e-4);
+    assert!((g.tone.shadows - 25.0).abs() < 1e-4);
+    assert!((g.color.kelvin - 6200.0).abs() < 1e-4);
+    assert!((g.optics.defringe_purple_amount - 45.0).abs() < 1e-4);
+    assert!((g.optics.defringe_green_amount - 30.0).abs() < 1e-4);
+    assert!((g.optics.creative_vignette_amount - (-35.0)).abs() < 1e-4);
+    assert!((g.optics.creative_vignette_midpoint - 40.0).abs() < 1e-4);
+    assert!(g.color.is_monochrome);
     assert_eq!(loaded_rating, Some(4));
 
     // Cleanup
@@ -368,21 +383,30 @@ fn test_imgp3879_exposure_and_tones() -> Result<(), Box<dyn std::error::Error>> 
     let (p0, _) = app::render_preview_from_base(&base, &g0);
 
     let g_exp = DarkroomGradingState {
-        exposure_ev: 2.0,
+        tone: ToneGradingParams {
+            exposure_ev: 2.0,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let (p_exp, _) = app::render_preview_from_base(&base, &g_exp);
     assert!(p_exp.pixels[p_exp.pixels.len() / 2].r() > p0.pixels[p0.pixels.len() / 2].r());
 
     let g_shadow = DarkroomGradingState {
-        shadows: 50.0,
+        tone: ToneGradingParams {
+            shadows: 50.0,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let (p_shadow, _) = app::render_preview_from_base(&base, &g_shadow);
     assert!(p_shadow.pixels[p_shadow.pixels.len() / 2].r() > p0.pixels[p0.pixels.len() / 2].r());
 
     let g_high = DarkroomGradingState {
-        highlights: -50.0,
+        tone: ToneGradingParams {
+            highlights: -50.0,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let (p_high, _) = app::render_preview_from_base(&base, &g_high);
@@ -409,7 +433,10 @@ fn crop_toggle_and_dimensions_test() -> Result<(), rraw_core::CoreError> {
         app::BaseRgbPreview::from_cfa_with_color_and_target_width(&cfa, [2.0, 1.0, 1.5], None, 400);
 
     let g_uncropped = DarkroomGradingState {
-        crop_enabled: false,
+        geometry: rraw_app::state::GeometryGradingParams {
+            crop_enabled: false,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let (w_un, h_un, _, _) = app::render_export_image(&base, &g_uncropped, 1.0);
@@ -417,11 +444,14 @@ fn crop_toggle_and_dimensions_test() -> Result<(), rraw_core::CoreError> {
     assert_eq!(h_un, base.height);
 
     let g_cropped = DarkroomGradingState {
-        crop_enabled: true,
-        crop_left: 0.25,
-        crop_right: 0.75,
-        crop_top: 0.25,
-        crop_bottom: 0.75,
+        geometry: rraw_app::state::GeometryGradingParams {
+            crop_enabled: true,
+            crop_left: 0.25,
+            crop_right: 0.75,
+            crop_top: 0.25,
+            crop_bottom: 0.75,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let (w_cr, h_cr, _, _) = app::render_export_image(&base, &g_cropped, 1.0);
@@ -445,9 +475,12 @@ fn geometry_toggle_bypasses_keystone_when_disabled() -> Result<(), rraw_core::Co
     let (p_default, _) = app::render_preview_from_base(&base, &g_default);
 
     let g_geom_disabled = DarkroomGradingState {
-        geometry_enabled: false,
-        keystone_vertical: 35.0,
-        keystone_horizontal: 20.0,
+        geometry: rraw_app::state::GeometryGradingParams {
+            geometry_enabled: false,
+            keystone_vertical: 35.0,
+            keystone_horizontal: 20.0,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let (p_disabled, _) = app::render_preview_from_base(&base, &g_geom_disabled);
@@ -593,8 +626,11 @@ fn test_before_after_untouched_original_state() {
 
     let original_state = DarkroomGradingState::default();
     let modified_state = DarkroomGradingState {
-        exposure_ev: 2.0,
-        contrast: 50.0,
+        tone: ToneGradingParams {
+            exposure_ev: 2.0,
+            contrast: 50.0,
+            ..Default::default()
+        },
         ..Default::default()
     };
 
@@ -975,7 +1011,10 @@ fn test_soft_proofing_and_gamut_warning_in_preview_and_sidecar(
 
     // 1. Default render (Soft Proofing disabled)
     let g_default = DarkroomGradingState {
-        saturation: 65.0,
+        tone: ToneGradingParams {
+            saturation: 65.0,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let (img_normal, hist_normal) = app::render_preview_from_base(&base, &g_default);
@@ -986,7 +1025,10 @@ fn test_soft_proofing_and_gamut_warning_in_preview_and_sidecar(
 
     // 2. Enable Soft Proofing on Fine Art Matte Paper with Paper & Ink simulation
     let g_matte_proof = DarkroomGradingState {
-        saturation: 65.0,
+        tone: ToneGradingParams {
+            saturation: 65.0,
+            ..Default::default()
+        },
         soft_proof: SoftProofConfig {
             enabled: true,
             profile: SoftProofProfile::FineArtMattePaper,
@@ -1069,14 +1111,26 @@ fn test_timelapse_sequence_grading_pipeline_deflickers_and_ramps_keyframes(
 
     // Frame 0 is Daylight (0.0 EV, 5600K), Frame 4 is Sunset/Night (+1.0 EV, 3600K)
     let g_start = DarkroomGradingState {
-        exposure_ev: 0.0,
-        kelvin: 5600.0,
+        tone: ToneGradingParams {
+            exposure_ev: 0.0,
+            ..Default::default()
+        },
+        color: ColorGradingParams {
+            kelvin: 5600.0,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let g_mid = DarkroomGradingState::default();
     let g_end = DarkroomGradingState {
-        exposure_ev: 1.0,
-        kelvin: 3600.0,
+        tone: ToneGradingParams {
+            exposure_ev: 1.0,
+            ..Default::default()
+        },
+        color: ColorGradingParams {
+            kelvin: 3600.0,
+            ..Default::default()
+        },
         ..Default::default()
     };
 
@@ -1103,9 +1157,9 @@ fn test_timelapse_sequence_grading_pipeline_deflickers_and_ramps_keyframes(
 
     // Midpoint (frame 2) Kelvin must be ramped to 4600K
     assert!(
-        (final_gradings[2].kelvin - 4600.0).abs() < 1.0,
+        (final_gradings[2].color.kelvin - 4600.0).abs() < 1.0,
         "Keyframe ramping must interpolate Kelvin at midpoint to 4600K, got {}",
-        final_gradings[2].kelvin
+        final_gradings[2].color.kelvin
     );
 
     // Frame 2 had a +0.30 EV sensor brightness spike -> deflicker offset must be negative
@@ -1115,7 +1169,7 @@ fn test_timelapse_sequence_grading_pipeline_deflickers_and_ramps_keyframes(
         offsets_ev[2]
     );
     // Final exposure on frame 2 is ramped base (0.5 EV) + negative deflicker offset (< 0.40 EV)
-    assert!(final_gradings[2].exposure_ev < 0.42);
+    assert!(final_gradings[2].tone.exposure_ev < 0.42);
 
     Ok(())
 }
@@ -1177,10 +1231,16 @@ fn test_chroma_and_luma_denoise_reduces_variance_in_rendered_preview_and_export(
 
     // Render with zero denoise and identity optics
     let no_denoise = DarkroomGradingState {
-        distortion_correction: false,
-        vignette_correction: false,
-        color_denoise: 0.0,
-        luma_denoise: 0.0,
+        optics: OpticsGradingParams {
+            distortion_correction: false,
+            vignette_correction: false,
+            ..Default::default()
+        },
+        denoise_sharpen: DenoiseSharpenParams {
+            color_denoise: 0.0,
+            luma_denoise: 0.0,
+            ..Default::default()
+        },
         smart_lighting: rraw_core::SmartLightingParams::default(),
         ..Default::default()
     };
@@ -1188,10 +1248,16 @@ fn test_chroma_and_luma_denoise_reduces_variance_in_rendered_preview_and_export(
 
     // Render with active chroma & luma denoise
     let with_denoise = DarkroomGradingState {
-        distortion_correction: false,
-        vignette_correction: false,
-        color_denoise: 90.0,
-        luma_denoise: 80.0,
+        optics: OpticsGradingParams {
+            distortion_correction: false,
+            vignette_correction: false,
+            ..Default::default()
+        },
+        denoise_sharpen: DenoiseSharpenParams {
+            color_denoise: 90.0,
+            luma_denoise: 80.0,
+            ..Default::default()
+        },
         smart_lighting: rraw_core::SmartLightingParams::default(),
         ..Default::default()
     };

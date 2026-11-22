@@ -543,8 +543,8 @@ impl RrawApp {
 
     /// Pastes the in-memory clipboard recipe onto a single target photograph.
     pub fn paste_recipe_to_path(&mut self, target_path: &Path, ctx: &egui::Context) {
-        let clipboard = match &self.recipe_clipboard {
-            Some(c) => c.clone(),
+        let clipboard = match self.recipe_clipboard.clone() {
+            Some(c) => c,
             None => {
                 self.status_message =
                     "Presse-papiers vide : copiez un rendu d'abord (Cmd+Shift+C)".to_string();
@@ -559,8 +559,8 @@ impl RrawApp {
     /// Pastes the in-memory clipboard recipe onto all selected photos in the filmstrip,
     /// or onto the currently active photo if no batch selection is active.
     pub fn paste_recipe_to_selection(&mut self, ctx: &egui::Context) {
-        let clipboard = match &self.recipe_clipboard {
-            Some(c) => c.clone(),
+        let clipboard = match self.recipe_clipboard.clone() {
+            Some(c) => c,
             None => {
                 self.status_message =
                     "Presse-papiers vide : copiez un rendu d'abord (Cmd+Shift+C)".to_string();

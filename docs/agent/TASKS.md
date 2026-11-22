@@ -95,4 +95,33 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 - [x] **Task 14.2 (`rraw-gpu` & `rraw-app`)**: Pipeline & GPU/CPU Integration (Real-time WGSL / CPU preview execution, scale-invariant downsample factor handling $N_{\text{effective}} = N_{\text{octaves}} - L$, chromaticity preservation avoiding desaturation or hue shifts in recovered shadows/highlights)
 - [x] **Task 14.3 (`rraw-app`)**: Smart Lighting UI Inspector & Preset Integration (Controls in `DarkroomSection::ExposureTone`: Modes `Off` / `Slight` / `Medium` / `Strong` / `Custom`, intensity slider, sidecar `.rraw.json` persistence, batch clipboard copy/paste in Phase 12 model, Fr/En i18n keys)
 
+---
+
+## Phase 15 — Architectural Hardening: State De-Obesity, UI Modularization & Scalable i18n
+- [x] **Task 15.1 (`rraw-core` & `rraw-app`)**: State De-Obesity & Domain Hierarchy
+  - Decompose monolithic flat `DarkroomGradingState` (57 fields) into cohesive, composable domain sub-structs:
+    - `ToneGradingParams` (exposure, contrast, highlights, shadows, blacks, saturation, vibrance)
+    - `ColorGradingParams` (kelvin, tint, display_transform, is_monochrome)
+    - `DenoiseSharpenParams` (wavelet_sigma, color_denoise, luma_denoise, capture_sharpening)
+    - `OpticsGradingParams` (tab, auto_profile, strengths, manual distortion, CA, defringe, vignetting)
+    - `GeometryGradingParams` (crop coordinates/aspect, rotation, flips, keystone, auto_crop)
+  - Align `SidecarRecipe` using Serde `#[serde(flatten)]` to ensure 100% strict backward and forward compatibility with existing `.rraw.json` sidecar files without field name collisions.
+  - TDD test suite `state_de_obesity_tests.rs` passing, 247 workspace tests passing, 0 clippy warnings, Qwen 3.6 35B Inquisitor APPROVED.
+
+- [ ] **Task 15.2 (`rraw-app`)**: Monolithic File & Function Decomposition
+  - Decompose `crates/rraw-app/src/ui/inspector.rs` (2,087 lines) & `render_darkroom_section` (1,773 lines) into isolated modular submodules under `crates/rraw-app/src/ui/sections/`:
+    - `sections/exposure_tone.rs`, `sections/white_balance.rs`, `sections/optics.rs`, `sections/denoise_sharpen.rs`, `sections/geometry.rs`, `sections/smart_lighting.rs`, `sections/curves.rs`, `sections/soft_proofing.rs`.
+    - Enforce the principle of least privilege: each section widget accepts only its specific domain parameter struct (e.g. `&mut ToneGradingParams`) rather than `&mut RrawApp` or full grading state.
+  - Decompose `crates/rraw-app/src/ui/viewport.rs` (1,231 lines) & `render_central_viewport` (1,134 lines) into modular subcomponents:
+    - `viewport/canvas.rs`, `viewport/hud.rs`, `viewport/split_compare.rs`, `viewport/overlay_masks.rs`, `viewport/navigation.rs`.
+  - Decompose `crates/rraw-app/src/preview.rs` (2,264 lines) into dedicated processing layers:
+    - `preview/pipeline.rs` (rendering execution), `preview/cache.rs` (MRU & texture pooling), `preview/masks.rs` (local adjustments evaluation).
+
+- [ ] **Task 15.3 (`rraw-app`)**: Scalable External Resource-Based i18n Engine
+  - Replace the 1,380-line hardcoded `match (self, lang)` table in `crates/rraw-app/src/i18n/mod.rs` with externalized translation catalogs (Fluent `.ftl` or embedded structured TOML/JSON resources under `assets/i18n/`).
+  - Implement parameterized interpolation support (`{count}`, `{photo}`, `{zoom}`) and formal pluralization rules, eliminating manual ad-hoc string formatting in UI views.
+  - Enable zero-code language addition: adding a new language (e.g. Spanish `es.ftl`, German `de.ftl`, Japanese `ja.ftl`) only requires dropping the translation file into `assets/i18n/` without modifying or recompiling core UI dispatch logic.
+  - Preserve zero-allocation runtime lookup for static labels and instant live-switch without application restart.
+
+
 
