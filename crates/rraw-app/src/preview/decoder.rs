@@ -117,6 +117,8 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
                     }),
                     exif_orientation: 1,
                     matched_lens: None,
+                    focal_length_mm: None,
+                    aperture_f_number: None,
                 };
                 let (preview, _) = render_preview_from_base(&base, &grading);
                 return Some(create_thumbnail_from_preview(&preview, &grading, 140, 100));
@@ -294,6 +296,8 @@ pub fn decode_photo_file_payload(
     )
     .with_exif_orientation(orient);
     base.matched_lens = Some(matched_lens);
+    base.focal_length_mm = meta.focal_length_mm;
+    base.aperture_f_number = meta.aperture_f_number;
 
     Some(BackgroundDecodePayload {
         epoch,

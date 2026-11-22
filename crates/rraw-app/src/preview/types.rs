@@ -161,6 +161,10 @@ pub struct BaseRgbPreview {
     pub exif_orientation: u16,
     /// Calibrated lens profile matched from EXIF metadata.
     pub matched_lens: Option<rraw_optics::MatchedLens>,
+    /// Lens focal length in mm.
+    pub focal_length_mm: Option<f32>,
+    /// Lens aperture f-number.
+    pub aperture_f_number: Option<f32>,
 }
 
 impl BaseRgbPreview {
@@ -203,6 +207,8 @@ impl BaseRgbPreview {
                 semantic_masks,
                 exif_orientation: 1,
                 matched_lens: None,
+                focal_length_mm: None,
+                aperture_f_number: None,
             };
         }
 
@@ -234,6 +240,8 @@ impl BaseRgbPreview {
                 semantic_masks,
                 exif_orientation: 1,
                 matched_lens: None,
+                focal_length_mm: None,
+                aperture_f_number: None,
             };
         }
 
@@ -318,6 +326,8 @@ impl BaseRgbPreview {
             semantic_masks,
             exif_orientation: 1,
             matched_lens: None,
+            focal_length_mm: None,
+            aperture_f_number: None,
         }
     }
 
@@ -362,6 +372,8 @@ impl BaseRgbPreview {
             semantic_masks,
             exif_orientation: 1,
             matched_lens: None,
+            focal_length_mm: None,
+            aperture_f_number: None,
         }
     }
 

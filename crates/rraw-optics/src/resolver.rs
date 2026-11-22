@@ -11,7 +11,7 @@ impl OpticalResolver {
     /// Selects the appropriate optical resolution tier based on metadata availability.
     #[must_use]
     pub fn resolve_tier(&self, metadata: &PhotoMetadata) -> OpticalResolutionTier {
-        if metadata.vignette_handled_by_gainmap {
+        if metadata.dng_warp_rectilinear.is_some() || metadata.vignette_handled_by_gainmap {
             OpticalResolutionTier::Tier1EmbeddedRawOpcodes
         } else if metadata.lens_model.is_some() {
             OpticalResolutionTier::Tier2LensfunXml
@@ -28,11 +28,16 @@ impl OpticalResolver {
         tier: OpticalResolutionTier,
     ) -> OpticalCorrectionModel {
         match tier {
-            OpticalResolutionTier::Tier1EmbeddedRawOpcodes => OpticalCorrectionModel {
-                distortion: DistortionPoly::default(),
-                lateral_ca: LateralTca::default(),
-                vignette: RadialVignette::default(),
-            },
+            OpticalResolutionTier::Tier1EmbeddedRawOpcodes => {
+                if let Some(dng_warp) = &metadata.dng_warp_rectilinear {
+                    OpticalCorrectionModel::from_dng_warp_rectilinear(
+                        dng_warp.planes,
+                        &dng_warp.coefficients,
+                    )
+                } else {
+                    OpticalCorrectionModel::default()
+                }
+            }
             OpticalResolutionTier::Tier2LensfunXml => {
                 LensfunDatabase::global().match_metadata(metadata).model
             }

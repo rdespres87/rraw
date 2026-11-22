@@ -249,6 +249,8 @@ fn test_optical_mode_isolation_profile_vs_manual() {
         }),
         exif_orientation: 1,
         matched_lens: Some(fake_matched),
+        focal_length_mm: Some(50.0),
+        aperture_f_number: Some(2.8),
     };
 
     // 1. Identity baseline (no profile, manual disabled)
@@ -345,4 +347,57 @@ fn test_untouched_raw_reference_view_all_corrections_disabled() {
     assert_eq!(untouched.denoise_sharpen.wavelet_denoise_sigma, 0.0);
     assert_eq!(untouched.denoise_sharpen.color_denoise, 0.0);
     assert_eq!(untouched.denoise_sharpen.capture_sharpening_amount, 0.0);
+}
+
+#[test]
+fn test_manual_lens_profile_override_in_preview_pipeline() {
+    use rraw_app::preview::{render_preview_from_base, BaseRgbPreview};
+    use rraw_app::state::DarkroomGradingState;
+
+    let base = BaseRgbPreview {
+        width: 100,
+        height: 100,
+        samples_rgb: vec![[0.5, 0.5, 0.5]; 10000],
+        as_shot_wb: [1.0, 1.0, 1.0],
+        cam_to_srgb: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        semantic_masks: std::sync::Arc::new(rraw_ai::SemanticMaskSet {
+            width: 100,
+            height: 100,
+            subject: vec![0.0; 10000],
+            sky: vec![0.0; 10000],
+            background: vec![0.0; 10000],
+            portrait: vec![0.0; 10000],
+        }),
+        exif_orientation: 1,
+        matched_lens: Some(rraw_optics::MatchedLens {
+            profile_name: "Generic Fallback Lens".to_string(),
+            maker: "Generic".to_string(),
+            model: rraw_optics::OpticalCorrectionModel {
+                distortion: rraw_optics::DistortionPoly::barrel(-0.02),
+                lateral_ca: rraw_optics::LateralTca::default(),
+                vignette: rraw_optics::RadialVignette::default(),
+            },
+            is_exact_match: false,
+        }),
+        focal_length_mm: Some(24.0),
+        aperture_f_number: Some(1.8),
+    };
+
+    let mut grading = DarkroomGradingState::default();
+    grading.optics.optical_tab = rraw_app::state::OpticalCorrectionTab::Profile;
+    grading.optics.lens_profile_auto = true;
+
+    // 1. Default detected preview
+    let (p_default, _) = render_preview_from_base(&base, &grading);
+    assert_eq!(p_default.width(), 100);
+
+    // 2. Manual override with a calibrated Lensfun lens
+    grading.optics.lens_profile_override = Some("Sigma 18-35mm F1.8 DC HSM | Art".to_string());
+    let (p_override, _) = render_preview_from_base(&base, &grading);
+    assert_eq!(p_override.width(), 100);
+
+    // 3. Reset manual override
+    grading.optics.lens_profile_override = None;
+    let (p_reset, _) = render_preview_from_base(&base, &grading);
+    assert_eq!(p_reset.pixels[0], p_default.pixels[0]);
 }

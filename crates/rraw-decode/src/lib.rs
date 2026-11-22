@@ -129,6 +129,7 @@ impl RawDecoder for PureRustRawDecoder {
                 rraw_core::NoiseProfileSource::WaveletMadFallback,
             )?,
             vignette_handled_by_gainmap: false,
+            dng_warp_rectilinear: None,
             rating: 0,
             pick: PickStatus::Unflagged,
             label: ColorLabel::None,
@@ -188,6 +189,36 @@ impl RawDecoder for PureRustRawDecoder {
 
         // Read complete EXIF tags using rawler's IFD parser
         if let Ok(rawsource) = rawler::rawsource::RawSource::new(path) {
+            // Extract binary DNG opcodes (WarpRectilinear, GainMap, FixVignetteRadial)
+            let dng_opcodes = opcodes::extract_dng_opcodes(&rawsource);
+            for op in &dng_opcodes {
+                match op {
+                    opcodes::DngOpcode::WarpRectilinear {
+                        planes,
+                        coefficients,
+                        ..
+                    } => {
+                        dummy_meta.dng_warp_rectilinear = Some(rraw_core::DngWarpRectilinearData {
+                            planes: *planes,
+                            coefficients: coefficients.clone(),
+                        });
+                        exif_tags.push((
+                            "DNG Lens Opcode".to_string(),
+                            format!(
+                                "WarpRectilinear ({} planes, {} coeffs)",
+                                planes,
+                                coefficients.len()
+                            ),
+                        ));
+                    }
+                    opcodes::DngOpcode::GainMap { .. }
+                    | opcodes::DngOpcode::FixVignetteRadial { .. } => {
+                        dummy_meta.vignette_handled_by_gainmap = true;
+                    }
+                    _ => {}
+                }
+            }
+
             if let Ok(decoder) = rawler::get_decoder(&rawsource) {
                 if let Ok(rmeta) =
                     decoder.raw_metadata(&rawsource, &rawler::decoders::RawDecodeParams::default())
@@ -659,6 +690,7 @@ mod tests {
                 NoiseProfileSource::DngTag0xc761,
             )?,
             vignette_handled_by_gainmap: false,
+            dng_warp_rectilinear: None,
             rating: 0,
             pick: PickStatus::Unflagged,
             label: ColorLabel::None,

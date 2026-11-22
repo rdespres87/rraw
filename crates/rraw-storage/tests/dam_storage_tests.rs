@@ -99,6 +99,7 @@ fn test_sqlite_dam_index_and_filtering() {
         cfa_pattern: CfaPattern::Bayer(BayerOrigin::Rggb),
         noise_profile,
         vignette_handled_by_gainmap: false,
+        dng_warp_rectilinear: None,
         rating: 5,
         pick: PickStatus::Pick,
         label: ColorLabel::Green,

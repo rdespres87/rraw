@@ -35,6 +35,7 @@ fn make_dummy_metadata(gainmap: bool, lens: Option<&str>) -> Option<PhotoMetadat
         rating: 0,
         pick: PickStatus::Unflagged,
         vignette_handled_by_gainmap: gainmap,
+        dng_warp_rectilinear: None,
         keywords: Vec::new(),
     })
 }
@@ -183,4 +184,77 @@ fn test_catmull_rom_warp_rectification_and_positive_clamp() {
             "Warped pixel at index {i} must be >= 0.0 (found: {val})"
         );
     }
+}
+
+#[test]
+fn test_dng_warp_rectilinear_opcode_conversion_and_tier_1_resolution() {
+    let resolver = OpticalResolver;
+
+    // Synthetic 1-plane DNG WarpRectilinear coefficients: [k0, k1, k2, k3]
+    let coeffs_1plane = vec![1.0, 0.02, -0.005, 0.001];
+    let model_1plane = OpticalCorrectionModel::from_dng_warp_rectilinear(1, &coeffs_1plane);
+    assert!((model_1plane.distortion.k1 - 0.02).abs() < 1e-5);
+    assert!((model_1plane.distortion.k2 - -0.005).abs() < 1e-5);
+    assert!((model_1plane.distortion.k3 - 0.001).abs() < 1e-5);
+    assert_eq!(model_1plane.lateral_ca.scale_r, 1.0);
+    assert_eq!(model_1plane.lateral_ca.scale_b, 1.0);
+
+    // Synthetic 3-plane DNG WarpRectilinear coefficients (12 coeffs total: R, G, B)
+    // Plane 0 (Red): k0=1.002, k1=0.021
+    // Plane 1 (Green): k0=1.000, k1=0.020, k2=-0.005, k3=0.001
+    // Plane 2 (Blue): k0=0.998, k1=0.019
+    let coeffs_3planes = vec![
+        1.002, 0.021, 0.0, 0.0, // Plane 0: Red
+        1.000, 0.020, -0.005, 0.001, // Plane 1: Green
+        0.998, 0.019, 0.0, 0.0, // Plane 2: Blue
+    ];
+    let model_3planes = OpticalCorrectionModel::from_dng_warp_rectilinear(3, &coeffs_3planes);
+    assert!((model_3planes.distortion.k1 - 0.020).abs() < 1e-5);
+    assert!((model_3planes.lateral_ca.scale_r - 1.002).abs() < 1e-5);
+    assert!((model_3planes.lateral_ca.scale_b - 0.998).abs() < 1e-5);
+
+    // Verify metadata priority in OpticalResolver & LensfunDatabase
+    let mut meta = match make_dummy_metadata(false, Some("Unknown Custom Lens")) {
+        Some(m) => m,
+        None => return,
+    };
+    meta.dng_warp_rectilinear = Some(rraw_core::DngWarpRectilinearData {
+        planes: 3,
+        coefficients: coeffs_3planes,
+    });
+
+    let tier = resolver.resolve_tier(&meta);
+    assert_eq!(tier, OpticalResolutionTier::Tier1EmbeddedRawOpcodes);
+
+    let matched = rraw_optics::LensfunDatabase::global().match_metadata(&meta);
+    assert_eq!(matched.maker, "DNG Embedded");
+    assert!(matched.is_exact_match);
+    assert!(matched.profile_name.contains("DNG Opcode"));
+    assert!((matched.model.distortion.k1 - 0.020).abs() < 1e-5);
+}
+
+#[test]
+fn test_dng_warp_rectilinear_uv_lut_generation() {
+    let coeffs = vec![
+        1.001, 0.01, 0.0, 0.0, 1.000, 0.01, 0.0, 0.0, 0.999, 0.01, 0.0, 0.0,
+    ];
+    let lut = UvLutGenerator::generate_from_dng_warp_rectilinear(3, &coeffs, 128);
+    assert_eq!(lut.dimension, 128);
+    assert_eq!(lut.uv_r.len(), 128 * 128 * 2);
+    assert_eq!(lut.uv_g.len(), 128 * 128 * 2);
+    assert_eq!(lut.uv_b.len(), 128 * 128 * 2);
+
+    // Center coordinates at normalized (0.5, 0.5) must be preserved
+    let center_idx = (64 * 128 + 64) * 2;
+    assert!((lut.uv_g[center_idx] - 0.5).abs() < 0.02);
+    assert!((lut.uv_g[center_idx + 1] - 0.5).abs() < 0.02);
+}
+
+#[test]
+fn test_lensfun_search_lenses() {
+    let db = rraw_optics::LensfunDatabase::global();
+    let results = db.search_lenses("Sigma 18-35mm", 5);
+    assert!(!results.is_empty(), "Database must find Sigma 18-35mm");
+    assert!(results[0].to_lowercase().contains("sigma"));
+    assert!(results[0].contains("18-35mm"));
 }

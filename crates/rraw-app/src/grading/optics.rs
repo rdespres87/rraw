@@ -22,6 +22,10 @@ pub struct OpticsGradingParams {
     pub optical_tab: OpticalCorrectionTab,
     #[serde(default = "default_true_bool")]
     pub lens_profile_auto: bool,
+    #[serde(default)]
+    pub lens_profile_override: Option<String>,
+    #[serde(default)]
+    pub lens_search_query: String,
     #[serde(default = "default_100_f32")]
     pub lens_distortion_strength: f32,
     #[serde(default = "default_100_f32")]
@@ -48,6 +52,8 @@ impl Default for OpticsGradingParams {
         Self {
             optical_tab: OpticalCorrectionTab::Profile,
             lens_profile_auto: true,
+            lens_profile_override: None,
+            lens_search_query: String::new(),
             lens_distortion_strength: 100.0,
             lens_vignette_strength: 100.0,
             lens_ca_strength: 100.0,
@@ -71,6 +77,8 @@ impl OpticsGradingParams {
         Self {
             optical_tab: OpticalCorrectionTab::Manual,
             lens_profile_auto: false,
+            lens_profile_override: None,
+            lens_search_query: String::new(),
             lens_distortion_strength: 0.0,
             lens_vignette_strength: 0.0,
             lens_ca_strength: 0.0,

@@ -485,7 +485,29 @@ impl RrawApp {
                             ),
                             DarkroomSection::OpticalCorrections => {
                                 let lens_info = if let Some(base) = &self.session.base_preview {
-                                    if let Some(matched) = &base.matched_lens {
+                                    let active_matched = if let Some(override_name) =
+                                        &self.session.grading.optics.lens_profile_override
+                                    {
+                                        let focal = base.focal_length_mm.unwrap_or(50.0);
+                                        let aperture = base.aperture_f_number;
+                                        rraw_optics::LensfunDatabase::global()
+                                            .find_lens(override_name)
+                                            .map(|lens| rraw_optics::MatchedLens {
+                                                profile_name: format!(
+                                                    "{} {}",
+                                                    lens.maker, lens.model
+                                                ),
+                                                maker: lens.maker.clone(),
+                                                model: rraw_optics::LensfunDatabase::global()
+                                                    .interpolate_model(lens, focal, aperture),
+                                                is_exact_match: true,
+                                            })
+                                            .or_else(|| base.matched_lens.clone())
+                                    } else {
+                                        base.matched_lens.clone()
+                                    };
+
+                                    if let Some(matched) = active_matched {
                                         let meta_str =
                                             if let Some(photo) = &self.session.loaded_photo {
                                                 if !photo.focal_length_str.is_empty()
@@ -501,10 +523,19 @@ impl RrawApp {
                                             } else {
                                                 String::new()
                                             };
+                                        let is_manual = self
+                                            .session
+                                            .grading
+                                            .optics
+                                            .lens_profile_override
+                                            .is_some();
+                                        let is_dng = matched.maker == "DNG Embedded";
                                         Some(sections::optics::DetectedLensInfo {
-                                            name: matched.profile_name.clone(),
+                                            name: matched.profile_name,
                                             is_exact: matched.is_exact_match,
                                             extra_metadata: meta_str,
+                                            is_manual_override: is_manual,
+                                            is_dng_opcode: is_dng,
                                         })
                                     } else {
                                         None
@@ -520,11 +551,22 @@ impl RrawApp {
                                     } else {
                                         photo.focal_length_str.clone()
                                     };
-                                    if !photo.lens_model.is_empty() {
+                                    let active_name = self
+                                        .session
+                                        .grading
+                                        .optics
+                                        .lens_profile_override
+                                        .as_ref()
+                                        .unwrap_or(&photo.lens_model);
+                                    let is_manual =
+                                        self.session.grading.optics.lens_profile_override.is_some();
+                                    if !active_name.is_empty() {
                                         Some(sections::optics::DetectedLensInfo {
-                                            name: photo.lens_model.clone(),
+                                            name: active_name.clone(),
                                             is_exact: true,
                                             extra_metadata: meta_str,
+                                            is_manual_override: is_manual,
+                                            is_dng_opcode: false,
                                         })
                                     } else {
                                         None

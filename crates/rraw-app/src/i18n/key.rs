@@ -1,13 +1,13 @@
 #![forbid(unsafe_code)]
 
-//! Strongly typed enum representing all localizable UI keys.
+//! Strongly-typed internalization translation keys.
+//!
+//! Generated automatically from `assets/i18n/*.json`.
 
-use serde::{Deserialize, Serialize};
+use super::{I18nEngine, Language};
 
-use super::{engine::I18nEngine, language::Language};
-
-/// All distinct translation keys recognized by the i18n subsystem.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Enumeration of all localized strings across the Rraw interface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(usize)]
 pub enum Key {
     AboutBuildDate,
@@ -231,10 +231,17 @@ pub enum Key {
     InspectorLensProfileAuto,
     InspectorLensProfileAutoTooltip,
     InspectorLensProfileCa,
+    InspectorLensProfileCalibratedBadge,
     InspectorLensProfileDetected,
     InspectorLensProfileDisabledNotice,
     InspectorLensProfileDistortion,
+    InspectorLensProfileDngBadge,
     InspectorLensProfileGeneric,
+    InspectorLensProfileManualBadge,
+    InspectorLensProfileNoMatch,
+    InspectorLensProfileReset,
+    InspectorLensProfileSearch,
+    InspectorLensProfileSearchHint,
     InspectorLensProfileTitle,
     InspectorLensProfileVignette,
     InspectorLensTabManual,
@@ -453,13 +460,24 @@ pub enum Key {
 
 impl Key {
     /// Total number of keys defined in the enum.
-    pub const COUNT: usize = 439;
+    pub const COUNT: usize = 446;
 
     /// Returns the 0-based dense index corresponding to this key.
     #[inline]
     #[must_use]
     pub const fn index(self) -> usize {
         self as usize
+    }
+
+    /// Reconstructs a `Key` from its dense 0-based index.
+    #[inline]
+    #[must_use]
+    pub const fn from_index(index: usize) -> Option<Self> {
+        if index < Self::COUNT {
+            Some(ALL_KEYS[index])
+        } else {
+            None
+        }
     }
 
     /// Returns the string slice identifier matching this key in JSON catalogs.
@@ -688,10 +706,17 @@ impl Key {
             Self::InspectorLensProfileAuto => "InspectorLensProfileAuto",
             Self::InspectorLensProfileAutoTooltip => "InspectorLensProfileAutoTooltip",
             Self::InspectorLensProfileCa => "InspectorLensProfileCa",
+            Self::InspectorLensProfileCalibratedBadge => "InspectorLensProfileCalibratedBadge",
             Self::InspectorLensProfileDetected => "InspectorLensProfileDetected",
             Self::InspectorLensProfileDisabledNotice => "InspectorLensProfileDisabledNotice",
             Self::InspectorLensProfileDistortion => "InspectorLensProfileDistortion",
+            Self::InspectorLensProfileDngBadge => "InspectorLensProfileDngBadge",
             Self::InspectorLensProfileGeneric => "InspectorLensProfileGeneric",
+            Self::InspectorLensProfileManualBadge => "InspectorLensProfileManualBadge",
+            Self::InspectorLensProfileNoMatch => "InspectorLensProfileNoMatch",
+            Self::InspectorLensProfileReset => "InspectorLensProfileReset",
+            Self::InspectorLensProfileSearch => "InspectorLensProfileSearch",
+            Self::InspectorLensProfileSearchHint => "InspectorLensProfileSearchHint",
             Self::InspectorLensProfileTitle => "InspectorLensProfileTitle",
             Self::InspectorLensProfileVignette => "InspectorLensProfileVignette",
             Self::InspectorLensTabManual => "InspectorLensTabManual",
@@ -909,18 +934,14 @@ impl Key {
         }
     }
 
-    /// Reconstructs a `Key` from its dense 0-based index.
+    /// Resolves the typed key to its translation for the requested language.
     #[inline]
     #[must_use]
-    pub const fn from_index(index: usize) -> Option<Self> {
-        if index < Self::COUNT {
-            Some(ALL_KEYS[index])
-        } else {
-            None
-        }
+    pub fn translate(self, lang: Language) -> &'static str {
+        I18nEngine::global().translate(lang, self)
     }
 
-    /// Reconstructs a `Key` from its JSON string slice identifier.
+    /// Parses a string slice into its typed `Key` representation if valid.
     #[must_use]
     pub fn from_str_name(name: &str) -> Option<Self> {
         match name {
@@ -1147,10 +1168,19 @@ impl Key {
             "InspectorLensProfileAuto" => Some(Self::InspectorLensProfileAuto),
             "InspectorLensProfileAutoTooltip" => Some(Self::InspectorLensProfileAutoTooltip),
             "InspectorLensProfileCa" => Some(Self::InspectorLensProfileCa),
+            "InspectorLensProfileCalibratedBadge" => {
+                Some(Self::InspectorLensProfileCalibratedBadge)
+            }
             "InspectorLensProfileDetected" => Some(Self::InspectorLensProfileDetected),
             "InspectorLensProfileDisabledNotice" => Some(Self::InspectorLensProfileDisabledNotice),
             "InspectorLensProfileDistortion" => Some(Self::InspectorLensProfileDistortion),
+            "InspectorLensProfileDngBadge" => Some(Self::InspectorLensProfileDngBadge),
             "InspectorLensProfileGeneric" => Some(Self::InspectorLensProfileGeneric),
+            "InspectorLensProfileManualBadge" => Some(Self::InspectorLensProfileManualBadge),
+            "InspectorLensProfileNoMatch" => Some(Self::InspectorLensProfileNoMatch),
+            "InspectorLensProfileReset" => Some(Self::InspectorLensProfileReset),
+            "InspectorLensProfileSearch" => Some(Self::InspectorLensProfileSearch),
+            "InspectorLensProfileSearchHint" => Some(Self::InspectorLensProfileSearchHint),
             "InspectorLensProfileTitle" => Some(Self::InspectorLensProfileTitle),
             "InspectorLensProfileVignette" => Some(Self::InspectorLensProfileVignette),
             "InspectorLensTabManual" => Some(Self::InspectorLensTabManual),
@@ -1370,16 +1400,9 @@ impl Key {
             _ => None,
         }
     }
-
-    /// Translates this key using the given language.
-    #[inline]
-    #[must_use]
-    pub fn translate(self, lang: Language) -> &'static str {
-        I18nEngine::global().translate(lang, self)
-    }
 }
 
-/// Dense array containing all known keys in order.
+/// Static slice of all available keys in order.
 pub const ALL_KEYS: [Key; Key::COUNT] = [
     Key::AboutBuildDate,
     Key::AboutClose,
@@ -1602,10 +1625,17 @@ pub const ALL_KEYS: [Key; Key::COUNT] = [
     Key::InspectorLensProfileAuto,
     Key::InspectorLensProfileAutoTooltip,
     Key::InspectorLensProfileCa,
+    Key::InspectorLensProfileCalibratedBadge,
     Key::InspectorLensProfileDetected,
     Key::InspectorLensProfileDisabledNotice,
     Key::InspectorLensProfileDistortion,
+    Key::InspectorLensProfileDngBadge,
     Key::InspectorLensProfileGeneric,
+    Key::InspectorLensProfileManualBadge,
+    Key::InspectorLensProfileNoMatch,
+    Key::InspectorLensProfileReset,
+    Key::InspectorLensProfileSearch,
+    Key::InspectorLensProfileSearchHint,
     Key::InspectorLensProfileTitle,
     Key::InspectorLensProfileVignette,
     Key::InspectorLensTabManual,

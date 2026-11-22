@@ -4,14 +4,21 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database
+- **Active Phase**: Phase 20 — Native Apple Silicon Neural Engine Bridge (CoreML)
 - **Active Tasks**:
-  - Task 19.1: Embedded & External Lensfun XML Database Engine (`rraw-optics`) — **COMPLETE**
-  - Task 19.2: Universal MakerNotes Lens ID Resolution (`rraw-decode`) — **COMPLETE**
-  - Task 19.3: Tier 1 DNG Embedded Opcode Bridge & UI Manual Profile Picker Override (`rraw-optics`, `rraw-app`) — **READY FOR DEV**
-- **Next Phase**: Phase 20 — Native Apple Silicon Neural Engine Bridge (CoreML)
-- **Last Verified Baseline**: 319 tests passants across 69 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 19 — Task 19.2 Universal MakerNotes Lens ID Resolution & Multilingual EXIF Engine **Complete**
+  - Task 20.1: Hardware ANE Inference Bridge (`rraw-coreml` / `rraw-ai`) — **READY FOR DEV**
+- **Next Phase**: Phase 21 — Final Optimization & Production Hardening
+- **Last Verified Baseline**: 323 tests passants across 69 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Phase 19 — Task 19.3 Tier 1 DNG Embedded Opcode Bridge & UI Manual Profile Picker Override **Complete**
+  - Extraction binaire pure-Rust des flux d'opcodes DNG (`OpcodeList1`, `OpcodeList2`, `OpcodeList3` tags `0xC685`, `0xC686`, `0xC687`) dans `rraw-decode` (`crates/rraw-decode/src/opcodes.rs`).
+  - Décodage et conversion directe du format `WarpRectilinear` (Opcode 1) : transformation des coefficients polynomiaux par plan ($k_0, k_1, k_2, k_3$) vers `OpticalCorrectionModel` et génération directe de la grille UV $N \times N$ per-canal dans `UvLutGenerator::generate_from_dng_warp_rectilinear`.
+  - Résolution prioritaire Tier 1 dans `OpticalResolver::resolve_tier` et priorité 0 dans `LensfunDatabase::match_metadata`, activant instantanément les profils optiques embarqués dans les DNG.
+  - Sélecteur et recherche manuelle de profil d'objectif dans l'interface Darkroom (`ui/sections/optics.rs`) : recherche floue en temps réel parmi les 1 580 objectifs de la base Lensfun, badge de statut dynamique (🏷️ Opcode DNG, 🔍 Profil manuel, 🎯 Calibré Lensfun, 📐 Modèle générique) et bouton de réinitialisation 1-clic `✖ Réinitialiser`.
+  - Câblage du pipeline de prévisualisation et d'export (`rraw-app/src/preview/pipeline.rs`) appliquant en priorité le profil forcé par l'utilisateur.
+  - Internationalisation complète (FR, EN, ES) avec 446 clés typées dans `key.rs` et `assets/i18n/*.json`.
+  - Durcissement et auto-guérison validés par l'Inquisiteur : zéro panic, tranches sécurisées par `.get()` / `.first()`, protection contre NaN et overflow sur les rayons optiques.
+  - 323 tests passants across 69 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 19 — Task 19.2 Universal MakerNotes Lens ID Resolution & Multilingual EXIF Engine **Complete**
   - Décodage universel des MakerNotes dans `rraw-decode` (`crates/rraw-decode/src/makernotes.rs`).
   - Extraction transparente du tag `0x003F` (`LensRec`) Pentax/Ricoh depuis les fichiers PEF et DNG (`DNGPrivateData` `0xC634`), ainsi que des MakerNotes Sony (`0x0102`), Canon (`0x0016`) et Nikon (`0x0084`).
   - Résolution et désambiguïsation automatique avec `rawler::lens::LensResolver` et la base de 15 000+ objectifs par monture (`k-mount`, `e-mount`, `ef-mount`, etc.), focale et ouverture (identifie automatiquement les objectifs tiers Sigma, Tamron, etc.).

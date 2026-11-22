@@ -218,7 +218,7 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Enhanced EXIF UI: removed duplicated tags from the detailed collapsible grid, enforced uniform monoline layout with `.truncate()` and full tooltip `.on_hover_text(...)`.
   - Dedicated unit and synthetic tests in `crates/rraw-decode/tests/decode_tests.rs` and `crates/rraw-app/tests/i18n_tests.rs`. 319 workspace tests passing across 69 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
-- [ ] **Task 19.3 (`rraw-optics`, `rraw-app`)**: Tier 1 DNG Embedded Opcode Bridge & UI Manual Profile Picker Override
+- [x] **Task 19.3 (`rraw-optics`, `rraw-app`)**: Tier 1 DNG Embedded Opcode Bridge & UI Manual Profile Picker Override
   - Bridge decoded DNG `WarpRectilinear` opcodes directly into Stage 4 `UvLutTable` grid.
   - Add UI lens profile picker and manual override in `ui/sections/optics.rs` with fuzzy match confidence indicator and update check.
 

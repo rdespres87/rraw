@@ -2,14 +2,28 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database**:
-  - **Task 19.3 (`rraw-optics`, `rraw-app`)**: Tier 1 DNG Embedded Opcode Bridge & UI Manual Profile Picker Override — **READY FOR DEV**
-    - Bridge decoded DNG `WarpRectilinear` opcodes directly into Stage 4 `UvLutTable` grid.
-    - Add UI lens profile picker and manual override in `ui/sections/optics.rs` with fuzzy match confidence indicator and update check.
+- **Phase 20 — Native Apple Silicon Neural Engine Bridge (CoreML)**:
+  - **Task 20.1 (`rraw-coreml` / `rraw-ai`)**: Hardware ANE Inference Bridge — **READY FOR DEV**
+    - Isolate macOS CoreML Objective-C FFI in targeted safe wrapper (following `rraw-macos-edr` pattern with documented `// SAFETY:` blocks).
+    - Bind `MLModel` for 504x504 CFA RAW tile denoising on Apple Neural Engine (ANE) with zero-copy shared buffers.
+    - Implement 4-class semantic segmentation mask inference (`Subject`, `Sky`, `Background`, `Portrait`) replacing `synthetic_landscape()`.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 19 — Task 19.3 Tier 1 DNG Embedded Opcode Bridge & UI Manual Profile Picker Override (`rraw-optics`, `rraw-app`) — COMPLETE**:
+  - **Pure-Rust DNG Opcode Parser**: Extracted `OpcodeList1`, `OpcodeList2`, and `OpcodeList3` (tags `0xC685`..`0xC687`) from TIFF IFD0 and SubIFDs in `crates/rraw-decode/src/opcodes.rs`.
+  - **WarpRectilinear to UV LUT**: Direct mathematical bridge converting DNG 1-plane and 3-plane polynomial coefficients into `OpticalCorrectionModel` and evaluating per-channel Stage 4 UV LUT lookup tables (`UvLutGenerator::generate_from_dng_warp_rectilinear`).
+  - **Priority 0 DNG Opcode Resolution**: Integrated into `OpticalResolver::resolve_tier` (Tier 1 `Tier1EmbeddedRawOpcodes`) and `LensfunDatabase::match_metadata` (exact match badge `🏷️ Opcode DNG`).
+  - **Manual Profile Search & Override Picker**: Interactive UI in Darkroom optical corrections section (`ui/sections/optics.rs`) with real-time fuzzy search across 1,580 lenses, dynamic confidence badges (🏷️ Opcode DNG, 🔍 Profil manuel, 🎯 Calibré Lensfun, 📐 Modèle générique), and 1-click reset button.
+  - **Pipeline Integration**: Preview and export pipeline (`preview/pipeline.rs`) honors `grading.optics.lens_profile_override` with full focal length and aperture interpolation.
+  - **Multilingual i18n**: Added 7 new typed keys across FR, EN, ES catalogs with 446 total keys in `crates/rraw-app/src/i18n/key.rs`.
+  - **Validation & Tests**: Dedicated tests in `optics_tests.rs` and `profile_ui_tests.rs`. 323 workspace tests passing across 69 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 19 — Task 19.2 Universal MakerNotes Lens ID Resolution & Multilingual EXIF Localization (`rraw-decode`, `rraw-app`) — COMPLETE**:
   - **Universal MakerNote Parser**: Implemented in `crates/rraw-decode/src/makernotes.rs` extracting vendor MakerNote tags from native RAW and DNG PrivateData (Pentax `0x003F` `LensRec`, Sony `0x0102`, Canon `0x0016`, Nikon `0x0084`).

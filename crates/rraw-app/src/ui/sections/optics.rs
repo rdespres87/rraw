@@ -15,6 +15,8 @@ pub struct DetectedLensInfo {
     pub name: String,
     pub is_exact: bool,
     pub extra_metadata: String,
+    pub is_manual_override: bool,
+    pub is_dng_opcode: bool,
 }
 
 /// Renders the Optical Corrections darkroom section.
@@ -77,22 +79,50 @@ pub fn render(
         }
 
         if optics.lens_profile_auto {
-            let (lens_name, is_exact, extra_meta) = if let Some(info) = lens_info {
-                (info.name, info.is_exact, info.extra_metadata)
-            } else {
-                (
-                    t(Key::InspectorLensProfileGeneric).to_string(),
-                    false,
-                    String::new(),
-                )
-            };
-
-            let badge_icon = if is_exact { "🎯" } else { "📐" };
-            let frame_color = if is_exact {
-                Color32::from_rgb(28, 36, 48)
-            } else {
-                Color32::from_rgb(32, 34, 38)
-            };
+            let (lens_name, extra_meta, badge_icon, badge_text, frame_color) =
+                if let Some(info) = lens_info {
+                    if info.is_dng_opcode {
+                        (
+                            info.name,
+                            info.extra_metadata,
+                            "🏷️",
+                            t(Key::InspectorLensProfileDngBadge),
+                            Color32::from_rgb(20, 36, 44),
+                        )
+                    } else if info.is_manual_override {
+                        (
+                            info.name,
+                            info.extra_metadata,
+                            "🔍",
+                            t(Key::InspectorLensProfileManualBadge),
+                            Color32::from_rgb(36, 32, 48),
+                        )
+                    } else if info.is_exact {
+                        (
+                            info.name,
+                            info.extra_metadata,
+                            "🎯",
+                            t(Key::InspectorLensProfileCalibratedBadge),
+                            Color32::from_rgb(28, 36, 48),
+                        )
+                    } else {
+                        (
+                            info.name,
+                            info.extra_metadata,
+                            "📐",
+                            t(Key::InspectorLensProfileGeneric),
+                            Color32::from_rgb(32, 34, 38),
+                        )
+                    }
+                } else {
+                    (
+                        t(Key::InspectorLensProfileGeneric).to_string(),
+                        String::new(),
+                        "📐",
+                        t(Key::InspectorLensProfileGeneric),
+                        Color32::from_rgb(32, 34, 38),
+                    )
+                };
 
             egui::Frame::group(ui.style())
                 .fill(frame_color)
@@ -100,15 +130,22 @@ pub fn render(
                 .show(ui, |ui| {
                     ui.vertical(|ui| {
                         ui.horizontal_wrapped(|ui| {
-                            ui.label(format!(
-                                "{badge_icon} {}",
-                                t(Key::InspectorLensProfileDetected)
-                            ));
+                            ui.label(format!("{badge_icon} {badge_text} :"));
                             ui.label(
-                                egui::RichText::new(lens_name)
+                                egui::RichText::new(&lens_name)
                                     .strong()
                                     .color(Color32::from_rgb(140, 200, 255)),
                             );
+                            if optics.lens_profile_override.is_some()
+                                && ui
+                                    .small_button("✖")
+                                    .on_hover_text(t(Key::InspectorLensProfileReset))
+                                    .clicked()
+                            {
+                                optics.lens_profile_override = None;
+                                out.needs_preview_update = true;
+                                ui.ctx().request_repaint();
+                            }
                         });
                         if !extra_meta.is_empty() {
                             ui.label(
@@ -119,6 +156,62 @@ pub fn render(
                         }
                     });
                 });
+
+            // Manual profile search and override picker
+            ui.add_space(2.0);
+            ui.collapsing(t(Key::InspectorLensProfileSearch), |ui| {
+                ui.horizontal(|ui| {
+                    let search_res = ui.add(
+                        egui::TextEdit::singleline(&mut optics.lens_search_query)
+                            .hint_text(t(Key::InspectorLensProfileSearchHint))
+                            .desired_width((ui.available_width() - 28.0).max(60.0)),
+                    );
+                    if search_res.changed() {
+                        ui.ctx().request_repaint();
+                    }
+                    if !optics.lens_search_query.is_empty() && ui.small_button("✖").clicked() {
+                        optics.lens_search_query.clear();
+                        ui.ctx().request_repaint();
+                    }
+                });
+
+                let query = optics.lens_search_query.trim();
+                if !query.is_empty() {
+                    let matches = rraw_optics::LensfunDatabase::global().search_lenses(query, 6);
+                    if matches.is_empty() {
+                        ui.label(
+                            egui::RichText::new(t(Key::InspectorLensProfileNoMatch))
+                                .weak()
+                                .size(11.0),
+                        );
+                    } else {
+                        for candidate in matches {
+                            let is_current =
+                                optics.lens_profile_override.as_deref() == Some(&candidate);
+                            let text = egui::RichText::new(&candidate).size(11.0);
+                            let btn = if is_current {
+                                egui::Button::new(text).fill(Color32::from_rgb(40, 70, 100))
+                            } else {
+                                egui::Button::new(text)
+                            };
+                            if ui.add(btn).clicked() {
+                                optics.lens_profile_override = Some(candidate);
+                                out.needs_preview_update = true;
+                                ui.ctx().request_repaint();
+                            }
+                        }
+                    }
+                }
+
+                if optics.lens_profile_override.is_some() {
+                    ui.add_space(2.0);
+                    if ui.button(t(Key::InspectorLensProfileReset)).clicked() {
+                        optics.lens_profile_override = None;
+                        out.needs_preview_update = true;
+                        ui.ctx().request_repaint();
+                    }
+                }
+            });
 
             ui.add_space(2.0);
             ui.label(t(Key::InspectorLensProfileDistortion));

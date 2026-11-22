@@ -47,6 +47,7 @@ fn create_dummy_metadata(
         cfa_pattern: CfaPattern::Bayer(BayerOrigin::Rggb),
         noise_profile,
         vignette_handled_by_gainmap: false,
+        dng_warp_rectilinear: None,
         rating,
         pick: PickStatus::Unflagged,
         label: ColorLabel::None,

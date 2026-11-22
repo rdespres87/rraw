@@ -33,6 +33,7 @@ fn test_metadata(
         rating: 0,
         pick: PickStatus::Unflagged,
         vignette_handled_by_gainmap: false,
+        dng_warp_rectilinear: None,
         keywords: Vec::new(),
     })
 }

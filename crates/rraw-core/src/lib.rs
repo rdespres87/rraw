@@ -274,6 +274,13 @@ pub enum ColorLabel {
     Purple,
 }
 
+/// DNG Opcode 1 (`WarpRectilinear`) geometric distortion and chromatic aberration coefficients.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DngWarpRectilinearData {
+    pub planes: u32,
+    pub coefficients: Vec<f64>,
+}
+
 /// Canonical immutable photo metadata extracted during RAW decode.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PhotoMetadata {
@@ -292,6 +299,8 @@ pub struct PhotoMetadata {
     /// Raised when Stage 1 applies a DNG `OpcodeList2` `GainMap`, preventing
     /// redundant radial vignetting correction in Stage 4.
     pub vignette_handled_by_gainmap: bool,
+    /// Decoded DNG Opcode 1 (`WarpRectilinear`) parameters for Tier 1 native lens correction.
+    pub dng_warp_rectilinear: Option<DngWarpRectilinearData>,
     pub rating: u8,
     pub pick: PickStatus,
     pub label: ColorLabel,

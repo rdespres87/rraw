@@ -136,6 +136,7 @@ impl SyntheticRawBuilder {
                 NoiseProfileSource::DngTag0xc761,
             )?,
             vignette_handled_by_gainmap: false,
+            dng_warp_rectilinear: None,
             rating: 0,
             pick: PickStatus::Unflagged,
             label: ColorLabel::None,

@@ -195,6 +195,8 @@ impl RrawApp {
         );
         b.cam_to_srgb = ref_preview.cam_to_srgb;
         b.matched_lens = ref_preview.matched_lens.clone();
+        b.focal_length_mm = ref_preview.focal_length_mm;
+        b.aperture_f_number = ref_preview.aperture_f_number;
         b.with_exif_orientation(ref_preview.exif_orientation)
     }
 

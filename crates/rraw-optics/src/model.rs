@@ -105,3 +105,62 @@ pub struct OpticalCorrectionModel {
     pub lateral_ca: LateralTca,
     pub vignette: RadialVignette,
 }
+
+impl OpticalCorrectionModel {
+    /// Constructs an optical correction model from DNG `WarpRectilinear` opcode parameters.
+    #[must_use]
+    pub fn from_dng_warp_rectilinear(planes: u32, coefficients: &[f64]) -> Self {
+        if coefficients.len() < 4 {
+            return Self::default();
+        }
+
+        let plane_len = coefficients.len() / (planes as usize).max(1);
+        if plane_len < 4 {
+            return Self::default();
+        }
+
+        // Plane 0 (or Green plane if 3 planes: plane 1)
+        let main_plane_offset = if planes >= 3 && coefficients.len() >= 2 * plane_len {
+            plane_len
+        } else {
+            0
+        };
+
+        let main_slice = match coefficients.get(main_plane_offset..main_plane_offset + 4) {
+            Some(s) => s,
+            None => return Self::default(),
+        };
+
+        let k0 = main_slice[0];
+        let k1 = main_slice[1];
+        let k2 = main_slice[2];
+        let k3 = main_slice[3];
+
+        let inv_k0 = if k0.abs() > 1e-6 { 1.0 / k0 } else { 1.0 };
+        let distortion = DistortionPoly {
+            k1: (k1 * inv_k0) as f32,
+            k2: (k2 * inv_k0) as f32,
+            k3: (k3 * inv_k0) as f32,
+        };
+
+        let lateral_ca = if planes >= 3 && coefficients.len() >= 3 * plane_len {
+            let k0_r = coefficients.first().copied().unwrap_or(1.0);
+            let k0_g = coefficients.get(plane_len).copied().unwrap_or(1.0);
+            let k0_b = coefficients.get(2 * plane_len).copied().unwrap_or(1.0);
+
+            let inv_g = if k0_g.abs() > 1e-6 { 1.0 / k0_g } else { 1.0 };
+            LateralTca {
+                scale_r: (k0_r * inv_g) as f32,
+                scale_b: (k0_b * inv_g) as f32,
+            }
+        } else {
+            LateralTca::default()
+        };
+
+        Self {
+            distortion,
+            lateral_ca,
+            vignette: RadialVignette::default(),
+        }
+    }
+}

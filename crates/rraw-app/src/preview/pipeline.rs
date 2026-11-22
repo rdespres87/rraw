@@ -41,7 +41,24 @@ pub fn render_preview_from_base(
 
     let (k_dist, v_gain) = match grading.optics.optical_tab {
         OpticalCorrectionTab::Profile => {
-            if let Some(matched) = &base.matched_lens {
+            let active_matched = if let Some(override_name) = &grading.optics.lens_profile_override
+            {
+                let db = rraw_optics::LensfunDatabase::global();
+                let focal = base.focal_length_mm.unwrap_or(50.0);
+                let aperture = base.aperture_f_number;
+                db.find_lens(override_name)
+                    .map(|lens| rraw_optics::MatchedLens {
+                        profile_name: format!("{} {}", lens.maker, lens.model),
+                        maker: lens.maker.clone(),
+                        model: db.interpolate_model(lens, focal, aperture),
+                        is_exact_match: true,
+                    })
+                    .or_else(|| base.matched_lens.clone())
+            } else {
+                base.matched_lens.clone()
+            };
+
+            if let Some(matched) = &active_matched {
                 if grading.optics.lens_profile_auto {
                     let dist_scale = (grading.optics.lens_distortion_strength / 100.0).max(0.0);
                     let vig_scale = (grading.optics.lens_vignette_strength / 100.0).max(0.0);
@@ -696,7 +713,24 @@ pub fn render_export_image(
 
     let (k_dist, v_gain) = match grading.optics.optical_tab {
         OpticalCorrectionTab::Profile => {
-            if let Some(matched) = &base.matched_lens {
+            let active_matched = if let Some(override_name) = &grading.optics.lens_profile_override
+            {
+                let db = rraw_optics::LensfunDatabase::global();
+                let focal = base.focal_length_mm.unwrap_or(50.0);
+                let aperture = base.aperture_f_number;
+                db.find_lens(override_name)
+                    .map(|lens| rraw_optics::MatchedLens {
+                        profile_name: format!("{} {}", lens.maker, lens.model),
+                        maker: lens.maker.clone(),
+                        model: db.interpolate_model(lens, focal, aperture),
+                        is_exact_match: true,
+                    })
+                    .or_else(|| base.matched_lens.clone())
+            } else {
+                base.matched_lens.clone()
+            };
+
+            if let Some(matched) = &active_matched {
                 if grading.optics.lens_profile_auto {
                     let dist_scale = (grading.optics.lens_distortion_strength / 100.0).max(0.0);
                     let vig_scale = (grading.optics.lens_vignette_strength / 100.0).max(0.0);

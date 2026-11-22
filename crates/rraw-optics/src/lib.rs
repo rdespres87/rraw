@@ -95,6 +95,7 @@ mod tests {
                 NoiseProfileSource::WaveletMadFallback,
             )?,
             vignette_handled_by_gainmap,
+            dng_warp_rectilinear: None,
             rating: 0,
             pick: PickStatus::Unflagged,
             label: ColorLabel::None,

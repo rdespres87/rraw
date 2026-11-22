@@ -218,6 +218,7 @@ impl BackgroundWorkers {
                         cfa_pattern: rraw_core::CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb),
                         noise_profile,
                         vignette_handled_by_gainmap: false,
+                        dng_warp_rectilinear: None,
                         rating,
                         pick: rraw_core::PickStatus::Unflagged,
                         label: rraw_core::ColorLabel::None,

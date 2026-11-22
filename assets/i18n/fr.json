@@ -1,5 +1,4 @@
 {
-  "_language_name": "Français",
   "AboutBuildDate": "Date de build",
   "AboutClose": "Fermer",
   "AboutCommit": "Commit",
@@ -221,10 +220,17 @@
   "InspectorLensProfileAuto": "Correction automatique par profil",
   "InspectorLensProfileAutoTooltip": "Applique les corrections calibrées de distorsion, vignetage et aberrations chromatiques pour cet objectif",
   "InspectorLensProfileCa": "Correction CA profil",
+  "InspectorLensProfileCalibratedBadge": "Calibré Lensfun",
   "InspectorLensProfileDetected": "Profil détecté :",
   "InspectorLensProfileDisabledNotice": "Correction par profil désactivée. Cochez la case ci-dessus ou basculez sur l'onglet Manuel pour ajuster les corrections.",
   "InspectorLensProfileDistortion": "Intensité distorsion profil",
+  "InspectorLensProfileDngBadge": "Opcode DNG",
   "InspectorLensProfileGeneric": "Modèle optique générique",
+  "InspectorLensProfileManualBadge": "Profil manuel",
+  "InspectorLensProfileNoMatch": "Aucun profil correspondant",
+  "InspectorLensProfileReset": "Réinitialiser au profil détecté",
+  "InspectorLensProfileSearch": "Recherche manuelle de profil",
+  "InspectorLensProfileSearchHint": "Rechercher un modèle d'optique...",
   "InspectorLensProfileTitle": "Profil optique d'objectif",
   "InspectorLensProfileVignette": "Intensité vignetage profil",
   "InspectorLensTabManual": "🛠️ Manuel",
@@ -438,5 +444,6 @@
   "TopBarZoomFitted": "Ajusté",
   "ViewportAfter": "Après",
   "ViewportBefore": "Avant",
-  "ViewportOriginalBadge": "👁️ Original (Avant retouche)"
+  "ViewportOriginalBadge": "👁️ Original (Avant retouche)",
+  "_language_name": "Français"
 }

@@ -1,5 +1,4 @@
 {
-  "_language_name": "English",
   "AboutBuildDate": "Build date",
   "AboutClose": "Close",
   "AboutCommit": "Commit",
@@ -221,10 +220,17 @@
   "InspectorLensProfileAuto": "Auto Profile Correction",
   "InspectorLensProfileAutoTooltip": "Applies calibrated distortion, vignetting, and chromatic aberration corrections for this lens",
   "InspectorLensProfileCa": "Profile CA Correction",
+  "InspectorLensProfileCalibratedBadge": "Lensfun Calibrated",
   "InspectorLensProfileDetected": "Detected Profile:",
   "InspectorLensProfileDisabledNotice": "Profile correction disabled. Check the box above or switch to the Manual tab to adjust corrections.",
   "InspectorLensProfileDistortion": "Profile Distortion Strength",
+  "InspectorLensProfileDngBadge": "DNG Opcode",
   "InspectorLensProfileGeneric": "Generic Optical Model",
+  "InspectorLensProfileManualBadge": "Manual profile",
+  "InspectorLensProfileNoMatch": "No matching profile found",
+  "InspectorLensProfileReset": "Reset to detected profile",
+  "InspectorLensProfileSearch": "Manual profile search",
+  "InspectorLensProfileSearchHint": "Search lens model...",
   "InspectorLensProfileTitle": "Lens Optical Profile",
   "InspectorLensProfileVignette": "Profile Vignette Strength",
   "InspectorLensTabManual": "🛠️ Manual",
@@ -438,5 +444,6 @@
   "TopBarZoomFitted": "Fit",
   "ViewportAfter": "After",
   "ViewportBefore": "Before",
-  "ViewportOriginalBadge": "👁️ Original (Before grading)"
+  "ViewportOriginalBadge": "👁️ Original (Before grading)",
+  "_language_name": "English"
 }

@@ -266,3 +266,147 @@ fn parse_gain_map(dng_version: u32, flags: u32, payload: &[u8]) -> Result<DngOpc
         map_gain,
     })
 }
+
+/// Scans raw source bytes for TIFF/DNG `OpcodeList1`, `OpcodeList2`, or `OpcodeList3` tags
+/// and returns all successfully decoded opcodes.
+#[must_use]
+pub fn extract_dng_opcodes(raw_bytes: &[u8]) -> Vec<DngOpcode> {
+    let mut results = Vec::new();
+    if raw_bytes.len() < 8 {
+        return results;
+    }
+
+    let is_little = &raw_bytes[0..2] == b"II";
+    let is_big = &raw_bytes[0..2] == b"MM";
+    if !is_little && !is_big {
+        return results;
+    }
+
+    let read_u16 = |buf: &[u8], off: usize| -> Option<u16> {
+        if off + 2 <= buf.len() {
+            if is_little {
+                Some(u16::from_le_bytes([buf[off], buf[off + 1]]))
+            } else {
+                Some(u16::from_be_bytes([buf[off], buf[off + 1]]))
+            }
+        } else {
+            None
+        }
+    };
+
+    let read_u32 = |buf: &[u8], off: usize| -> Option<u32> {
+        if off + 4 <= buf.len() {
+            if is_little {
+                Some(u32::from_le_bytes([
+                    buf[off],
+                    buf[off + 1],
+                    buf[off + 2],
+                    buf[off + 3],
+                ]))
+            } else {
+                Some(u32::from_be_bytes([
+                    buf[off],
+                    buf[off + 1],
+                    buf[off + 2],
+                    buf[off + 3],
+                ]))
+            }
+        } else {
+            None
+        }
+    };
+
+    let mut ifd_offset = read_u32(raw_bytes, 4).unwrap_or(0) as usize;
+    let mut visited = std::collections::HashSet::new();
+
+    while ifd_offset > 0 && ifd_offset + 2 <= raw_bytes.len() && visited.insert(ifd_offset) {
+        let num_entries = read_u16(raw_bytes, ifd_offset).unwrap_or(0) as usize;
+        let mut sub_ifds = Vec::new();
+
+        for i in 0..num_entries {
+            let entry_off = ifd_offset + 2 + i * 12;
+            if entry_off + 12 > raw_bytes.len() {
+                break;
+            }
+            let tag = read_u16(raw_bytes, entry_off).unwrap_or(0);
+            let count = read_u32(raw_bytes, entry_off + 4).unwrap_or(0) as usize;
+            let val_or_offset = read_u32(raw_bytes, entry_off + 8).unwrap_or(0) as usize;
+
+            // SubIFDs tag 0x014A
+            if tag == 0x014A {
+                sub_ifds.push(val_or_offset);
+            }
+
+            // OpcodeList1 (0xC685), OpcodeList2 (0xC686), OpcodeList3 (0xC687)
+            if (tag == 0xC685 || tag == 0xC686 || tag == 0xC687) && count > 0 {
+                let stream_off = if count <= 4 {
+                    entry_off + 8
+                } else {
+                    val_or_offset
+                };
+                if stream_off + count <= raw_bytes.len() {
+                    if let Ok(mut ops) =
+                        parse_opcode_list(&raw_bytes[stream_off..stream_off + count])
+                    {
+                        results.append(&mut ops);
+                    }
+                }
+            }
+        }
+
+        for sub_off in sub_ifds {
+            if sub_off > 0 && sub_off + 2 <= raw_bytes.len() && visited.insert(sub_off) {
+                let sub_entries = read_u16(raw_bytes, sub_off).unwrap_or(0) as usize;
+                for i in 0..sub_entries {
+                    let entry_off = sub_off + 2 + i * 12;
+                    if entry_off + 12 > raw_bytes.len() {
+                        break;
+                    }
+                    let tag = read_u16(raw_bytes, entry_off).unwrap_or(0);
+                    let count = read_u32(raw_bytes, entry_off + 4).unwrap_or(0) as usize;
+                    let val_or_offset = read_u32(raw_bytes, entry_off + 8).unwrap_or(0) as usize;
+
+                    if (tag == 0xC685 || tag == 0xC686 || tag == 0xC687) && count > 0 {
+                        let stream_off = if count <= 4 {
+                            entry_off + 8
+                        } else {
+                            val_or_offset
+                        };
+                        if stream_off + count <= raw_bytes.len() {
+                            if let Ok(mut ops) =
+                                parse_opcode_list(&raw_bytes[stream_off..stream_off + count])
+                            {
+                                results.append(&mut ops);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let next_ifd_pos = ifd_offset + 2 + num_entries * 12;
+        ifd_offset = read_u32(raw_bytes, next_ifd_pos).unwrap_or(0) as usize;
+    }
+
+    results
+}
+
+/// Helper that extracts `WarpRectilinear` parameters from raw DNG source bytes.
+#[must_use]
+pub fn extract_dng_warp_rectilinear(raw_bytes: &[u8]) -> Option<rraw_core::DngWarpRectilinearData> {
+    let opcodes = extract_dng_opcodes(raw_bytes);
+    for op in opcodes {
+        if let DngOpcode::WarpRectilinear {
+            planes,
+            coefficients,
+            ..
+        } = op
+        {
+            return Some(rraw_core::DngWarpRectilinearData {
+                planes,
+                coefficients,
+            });
+        }
+    }
+    None
+}

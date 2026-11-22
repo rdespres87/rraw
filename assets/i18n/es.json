@@ -1,5 +1,4 @@
 {
-  "_language_name": "Español",
   "AboutBuildDate": "Fecha de compilación",
   "AboutClose": "Cerrar",
   "AboutCommit": "Commit",
@@ -221,10 +220,17 @@
   "InspectorLensProfileAuto": "Detección automática por EXIF",
   "InspectorLensProfileAutoTooltip": "Asociar automáticamente el perfil de corrección calibrado según EXIF",
   "InspectorLensProfileCa": "Corrección de aberraciones cromáticas (TCA)",
+  "InspectorLensProfileCalibratedBadge": "Calibrado Lensfun",
   "InspectorLensProfileDetected": "Perfil de objetivo detectado:",
   "InspectorLensProfileDisabledNotice": "Perfil desactivado para esta toma.",
   "InspectorLensProfileDistortion": "Compensación de distorsión geométrica",
+  "InspectorLensProfileDngBadge": "Opcode DNG",
   "InspectorLensProfileGeneric": "Perfil genérico compatible",
+  "InspectorLensProfileManualBadge": "Perfil manual",
+  "InspectorLensProfileNoMatch": "No se encontró ningún perfil coincidente",
+  "InspectorLensProfileReset": "Restablecer al perfil detectado",
+  "InspectorLensProfileSearch": "Búsqueda manual de perfil",
+  "InspectorLensProfileSearchHint": "Buscar modelo de lente...",
   "InspectorLensProfileTitle": "Corrección por perfil calibrado",
   "InspectorLensProfileVignette": "Corrección de viñeteado óptico",
   "InspectorLensTabManual": "Manual",
@@ -438,5 +444,6 @@
   "TopBarZoomFitted": "Ajustado",
   "ViewportAfter": "DESPUÉS",
   "ViewportBefore": "ANTES",
-  "ViewportOriginalBadge": "📸 ORIGINAL"
+  "ViewportOriginalBadge": "📸 ORIGINAL",
+  "_language_name": "Español"
 }

@@ -511,6 +511,24 @@ impl LensfunDatabase {
         None
     }
 
+    /// Returns up to `limit` lens names matching a user search query for manual profile selection.
+    #[must_use]
+    pub fn search_lenses(&self, query: &str, limit: usize) -> Vec<String> {
+        let q = normalize_string(query);
+        let mut results = Vec::new();
+        for lens in &self.lenses {
+            let full_name = format!("{} {}", lens.maker, lens.model);
+            let norm = normalize_string(&full_name);
+            if q.is_empty() || norm.contains(&q) {
+                results.push(full_name);
+                if results.len() >= limit {
+                    break;
+                }
+            }
+        }
+        results
+    }
+
     /// Interpolates an [`OpticalCorrectionModel`] for the given lens, focal length, and aperture.
     #[must_use]
     pub fn interpolate_model(
@@ -672,6 +690,20 @@ impl LensfunDatabase {
     /// Matches a photo's metadata against the Lensfun database.
     #[must_use]
     pub fn match_metadata(&self, metadata: &PhotoMetadata) -> MatchedLens {
+        // Priority 0: DNG Opcode 1 WarpRectilinear (if present in embedded metadata)
+        if let Some(dng_warp) = &metadata.dng_warp_rectilinear {
+            let model = OpticalCorrectionModel::from_dng_warp_rectilinear(
+                dng_warp.planes,
+                &dng_warp.coefficients,
+            );
+            return MatchedLens {
+                profile_name: format!("DNG Opcode (WarpRectilinear, {} plans)", dng_warp.planes),
+                maker: "DNG Embedded".to_string(),
+                model,
+                is_exact_match: true,
+            };
+        }
+
         let focal = metadata.focal_length_mm.unwrap_or(50.0);
         let aperture = metadata.aperture_f_number;
 

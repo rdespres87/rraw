@@ -41,6 +41,8 @@ fn make_test_base_preview(width: usize, height: usize) -> BaseRgbPreview {
         }),
         exif_orientation: 1,
         matched_lens: None,
+        focal_length_mm: None,
+        aperture_f_number: None,
     }
 }
 

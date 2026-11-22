@@ -113,6 +113,7 @@ mod tests {
                 NoiseProfileSource::CameraTable,
             )?,
             vignette_handled_by_gainmap: false,
+            dng_warp_rectilinear: None,
             rating: 5,
             pick: PickStatus::Pick,
             label: ColorLabel::Green,
