@@ -966,11 +966,20 @@ impl eframe::App for RrawApp {
             ui.input(|i| {
                 if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::A) {
                     for entry in &self.library.directory_entries {
-                        self.library.selected_photos.insert(entry.clone());
+                        if self.matches_active_filter(entry) {
+                            self.library.selected_photos.insert(entry.clone());
+                        }
                     }
+                    let sel_count = self
+                        .library
+                        .selected_photos
+                        .iter()
+                        .filter(|p| self.matches_active_filter(p))
+                        .count();
                     self.status_message = format!(
-                        "Sélection : toutes les photos cochées pour l'export ({} au total)",
-                        self.library.directory_entries.len()
+                        "Sélection : {sel_count} photo{} cochée{} pour l'export",
+                        if sel_count > 1 { "s" } else { "" },
+                        if sel_count > 1 { "s" } else { "" }
                     );
                 }
                 if i.key_pressed(egui::Key::Backslash) {
@@ -1194,6 +1203,59 @@ impl eframe::App for RrawApp {
         }
 
         if !self.workers.thumbnail_pending.is_empty() {
+            ui.ctx().request_repaint();
+        }
+
+        // Drain background export status & completion
+        while let Ok((progress, label, outcome)) = self.workers.export_receiver.try_recv() {
+            self.export.export_progress = progress;
+            self.export.export_progress_label = label;
+            if let Some(res) = outcome {
+                self.export.is_exporting = false;
+                match res {
+                    Ok(path) => {
+                        let file_name =
+                            path.file_name().and_then(|n| n.to_str()).unwrap_or("image");
+                        let status_txt = match self.export.export_target_mode {
+                            crate::state::ExportTargetMode::CurrentPhoto => {
+                                format!(
+                                    "{}{file_name}",
+                                    self.t(crate::i18n::Key::ExportSuccessSinglePrefix)
+                                )
+                            }
+                            crate::state::ExportTargetMode::BatchSelection => {
+                                let count = self.library.selected_photos.len().max(1);
+                                if self.lang() == crate::i18n::Language::Fr {
+                                    format!("✅ Export par lot réussi ({count} fichier(s))")
+                                } else {
+                                    format!("✅ Batch export successful ({count} file(s))")
+                                }
+                            }
+                            crate::state::ExportTargetMode::TimelapseSequence => {
+                                let frames = self.timelapse_candidate_paths().len();
+                                let fps = self.export.timelapse_fps.fps();
+                                if self.lang() == crate::i18n::Language::Fr {
+                                    format!("✅ Séquence Timelapse exportée ({frames} images @ {fps} fps + manifeste JSON)")
+                                } else {
+                                    format!("✅ Timelapse sequence exported ({frames} frames @ {fps} fps + JSON manifest)")
+                                }
+                            }
+                        };
+                        self.status_message = status_txt.clone();
+                        self.export.export_status = Some((status_txt, true));
+                        self.export.show_export_dialog = false;
+                    }
+                    Err(err) => {
+                        self.export.export_status = Some((
+                            format!("{}{err}", self.t(crate::i18n::Key::ExportFailedPrefix)),
+                            false,
+                        ));
+                    }
+                }
+            }
+        }
+
+        if self.export.is_exporting {
             ui.ctx().request_repaint();
         }
 
@@ -1477,7 +1539,16 @@ impl eframe::App for RrawApp {
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    if self.workers.is_decoding {
+                    if self.export.is_exporting {
+                        ui.spinner();
+                        ui.label(egui::RichText::new(&self.export.export_progress_label).strong());
+                        ui.add(
+                            egui::ProgressBar::new(self.export.export_progress)
+                                .desired_width(120.0)
+                                .animate(true),
+                        );
+                        ui.label(egui::RichText::new("·").weak());
+                    } else if self.workers.is_decoding {
                         ui.spinner();
                     }
                     ui.label(&self.status_message);

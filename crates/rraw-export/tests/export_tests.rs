@@ -186,3 +186,94 @@ fn test_batch_export_queue_parallel_execution() {
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
+
+#[test]
+fn test_batch_export_avif_real_encoding() {
+    use rraw_export::{BatchExportJob, BatchExportQueue, ExportFormat};
+
+    let temp_dir = std::env::temp_dir().join(format!("rraw_test_avif_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&temp_dir);
+
+    let queue = BatchExportQueue::new();
+    let width = 32_usize;
+    let height = 32_usize;
+    let count = width * height;
+    let dummy_rgb = vec![0.6_f32; count * 3];
+
+    let output_path = temp_dir.join("test_avif.avif");
+    let job = BatchExportJob {
+        output_path: output_path.clone(),
+        width,
+        height,
+        format: ExportFormat::Avif10,
+        rgb_linear: dummy_rgb,
+        jpeg_quality: 80,
+    };
+    queue.push_job(job);
+
+    let results = queue.execute_all(1);
+    assert_eq!(results.len(), 1);
+    let (path, res) = &results[0];
+    assert!(res.is_ok(), "AVIF export failed: {:?}", res);
+    assert!(path.exists(), "AVIF file must exist on disk");
+
+    // Read bytes and verify ISOBMFF AVIF signature (bytes 4..8 == b"ftyp" and contains b"avif")
+    let read_res = std::fs::read(path);
+    assert!(read_res.is_ok(), "failed to read exported AVIF file");
+    let bytes = match read_res {
+        Ok(b) => b,
+        Err(_) => return,
+    };
+    assert!(bytes.len() > 16);
+    assert_eq!(&bytes[4..8], b"ftyp");
+    let has_avif = bytes[8..32].windows(4).any(|w| w == b"avif");
+    assert!(
+        has_avif,
+        "Exported file must contain 'avif' brand in ftyp box"
+    );
+
+    // Must NOT be PNG
+    assert_ne!(&bytes[0..4], b"\x89PNG");
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn test_batch_export_unsupported_format_returns_clean_error() {
+    use rraw_export::{BatchExportJob, BatchExportQueue, ExportError, ExportFormat};
+
+    let temp_dir =
+        std::env::temp_dir().join(format!("rraw_test_unsupported_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&temp_dir);
+
+    let queue = BatchExportQueue::new();
+    let width = 16_usize;
+    let height = 16_usize;
+    let dummy_rgb = vec![0.5_f32; width * height * 3];
+
+    let output_path = temp_dir.join("test_jxl.jxl");
+    let job = BatchExportJob {
+        output_path: output_path.clone(),
+        width,
+        height,
+        format: ExportFormat::JpegXl10,
+        rgb_linear: dummy_rgb,
+        jpeg_quality: 90,
+    };
+    queue.push_job(job);
+
+    let results = queue.execute_all(1);
+    assert_eq!(results.len(), 1);
+    let (path, res) = &results[0];
+    assert!(
+        matches!(res, Err(ExportError::UnsupportedFormat(_))),
+        "Expected UnsupportedFormat error for JXL, got {:?}",
+        res
+    );
+    assert!(
+        !path.exists(),
+        "Unsupported format must not create fake file"
+    );
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}

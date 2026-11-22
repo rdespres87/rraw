@@ -17,6 +17,9 @@ pub enum ExportError {
     #[error("Image encoding error: {0}")]
     EncodingError(String),
 
+    #[error("Unsupported export format: {0}")]
+    UnsupportedFormat(String),
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }

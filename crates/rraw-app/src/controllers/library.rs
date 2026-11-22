@@ -94,4 +94,13 @@ impl LibraryController {
         self.selected_photos.clear();
         self.last_selected_index = None;
     }
+
+    /// Returns the number of selected photos that currently match the active filter.
+    #[must_use]
+    pub fn active_selection_count(&self, filter_fn: impl Fn(&Path) -> bool) -> usize {
+        self.selected_photos
+            .iter()
+            .filter(|p| filter_fn(p.as_path()))
+            .count()
+    }
 }

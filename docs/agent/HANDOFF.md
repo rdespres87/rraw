@@ -2,22 +2,22 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 17 — Sensor Fidelity, Dynamic CFA & True Multi-Format Export**:
-  - **Task 17.3 (`rraw-export`, `rraw-app`)**: True AVIF HDR & Safe Multi-Format Batch Export — **READY FOR DEV**
-    - Integrate `ravif` (or pure Rust avif encoder) in `rraw-export` for true 10-bit and 12-bit HDR AVIF encoding with BT.2020 / Display-P3 profiles and ISO 21496-1 Gain Map support.
-    - Eliminate silent PNG fallback: reject unsupported formats cleanly with `ExportError::UnsupportedFormat`.
-    - Expose AVIF (10-bit / 12-bit HDR) in `rraw-app` UI export modal with bit-depth and quality sliders.
-    - Zero token policy via local LM Studio Maker + Inquisitor, atomic commit gate.
+- **Phase 18 — High-Performance Directory Session DAM (Option A: `.rraw/cache.db`)**:
+  - **Task 18.1 (`rraw-storage`)**: Session-Mode SQLite Engine & High-Concurrency WAL Pragmas — **READY FOR DEV**
+    - Implement Session Mode in `SqliteDamIndex`: discovery/creation of `.rraw/cache.db` in currently opened folder.
+    - Set WAL pragmas (`journal_mode = WAL`, `synchronous = NORMAL`, `temp_store = MEMORY`) for concurrent non-blocking reading and writing.
+    - Implement incremental metadata indexation preserving `.rraw.json` sidecars as the single source of truth.
+    - Unit tests for directory session database creation, schema migrations, and indexing.
 
 ---
 
 ## Last Completed Milestone
 
-- **Phase 17 — Task 17.2 Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6) (`rraw-core`) — COMPLETE**:
-  - **Dématriçage adaptatif X-Trans 6x6** : Implémentation de `demosaic_xtrans_edge_aware` remplaçant le bilinéaire naïf.
-  - **Reconstruction du canal Vert** : Directionnelle le long des arêtes à fort gradient avec seuillage 0.70 et parallélisation Rayon par ligne.
-  - **Reconstruction Rouge et Bleu** : Guidée par différences de chrominance $(R - G)$ et $(B - G)$ pondérées par l'inverse de la distance dans une fenêtre 5x5 bornée.
-  - **Validation & Tests** : Suite de tests `demosaic_tests.rs` (4 nouveaux tests X-Trans, dont PSNR >= 38 dB sur mire de Siemens), 302 tests passants across 66 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Phase 17 — Sensor Fidelity, Dynamic CFA & True Multi-Format Export — ALL COMPLETE (Tasks 17.1, 17.2, 17.3)**:
+  - **Task 17.1 (`rraw-decode`)** : Résolution dynamique du CFA (`rawler` -> `CfaPattern::Bayer` / `XTrans`) et alignement de phase modulo 6 / modulo 2 lors du recadrage. Commit `57c0c45`.
+  - **Task 17.2 (`rraw-core`)** : Dématriçage adaptatif X-Trans 6x6 (`demosaic_xtrans_edge_aware`) avec gradient vert directionnel multithreadé et guidance $(R-G)/(B-G)$ (PSNR >= 38 dB sur mire de Siemens). Commit `68f0575`.
+  - **Task 17.3 (`rraw-export`, `rraw-app`)** : Encodage réel AVIF (`ravif`), élimination du fallback silencieux PNG via `ExportError::UnsupportedFormat`, intégration dans le modal d'export de l'UI.
+  - **Validation Globale** : 304 tests passants across 66 suites, 0 clippy warnings sous `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
   - **Résolution dynamique du motif CFA** : Détection et mapping automatique depuis `raw_image.camera.cfa` (`rawler`) vers `CfaPattern::Bayer(Rggb | Bggr | Grbg | Gbrg)` et `CfaPattern::fujifilm_xtrans()`.
   - **Suppression du RGGB hardcodé** : Élimination du forçage RGGB aux lignes 102/118 de `rraw-decode/src/lib.rs`.
   - **Alignement de phase lors du recadrage** : `align_crop_to_cfa_phase` préserve l'alignement modulo 6 (X-Trans) et modulo 2 (Bayer) avec clamping de sécurité saturé contre tout débordement.

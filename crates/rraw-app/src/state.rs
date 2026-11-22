@@ -193,6 +193,7 @@ pub enum ExportFormatChoice {
     Jpeg,
     Png,
     Tiff,
+    Avif,
 }
 
 impl ExportFormatChoice {
@@ -202,6 +203,7 @@ impl ExportFormatChoice {
             Self::Jpeg => "jpg",
             Self::Png => "png",
             Self::Tiff => "tif",
+            Self::Avif => "avif",
         }
     }
 
@@ -211,6 +213,7 @@ impl ExportFormatChoice {
             Self::Jpeg => "JPEG (.jpg)",
             Self::Png => "PNG (.png)",
             Self::Tiff => "TIFF (.tif)",
+            Self::Avif => "AVIF (.avif)",
         }
     }
 }

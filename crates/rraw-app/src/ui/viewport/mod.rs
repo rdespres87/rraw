@@ -235,6 +235,8 @@ impl RrawApp {
             }
 
             let is_holding_left_fit = !self.viewport.split_compare
+                && !self.export.is_any_dialog_open()
+                && !ui.ctx().egui_wants_pointer_input()
                 && ui.input(|i| {
                     i.pointer.button_down(egui::PointerButton::Primary)
                         && i.pointer

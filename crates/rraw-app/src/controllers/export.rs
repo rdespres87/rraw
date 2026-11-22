@@ -42,6 +42,12 @@ pub struct ExportBatchController {
     pub timelapse_keyframe_ramping: bool,
     /// Base filename prefix for numbered timelapse sequence output (`<prefix>_00001.<ext>`).
     pub timelapse_sequence_prefix: String,
+    /// Whether an asynchronous export background task is currently executing.
+    pub is_exporting: bool,
+    /// Progress fraction of background export task [0.0, 1.0].
+    pub export_progress: f32,
+    /// Detailed status message displayed during export.
+    pub export_progress_label: String,
 }
 
 impl Default for ExportBatchController {
@@ -73,6 +79,9 @@ impl ExportBatchController {
             timelapse_deflicker: rraw_export::TimelapseDeflickerConfig::default(),
             timelapse_keyframe_ramping: false,
             timelapse_sequence_prefix: "timelapse".to_string(),
+            is_exporting: false,
+            export_progress: 0.0,
+            export_progress_label: String::new(),
         }
     }
 

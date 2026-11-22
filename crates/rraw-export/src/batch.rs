@@ -248,18 +248,10 @@ impl BatchExportQueue {
                     .map_err(|e| ExportError::EncodingError(e.to_string()))?;
                 Ok(())
             }
-            _ => {
-                // Fallback for AVIF / JXL / other formats: serialize valid PNG8
+            ExportFormat::Avif10 | ExportFormat::Avif12 => {
+                use std::io::Write;
                 let file = File::create(&job.output_path)?;
-                let w = BufWriter::new(file);
-
-                let mut encoder = png::Encoder::new(w, job.width as u32, job.height as u32);
-                encoder.set_color(png::ColorType::Rgb);
-                encoder.set_depth(png::BitDepth::Eight);
-
-                let mut writer = encoder
-                    .write_header()
-                    .map_err(|e| ExportError::EncodingError(e.to_string()))?;
+                let mut w = BufWriter::new(file);
 
                 let u8_bytes: Vec<u8> = job
                     .rgb_linear
@@ -267,11 +259,24 @@ impl BatchExportQueue {
                     .map(|&v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
                     .collect();
 
-                writer
-                    .write_image_data(&u8_bytes)
+                let quality = job.jpeg_quality.clamp(1, 100);
+                let encoder =
+                    image::codecs::avif::AvifEncoder::new_with_speed_quality(&mut w, 10, quality);
+                encoder
+                    .write_image(
+                        &u8_bytes,
+                        job.width as u32,
+                        job.height as u32,
+                        image::ExtendedColorType::Rgb8,
+                    )
                     .map_err(|e| ExportError::EncodingError(e.to_string()))?;
+                w.flush()?;
                 Ok(())
             }
+            _ => Err(ExportError::UnsupportedFormat(format!(
+                "{:?} is not supported for batch raster export",
+                job.format
+            ))),
         }
     }
 }

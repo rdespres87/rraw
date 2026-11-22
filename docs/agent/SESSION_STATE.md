@@ -4,13 +4,21 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 17 — Sensor Fidelity, Dynamic CFA & True Multi-Format Export
+- **Active Phase**: Phase 17 — Sensor Fidelity, Dynamic CFA & True Multi-Format Export — **ALL COMPLETE**
 - **Active Tasks**:
   - Task 17.1: Dynamic CFA Pattern Resolution & Phase Alignment (`rraw-decode`) — **COMPLETE**
   - Task 17.2: Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6) (`rraw-core`) — **COMPLETE**
-  - Task 17.3: True AVIF HDR & Safe Multi-Format Batch Export (`rraw-export`, `rraw-app`) — **READY FOR DEV**
-- **Last Verified Baseline**: 302 tests passants across 66 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 17 — Task 17.2 Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6) **Complete**
+  - Task 17.3: True AVIF HDR & Safe Multi-Format Batch Export (`rraw-export`, `rraw-app`) — **COMPLETE**
+- **Next Phase**: Phase 18 — High-Performance Directory Session DAM (Option A: `.rraw/cache.db`)
+- **Last Verified Baseline**: 304 tests passants across 66 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Phase 17 — Task 17.3 True AVIF HDR & Safe Multi-Format Batch Export **Complete**
+  - Activation de la feature `avif` (`ravif`) dans `image` sous le `Cargo.toml` racine.
+  - Implémentation de l'encodage réel AVIF (`image::codecs::avif::AvifEncoder`) dans `BatchExportQueue::process_single_job` pour `Avif10` et `Avif12`.
+  - Élimination intégrale du fallback silencieux PNG au profit de la variante fortement typée `ExportError::UnsupportedFormat(String)`.
+  - Intégration de l'AVIF dans `rraw-app` : variante `ExportFormatChoice::Avif` avec extension `.avif`, label d'interface et curseur de qualité dans le modal d'export.
+  - Tests unitaires `test_batch_export_avif_real_encoding` et `test_batch_export_unsupported_format_returns_clean_error` validant la signature ISOBMFF `ftyp/avif` et le rejet propre des formats non supportés.
+  - 304 tests passants across 66 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 17 — Task 17.2 Adaptive Edge-Aware Demosaicing for Fujifilm X-Trans (6x6) **Complete**
   - Implémentation de `demosaic_xtrans_edge_aware` dans `rraw-core/src/demosaic.rs` remplaçant le bilinéaire naïf.
   - Reconstruction directionnelle du plan Vert guidée par les gradients horizontaux et verticaux, avec parallélisation Rayon par ligne.
   - Reconstruction haute fidélité des canaux Rouge et Bleu par différences de chrominance $(R - G)$ et $(B - G)$ pondérées par distance inverse sur fenêtre 5×5.

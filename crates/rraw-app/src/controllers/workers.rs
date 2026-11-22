@@ -8,6 +8,9 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
+/// Progress event emitted by background export tasks: `(progress_fraction, label, final_result)`.
+pub type ExportProgressMessage = (f32, String, Option<Result<PathBuf, String>>);
+
 /// Background worker threads and asynchronous communication channels.
 pub struct BackgroundWorkers {
     /// Channel sender for dispatching background decode jobs.
@@ -30,6 +33,10 @@ pub struct BackgroundWorkers {
     pub thumbnail_pending: HashSet<PathBuf>,
     /// Loaded GPU textures for filmstrip thumbnails bounded by LRU eviction.
     pub thumbnail_textures: LruThumbnailCache,
+    /// Channel sender for dispatching background export outcomes.
+    pub export_sender: Sender<ExportProgressMessage>,
+    /// Channel receiver for reading background export progress and results on UI thread.
+    pub export_receiver: Receiver<ExportProgressMessage>,
 }
 
 impl Default for BackgroundWorkers {
@@ -45,6 +52,7 @@ impl BackgroundWorkers {
         let (decode_sender, decode_receiver) = channel();
         let (thumbnail_sender, thumbnail_receiver) = channel();
         let (thumbnail_req_tx, thumbnail_req_rx) = channel::<PathBuf>();
+        let (export_sender, export_receiver) = channel();
 
         let decode_coordinator = DecodeCoordinator::new();
         let (decode_req_tx, decode_req_rx) = channel::<DecodeRequest>();
@@ -89,6 +97,8 @@ impl BackgroundWorkers {
             thumbnail_req_tx,
             thumbnail_pending: HashSet::new(),
             thumbnail_textures: LruThumbnailCache::default(),
+            export_sender,
+            export_receiver,
         }
     }
 
@@ -98,6 +108,7 @@ impl BackgroundWorkers {
         let (decode_sender, decode_receiver) = channel();
         let (thumbnail_sender, thumbnail_receiver) = channel();
         let (thumbnail_req_tx, _thumbnail_req_rx) = channel::<PathBuf>();
+        let (export_sender, export_receiver) = channel();
         let decode_coordinator = DecodeCoordinator::new();
         let (decode_req_tx, _decode_req_rx) = channel::<DecodeRequest>();
 
@@ -112,6 +123,8 @@ impl BackgroundWorkers {
             thumbnail_req_tx,
             thumbnail_pending: HashSet::new(),
             thumbnail_textures: LruThumbnailCache::default(),
+            export_sender,
+            export_receiver,
         }
     }
 

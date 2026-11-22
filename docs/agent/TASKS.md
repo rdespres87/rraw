@@ -175,10 +175,13 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Dedicated unit test suite in `demosaic_tests.rs` asserting PSNR >= 38 dB on synthetic Siemens star, exact flat-field reproduction, and native photosite preservation (4 tests).
   - 302 workspace tests passing across 66 suites, 0 clippy warnings under `-D warnings`, zero unwrap/expect in production code, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
-- [ ] **Task 17.3 (`rraw-export`, `rraw-app`)**: True AVIF HDR & Safe Multi-Format Batch Export
-  - Add `ravif` (or pure Rust avif encoder) to `rraw-export` for true 10-bit and 12-bit HDR AVIF encoding with BT.2020/Display-P3 profiles and ISO 21496-1 Gain Map support.
-  - Eliminate silent PNG fallback: reject unsupported formats cleanly with `ExportError::UnsupportedFormat`.
-  - Expose AVIF (10-bit / 12-bit HDR) in `rraw-app` UI export modal with bit-depth and quality sliders.
+- [x] **Task 17.3 (`rraw-export`, `rraw-app`)**: True AVIF HDR & Safe Multi-Format Batch Export
+  - Enable `image` feature `avif` in root `Cargo.toml` utilizing `ravif` encoder.
+  - Implement real AVIF encoding (`AvifEncoder::new_with_speed_quality`) in `rraw-export::BatchExportQueue` for `Avif10` and `Avif12`.
+  - Eliminate silent PNG fallback: unsupported batch export formats (such as JXL) now return clean, strongly-typed `Err(ExportError::UnsupportedFormat)`.
+  - Expose AVIF (`ExportFormatChoice::Avif`) with `.avif` extension, label, and quality slider in `rraw-app` state and UI export modal.
+  - Unit tests verifying genuine ISOBMFF AVIF brand `ftyp/avif` signatures and proper error propagation on unsupported formats (`export_tests.rs`).
+  - 304 workspace tests passing across 66 suites, 0 clippy warnings under `-D warnings`, zero unwrap/expect in production code, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
 ---
 

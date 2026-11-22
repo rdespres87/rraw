@@ -91,6 +91,16 @@ impl RrawApp {
                     }
 
                     if filter_changed {
+                        let to_remove: Vec<PathBuf> = self
+                            .library
+                            .selected_photos
+                            .iter()
+                            .filter(|p| !self.matches_active_filter(p))
+                            .cloned()
+                            .collect();
+                        for p in to_remove {
+                            self.library.selected_photos.remove(&p);
+                        }
                         if let Some(loaded) = &self.session.loaded_photo {
                             if !self.matches_active_filter(&loaded.path) {
                                 if let Some(target) = self.first_filtered_entry() {
@@ -101,7 +111,12 @@ impl RrawApp {
                     }
 
                     ui.separator();
-                    let sel_count = self.library.selected_photos.len();
+                    let sel_count = self
+                        .library
+                        .selected_photos
+                        .iter()
+                        .filter(|p| self.matches_active_filter(p))
+                        .count();
                     let sel_text = if sel_count > 0 {
                         format!(
                             "Lot d'export : ✓ {} cochée{}",
@@ -127,7 +142,9 @@ impl RrawApp {
                         .clicked()
                     {
                         for entry in &self.library.directory_entries {
-                            self.library.selected_photos.insert(entry.clone());
+                            if self.matches_active_filter(entry) {
+                                self.library.selected_photos.insert(entry.clone());
+                            }
                         }
                     }
                     if sel_count > 0 && ui.small_button(self.t(Key::FilmstripDeselectAll)).clicked() {
@@ -259,7 +276,13 @@ impl RrawApp {
                                 let mut file_to_open = None;
                                 let mut star_change: Option<(PathBuf, u8)> = None;
                                 let mut thumbs_to_request = Vec::new();
-                                let entries = self.library.directory_entries.clone();
+                                let entries: Vec<PathBuf> = self
+                                    .library
+                                    .directory_entries
+                                    .iter()
+                                    .filter(|p| self.matches_active_filter(p))
+                                    .cloned()
+                                    .collect();
                                 let has_clipboard = self.library.recipe_clipboard.is_some();
                                 let clipboard_summary =
                                     self.library.recipe_clipboard.as_ref().map(|c| c.summary());
@@ -268,9 +291,6 @@ impl RrawApp {
                                 let mut toggle_export_path = None;
 
                                 for (entry_idx, entry) in entries.iter().enumerate() {
-                                    if !self.matches_active_filter(entry) {
-                                        continue;
-                                    }
                                     let rating =
                                         self.library.photo_ratings.get(entry).copied().unwrap_or(0);
 

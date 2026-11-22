@@ -13,6 +13,15 @@ use crate::i18n::{Key, Language};
 use crate::preview::*;
 use crate::state::*;
 
+/// Configuration parameters for single image encoding and disk serialization.
+#[derive(Debug, Clone, Copy)]
+pub struct ExportWriteConfig {
+    pub format: ExportFormatChoice,
+    pub jpeg_quality: u8,
+    pub bit_depth: ExportBitDepth,
+    pub scale_mode: ExportScaleMode,
+}
+
 impl RrawApp {
     fn write_exported_image(
         &self,
@@ -22,12 +31,29 @@ impl RrawApp {
         u8_bytes: &[u8],
         u16_samples: &[u16],
     ) -> Result<(), String> {
-        match self.export.export_format {
+        let cfg = ExportWriteConfig {
+            format: self.export.export_format,
+            jpeg_quality: self.export.export_jpeg_quality,
+            bit_depth: self.export.export_bit_depth,
+            scale_mode: self.export.export_scale_mode,
+        };
+        Self::write_exported_image_static(cfg, target_path, out_w, out_h, u8_bytes, u16_samples)
+    }
+
+    pub fn write_exported_image_static(
+        config: ExportWriteConfig,
+        target_path: &Path,
+        out_w: usize,
+        out_h: usize,
+        u8_bytes: &[u8],
+        u16_samples: &[u16],
+    ) -> Result<(), String> {
+        match config.format {
             ExportFormatChoice::Jpeg => {
                 let file = std::fs::File::create(target_path)
                     .map_err(|e| format!("Impossible de créer le fichier: {e}"))?;
                 let mut writer = std::io::BufWriter::new(file);
-                let quality = self.export.export_jpeg_quality.clamp(1, 100);
+                let quality = config.jpeg_quality.clamp(1, 100);
                 image::codecs::jpeg::JpegEncoder::new_with_quality(&mut writer, quality)
                     .write_image(
                         u8_bytes,
@@ -41,7 +67,7 @@ impl RrawApp {
                 let file = std::fs::File::create(target_path)
                     .map_err(|e| format!("Impossible de créer le fichier: {e}"))?;
                 let mut writer = std::io::BufWriter::new(file);
-                match self.export.export_bit_depth {
+                match config.bit_depth {
                     ExportBitDepth::Bits16 => {
                         let mut encoder =
                             png::Encoder::new(&mut writer, out_w as u32, out_h as u32);
@@ -76,7 +102,7 @@ impl RrawApp {
                 let file = std::fs::File::create(target_path)
                     .map_err(|e| format!("Impossible de créer le fichier: {e}"))?;
                 let mut writer = std::io::BufWriter::new(file);
-                match self.export.export_bit_depth {
+                match config.bit_depth {
                     ExportBitDepth::Bits16 => {
                         image::codecs::tiff::TiffEncoder::new(&mut writer)
                             .write_image(
@@ -99,12 +125,40 @@ impl RrawApp {
                     }
                 }
             }
+            ExportFormatChoice::Avif => {
+                use std::io::Write;
+                let file = std::fs::File::create(target_path)
+                    .map_err(|e| format!("Impossible de créer le fichier: {e}"))?;
+                let mut writer = std::io::BufWriter::new(file);
+                let quality = config.jpeg_quality.clamp(1, 100);
+                let encoder = image::codecs::avif::AvifEncoder::new_with_speed_quality(
+                    &mut writer,
+                    10,
+                    quality,
+                );
+                encoder
+                    .write_image(
+                        u8_bytes,
+                        out_w as u32,
+                        out_h as u32,
+                        image::ExtendedColorType::Rgb8,
+                    )
+                    .map_err(|e| format!("Erreur d'encodage AVIF: {e}"))?;
+                writer
+                    .flush()
+                    .map_err(|e| format!("Erreur lors de la finalisation du fichier AVIF: {e}"))?;
+            }
         }
         Ok(())
     }
 
-    fn compute_export_target_width(&self, cfa_width: usize, cfa_height: usize) -> usize {
-        match self.export.export_scale_mode {
+    #[must_use]
+    pub fn compute_export_target_width_static(
+        scale_mode: ExportScaleMode,
+        cfa_width: usize,
+        cfa_height: usize,
+    ) -> usize {
+        match scale_mode {
             ExportScaleMode::Original => cfa_width.max(1),
             ExportScaleMode::Percent75 => ((cfa_width * 3) / 4).max(1),
             ExportScaleMode::Percent50 => (cfa_width / 2).max(1),
@@ -125,12 +179,14 @@ impl RrawApp {
         }
     }
 
-    fn build_export_base_from_cfa(
-        &self,
+    #[must_use]
+    pub fn build_export_base_static(
+        scale_mode: ExportScaleMode,
         cfa: &rraw_core::SignedCfaBuffer,
         ref_preview: &BaseRgbPreview,
     ) -> BaseRgbPreview {
-        let target_width = self.compute_export_target_width(cfa.width(), cfa.height());
+        let target_width =
+            Self::compute_export_target_width_static(scale_mode, cfa.width(), cfa.height());
         let mut b = BaseRgbPreview::from_cfa_with_color_and_target_width(
             cfa,
             ref_preview.as_shot_wb,
@@ -140,6 +196,14 @@ impl RrawApp {
         b.cam_to_srgb = ref_preview.cam_to_srgb;
         b.matched_lens = ref_preview.matched_lens.clone();
         b.with_exif_orientation(ref_preview.exif_orientation)
+    }
+
+    fn build_export_base_from_cfa(
+        &self,
+        cfa: &rraw_core::SignedCfaBuffer,
+        ref_preview: &BaseRgbPreview,
+    ) -> BaseRgbPreview {
+        Self::build_export_base_static(self.export.export_scale_mode, cfa, ref_preview)
     }
 
     fn resolve_photo_preview_and_grading(
@@ -201,6 +265,245 @@ impl RrawApp {
         }
     }
 
+    /// Spawns a background thread executing the export without blocking the UI event loop.
+    pub fn spawn_background_export(&mut self) -> Result<(), String> {
+        // Keep backward compatibility if export_batch_selection was toggled programmatically
+        let mode = if self.export.export_target_mode == ExportTargetMode::CurrentPhoto
+            && self.export.export_batch_selection
+        {
+            ExportTargetMode::BatchSelection
+        } else {
+            self.export.export_target_mode
+        };
+
+        if mode == ExportTargetMode::TimelapseSequence {
+            // For timelapse, use existing synchronous call or background worker
+            let res = self.execute_timelapse_export();
+            let _ =
+                self.workers
+                    .export_sender
+                    .send((1.0, "Timelapse terminé".to_string(), Some(res)));
+            return Ok(());
+        }
+
+        let photos_to_export: Vec<PathBuf> = match mode {
+            ExportTargetMode::BatchSelection => {
+                let matching_selected: Vec<PathBuf> = self
+                    .library
+                    .selected_photos
+                    .iter()
+                    .filter(|p| self.matches_active_filter(p))
+                    .cloned()
+                    .collect();
+
+                if matching_selected.is_empty() {
+                    if let Some(loaded) = &self.session.loaded_photo {
+                        vec![loaded.path.clone()]
+                    } else {
+                        return Err("Aucune photo sélectionnée pour l'export par lot.".to_string());
+                    }
+                } else {
+                    let mut sorted = matching_selected;
+                    sorted.sort();
+                    sorted
+                }
+            }
+            ExportTargetMode::CurrentPhoto | ExportTargetMode::TimelapseSequence => {
+                if let Some(loaded) = &self.session.loaded_photo {
+                    vec![loaded.path.clone()]
+                } else {
+                    return Err("Aucune photo chargée à exporter.".to_string());
+                }
+            }
+        };
+
+        // Prepare lightweight export tasks on UI thread (< 0.1 ms) with zero disk I/O
+        struct ExportTask {
+            path: PathBuf,
+            target_path: PathBuf,
+            cached_base: Option<BaseRgbPreview>,
+            cached_cfa: Option<rraw_core::SignedCfaBuffer>,
+            cached_grading: Option<DarkroomGradingState>,
+        }
+
+        let mut items = Vec::with_capacity(photos_to_export.len());
+
+        let base_dest = self.export.export_custom_dir.clone().unwrap_or_else(|| {
+            self.session
+                .loaded_photo
+                .as_ref()
+                .and_then(|p| p.path.parent().map(Path::to_path_buf))
+                .unwrap_or_else(|| PathBuf::from("."))
+        });
+
+        let final_dest = if self.export.export_use_subfolder
+            && !self.export.export_subfolder.trim().is_empty()
+        {
+            base_dest.join(self.export.export_subfolder.trim())
+        } else {
+            base_dest
+        };
+
+        let _ = std::fs::create_dir_all(&final_dest);
+
+        let ext = self.export.export_format.extension();
+        let suffix = &self.export.export_suffix;
+
+        for photo_path in &photos_to_export {
+            let stem = photo_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("export");
+            let target_path = final_dest.join(format!("{stem}{suffix}.{ext}"));
+
+            let is_loaded = self.session.loaded_photo.as_ref().map(|p| p.path.as_path())
+                == Some(photo_path.as_path());
+            let (cached_base, cached_cfa, cached_grading) = if is_loaded {
+                (
+                    self.session.base_preview.clone(),
+                    self.session.cached_cfa.clone(),
+                    Some(self.session.grading.clone()),
+                )
+            } else if let Some(cached) = self.photo_cache.iter().find(|e| &e.path == photo_path) {
+                (
+                    Some(cached.base_preview.clone()),
+                    Some(cached.cfa.clone()),
+                    self.library.photo_gradings.get(photo_path).cloned(),
+                )
+            } else {
+                (
+                    None,
+                    None,
+                    self.library.photo_gradings.get(photo_path).cloned(),
+                )
+            };
+
+            items.push(ExportTask {
+                path: photo_path.clone(),
+                target_path,
+                cached_base,
+                cached_cfa,
+                cached_grading,
+            });
+        }
+
+        if items.is_empty() {
+            return Err("Aucune photo n'a pu être préparée pour l'export.".to_string());
+        }
+
+        self.save_current_photo_sidecar();
+
+        let export_config = ExportWriteConfig {
+            format: self.export.export_format,
+            jpeg_quality: self.export.export_jpeg_quality,
+            bit_depth: self.export.export_bit_depth,
+            scale_mode: self.export.export_scale_mode,
+        };
+        let tx = self.workers.export_sender.clone();
+
+        std::thread::spawn(move || {
+            let total = items.len();
+            let mut last_path = None;
+
+            for (idx, item) in items.into_iter().enumerate() {
+                let base_frac = (idx as f32) / (total as f32).max(1.0);
+                let step_frac = 1.0 / (total as f32).max(1.0);
+                let fname = item
+                    .path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("photo");
+
+                // Stage 1: Preparation & decoding (0% -> 25%)
+                let _ = tx.send((
+                    base_frac + step_frac * 0.05,
+                    format!("Décodage {fname} ({}/{total})", idx + 1),
+                    None,
+                ));
+
+                let (base_preview, cfa_opt) = match (item.cached_base, item.cached_cfa) {
+                    (Some(base), cfa) => (base, cfa),
+                    (None, _) => {
+                        if let Some(payload) = decode_photo_file_payload(&item.path, false, 0) {
+                            (payload.base_preview, Some(payload.cfa))
+                        } else {
+                            let _ = tx.send((
+                                base_frac + step_frac,
+                                format!("Échec du décodage de {fname}"),
+                                Some(Err(format!(
+                                    "Impossible de décoder {}",
+                                    item.path.display()
+                                ))),
+                            ));
+                            continue;
+                        }
+                    }
+                };
+
+                let base = if let Some(cfa) = &cfa_opt {
+                    Self::build_export_base_static(export_config.scale_mode, cfa, &base_preview)
+                } else {
+                    base_preview
+                };
+
+                let grading = item
+                    .cached_grading
+                    .unwrap_or_else(|| load_photo_sidecars(&item.path).0.unwrap_or_default());
+
+                // Stage 2: Color grading, tone curves & geometry rendering (25% -> 60%)
+                let _ = tx.send((
+                    base_frac + step_frac * 0.25,
+                    format!("Rendu {fname} ({}/{total})", idx + 1),
+                    None,
+                ));
+
+                let (out_w, out_h, u8_bytes, u16_samples) =
+                    render_export_image(&base, &grading, 1.0);
+
+                // Stage 3: Image compression & file writing (60% -> 98%)
+                let _ = tx.send((
+                    base_frac + step_frac * 0.60,
+                    format!("Encodage {fname} ({}/{total})", idx + 1),
+                    None,
+                ));
+
+                let outcome = Self::write_exported_image_static(
+                    export_config,
+                    &item.target_path,
+                    out_w,
+                    out_h,
+                    &u8_bytes,
+                    &u16_samples,
+                );
+
+                match outcome {
+                    Ok(()) => {
+                        let _ = tx.send((
+                            base_frac + step_frac * 0.98,
+                            format!("Enregistré {fname} ({}/{total})", idx + 1),
+                            None,
+                        ));
+                        last_path = Some(item.target_path);
+                    }
+                    Err(e) => {
+                        let _ = tx.send((1.0, format!("Erreur: {e}"), Some(Err(e))));
+                        return;
+                    }
+                }
+            }
+
+            let result = last_path.ok_or_else(|| "Erreur lors de l'exportation".to_string());
+            let final_msg = if total > 1 {
+                format!("Export terminé : {total} photos exportées")
+            } else {
+                "Export terminé".to_string()
+            };
+            let _ = tx.send((1.0, final_msg, Some(result)));
+        });
+
+        Ok(())
+    }
+
     /// Executes photographic export (Single photo, Batch selection, or Timelapse sequence with
     /// temporal anti-flicker and keyframe ramping).
     pub fn execute_export(&mut self) -> Result<PathBuf, String> {
@@ -219,15 +522,22 @@ impl RrawApp {
 
         let photos_to_export: Vec<PathBuf> = match mode {
             ExportTargetMode::BatchSelection => {
-                if self.library.selected_photos.is_empty() {
+                let matching_selected: Vec<PathBuf> = self
+                    .library
+                    .selected_photos
+                    .iter()
+                    .filter(|p| self.matches_active_filter(p))
+                    .cloned()
+                    .collect();
+
+                if matching_selected.is_empty() {
                     if let Some(loaded) = &self.session.loaded_photo {
                         vec![loaded.path.clone()]
                     } else {
                         return Err("Aucune photo sélectionnée pour l'export par lot.".to_string());
                     }
                 } else {
-                    let mut sorted: Vec<PathBuf> =
-                        self.library.selected_photos.iter().cloned().collect();
+                    let mut sorted = matching_selected;
                     sorted.sort();
                     sorted
                 }
@@ -698,6 +1008,13 @@ impl RrawApp {
             .default_pos(egui::pos2(780.0, 52.0))
             .show(ctx, |ui| {
                 ui.heading(t(Key::ExportTargetHeading));
+                let sel_count = self
+                    .library
+                    .selected_photos
+                    .iter()
+                    .filter(|p| self.matches_active_filter(p))
+                    .count();
+
                 ui.horizontal_wrapped(|ui| {
                     if ui
                         .radio_value(
@@ -709,7 +1026,6 @@ impl RrawApp {
                     {
                         self.export.export_batch_selection = false;
                     }
-                    let sel_count = self.library.selected_photos.len();
                     let batch_word = t(Key::ExportTargetBatch);
                     let s_suffix = if sel_count > 1 { "s" } else { "" };
                     let batch_label = format!("{batch_word} ({sel_count} photo{s_suffix})");
@@ -768,7 +1084,7 @@ impl RrawApp {
                         }
                     }
                     ExportTargetMode::BatchSelection => {
-                        if self.library.selected_photos.is_empty() {
+                        if sel_count == 0 {
                             ui.label(
                                 egui::RichText::new(t(Key::ExportNoBatchWarning))
                                     .small()
@@ -805,11 +1121,37 @@ impl RrawApp {
                         ExportFormatChoice::Tiff,
                         "TIFF",
                     );
+                    ui.selectable_value(
+                        &mut self.export.export_format,
+                        ExportFormatChoice::Avif,
+                        "AVIF",
+                    );
                 });
 
                 ui.add_space(4.0);
                 match self.export.export_format {
                     ExportFormatChoice::Jpeg => {
+                        ui.horizontal(|ui| {
+                            ui.label(t(Key::ExportJpegQuality));
+                            ui.add(
+                                egui::Slider::new(&mut self.export.export_jpeg_quality, 1..=100)
+                                    .suffix("%"),
+                            );
+                        });
+                        let quality_desc = if self.export.export_jpeg_quality >= 92 {
+                            t(Key::ExportJpegQualityMax)
+                        } else if self.export.export_jpeg_quality >= 80 {
+                            t(Key::ExportJpegQualityBalanced)
+                        } else {
+                            t(Key::ExportJpegQualityLow)
+                        };
+                        ui.label(
+                            egui::RichText::new(quality_desc)
+                                .small()
+                                .color(Color32::GRAY),
+                        );
+                    }
+                    ExportFormatChoice::Avif => {
                         ui.horizontal(|ui| {
                             ui.label(t(Key::ExportJpegQuality));
                             ui.add(
@@ -958,6 +1300,15 @@ impl RrawApp {
                     });
                 }
 
+                if self.export.is_exporting {
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(egui::RichText::new(&self.export.export_progress_label).strong());
+                    });
+                    ui.add(egui::ProgressBar::new(self.export.export_progress).animate(true));
+                }
+
                 if let Some((msg, success)) = &self.export.export_status {
                     ui.add_space(6.0);
                     let col = if *success {
@@ -971,7 +1322,13 @@ impl RrawApp {
                 ui.add_space(8.0);
                 ui.separator();
                 ui.horizontal(|ui| {
-                    if ui.button(t(Key::ExportCancel)).clicked() {
+                    if ui
+                        .add_enabled(
+                            !self.export.is_exporting,
+                            egui::Button::new(t(Key::ExportCancel)),
+                        )
+                        .clicked()
+                    {
                         close_dialog = true;
                     }
                     let export_btn_text = match self.export.export_target_mode {
@@ -980,7 +1337,8 @@ impl RrawApp {
                         ExportTargetMode::TimelapseSequence => t(Key::ExportBtnTimelapse),
                     };
                     if ui
-                        .add(
+                        .add_enabled(
+                            !self.export.is_exporting,
                             egui::Button::new(egui::RichText::new(export_btn_text).strong())
                                 .fill(Color32::from_rgb(30, 110, 210)),
                         )
@@ -997,39 +1355,23 @@ impl RrawApp {
         self.export.show_export_dialog = is_open;
 
         if trigger_export {
-            match self.execute_export() {
-                Ok(path) => {
-                    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("image");
-                    let status_txt = match self.export.export_target_mode {
-                        ExportTargetMode::CurrentPhoto => {
-                            format!("{}{file_name}", t(Key::ExportSuccessSinglePrefix))
-                        }
-                        ExportTargetMode::BatchSelection => {
-                            let count = self.library.selected_photos.len().max(1);
-                            if lang == Language::Fr {
-                                format!("✅ Export par lot réussi ({count} fichier(s))")
-                            } else {
-                                format!("✅ Batch export successful ({count} file(s))")
-                            }
-                        }
-                        ExportTargetMode::TimelapseSequence => {
-                            let frames = self.timelapse_candidate_paths().len();
-                            let fps = self.export.timelapse_fps.fps();
-                            if lang == Language::Fr {
-                                format!("✅ Séquence Timelapse exportée ({frames} images @ {fps} fps + manifeste JSON)")
-                            } else {
-                                format!("✅ Timelapse sequence exported ({frames} frames @ {fps} fps + JSON manifest)")
-                            }
-                        }
-                    };
-                    self.status_message = status_txt.clone();
-                    self.export.export_status = Some((status_txt, true));
-                    self.export.show_export_dialog = false;
-                }
-                Err(err) => {
-                    self.export.export_status =
-                        Some((format!("{}{err}", t(Key::ExportFailedPrefix)), false));
-                }
+            self.export.is_exporting = true;
+            self.export.export_progress = 0.05;
+            self.export.export_progress_label = if lang == Language::Fr {
+                "Préparation de l'export...".to_string()
+            } else {
+                "Preparing export...".to_string()
+            };
+            self.export.export_status = None;
+            // Ferme immédiatement la fenêtre d'export pour laisser place au travail
+            // L'avancement et le statut sont suivis en direct dans la barre du bas
+            self.export.show_export_dialog = false;
+
+            if let Err(err) = self.spawn_background_export() {
+                self.export.is_exporting = false;
+                self.export.export_status =
+                    Some((format!("{}{err}", t(Key::ExportFailedPrefix)), false));
+                self.status_message = format!("❌ Erreur d'export: {err}");
             }
         }
     }
