@@ -1,6 +1,7 @@
 //! Dedicated domain controller managing the local image library, navigation, selection and ratings.
 
 use crate::state::{DarkroomGradingState, GradingRecipeClipboard, RatingFilter};
+use rraw_storage::SqliteDamIndex;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -9,6 +10,8 @@ use std::path::{Path, PathBuf};
 pub struct LibraryController {
     /// Currently selected directory in file explorer.
     pub current_directory: Option<PathBuf>,
+    /// Active SQLite DAM session index for currently opened directory.
+    pub session_dam: Option<SqliteDamIndex>,
     /// Image files discovered in `current_directory`.
     pub directory_entries: Vec<PathBuf>,
     /// Filter displaying only genuine RAW files in the filmstrip.
@@ -45,6 +48,7 @@ impl LibraryController {
     pub fn new() -> Self {
         Self {
             current_directory: None,
+            session_dam: None,
             directory_entries: Vec::new(),
             raw_only_filter: false,
             rating_filter: RatingFilter::All,

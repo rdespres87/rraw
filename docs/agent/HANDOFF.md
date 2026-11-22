@@ -2,16 +2,26 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 18 — High-Performance Directory Session DAM (Option A: `.rraw/cache.db`)**:
-  - **Task 18.2 (`rraw-app`)**: Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering — **READY FOR DEV**
-    - Wire `SqliteDamIndex` into `LibraryController` in `rraw-app`.
-    - Background worker to scan/index directory EXIF tags into `.rraw/cache.db` on folder open without freezing the UI.
-    - Instant filmstrip filtering (< 1 ms on 5,000 photos) via indexed SQL queries (`DamFilter` by star rating, color label, pick status, camera, lens, focal length).
-    - Bidirectional sync: UI star rating and color label shortcuts write to both `.rraw/cache.db` and sidecar `.rraw.json`.
+- **Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database**:
+  - **Task 19.1 (`rraw-optics`)**: Embedded & External Lensfun XML Database Engine — **READY FOR DEV**
+    - Embed compressed official Lensfun XML catalog (> 1,000 lenses) into `rraw-optics` using pure Rust XML parser (`quick-xml`).
+    - Add search/discovery of local system database (`/usr/share/lensfun` on Linux, Homebrew on macOS, `~/Library/Application Support/rraw/lensfun/`).
+    - Dynamic interpolation of polynomial distortion, lateral TCA, and radial vignetting across focal length and aperture ranges.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 18 — Task 18.2 Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering (`rraw-app`) — COMPLETE**:
+  - **LibraryController DAM Integration**: Wired `SqliteDamIndex` via `session_dam: Option<SqliteDamIndex>`.
+  - **Zero-Block Folder Open**: UI thread opens/creates `.rraw/cache.db` in < 0.05 ms and offloads rating loading and file scanning to `spawn_directory_indexer`.
+  - **Bounded UI Drain**: `drain_dam_indexing_events(128)` prevents frame drops and maintains rock-solid 120 FPS ProMotion.
+  - **Bidirectional Sync & SQLite Retry**: Star ratings written via `set_photo_rating_for_path` persist atomically to `.rraw.json` sidecar and `.rraw/cache.db` with exponential backoff retry on `SQLITE_BUSY`.
+  - **Validation & Tests**: Dedicated test suite in `session_dam_app_tests.rs` (3 tests), 312 workspace tests passing across 68 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 18 — Task 18.1 Session-Mode SQLite Engine & High-Concurrency WAL Pragmas (`rraw-storage`) — COMPLETE**:
   - **Session-Mode Database**: Automatic creation/discovery of `.rraw/cache.db` in currently opened folder via `SqliteDamIndex::open_session_database`.

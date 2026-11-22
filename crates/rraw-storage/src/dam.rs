@@ -48,6 +48,14 @@ pub struct SqliteDamIndex {
     db_path: Option<PathBuf>,
 }
 
+impl std::fmt::Debug for SqliteDamIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SqliteDamIndex")
+            .field("db_path", &self.db_path)
+            .finish()
+    }
+}
+
 impl SqliteDamIndex {
     /// Returns the canonical path to `.rraw/cache.db` within `folder`.
     #[must_use]
@@ -400,7 +408,7 @@ impl SqliteDamIndex {
         Ok(rows_affected > 0)
     }
 
-    /// Updates rating, color label, and pick status directly in the database.
+    /// Updates rating, color label, and pick status directly in the database with automatic retry on busy.
     pub fn update_ratings<P: AsRef<Path>>(
         &self,
         raw_path: P,
@@ -408,23 +416,44 @@ impl SqliteDamIndex {
         label: ColorLabel,
         pick: PickStatus,
     ) -> Result<bool, StorageError> {
-        let guard = self
-            .conn
-            .lock()
-            .map_err(|_| StorageError::Database("Mutex poisoned".to_owned()))?;
-
         let path_str = raw_path.as_ref().to_string_lossy().to_string();
         let label_str = color_label_to_str(label);
         let pick_str = pick_status_to_str(pick);
 
-        let rows_affected = guard
-            .execute(
-                "UPDATE photos SET rating = ?1, color_label = ?2, pick_status = ?3, updated_at = unixepoch() WHERE raw_path = ?4",
-                params![rating as i64, label_str, pick_str, path_str],
-            )
-            .map_err(|e| StorageError::Database(format!("Update ratings failed: {e}")))?;
+        let mut attempts = 0;
+        loop {
+            let guard_res = self.conn.lock();
+            let guard =
+                guard_res.map_err(|_| StorageError::Database("Mutex poisoned".to_owned()))?;
 
-        Ok(rows_affected > 0)
+            let res = guard.execute(
+                "INSERT INTO photos (
+                    raw_path, camera_make, camera_model, width, height, rating, pick_status, color_label, updated_at
+                ) VALUES (?1, 'Unknown', 'Unknown', 0, 0, ?2, ?3, ?4, unixepoch())
+                ON CONFLICT(raw_path) DO UPDATE SET
+                    rating = excluded.rating,
+                    color_label = excluded.color_label,
+                    pick_status = excluded.pick_status,
+                    updated_at = excluded.updated_at",
+                params![path_str, rating as i64, pick_str, label_str],
+            );
+
+            match res {
+                Ok(rows) => return Ok(rows > 0),
+                Err(rusqlite::Error::SqliteFailure(err, _))
+                    if err.code == rusqlite::ErrorCode::DatabaseBusy && attempts < 5 =>
+                {
+                    drop(guard);
+                    attempts += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(5 * attempts));
+                }
+                Err(e) => {
+                    return Err(StorageError::Database(format!(
+                        "Update ratings failed: {e}"
+                    )))
+                }
+            }
+        }
     }
 
     /// Retrieves an indexed photo record by raw file path.
@@ -585,6 +614,45 @@ impl SqliteDamIndex {
         }
 
         Ok(records)
+    }
+
+    /// Preloads all photo ratings currently stored in the database in a single query.
+    pub fn load_all_ratings(&self) -> Result<std::collections::HashMap<PathBuf, u8>, StorageError> {
+        let guard = self
+            .conn
+            .lock()
+            .map_err(|_| StorageError::Database("Mutex poisoned".to_owned()))?;
+
+        let mut stmt = guard
+            .prepare("SELECT raw_path, rating FROM photos")
+            .map_err(|e| StorageError::Database(format!("Prepare load_all_ratings failed: {e}")))?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                let path_str: String = row.get(0)?;
+                let rating: u8 = row.get::<_, i64>(1)? as u8;
+                Ok((PathBuf::from(path_str), rating))
+            })
+            .map_err(|e| StorageError::Database(format!("Query load_all_ratings failed: {e}")))?;
+
+        let mut map = std::collections::HashMap::new();
+        for r in rows {
+            let (path, rating) = r.map_err(|e| {
+                StorageError::Database(format!("Row error in load_all_ratings: {e}"))
+            })?;
+            map.insert(path, rating);
+        }
+
+        Ok(map)
+    }
+
+    /// Queries photo file paths matching the provided criteria.
+    pub fn query_filtered_paths(&self, filter: &DamFilter) -> Result<Vec<PathBuf>, StorageError> {
+        let records = self.query_photos(filter)?;
+        Ok(records
+            .into_iter()
+            .map(|r| PathBuf::from(r.raw_path))
+            .collect())
     }
 }
 

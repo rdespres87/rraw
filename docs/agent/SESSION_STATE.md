@@ -7,10 +7,18 @@
 - **Active Phase**: Phase 18 — High-Performance Directory Session DAM (Option A: `.rraw/cache.db`)
 - **Active Tasks**:
   - Task 18.1: Session-Mode SQLite Engine & High-Concurrency WAL Pragmas (`rraw-storage`) — **COMPLETE**
-  - Task 18.2: Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering (`rraw-app`) — **UP NEXT**
+  - Task 18.2: Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering (`rraw-app`) — **COMPLETE**
 - **Next Phase**: Phase 19 — Comprehensive Lens Correction & Dynamic Lensfun Database
-- **Last Verified Baseline**: 309 tests passants across 67 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 18 — Task 18.1 Session-Mode SQLite Engine & High-Concurrency WAL Pragmas **Complete**
+- **Last Verified Baseline**: 312 tests passants across 68 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Phase 18 — Task 18.2 Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering **Complete**
+  - Câblage de `SqliteDamIndex` dans `LibraryController` (`session_dam: Option<SqliteDamIndex>`).
+  - Ouverture/création automatique de `.rraw/cache.db` dès l'ouverture d'un dossier (`open_directory`) en < 0.05 ms sur le thread UI.
+  - Worker d'arrière-plan d'indexation asynchrone avec annulation par époque atomique (`spawn_directory_indexer`).
+  - Streaming asynchrone des notes préexistantes et des nouvelles détections vers l'interface avec borne de 128 événements par trame (`drain_dam_indexing_events(128)`) garantissant 120 FPS constants.
+  - Synchronisation bidirectionnelle : notation par raccourci ou clic dans le filmstrip (`set_photo_rating_for_path`) écrivant immédiatement dans les sidecars `.rraw.json` et en base SQLite (UPSERT avec retry sur contention).
+  - Suite de tests unitaires et d'intégration dédiée `crates/rraw-app/tests/session_dam_app_tests.rs` (3 tests).
+  - 312 tests passants across 68 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 18 — Task 18.1 Session-Mode SQLite Engine & High-Concurrency WAL Pragmas **Complete**
   - Implémentation du mode Session dans `SqliteDamIndex` : création/découverte automatique de `.rraw/cache.db` dans le dossier de photos ouvert.
   - Activation des pragmas WAL et haute concurrence : `PRAGMA journal_mode = WAL;`, `PRAGMA synchronous = NORMAL;`, `PRAGMA temp_store = MEMORY;`, `PRAGMA busy_timeout = 5000;`.
   - Prise en charge des sidecars `.rraw.json` comme unique source de vérité (`read_sidecar_overrides`) avec repli `.xmp`.

@@ -671,35 +671,7 @@ impl RrawApp {
                                 }
 
                                 if let Some((path, new_r)) = star_change {
-                                    self.library.photo_ratings.insert(path.clone(), new_r);
-                                    if let Some(photo) = &mut self.session.loaded_photo {
-                                        if photo.path == path {
-                                            photo.rating = new_r;
-                                        }
-                                    }
-                                    if let Some(entry) =
-                                        self.photo_cache.iter_mut().find(|e| e.path == path)
-                                    {
-                                        entry.photo_view.rating = new_r;
-                                    }
-
-                                    // Immediately persist rating to <photo>.rraw.json and <photo>.xmp
-                                    let current_grading =
-                                        self.library.photo_gradings.get(&path).cloned().unwrap_or_default();
-                                    save_photo_sidecars(&path, &current_grading, new_r);
-
-                                    let star_text = if new_r > 0 {
-                                        "★".repeat(new_r as usize)
-                                    } else {
-                                        "Unrated".to_string()
-                                    };
-                                    self.status_message = format!(
-                                        "Rated {}: {}",
-                                        path.file_name()
-                                            .and_then(|n| n.to_str())
-                                            .unwrap_or("photo"),
-                                        star_text
-                                    );
+                                    self.set_photo_rating_for_path(&path, new_r);
                                 }
 
                                 for path in thumbs_to_request {

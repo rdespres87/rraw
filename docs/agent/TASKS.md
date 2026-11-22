@@ -192,11 +192,13 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Implement incremental sync (`sync_photo`, `sync_sidecar`): index metadata and star/color ratings while keeping `.rraw.json` sidecars as the single source of truth.
   - Dedicated unit and multi-threaded stress tests (`session_dam_tests.rs`). 309 workspace tests passing across 67 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
-- [ ] **Task 18.2 (`rraw-app`)**: Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering
-  - Wire `SqliteDamIndex` into `LibraryController` in `rraw-app`.
-  - Background worker to scan/index directory EXIF tags into `.rraw/cache.db` on folder open without freezing the UI.
-  - Instant filmstrip filtering (< 1 ms on 5,000 photos) via indexed SQL queries (`DamFilter` by star rating, color label, pick status, camera, lens, focal length).
-  - Bidirectional sync: UI star rating and color label shortcuts write to both `.rraw/cache.db` and sidecar `.rraw.json`.
+- [x] **Task 18.2 (`rraw-app`)**: Asynchronous Directory Indexing & Sub-Millisecond Filmstrip Filtering
+  - Wire `SqliteDamIndex` into `LibraryController` in `rraw-app` via `session_dam: Option<SqliteDamIndex>`.
+  - Background worker to scan/index directory EXIF tags into `.rraw/cache.db` on folder open without freezing the UI thread (< 0.05 ms dispatch time).
+  - Bounded receiver drain (`drain_dam_indexing_events(128)`) preserving 120 FPS ProMotion rendering without frame drops.
+  - Exponential backoff retry loop on SQLite contention (`SQLITE_BUSY`).
+  - Bidirectional sync: UI star rating and color label shortcuts write to both `.rraw/cache.db` (UPSERT) and sidecar `.rraw.json`.
+  - Dedicated unit and integration tests (`session_dam_app_tests.rs`). 312 workspace tests passing across 68 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
 ---
 

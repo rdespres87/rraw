@@ -474,6 +474,20 @@ impl RrawApp {
         self.layout_config.last_open_directory = Some(abs_dir.clone());
         self.layout_config.save();
 
+        // 1. Open SQLite session database (creates .rraw/cache.db) with WAL pragmas
+        match rraw_storage::SqliteDamIndex::open_session_database(&abs_dir) {
+            Ok(dam) => {
+                // Background worker asynchronously preloads cached ratings and indexes directory photos without freezing the UI thread
+                self.workers
+                    .spawn_directory_indexer(dam.clone(), self.library.directory_entries.clone());
+                self.library.session_dam = Some(dam);
+            }
+            Err(err) => {
+                eprintln!("Failed to open session database: {err}");
+                self.library.session_dam = None;
+            }
+        }
+
         // Preload sidecars (.rraw.json & .xmp) without stalling CPU
         let entries = self.library.directory_entries.clone();
         for path in &entries {
@@ -626,35 +640,76 @@ impl RrawApp {
         }
     }
 
-    /// Sets the rating (0 to 5) of the currently loaded photo and persists to `.rraw.json` and `.xmp`.
+    /// Drains pending background DAM session indexing updates (bounded to max_events to preserve 120 FPS).
+    pub fn drain_dam_indexing_events(&mut self, max_events: usize) -> usize {
+        let mut drained = 0;
+        while drained < max_events {
+            match self.workers.dam_index_receiver.try_recv() {
+                Ok((path, rating)) => {
+                    self.library.photo_ratings.insert(path, rating);
+                    drained += 1;
+                }
+                Err(_) => break,
+            }
+        }
+        drained
+    }
+
+    /// Sets the rating (0 to 5) of the currently loaded photo and persists to `.rraw.json`, `.xmp`, and SQLite session DAM.
     pub fn set_current_photo_rating(&mut self, rating: u8) {
         if let Some(photo) = &mut self.session.loaded_photo {
-            photo.rating = rating;
-            self.library
-                .photo_ratings
-                .insert(photo.path.clone(), rating);
-            if let Some(entry) = self.photo_cache.iter_mut().find(|e| e.path == photo.path) {
-                entry.photo_view.rating = rating;
+            let path = photo.path.clone();
+            self.set_photo_rating_for_path(&path, rating);
+        }
+    }
+
+    /// Sets the rating of any photo in the library, persisting to sidecars and SQLite session DAM.
+    pub fn set_photo_rating_for_path(&mut self, photo_path: &Path, rating: u8) {
+        self.library
+            .photo_ratings
+            .insert(photo_path.to_path_buf(), rating);
+
+        if let Some(photo) = &mut self.session.loaded_photo {
+            if photo.path == photo_path {
+                photo.rating = rating;
             }
+        }
+        if let Some(entry) = self.photo_cache.iter_mut().find(|e| e.path == photo_path) {
+            entry.photo_view.rating = rating;
+        }
 
-            // Save immediately to adjacent <photo>.rraw.json and <photo>.xmp
-            save_photo_sidecars(&photo.path, &self.session.grading, rating);
+        // Save immediately to adjacent <photo>.rraw.json and <photo>.xmp
+        let grading = self
+            .library
+            .photo_gradings
+            .get(photo_path)
+            .cloned()
+            .unwrap_or_else(|| self.session.grading.clone());
+        save_photo_sidecars(photo_path, &grading, rating);
 
-            let star_text = if rating > 0 {
-                "★".repeat(rating as usize)
-            } else {
-                "Unrated".to_string()
-            };
-            self.status_message = format!(
-                "Rated {}: {} (Saved to .rraw.json & .xmp)",
-                photo
-                    .path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("photo"),
-                star_text
+        // Bidirectional sync with SQLite session DAM
+        if let Some(dam) = &self.library.session_dam {
+            let _ = dam.update_ratings(
+                photo_path,
+                rating,
+                rraw_core::ColorLabel::None,
+                rraw_core::PickStatus::Unflagged,
             );
         }
+
+        let star_text = if rating > 0 {
+            "★".repeat(rating as usize)
+        } else {
+            "Unrated".to_string()
+        };
+        self.status_message = format!(
+            "Rated {}: {} (Saved to .rraw.json & session DAM)",
+            photo_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("photo"),
+            star_text
+        );
     }
 
     /// Checks if a file path matches the currently active filmstrip filters (rating + raw-only).
@@ -1203,6 +1258,12 @@ impl eframe::App for RrawApp {
         }
 
         if !self.workers.thumbnail_pending.is_empty() {
+            ui.ctx().request_repaint();
+        }
+
+        // Drain background DAM session indexing updates (bounded to 128 per frame to preserve 120 FPS)
+        let dam_drained = self.drain_dam_indexing_events(128);
+        if dam_drained == 128 {
             ui.ctx().request_repaint();
         }
 
