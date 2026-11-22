@@ -7,9 +7,19 @@
 - **Active Phase**: Phase 15 — Architectural Hardening: State De-Obesity, UI Modularization & Scalable i18n
 - **Active Tasks**:
   - Task 15.1: State De-Obesity & Domain Hierarchy (`rraw-core` & `rraw-app`) — **COMPLETE**
-  - Task 15.2: Monolithic File & Function Decomposition (`rraw-app`) — **IN PROGRESS** (Inspector modularized into `ui/sections/`, 1,645 lines pruned from `inspector.rs` ; Viewport & Preview modularization next)
+  - Task 15.2: Monolithic File & Function Decomposition (`rraw-app`) — **COMPLETE** (Inspector, Viewport, and Preview decomposed into modular sub-packages)
   - Task 15.3: Scalable External Resource-Based i18n Engine (`rraw-app`)
-- **Last Verified Baseline**: 263 tests passants across 60 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Last Verified Baseline**: 268 tests passants across 61 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Preceding Milestone**: Phase 15 — Task 15.2 Step 3: Preview Pipeline Modularization **Complete**
+  - Décomposition du fichier monolithique `preview.rs` (2 264 lignes) en sous-modules dédiés sous `crates/rraw-app/src/preview/`:
+    - `masks.rs` (109 lignes) : Inférence de masques sémantiques IA (`infer_preview_semantic_masks`) et évaluation des ajustements locaux (`eval_all_mask_adjustments`).
+    - `orientation.rs` (314 lignes) : Transformations d'orientation EXIF (`apply_exif_orientation_rgb`, `apply_exif_orientation_dyn_image`), analyseur de tags TIFF/SubIFD (`parse_tiff_ifd0_orientation`, `read_exif_orientation`) et parcours de répertoires (`scan_directory_for_images`, `sync_directory_entries`).
+    - `types.rs` (414 lignes) : `LoadedPhotoView` et exporteur JSON, calcul matriciel calibration boîtier vers sRGB `compute_cam_to_srgb_matrix`, `BaseRgbPreview`, `CachedPhotoEntry`, `BackgroundDecodePayload`.
+    - `decoder.rs` (370 lignes) : Génération de vignettes rapides (`generate_fast_thumbnail`, `create_thumbnail_from_preview`), décodage en arrière-plan (`decode_photo_file_payload`) et calculs de timelapse deflicker.
+    - `pipeline.rs` (1 112 lignes) : Pipeline de rendu couleur darkroom (`render_preview_from_base`), rastérisation pour export (`render_export_image`) et helper `generate_preview_image`.
+    - `mod.rs` (15 lignes) : Ré-exportation exhaustive assurant une rétrocompatibilité ascendante stricte à 100%.
+  - Suite de tests unitaires dédiée `crates/rraw-app/tests/preview_modularization_tests.rs` (5 tests).
+  - 268 tests passants across 61 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 - **Preceding Milestone**: Phase 15 — Task 15.2 Step 2: Viewport UI Modularization **Complete**
   - Décomposition du fichier monolithique `viewport.rs` (1 231 lignes) et de `render_central_viewport` (1 134 lignes) en sous-modules dédiés sous `crates/rraw-app/src/ui/viewport/`:
     - `crop_overlay.rs`: Boîte de recadrage interactive, poignées de redimensionnement, grille des tiers, pilule flottante de validation.

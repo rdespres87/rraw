@@ -108,7 +108,7 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Align `SidecarRecipe` using Serde `#[serde(flatten)]` to ensure 100% strict backward and forward compatibility with existing `.rraw.json` sidecar files without field name collisions.
   - TDD test suite `state_de_obesity_tests.rs` passing, 247 workspace tests passing, 0 clippy warnings, Qwen 3.6 35B Inquisitor APPROVED.
 
-- [ ] **Task 15.2 (`rraw-app`)**: Monolithic File & Function Decomposition
+- [x] **Task 15.2 (`rraw-app`)**: Monolithic File & Function Decomposition
   - [x] Step 1: Decompose `crates/rraw-app/src/ui/inspector.rs` (2,087 lines down to 420 lines) & `render_darkroom_section` (1,773 lines) into isolated modular submodules under `crates/rraw-app/src/ui/sections/`:
     - `sections/exposure_tone.rs`, `sections/white_balance.rs`, `sections/optics.rs`, `sections/detail_denoise.rs`, `sections/geometry.rs`, `sections/crop.rs`, `sections/straighten.rs`, `sections/masks.rs`, `sections/soft_proofing.rs`, `sections/timelapse.rs`, `sections/mod.rs`.
     - Enforce the principle of least privilege: each section widget accepts only its specific domain parameter struct (e.g. `&mut ToneGradingParams`) rather than `&mut RrawApp` or full grading state.
@@ -118,8 +118,9 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
     - `viewport/mod.rs` (479 lines orchestrator with pan/zoom and paper frames), `viewport/crop_overlay.rs` (interactive crop, handles, validation pill), `viewport/perspective_tools.rs` (leveling horizon, 2-parallel lines), `viewport/hud.rs` (live original, soft proofing, local mask badges), `viewport/brush_overlay.rs` (mouse painting dabs, cursor ring), `viewport/split_compare.rs` (draggable divider).
     - Encapsulated parameter states into `CropToolState` and `BrushViewportContext` resolving all argument count bloat (`clippy::too_many_arguments`).
     - Dedicated test suite `crates/rraw-app/tests/viewport_modularization_tests.rs` (6 tests) passing, 263 workspace tests passing across 60 suites, 0 clippy warnings, Qwen 3.6 35B Inquisitor APPROVED.
-  - [ ] Step 3: Decompose `crates/rraw-app/src/preview.rs` (2,264 lines) into dedicated processing layers:
-    - `preview/pipeline.rs` (rendering execution), `preview/cache.rs` (MRU & texture pooling), `preview/masks.rs` (local adjustments evaluation).
+  - [x] Step 3: Decompose `crates/rraw-app/src/preview.rs` (2,264 lines) into dedicated processing layers:
+    - `preview/masks.rs` (109 lines: AI segmentation & adjustments evaluation), `preview/orientation.rs` (314 lines: EXIF orientations, TIFF tags, directory scanning), `preview/types.rs` (414 lines: `LoadedPhotoView`, cam-to-sRGB calibration matrix, `BaseRgbPreview`, `CachedPhotoEntry`, `BackgroundDecodePayload`), `preview/decoder.rs` (370 lines: fast thumbnails, RAW/raster decoder payload, timelapse gradings), `preview/pipeline.rs` (1,112 lines: preview and export color processing, tone curves, LUT, optical corrections), `preview/mod.rs` (15 lines: 100% backward compatible re-exports).
+    - Dedicated test suite `crates/rraw-app/tests/preview_modularization_tests.rs` (5 tests) passing, 268 workspace tests passing across 61 suites, 0 clippy warnings, Qwen 3.6 35B Inquisitor APPROVED.
 
 - [ ] **Task 15.3 (`rraw-app`)**: Scalable External Resource-Based i18n Engine
   - Replace the 1,380-line hardcoded `match (self, lang)` table in `crates/rraw-app/src/i18n/mod.rs` with externalized translation catalogs (Fluent `.ftl` or embedded structured TOML/JSON resources under `assets/i18n/`).

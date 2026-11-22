@@ -5,17 +5,32 @@
 - **Phase 15 — Architectural Hardening: State De-Obesity, UI Modularization & Scalable i18n**:
   - **Task 15.2 (`rraw-app`)**: Monolithic File & Function Decomposition.
     - Étape 1 : **TERMINÉE** (`inspector.rs` découpé en 11 sous-modules sous `ui/sections/`, 1 645 lignes supprimées du fichier principal).
-    - Étape 2 (Immédiate) : Découper `render_central_viewport` (1 134 lignes) et `viewport.rs` (1 231 lignes) en sous-composants canvas/hud/split/masks.
-    - Étape 3 : Découper `preview.rs` (2 264 lignes) en couches pipeline/cache/masques.
+    - Étape 2 : **TERMINÉE** (`viewport.rs` 1 231 lignes découpé en 6 sous-modules sous `ui/viewport/`: `crop_overlay.rs`, `perspective_tools.rs`, `hud.rs`, `brush_overlay.rs`, `split_compare.rs`, `mod.rs`).
+    - Étape 3 (Immédiate) : Découper `crates/rraw-app/src/preview.rs` (2 264 lignes) en couches spécialisées (`preview/pipeline.rs`, `preview/cache.rs`, `preview/masks.rs`).
   - **Task 15.3 (`rraw-app`)**: Scalable External Resource-Based i18n Engine.
-    - Découpler les traductions du code Rust source (ressources externes `.ftl` sous `assets/i18n/`).
+    - Découpler les traductions du code Rust source (ressources externes sous `assets/i18n/`).
     - Permettre l'ajout d'une langue par simple dépôt de fichier sans recompiler les composants UI.
 
 ---
 
 ## Last Completed Milestone
 
-- **Phase 15 — Task 15.2 Part 1: Inspector UI Modularization (`rraw-app`)**:
+- **Phase 15 — Task 15.2 Step 2: Viewport UI Modularization (`rraw-app`)**:
+  - **Décomposition modulaire de `viewport.rs`** : décomposition du monolithe de 1 231 lignes en 6 sous-modules sous `crates/rraw-app/src/ui/viewport/`:
+    - `crop_overlay.rs`: Boîte de recadrage interactive, poignées de redimensionnement, grille des tiers, pilule flottante de validation et structure d'état `CropToolState`.
+    - `perspective_tools.rs`: Outil de niveau d'horizon interactif et correction trapézoïdale à 2 lignes de référence.
+    - `hud.rs`: Badges d'état temps réel (Original Avant/Après, Épreuvage écran, Masques locaux, Pinceau).
+    - `brush_overlay.rs`: Peinture manuelle interactive et indicateur circulaire du rayon/adoucissement du pinceau via `BrushViewportContext`.
+    - `split_compare.rs`: Ligne de division déplaçable Avant/Après.
+    - `mod.rs`: Orchestrateur central (479 lignes) avec gestion du zoom/pan, double-clic, barre d'espace et passe-partout.
+  - **Encapsulation & Résolution Clippy** : élimination des fonctions à paramètres à rallonge (`clippy::too_many_arguments`) via `CropToolState` et `BrushViewportContext`.
+  - **Validation & Tests** : suite de tests `viewport_modularization_tests.rs` (6 tests unitaires), 263 tests passants dans le workspace across 60 suites, 0 avertissement clippy, Inquisitor APPROVED via Qwen 3.6 35B A3B, commit `ca37430`.
+
+---
+
+## Last Completed Milestone
+
+- **Phase 15 — Task 15.2 Step 1: Inspector UI Modularization (`rraw-app`)**:
   - **Décomposition modulaire de `render_darkroom_section`** : décomposition de la fonction de 1 773 lignes en 11 sous-modules sous `crates/rraw-app/src/ui/sections/` (`exposure_tone`, `white_balance`, `detail_denoise`, `optics`, `soft_proofing`, `crop`, `straighten`, `geometry`, `masks`, `timelapse`, `mod`). `inspector.rs` est allégé de 2 089 à 420 lignes (-1 645 lignes).
   - **Principe de moindre privilège appliqué** : chaque vue reçoit uniquement sa sous-structure de domaine (`ToneGradingParams`, etc.) et retourne un `SectionOutput` typé.
   - **Encapsulation du trapèze** : struct `ParallelLinesToolState` pour regrouper les paramètres du tracé de lignes parallèles et satisfaire `clippy::too_many_arguments`.
