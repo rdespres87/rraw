@@ -9,14 +9,14 @@
 
 use egui::{Context, Ui, Vec2};
 use rraw_app::grading::{
-    ColorGradingParams, DenoiseSharpenParams, GeometryGradingParams, OpticsGradingParams,
-    ToneGradingParams,
+    ColorGradingParams, DenoiseSharpenParams, EffectsGradingParams, GeometryGradingParams,
+    OpticsGradingParams, ToneGradingParams,
 };
 use rraw_app::i18n::Language;
 use rraw_app::state::ParallelToolPhase;
 use rraw_app::ui::sections::{
-    crop, detail_denoise, exposure_tone, geometry, masks, optics, soft_proofing, straighten,
-    timelapse, white_balance,
+    crop, detail_denoise, effects, exposure_tone, geometry, masks, optics, soft_proofing,
+    straighten, timelapse, white_balance,
 };
 use rraw_color::SoftProofConfig;
 use rraw_core::SmartLightingParams;
@@ -176,5 +176,15 @@ fn test_timelapse_section_export_button() {
     with_test_ui(|ui| {
         let clicked = timelapse::render_export_button(ui, Language::Fr);
         assert!(!clicked);
+    });
+}
+
+#[test]
+fn test_effects_section_least_privilege() {
+    with_test_ui(|ui| {
+        let mut effects = EffectsGradingParams::default();
+        let out = effects::render(ui, &mut effects, Language::Fr);
+        assert!(!out.mark_custom_preset);
+        assert!(!out.needs_preview_update);
     });
 }

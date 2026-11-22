@@ -4,6 +4,7 @@
 
 pub mod crop;
 pub mod detail_denoise;
+pub mod effects;
 pub mod exposure_tone;
 pub mod geometry;
 pub mod masks;

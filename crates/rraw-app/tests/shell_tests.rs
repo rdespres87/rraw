@@ -159,7 +159,7 @@ fn film_simulation_presets_configure_curves_and_parameters() {
     assert_eq!(sepia.preset, GradingPreset::SepiaVintage);
     assert!(sepia.color.kelvin > 6500.0, "Sepia should have warm kelvin");
     assert!(
-        sepia.optics.creative_vignette_amount < -20.0,
+        sepia.effects.creative_vignette_amount < -20.0,
         "Sepia should have subtle dark creative vignette"
     );
     assert!(!sepia.color.is_monochrome);
@@ -188,14 +188,16 @@ fn app_layout_config_serialization_roundtrips() {
 fn test_tool_family_categorization_and_palette_grouping() {
     use app::{DarkroomSection, ToolFamily};
 
-    // DarkroomSection::ALL must contain exactly 11 modules including ToneCurves
-    assert_eq!(DarkroomSection::ALL.len(), 11);
+    // DarkroomSection::ALL must contain exactly 12 modules including ToneCurves and Effects
+    assert_eq!(DarkroomSection::ALL.len(), 12);
     assert!(DarkroomSection::ALL.contains(&DarkroomSection::ToneCurves));
     assert!(DarkroomSection::ALL.contains(&DarkroomSection::ExposureTone));
+    assert!(DarkroomSection::ALL.contains(&DarkroomSection::Effects));
 
     // Verify family mapping
     assert_eq!(DarkroomSection::ExposureTone.family(), ToolFamily::Light);
     assert_eq!(DarkroomSection::ToneCurves.family(), ToolFamily::Light);
+    assert_eq!(DarkroomSection::Effects.family(), ToolFamily::Light);
     assert_eq!(
         DarkroomSection::WhiteBalanceColor.family(),
         ToolFamily::Color
@@ -243,7 +245,7 @@ fn test_layout_config_family_and_active_tools_persistence() -> Result<(), Box<dy
 
     assert_eq!(restored.active_tool_family, ToolFamily::Light);
     assert!(restored.active_tools_only);
-    assert_eq!(restored.section_order.len(), 11);
+    assert_eq!(restored.section_order.len(), 12);
 
     // Verify sections matching the Light family
     let light_sections: Vec<_> = restored
@@ -254,7 +256,11 @@ fn test_layout_config_family_and_active_tools_persistence() -> Result<(), Box<dy
         .collect();
     assert_eq!(
         light_sections,
-        vec![DarkroomSection::ExposureTone, DarkroomSection::ToneCurves]
+        vec![
+            DarkroomSection::ExposureTone,
+            DarkroomSection::ToneCurves,
+            DarkroomSection::Effects,
+        ]
     );
 
     Ok(())
@@ -284,6 +290,9 @@ fn sidecar_saving_and_loading_roundtrip() -> Result<(), Box<dyn std::error::Erro
         optics: rraw_app::grading::OpticsGradingParams {
             defringe_purple_amount: 45.0,
             defringe_green_amount: 30.0,
+            ..Default::default()
+        },
+        effects: rraw_app::grading::EffectsGradingParams {
             creative_vignette_amount: -35.0,
             creative_vignette_midpoint: 40.0,
             ..Default::default()
@@ -325,8 +334,8 @@ fn sidecar_saving_and_loading_roundtrip() -> Result<(), Box<dyn std::error::Erro
     assert!((g.color.kelvin - 6200.0).abs() < 1e-4);
     assert!((g.optics.defringe_purple_amount - 45.0).abs() < 1e-4);
     assert!((g.optics.defringe_green_amount - 30.0).abs() < 1e-4);
-    assert!((g.optics.creative_vignette_amount - (-35.0)).abs() < 1e-4);
-    assert!((g.optics.creative_vignette_midpoint - 40.0).abs() < 1e-4);
+    assert!((g.effects.creative_vignette_amount - (-35.0)).abs() < 1e-4);
+    assert!((g.effects.creative_vignette_midpoint - 40.0).abs() < 1e-4);
     assert!(g.color.is_monochrome);
     assert_eq!(loaded_rating, Some(4));
 

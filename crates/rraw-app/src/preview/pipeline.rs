@@ -131,11 +131,11 @@ pub fn render_preview_from_base(
     };
     let effective_samples = processed_samples.as_deref().unwrap_or(&base.samples_rgb);
 
-    let has_creative_vignette = grading.optics.creative_vignette_amount.abs() > 0.1;
-    let cv_amt = grading.optics.creative_vignette_amount / 100.0;
-    let cv_mid = (grading.optics.creative_vignette_midpoint / 100.0).clamp(0.05, 0.95);
-    let cv_feather = (grading.optics.creative_vignette_feather / 100.0).clamp(0.05, 0.95);
-    let cv_round = (grading.optics.creative_vignette_roundness / 100.0).clamp(-1.0, 1.0);
+    let has_creative_vignette = grading.effects.creative_vignette_amount.abs() > 0.1;
+    let cv_amt = grading.effects.creative_vignette_amount / 100.0;
+    let cv_mid = (grading.effects.creative_vignette_midpoint / 100.0).clamp(0.05, 0.95);
+    let cv_feather = (grading.effects.creative_vignette_feather / 100.0).clamp(0.05, 0.95);
+    let cv_round = (grading.effects.creative_vignette_roundness / 100.0).clamp(-1.0, 1.0);
 
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();
@@ -786,11 +786,11 @@ pub fn render_export_image(
     };
     let effective_samples = processed_samples.as_deref().unwrap_or(&base.samples_rgb);
 
-    let has_creative_vignette = grading.optics.creative_vignette_amount.abs() > 0.1;
-    let cv_amt = grading.optics.creative_vignette_amount / 100.0;
-    let cv_mid = (grading.optics.creative_vignette_midpoint / 100.0).clamp(0.05, 0.95);
-    let cv_feather = (grading.optics.creative_vignette_feather / 100.0).clamp(0.05, 0.95);
-    let cv_round = (grading.optics.creative_vignette_roundness / 100.0).clamp(-1.0, 1.0);
+    let has_creative_vignette = grading.effects.creative_vignette_amount.abs() > 0.1;
+    let cv_amt = grading.effects.creative_vignette_amount / 100.0;
+    let cv_mid = (grading.effects.creative_vignette_midpoint / 100.0).clamp(0.05, 0.95);
+    let cv_feather = (grading.effects.creative_vignette_feather / 100.0).clamp(0.05, 0.95);
+    let cv_round = (grading.effects.creative_vignette_roundness / 100.0).clamp(-1.0, 1.0);
 
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();

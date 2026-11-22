@@ -259,51 +259,6 @@ pub fn render(
             out.needs_preview_update = true;
             ui.ctx().request_repaint();
         }
-
-        ui.separator();
-
-        ui.label(egui::RichText::new(t(Key::InspectorCreativeVignetteTitle)).strong());
-        ui.label(t(Key::InspectorParamVignetteAmount));
-        let r_cva = ui.add(
-            egui::Slider::new(&mut optics.creative_vignette_amount, -100.0..=100.0)
-                .show_value(true),
-        );
-        if r_cva.changed() {
-            out.needs_preview_update = true;
-            ui.ctx().request_repaint();
-        }
-
-        if optics.creative_vignette_amount.abs() > 0.1 {
-            ui.label(t(Key::InspectorParamVignetteMidpoint));
-            let r_cvm = ui.add(
-                egui::Slider::new(&mut optics.creative_vignette_midpoint, 10.0..=90.0)
-                    .show_value(true),
-            );
-            if r_cvm.changed() {
-                out.needs_preview_update = true;
-                ui.ctx().request_repaint();
-            }
-
-            ui.label(t(Key::InspectorParamVignetteFeather));
-            let r_cvf = ui.add(
-                egui::Slider::new(&mut optics.creative_vignette_feather, 10.0..=90.0)
-                    .show_value(true),
-            );
-            if r_cvf.changed() {
-                out.needs_preview_update = true;
-                ui.ctx().request_repaint();
-            }
-
-            ui.label(t(Key::InspectorParamVignetteRoundness));
-            let r_cvr = ui.add(
-                egui::Slider::new(&mut optics.creative_vignette_roundness, -100.0..=100.0)
-                    .show_value(true),
-            );
-            if r_cvr.changed() {
-                out.needs_preview_update = true;
-                ui.ctx().request_repaint();
-            }
-        }
     }
 
     ui.separator();

@@ -4,8 +4,8 @@
 
 use rraw_app::state::{
     ColorGradingParams, CropAspectRatio, DarkroomGradingState, DenoiseSharpenParams,
-    GeometryGradingParams, GradingPreset, GradingRecipeClipboard, LocalMaskKind, LocalMaskLayer,
-    OpticsGradingParams, ToneGradingParams,
+    EffectsGradingParams, GeometryGradingParams, GradingPreset, GradingRecipeClipboard,
+    LocalMaskKind, LocalMaskLayer, OpticsGradingParams, ToneGradingParams,
 };
 use rraw_color::DisplayTransform;
 use rraw_core::curves::{CurvePoint, ToneCurvesRecipe};
@@ -39,13 +39,15 @@ fn test_grading_recipe_clipboard_capture_and_selective_application(
         },
         tone_curves: source_curves.clone(),
         optics: OpticsGradingParams {
+            distortion_correction: true,
+            distortion_amount: 15.0,
+            ..Default::default()
+        },
+        effects: EffectsGradingParams {
             creative_vignette_amount: -45.0,
             creative_vignette_midpoint: 40.0,
             creative_vignette_feather: 60.0,
             creative_vignette_roundness: 20.0,
-            distortion_correction: true,
-            distortion_amount: 15.0,
-            ..Default::default()
         },
         geometry: GeometryGradingParams {
             crop_enabled: true,
@@ -166,10 +168,10 @@ fn test_grading_recipe_clipboard_capture_and_selective_application(
     assert_eq!(target.color.display_transform, DisplayTransform::OpenDrt);
     assert!(target.color.is_monochrome);
     assert_eq!(target.tone_curves, source_curves);
-    assert_eq!(target.optics.creative_vignette_amount, -45.0);
-    assert_eq!(target.optics.creative_vignette_midpoint, 40.0);
-    assert_eq!(target.optics.creative_vignette_feather, 60.0);
-    assert_eq!(target.optics.creative_vignette_roundness, 20.0);
+    assert_eq!(target.effects.creative_vignette_amount, -45.0);
+    assert_eq!(target.effects.creative_vignette_midpoint, 40.0);
+    assert_eq!(target.effects.creative_vignette_feather, 60.0);
+    assert_eq!(target.effects.creative_vignette_roundness, 20.0);
 
     // Verify that photo-dependent settings were strictly preserved
     assert!(target.geometry.crop_enabled);

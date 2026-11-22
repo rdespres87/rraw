@@ -50,6 +50,10 @@ fn test_state_de_obesity_substruct_composition() {
     state.optics.defringe_purple_amount = 25.0;
     assert_eq!(state.optics.lens_distortion_strength, 90.0);
 
+    // Verify EffectsGradingParams isolation
+    state.effects.creative_vignette_amount = -20.0;
+    assert_eq!(state.effects.creative_vignette_amount, -20.0);
+
     // Verify GeometryGradingParams isolation
     state.geometry.crop_enabled = true;
     state.geometry.crop_left = 0.1;
@@ -140,6 +144,7 @@ fn test_sidecar_recipe_legacy_flat_json_backward_compatibility(
     assert_eq!(recipe.denoise_sharpen.color_denoise, 25.0);
     assert_eq!(recipe.optics.lens_distortion_strength, 100.0);
     assert_eq!(recipe.optics.defringe_purple_amount, 10.0);
+    assert_eq!(recipe.effects.creative_vignette_amount, 0.0);
     assert!(recipe.geometry.crop_enabled);
     assert_eq!(recipe.geometry.crop_left, 0.05);
 
@@ -150,6 +155,7 @@ fn test_sidecar_recipe_legacy_flat_json_backward_compatibility(
     assert_eq!(state.tone.exposure_ev, 1.5);
     assert_eq!(state.color.kelvin, 6500.0);
     assert_eq!(state.color.display_transform, DisplayTransform::AgX);
+    assert_eq!(state.effects.creative_vignette_amount, 0.0);
     assert_eq!(state.geometry.crop_left, 0.05);
 
     // Re-serialize and verify it still outputs flat JSON keys

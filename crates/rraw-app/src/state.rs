@@ -335,12 +335,13 @@ pub enum DarkroomSection {
     Geometry,
     DetailDenoise,
     OpticalCorrections,
+    Effects,
     #[serde(other)]
     LegacyOther,
 }
 
 impl DarkroomSection {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::ExposureTone,
         Self::ToneCurves,
         Self::WhiteBalanceColor,
@@ -350,6 +351,7 @@ impl DarkroomSection {
         Self::Straighten,
         Self::Geometry,
         Self::OpticalCorrections,
+        Self::Effects,
         Self::AiSemanticMasks,
         Self::Timelapse,
     ];
@@ -357,7 +359,7 @@ impl DarkroomSection {
     #[must_use]
     pub const fn family(self) -> ToolFamily {
         match self {
-            Self::ExposureTone | Self::ToneCurves => ToolFamily::Light,
+            Self::ExposureTone | Self::ToneCurves | Self::Effects => ToolFamily::Light,
             Self::WhiteBalanceColor | Self::SoftProofing => ToolFamily::Color,
             Self::DetailDenoise => ToolFamily::Detail,
             Self::Crop | Self::Straighten | Self::Geometry | Self::OpticalCorrections => {
@@ -388,6 +390,7 @@ impl DarkroomSection {
             Self::Geometry => Key::SectionGeometry.translate(lang),
             Self::DetailDenoise => Key::SectionDetailDenoise.translate(lang),
             Self::OpticalCorrections => Key::SectionOpticalCorrections.translate(lang),
+            Self::Effects => Key::SectionEffects.translate(lang),
             Self::LegacyOther => "Autre",
         }
     }
@@ -1029,7 +1032,7 @@ impl GradingPreset {
                 grading.color.display_transform = DisplayTransform::AgX;
                 grading.optics.vignette_amount = 30.0;
                 grading.optics.vignette_correction = true;
-                grading.optics.creative_vignette_amount = -35.0;
+                grading.effects.creative_vignette_amount = -35.0;
                 grading.color.is_monochrome = false;
                 grading.tone_curves.luma =
                     curve_from_points(&[(0.0, 0.04), (0.35, 0.32), (0.75, 0.78), (1.0, 0.98)]);
@@ -1485,6 +1488,7 @@ pub struct DarkroomGradingState {
     pub color: ColorGradingParams,
     pub denoise_sharpen: DenoiseSharpenParams,
     pub optics: OpticsGradingParams,
+    pub effects: EffectsGradingParams,
     pub geometry: GeometryGradingParams,
     pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
     pub custom_clut: Option<CustomClutState>,
@@ -1509,6 +1513,7 @@ impl DarkroomGradingState {
             color: ColorGradingParams::untouched_raw(),
             denoise_sharpen: DenoiseSharpenParams::untouched_raw(),
             optics: OpticsGradingParams::untouched_raw(),
+            effects: EffectsGradingParams::untouched_raw(),
             geometry: GeometryGradingParams::untouched_raw(),
             tone_curves: rraw_core::curves::ToneCurvesRecipe::default(),
             custom_clut: None,
@@ -1636,6 +1641,7 @@ impl Default for DarkroomGradingState {
             color: ColorGradingParams::default(),
             denoise_sharpen: DenoiseSharpenParams::default(),
             optics: OpticsGradingParams::default(),
+            effects: EffectsGradingParams::default(),
             geometry: GeometryGradingParams::default(),
             tone_curves: rraw_core::curves::ToneCurvesRecipe::default(),
             custom_clut: None,
@@ -1679,10 +1685,10 @@ impl GradingRecipeClipboard {
             color: grading.color.clone(),
             tone_curves: grading.tone_curves.clone(),
             custom_clut: grading.custom_clut.clone(),
-            creative_vignette_amount: grading.optics.creative_vignette_amount,
-            creative_vignette_midpoint: grading.optics.creative_vignette_midpoint,
-            creative_vignette_feather: grading.optics.creative_vignette_feather,
-            creative_vignette_roundness: grading.optics.creative_vignette_roundness,
+            creative_vignette_amount: grading.effects.creative_vignette_amount,
+            creative_vignette_midpoint: grading.effects.creative_vignette_midpoint,
+            creative_vignette_feather: grading.effects.creative_vignette_feather,
+            creative_vignette_roundness: grading.effects.creative_vignette_roundness,
             smart_lighting: grading.smart_lighting.clone(),
         }
     }
@@ -1695,10 +1701,10 @@ impl GradingRecipeClipboard {
         grading.color = self.color.clone();
         grading.tone_curves = self.tone_curves.clone();
         grading.custom_clut = self.custom_clut.clone();
-        grading.optics.creative_vignette_amount = self.creative_vignette_amount;
-        grading.optics.creative_vignette_midpoint = self.creative_vignette_midpoint;
-        grading.optics.creative_vignette_feather = self.creative_vignette_feather;
-        grading.optics.creative_vignette_roundness = self.creative_vignette_roundness;
+        grading.effects.creative_vignette_amount = self.creative_vignette_amount;
+        grading.effects.creative_vignette_midpoint = self.creative_vignette_midpoint;
+        grading.effects.creative_vignette_feather = self.creative_vignette_feather;
+        grading.effects.creative_vignette_roundness = self.creative_vignette_roundness;
         grading.smart_lighting = self.smart_lighting.clone();
     }
 
@@ -1735,6 +1741,8 @@ pub struct SidecarRecipe {
     #[serde(flatten)]
     pub optics: OpticsGradingParams,
     #[serde(flatten)]
+    pub effects: EffectsGradingParams,
+    #[serde(flatten)]
     pub geometry: GeometryRecipeParams,
     #[serde(default)]
     pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
@@ -1762,6 +1770,7 @@ impl SidecarRecipe {
             color: ColorRecipeParams::from(&grading.color),
             denoise_sharpen: grading.denoise_sharpen.clone(),
             optics: grading.optics.clone(),
+            effects: grading.effects.clone(),
             geometry: GeometryRecipeParams::from(&grading.geometry),
             tone_curves: grading.tone_curves.clone(),
             custom_lut_path: grading
@@ -1781,6 +1790,7 @@ impl SidecarRecipe {
         self.color.apply_to(&mut grading.color);
         grading.denoise_sharpen = self.denoise_sharpen.clone();
         grading.optics = self.optics.clone();
+        grading.effects = self.effects.clone();
         self.geometry.apply_to(&mut grading.geometry);
         grading.tone_curves = self.tone_curves.clone();
         if let Some(path_str) = &self.custom_lut_path {

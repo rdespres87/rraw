@@ -60,9 +60,9 @@ impl RrawApp {
                     || self.grading.optics.defringe_green_amount != 0.0
                     || (self.grading.optics.defringe_threshold - 0.08).abs() > 0.005
                     || self.grading.optics.defringe_preview_mask
-                    || self.grading.optics.creative_vignette_amount != 0.0
                     || (self.grading.optics.vignette_amount - 50.0).abs() > 0.01
             }
+            DarkroomSection::Effects => self.grading.effects.is_active(),
             DarkroomSection::AiSemanticMasks => {
                 !self.grading.semantic_masks.is_empty() || !self.grading.local_masks.is_empty()
             }
@@ -137,10 +137,9 @@ impl RrawApp {
                 self.grading.optics.defringe_preview_mask = false;
                 self.grading.optics.vignette_correction = true;
                 self.grading.optics.vignette_amount = 50.0;
-                self.grading.optics.creative_vignette_amount = 0.0;
-                self.grading.optics.creative_vignette_midpoint = 50.0;
-                self.grading.optics.creative_vignette_feather = 50.0;
-                self.grading.optics.creative_vignette_roundness = 0.0;
+            }
+            DarkroomSection::Effects => {
+                self.grading.effects = EffectsGradingParams::default();
             }
             DarkroomSection::AiSemanticMasks => {
                 self.grading.semantic_masks.clear();
@@ -519,6 +518,9 @@ impl RrawApp {
                                     lens_info,
                                     cur_lang,
                                 )
+                            }
+                            DarkroomSection::Effects => {
+                                sections::effects::render(ui, &mut self.grading.effects, cur_lang)
                             }
                             DarkroomSection::Timelapse => {
                                 self.render_timelapse_controls_ui(ui, "inspector");

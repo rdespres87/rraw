@@ -246,6 +246,7 @@ pub enum Key {
     InspectorResetColor,
     InspectorResetCrop,
     InspectorResetDetailDenoise,
+    InspectorResetEffects,
     InspectorResetGeometry,
     InspectorResetOptical,
     InspectorResetSoftProof,
@@ -289,6 +290,7 @@ pub enum Key {
     SectionAiSemanticMasks,
     SectionCrop,
     SectionDetailDenoise,
+    SectionEffects,
     SectionExposureTone,
     SectionGeometry,
     SectionOpticalCorrections,
@@ -389,7 +391,7 @@ pub enum Key {
 
 impl Key {
     /// Total number of keys defined in the enum.
-    pub const COUNT: usize = 375;
+    pub const COUNT: usize = 377;
 
     /// Returns the 0-based dense index corresponding to this key.
     #[inline]
@@ -639,6 +641,7 @@ impl Key {
             Self::InspectorResetColor => "InspectorResetColor",
             Self::InspectorResetCrop => "InspectorResetCrop",
             Self::InspectorResetDetailDenoise => "InspectorResetDetailDenoise",
+            Self::InspectorResetEffects => "InspectorResetEffects",
             Self::InspectorResetGeometry => "InspectorResetGeometry",
             Self::InspectorResetOptical => "InspectorResetOptical",
             Self::InspectorResetSoftProof => "InspectorResetSoftProof",
@@ -682,6 +685,7 @@ impl Key {
             Self::SectionAiSemanticMasks => "SectionAiSemanticMasks",
             Self::SectionCrop => "SectionCrop",
             Self::SectionDetailDenoise => "SectionDetailDenoise",
+            Self::SectionEffects => "SectionEffects",
             Self::SectionExposureTone => "SectionExposureTone",
             Self::SectionGeometry => "SectionGeometry",
             Self::SectionOpticalCorrections => "SectionOpticalCorrections",
@@ -1034,6 +1038,7 @@ impl Key {
             "InspectorResetColor" => Some(Self::InspectorResetColor),
             "InspectorResetCrop" => Some(Self::InspectorResetCrop),
             "InspectorResetDetailDenoise" => Some(Self::InspectorResetDetailDenoise),
+            "InspectorResetEffects" => Some(Self::InspectorResetEffects),
             "InspectorResetGeometry" => Some(Self::InspectorResetGeometry),
             "InspectorResetOptical" => Some(Self::InspectorResetOptical),
             "InspectorResetSoftProof" => Some(Self::InspectorResetSoftProof),
@@ -1079,6 +1084,7 @@ impl Key {
             "SectionAiSemanticMasks" => Some(Self::SectionAiSemanticMasks),
             "SectionCrop" => Some(Self::SectionCrop),
             "SectionDetailDenoise" => Some(Self::SectionDetailDenoise),
+            "SectionEffects" => Some(Self::SectionEffects),
             "SectionExposureTone" => Some(Self::SectionExposureTone),
             "SectionGeometry" => Some(Self::SectionGeometry),
             "SectionOpticalCorrections" => Some(Self::SectionOpticalCorrections),
@@ -1425,6 +1431,7 @@ pub const ALL_KEYS: [Key; Key::COUNT] = [
     Key::InspectorResetColor,
     Key::InspectorResetCrop,
     Key::InspectorResetDetailDenoise,
+    Key::InspectorResetEffects,
     Key::InspectorResetGeometry,
     Key::InspectorResetOptical,
     Key::InspectorResetSoftProof,
@@ -1468,6 +1475,7 @@ pub const ALL_KEYS: [Key; Key::COUNT] = [
     Key::SectionAiSemanticMasks,
     Key::SectionCrop,
     Key::SectionDetailDenoise,
+    Key::SectionEffects,
     Key::SectionExposureTone,
     Key::SectionGeometry,
     Key::SectionOpticalCorrections,

@@ -77,6 +77,27 @@ fn test_optical_profile_reset_section() {
 }
 
 #[test]
+fn test_effects_independent_from_optical_corrections() {
+    let mut app = RrawApp::new_headless();
+    app.grading.effects.creative_vignette_amount = -40.0;
+    app.grading.optics.distortion_amount = 15.0;
+
+    assert!(app.is_section_active(DarkroomSection::Effects));
+    assert!(app.is_section_active(DarkroomSection::OpticalCorrections));
+
+    // Resetting optical corrections must NOT reset creative vignette!
+    app.reset_section(DarkroomSection::OpticalCorrections);
+    assert_eq!(app.grading.effects.creative_vignette_amount, -40.0);
+    assert!(app.is_section_active(DarkroomSection::Effects));
+    assert!(!app.is_section_active(DarkroomSection::OpticalCorrections));
+
+    // Resetting effects resets creative vignette
+    app.reset_section(DarkroomSection::Effects);
+    assert_eq!(app.grading.effects.creative_vignette_amount, 0.0);
+    assert!(!app.is_section_active(DarkroomSection::Effects));
+}
+
+#[test]
 fn test_optical_profile_i18n_keys() {
     let keys = [
         Key::InspectorLensProfileTitle,
@@ -304,7 +325,7 @@ fn test_untouched_raw_reference_view_all_corrections_disabled() {
     assert!(!untouched.optics.defringe_preview_mask);
     assert!(!untouched.optics.vignette_correction);
     assert_eq!(untouched.optics.vignette_amount, 0.0);
-    assert_eq!(untouched.optics.creative_vignette_amount, 0.0);
+    assert_eq!(untouched.effects.creative_vignette_amount, 0.0);
 
     // Verify geometry is 100% disabled
     assert!(!untouched.geometry.geometry_enabled);

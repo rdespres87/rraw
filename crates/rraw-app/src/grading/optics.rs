@@ -15,14 +15,6 @@ pub const fn default_defringe_threshold() -> f32 {
     0.08
 }
 
-pub const fn default_midpoint() -> f32 {
-    50.0
-}
-
-pub const fn default_feather() -> f32 {
-    50.0
-}
-
 /// Optical corrections (lens profile, manual distortion, CA defringe, vignetting).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OpticsGradingParams {
@@ -49,14 +41,6 @@ pub struct OpticsGradingParams {
     pub defringe_preview_mask: bool,
     pub vignette_correction: bool,
     pub vignette_amount: f32,
-    #[serde(default)]
-    pub creative_vignette_amount: f32,
-    #[serde(default = "default_midpoint")]
-    pub creative_vignette_midpoint: f32,
-    #[serde(default = "default_feather")]
-    pub creative_vignette_feather: f32,
-    #[serde(default)]
-    pub creative_vignette_roundness: f32,
 }
 
 impl Default for OpticsGradingParams {
@@ -76,10 +60,6 @@ impl Default for OpticsGradingParams {
             defringe_preview_mask: false,
             vignette_correction: true,
             vignette_amount: 50.0,
-            creative_vignette_amount: 0.0,
-            creative_vignette_midpoint: 50.0,
-            creative_vignette_feather: 50.0,
-            creative_vignette_roundness: 0.0,
         }
     }
 }
@@ -103,10 +83,6 @@ impl OpticsGradingParams {
             defringe_preview_mask: false,
             vignette_correction: false,
             vignette_amount: 0.0,
-            creative_vignette_amount: 0.0,
-            creative_vignette_midpoint: 50.0,
-            creative_vignette_feather: 50.0,
-            creative_vignette_roundness: 0.0,
         }
     }
 }
