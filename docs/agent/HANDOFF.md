@@ -2,13 +2,32 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 24 — Task 24.2 (`rraw-app`, `rraw-storage`)**: `DiskThumbnailCache` Integration, `app.rs` & `ui/export.rs` Modular Extraction & Layout State Sync.
+- **Phase 25 — Pre-Release Hardening & Performance Benchmarks**:
+  - Run full performance benchmarks on RAW decoding, Richardson-Lucy deconvolution, Gain Map generation, and UI responsiveness.
+  - Evaluate end-to-end user workflows on sample RAW formats (ARW, CR3, DNG, NEF, RAF, RW2).
 
 ---
 
 ## Last Completed Milestone
 
-- **Phase 24 — Task 24.1 Audit #6 Remediation (`rraw-app`, `rraw-optics`) — COMPLETE**:
+- **Phase 24 — Deep Maturity Audit #6 Remediation (Tasks 24.1, 24.2, 24.3) — COMPLETE**:
+  - **Task 24.1 Non-Blocking Directory Open, Undo/Redo & Atomic Persistence**:
+    - Removed synchronous per-photo `load_photo_sidecars` loop on the UI thread in `open_directory` (`crates/rraw-app/src/app.rs`) and added `library.refresh_subdirectories()` in `RrawApp::new()`.
+    - Added `atomic_write_bytes` in `crates/rraw-app/src/sidecar.rs` and converted `.tmap` and `.exif.json` writes to atomic persistence.
+    - Wired 100% Undo/Redo coverage across interactive viewport tools (`ui/viewport/mod.rs`), 3D LUT controls (`ui/presets.rs`), tone curve reset controls (`reset_active_tone_curve`, `reset_all_tone_curves` in `ui/tone_curves.rs`), and top-bar Soft Proofing (`app.rs`).
+    - Parallelized `rraw_optics::execute_richardson_lucy` across rows using Rayon `par_chunks_mut`.
+    - Contextual auto-deactivation of freehand brush tool (`active_brush_mask_idx = None`) upon tool family change, inspector section collapse/edit, layer toggle off, or new file open.
+  - **Task 24.2 Modular Decomposition, Disk Thumbnail Cache & Layout Synchronization**:
+    - Extracted `crates/rraw-app/src/ui/chrome.rs` (651 lines) from `app.rs` (`render_top_bar`, `render_status_bar`, `handle_global_keyboard_shortcuts`), shrinking `app.rs` to 1,422 lines.
+    - Extracted `crates/rraw-app/src/ui/export_runner.rs` (756 lines) from `ui/export.rs` (raster disk writers, ISO 21496-1 Gain Map writers, streaming background batch/timelapse threads), shrinking `ui/export.rs` to 720 lines.
+    - Connected `rraw_storage::DiskThumbnailCache` in `crates/rraw-app/src/preview/decoder.rs` (`generate_fast_thumbnail`) using SHA-256 content-hash indexing (`path`, `len`, `mtime`, sidecar `xmp`) with bounds-checked binary serialization.
+    - Added `RrawApp::reset_layout()` restoring default filters (`ToolFamily::All`, `active_tools_only = false`) and deactivating canvas tools (`ActiveCanvasTool::None`), wired to the `DarkroomResetLayout` header button in `ui/inspector.rs`.
+    - Wired `activate_canvas_tool(ActiveCanvasTool::None)` when canvas tools (crop, horizon, perspective) complete in `ui/viewport/mod.rs`.
+  - **Task 24.3 Residual French String Elimination & 100% English Domain Purity**:
+    - Registered 5 tool deactivation keys (`EscapeCropDeactivated`, `EscapeHorizonDeactivated`, `EscapePerspectiveDeactivated`, `EscapeBrushDeactivated`, `EscapeSelectionReset`) in `Key` enum, updated `Key::COUNT = 458`, `ALL_KEYS`, `as_str()`, `from_str()`, and populated all 3 JSON translation catalogs (`en.json`, `fr.json`, `es.json`).
+    - Added localized helper functions in `crates/rraw-app/src/i18n/mod.rs` (`batch_selection_count_message`, `batch_deselection_message`, `batch_toggle_photo_message`) handling dynamic pluralization across French, Spanish, and English.
+    - Converted all runtime error and completion messages in `crates/rraw-app/src/ui/export_runner.rs` to 100% English, achieving zero non-English strings in domain logic.
+  - **Validation & Baseline**: 389 tests passing across 88 suites, 0 clippy errors, 0 clippy warnings under Rust 1.100.0, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
   - **Non-Blocking `open_directory` & Startup Subdirectories**: Removed synchronous per-photo `load_photo_sidecars` loop from `open_directory` UI thread and added `library.refresh_subdirectories()` in `RrawApp::new()`.
   - **100% Transactional Undo/Redo & Atomic Binary Persistence**: Added `atomic_write_bytes` in `sidecar.rs` (used for `.tmap` and `.exif.json`) and wired `notify_grading_edited` / `record_undo_snapshot` across viewport tools (`ui/viewport/mod.rs`), 3D LUT controls (`ui/presets.rs`), tone curve reset methods (`reset_active_tone_curve`, `reset_all_tone_curves` in `ui/tone_curves.rs`), and top-bar Soft Proofing (`app.rs`).
   - **Rayon Parallel Richardson-Lucy**: Parallelized `rraw_optics::execute_richardson_lucy` across rows using Rayon `par_chunks_mut`.

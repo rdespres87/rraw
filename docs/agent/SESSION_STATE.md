@@ -4,11 +4,33 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 24 — Deep Maturity Audit #6 Remediation (Task 24.1 Complete; Next: Task 24.2)
-- **Active Tasks**: Task 24.1 (Non-Blocking Directory Open, 100% Transactional Undo/Redo Coverage, Rayon Parallel Richardson-Lucy & Atomic Binary Persistence) **Complete**
-- **Next Phase**: Phase 24 — Task 24.2 (`DiskThumbnailCache` Integration, `app.rs` & `ui/export.rs` Modular Extraction & Layout State Sync)
-- **Last Verified Baseline**: 383 tests passing across 86 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
-- **Current Milestone**: Phase 24 — Task 24.1 Audit #6 Remediation **Complete**
+- **Active Phase**: Phase 24 — Deep Maturity Audit #6 Remediation (Tasks 24.1, 24.2, 24.3 Complete)
+- **Active Tasks**: Audit #6 Full Remediation Plan **Complete**
+- **Next Phase**: Phase 25 — Pre-Release Hardening & Performance Benchmarks
+- **Last Verified Baseline**: 389 tests passing across 88 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Current Milestone**: Phase 24 — Task 24.3 Audit #6 Remediation **Complete** (Commit `79334cb`)
+  - **Task 24.3 Residual French String Elimination & 100% English Domain Purity**:
+    - Registered 5 tool deactivation keys (`EscapeCropDeactivated`, `EscapeHorizonDeactivated`, `EscapePerspectiveDeactivated`, `EscapeBrushDeactivated`, `EscapeSelectionReset`) in `Key` enum, updated `Key::COUNT = 458`, `ALL_KEYS`, `as_str()`, `from_str()`, and populated all 3 JSON translation catalogs (`en.json`, `fr.json`, `es.json`).
+    - Added localized helper functions in `crates/rraw-app/src/i18n/mod.rs` (`batch_selection_count_message`, `batch_deselection_message`, `batch_toggle_photo_message`) handling dynamic pluralization across French, Spanish, and English.
+    - Converted all runtime error and completion messages in `crates/rraw-app/src/ui/export_runner.rs` to 100% English, achieving zero non-English strings in domain logic.
+    - Dedicated TDD integration suite `crates/rraw-app/tests/p2_audit6_task24_3_i18n_purity_tests.rs` (2 new tests).
+    - 389 tests passing across 88 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+- **Preceding Milestone**: Phase 24 — Task 24.2 Audit #6 Remediation **Complete** (Commit `1022720`)
+  - **Task 24.2 Modular Decomposition, Disk Thumbnail Cache & Layout Synchronization**:
+    - Extracted `crates/rraw-app/src/ui/chrome.rs` (651 lines) from `app.rs`, housing `render_top_bar`, `render_status_bar`, and `handle_global_keyboard_shortcuts`, reducing `app.rs` from 2,041 to 1,422 lines.
+    - Extracted `crates/rraw-app/src/ui/export_runner.rs` (756 lines) from `ui/export.rs`, housing raster disk writers, ISO 21496-1 Gain Map writers, and streaming background batch/timelapse threads, reducing `ui/export.rs` from 1,465 to 720 lines.
+    - Connected `rraw_storage::DiskThumbnailCache` in `crates/rraw-app/src/preview/decoder.rs` (`generate_fast_thumbnail`) using SHA-256 content-hash indexing (`path`, file `len`, `mtime`, sidecar `xmp`) with bounds-checked binary serialization.
+    - Added `RrawApp::reset_layout()` restoring default filters (`ToolFamily::All`, `active_tools_only = false`) and deactivating canvas tools (`ActiveCanvasTool::None`), wired to the `DarkroomResetLayout` header button in `ui/inspector.rs`.
+    - Wired `activate_canvas_tool(ActiveCanvasTool::None)` when canvas tools (crop, horizon, perspective) complete in `ui/viewport/mod.rs`.
+    - Dedicated TDD integration suite `crates/rraw-app/tests/p1_audit6_task24_2_cache_chrome_layout_tests.rs` (3 new tests).
+    - 387 tests passing across 87 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+- **Preceding Milestone**: Phase 24 — Contextual Brush Auto-Deactivation **Complete** (Commit `fd669dd`)
+  - Automatic deactivation of freehand brush tool (`active_brush_mask_idx = None`):
+    - When switching away from `ToolFamily::All` or `ToolFamily::LocalMasks` in `set_active_tool_family`.
+    - When collapsing the `AiSemanticMasks` inspector section or when modifying another inspector section.
+    - When unchecking a brush mask layer (`mask.enabled = false`) or opening another photo in `open_raw_file`.
+    - Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+- **Preceding Milestone**: Phase 24 — Task 24.1 Audit #6 Remediation **Complete** (Commit `a101f43`)
   - Eliminated synchronous per-photo `load_photo_sidecars` loop on the UI thread in `RrawApp::open_directory` (`crates/rraw-app/src/app.rs`), preloading only the active photo synchronously while `spawn_directory_indexer` streams folder ratings asynchronously, and added `library.refresh_subdirectories()` on startup in `RrawApp::new()`.
   - Added `atomic_write_bytes` in `crates/rraw-app/src/sidecar.rs` and switched `.tmap` (`crates/rraw-app/src/ui/export.rs`) and `.exif.json` (`crates/rraw-app/src/ui/exif.rs`) writes to atomic persistence.
   - Extended transactional Undo/Redo coverage (`record_undo_snapshot` / `notify_grading_edited`) across all interactive viewport tools (`crates/rraw-app/src/ui/viewport/mod.rs`), 3D LUT import/removal/strength slider (`crates/rraw-app/src/ui/presets.rs`), tone curve reset controls (`reset_active_tone_curve`, `reset_all_tone_curves` in `crates/rraw-app/src/ui/tone_curves.rs`), and top-bar Soft Proofing controls (`crates/rraw-app/src/app.rs`).
