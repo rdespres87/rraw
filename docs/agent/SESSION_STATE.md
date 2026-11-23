@@ -4,9 +4,9 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 25 — Pre-Release Hardening, Performance Benchmarks & Packaging (Tasks 25.1, 25.2, 25.3 Complete)
-- **Active Tasks**: Pre-Release Hardening, Performance Benchmarks & Packaging **Complete**
-- **Next Phase**: Official Release Tagging (`git tag -a v0.1.0`) & GitHub Release
+- **Active Phase**: Phase 25 — Pre-Release Hardening, Performance Benchmarks & Packaging
+- **Active Tasks**: Release Tagging & GitHub Automated Release CI (`v0.1.1`)
+- **Next Phase**: Tag Push (`git tag -a v0.1.1`) & GitHub Release Verification
 - **Last Verified Baseline**: 397 tests passing across 89 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
 - **Current Milestone**: Full XMP Purge, Instant Star Ratings & Clean `.rraw/` Architecture **Complete**
   - **Full XMP Purge**: Completely removed all XMP sidecar generation, parsing, and fallback code across the engine.
