@@ -159,7 +159,7 @@ impl RrawApp {
                 if ui.small_button(self.t(Key::ExifExportButton)).clicked() {
                     let out_path = photo.path.with_extension("exif.json");
                     let json = photo.export_exif_json();
-                    if std::fs::write(&out_path, json).is_ok() {
+                    if crate::sidecar::atomic_write_str(&out_path, &json).is_ok() {
                         self.status_message = crate::i18n::exif_exported_to_status(
                             cur_lang,
                             &out_path.display().to_string(),

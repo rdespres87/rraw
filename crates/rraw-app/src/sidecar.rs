@@ -130,8 +130,8 @@ fn default_xmp_template() -> String {
         .to_string()
 }
 
-/// Writes `content` to `target` atomically using a temporary adjacent file and POSIX/OS rename.
-pub fn atomic_write_str(target: &Path, content: &str) -> std::io::Result<()> {
+/// Writes `bytes` to `target` atomically using a temporary adjacent file and POSIX/OS rename.
+pub fn atomic_write_bytes(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -146,7 +146,7 @@ pub fn atomic_write_str(target: &Path, content: &str) -> std::io::Result<()> {
 
     let mut file = std::fs::File::create(&tmp_path)?;
     if let Err(err) = file
-        .write_all(content.as_bytes())
+        .write_all(bytes)
         .and_then(|()| file.flush())
         .and_then(|()| file.sync_all())
     {
@@ -160,6 +160,11 @@ pub fn atomic_write_str(target: &Path, content: &str) -> std::io::Result<()> {
         return Err(err);
     }
     Ok(())
+}
+
+/// Writes `content` to `target` atomically using a temporary adjacent file and POSIX/OS rename.
+pub fn atomic_write_str(target: &Path, content: &str) -> std::io::Result<()> {
+    atomic_write_bytes(target, content.as_bytes())
 }
 
 pub fn save_photo_sidecars(photo_path: &Path, grading: &DarkroomGradingState, rating: u8) {

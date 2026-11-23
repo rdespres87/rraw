@@ -112,6 +112,7 @@ impl RrawApp {
         library.current_directory = Some(initial_dir);
         library.directory_entries = initial_entries;
         library.raw_only_filter = raw_only_filter;
+        library.refresh_subdirectories();
         let left_panel_tab = layout_config.left_panel_tab;
 
         let mut app = Self {
@@ -644,15 +645,24 @@ impl RrawApp {
             }
         }
 
-        // Preload sidecars (.rraw.json & .xmp) without stalling CPU
-        let entries = self.library.directory_entries.clone();
-        for path in &entries {
-            let (grading_opt, rating_opt) = load_photo_sidecars(path);
-            if let Some(g) = grading_opt {
-                self.library.photo_gradings.insert(path.clone(), g);
-            }
-            if let Some(r) = rating_opt {
-                self.library.photo_ratings.insert(path.clone(), r);
+        // Only preload sidecar synchronously for the currently active photo (if in this directory).
+        // Other photos in the folder have their ratings streamed asynchronously by `spawn_directory_indexer`
+        // and their full `.rraw.json` recipes loaded lazily on demand.
+        if let Some(active_path) = self
+            .session
+            .loaded_photo
+            .as_ref()
+            .map(|p| p.path.clone())
+            .or_else(|| self.layout_config.last_open_photo.clone())
+        {
+            if active_path.parent() == Some(abs_dir.as_path()) {
+                let (grading_opt, rating_opt) = load_photo_sidecars(&active_path);
+                if let Some(g) = grading_opt {
+                    self.library.photo_gradings.insert(active_path.clone(), g);
+                }
+                if let Some(r) = rating_opt {
+                    self.library.photo_ratings.insert(active_path, r);
+                }
             }
         }
 
@@ -1816,6 +1826,7 @@ impl eframe::App for RrawApp {
                         .on_hover_text(self.t(Key::TopBarSoftProofTooltip))
                         .clicked()
                     {
+                        self.record_undo_snapshot();
                         self.session.grading.soft_proof.enabled =
                             !self.session.grading.soft_proof.enabled;
                         if !self.session.grading.soft_proof.enabled {
@@ -1828,6 +1839,7 @@ impl eframe::App for RrawApp {
 
                     if sp_active {
                         let cur_lang = self.lang();
+                        let prev_sp = self.session.grading.soft_proof;
                         egui::ComboBox::from_id_salt("top_bar_soft_proof_profile")
                             .selected_text(crate::i18n::soft_proof_profile_short_label_lang(
                                 self.session.grading.soft_proof.profile,
@@ -1848,9 +1860,6 @@ impl eframe::App for RrawApp {
                                     {
                                         self.session.grading.soft_proof.simulate_paper_and_ink =
                                             prof.is_print_medium();
-                                        self.session.needs_preview_update = true;
-                                        self.save_current_photo_sidecar();
-                                        ui.ctx().request_repaint();
                                     }
                                 }
                             });
@@ -1863,37 +1872,21 @@ impl eframe::App for RrawApp {
                             .width(90.0)
                             .show_ui(ui, |ui| {
                                 for intent in rraw_color::SoftProofRenderingIntent::ALL {
-                                    if ui
-                                        .selectable_value(
-                                            &mut self.session.grading.soft_proof.intent,
-                                            intent,
-                                            crate::i18n::soft_proof_intent_label_lang(
-                                                intent, cur_lang,
-                                            ),
-                                        )
-                                        .changed()
-                                    {
-                                        self.session.needs_preview_update = true;
-                                        self.save_current_photo_sidecar();
-                                        ui.ctx().request_repaint();
-                                    }
+                                    ui.selectable_value(
+                                        &mut self.session.grading.soft_proof.intent,
+                                        intent,
+                                        crate::i18n::soft_proof_intent_label_lang(intent, cur_lang),
+                                    );
                                 }
                             });
 
                         let paper_ink_label = self.t(Key::TopBarPaperInk);
                         let paper_ink_tip = self.t(Key::TopBarPaperInkTooltip);
-                        if ui
-                            .checkbox(
-                                &mut self.session.grading.soft_proof.simulate_paper_and_ink,
-                                paper_ink_label,
-                            )
-                            .on_hover_text(paper_ink_tip)
-                            .changed()
-                        {
-                            self.session.needs_preview_update = true;
-                            self.save_current_photo_sidecar();
-                            ui.ctx().request_repaint();
-                        }
+                        ui.checkbox(
+                            &mut self.session.grading.soft_proof.simulate_paper_and_ink,
+                            paper_ink_label,
+                        )
+                        .on_hover_text(paper_ink_tip);
 
                         let oog_active = self.session.grading.soft_proof.show_gamut_warning;
                         let oog_count = self.viewport.histogram.out_of_gamut_count;
@@ -1919,6 +1912,12 @@ impl eframe::App for RrawApp {
                         {
                             self.session.grading.soft_proof.show_gamut_warning =
                                 !self.session.grading.soft_proof.show_gamut_warning;
+                        }
+
+                        if self.session.grading.soft_proof != prev_sp {
+                            let mut pre_edit = self.session.grading.clone();
+                            pre_edit.soft_proof = prev_sp;
+                            self.session.push_pre_edit_snapshot(pre_edit);
                             self.session.needs_preview_update = true;
                             self.save_current_photo_sidecar();
                             ui.ctx().request_repaint();

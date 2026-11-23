@@ -217,7 +217,7 @@ impl RrawApp {
         let tmap_path = target_path.with_extension("tmap");
         atomic_write_str(&xmp_path, &xmp_xml)
             .map_err(|e| format!("Failed to write ISO 21496-1 XMP packet: {e}"))?;
-        std::fs::write(&tmap_path, tmap_bytes)
+        crate::sidecar::atomic_write_bytes(&tmap_path, &tmap_bytes)
             .map_err(|e| format!("Failed to write ISO 21496-1 tmap box: {e}"))?;
         Ok(())
     }

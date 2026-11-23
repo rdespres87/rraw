@@ -87,6 +87,7 @@ impl RrawApp {
                     {
                         if let Ok(content) = std::fs::read_to_string(&path) {
                             if let Ok(lut) = rraw_color::ColorLut3d::from_cube_str(&content) {
+                                self.record_undo_snapshot();
                                 let name = path
                                     .file_stem()
                                     .and_then(|s| s.to_str())
@@ -98,6 +99,7 @@ impl RrawApp {
                                     lut: std::sync::Arc::new(lut),
                                     strength: 1.0,
                                 });
+                                self.session.grading.preset = GradingPreset::Custom;
                                 self.session.current_preset = GradingPreset::Custom;
                                 self.session.needs_preview_update = true;
                                 self.save_current_photo_sidecar();
@@ -111,6 +113,9 @@ impl RrawApp {
             let mut remove_lut = false;
             let remove_lut_tooltip = self.t(Key::PresetsRemoveLutTooltip);
             let lut_intensity_label = self.t(Key::PresetsLutIntensity);
+            let pre_lut_grading = self.session.grading.clone();
+            let pointer_down = ui.ctx().input(|i| i.pointer.any_down());
+            let mut lut_strength_changed = false;
             if let Some(clut) = &mut self.session.grading.custom_clut {
                 ui.add_space(2.0);
                 ui.horizontal(|ui| {
@@ -136,14 +141,18 @@ impl RrawApp {
                         .changed()
                     {
                         clut.strength = pct / 100.0;
-                        self.session.needs_preview_update = true;
-                        self.save_current_photo_sidecar();
-                        ui.ctx().request_repaint();
+                        lut_strength_changed = true;
                     }
                 }
             }
 
+            if lut_strength_changed {
+                self.notify_grading_edited(pre_lut_grading, pointer_down);
+                ui.ctx().request_repaint();
+            }
+
             if remove_lut {
+                self.record_undo_snapshot();
                 self.session.grading.custom_clut = None;
                 self.session.needs_preview_update = true;
                 self.save_current_photo_sidecar();

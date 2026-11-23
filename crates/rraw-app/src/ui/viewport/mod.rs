@@ -326,6 +326,9 @@ impl RrawApp {
                 is_cropped_view,
             };
 
+            let pre_viewport_grading = self.session.grading.clone();
+            let pointer_down = ui.input(|i| i.pointer.any_down());
+
             // Interactive freehand brush painting / erasing
             if is_brush_active {
                 let (needs_upd, save_sidecar) = brush_overlay::handle_brush_painting(
@@ -341,7 +344,7 @@ impl RrawApp {
                     ui.ctx().request_repaint();
                 }
                 if save_sidecar {
-                    self.save_current_photo_sidecar();
+                    self.session.sidecar_dirty = true;
                 }
 
                 // Active Brush HUD Badge
@@ -380,7 +383,7 @@ impl RrawApp {
                     self.session.needs_preview_update = true;
                 }
                 if crop_out.save_sidecar {
-                    self.save_current_photo_sidecar();
+                    self.session.sidecar_dirty = true;
                 }
             }
 
@@ -410,7 +413,7 @@ impl RrawApp {
                     self.session.needs_preview_update = true;
                 }
                 if p_out.save_sidecar {
-                    self.save_current_photo_sidecar();
+                    self.session.sidecar_dirty = true;
                 }
             }
 
@@ -432,8 +435,13 @@ impl RrawApp {
                     self.session.needs_preview_update = true;
                 }
                 if h_out.save_sidecar {
-                    self.save_current_photo_sidecar();
+                    self.session.sidecar_dirty = true;
                 }
+            }
+
+            if self.session.grading != pre_viewport_grading {
+                self.notify_grading_edited(pre_viewport_grading, pointer_down);
+                ui.ctx().request_repaint();
             }
 
             // Brush cursor ring indicator preview

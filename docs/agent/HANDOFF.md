@@ -2,11 +2,21 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 23 Complete**: All P0, P1, and P2 remediation tasks from Deep Maturity Audit #5 (Tasks 23.1, 23.2, and 23.3) are implemented, verified with dedicated TDD integration test suites (379 tests across 85 suites), and audited at 0 cloud tokens.
+- **Phase 24 — Task 24.2 (`rraw-app`, `rraw-storage`)**: `DiskThumbnailCache` Integration, `app.rs` & `ui/export.rs` Modular Extraction & Layout State Sync.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 24 — Task 24.1 Audit #6 Remediation (`rraw-app`, `rraw-optics`) — COMPLETE**:
+  - **Non-Blocking `open_directory` & Startup Subdirectories**: Removed synchronous per-photo `load_photo_sidecars` loop from `open_directory` UI thread and added `library.refresh_subdirectories()` in `RrawApp::new()`.
+  - **100% Transactional Undo/Redo & Atomic Binary Persistence**: Added `atomic_write_bytes` in `sidecar.rs` (used for `.tmap` and `.exif.json`) and wired `notify_grading_edited` / `record_undo_snapshot` across viewport tools (`ui/viewport/mod.rs`), 3D LUT controls (`ui/presets.rs`), tone curve reset methods (`reset_active_tone_curve`, `reset_all_tone_curves` in `ui/tone_curves.rs`), and top-bar Soft Proofing (`app.rs`).
+  - **Rayon Parallel Richardson-Lucy**: Parallelized `rraw_optics::execute_richardson_lucy` across rows using Rayon `par_chunks_mut`.
+  - **Validation & Tests**: Dedicated integration test suite `crates/rraw-app/tests/p0_audit6_directory_undo_atomic_tests.rs` (4 tests). 383 workspace tests passing across 86 suites, 0 clippy errors, 0 clippy warnings.
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 23 — Task 23.3 Audit #5 Priority P2 Remediation (`rraw-app`) — COMPLETE**:
   - **P2.1 100% Residual French String Localization**: Added 25 language-aware helpers in `crates/rraw-app/src/i18n/mod.rs` and localized all remaining hardcoded French strings across `ui/explorer.rs`, `ui/exif.rs`, `ui/filmstrip.rs`, `ui/export.rs`, and `app.rs` (top-bar Soft Proofing profile/intent/out-of-gamut badge).

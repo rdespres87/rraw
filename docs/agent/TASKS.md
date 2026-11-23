@@ -308,6 +308,18 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Wired `rraw_export` ISO 21496-1 Gain Map HDR calculation and serialization (`GainMapCalculator::compute`, `Iso21496Params`, `Iso21496XmpPacket::encode`, `Iso21496TmapBox::encode`) into `ExportBatchController` (`export_hdr_gain_map`), `ExportWriteConfig` (`hdr_gain_map`), `RrawApp::write_iso21496_gain_map_sidecars`, and `render_export_dialog` (`crates/rraw-app/src/ui/export.rs`), emitting standardized `.hdrgm.xmp` and 40-byte `.tmap` ISOBMFF sidecars on export.
   - Dedicated TDD integration suite `crates/rraw-app/tests/p2_audit5_i18n_and_domain_wiring_tests.rs` (3 tests). 379 workspace tests passing across 85 suites, 0 clippy warnings.
 
+---
+
+## Phase 24 — Deep Maturity Audit #6 Remediation
+- [x] **Task 24.1 (`rraw-app`, `rraw-optics`)**: Non-Blocking Directory Open, 100% Transactional Undo/Redo Coverage, Rayon Parallel Richardson-Lucy & Atomic Binary Persistence
+  - Eliminated synchronous per-photo `load_photo_sidecars` loop on the UI thread in `RrawApp::open_directory` (`crates/rraw-app/src/app.rs`), preloading only the active photo synchronously while `spawn_directory_indexer` streams folder ratings asynchronously, and added `library.refresh_subdirectories()` on startup in `RrawApp::new()`.
+  - Added `atomic_write_bytes` in `crates/rraw-app/src/sidecar.rs` and switched `.tmap` (`crates/rraw-app/src/ui/export.rs`) and `.exif.json` (`crates/rraw-app/src/ui/exif.rs`) writes to atomic persistence.
+  - Extended transactional Undo/Redo coverage (`record_undo_snapshot` / `notify_grading_edited`) across all interactive viewport tools (`crates/rraw-app/src/ui/viewport/mod.rs`: freehand brush, crop overlay, parallel perspective lines, horizon leveling), 3D LUT import/removal/strength slider (`crates/rraw-app/src/ui/presets.rs`), tone curve reset controls (`reset_active_tone_curve`, `reset_all_tone_curves` in `crates/rraw-app/src/ui/tone_curves.rs`), and top-bar Soft Proofing controls (`crates/rraw-app/src/app.rs`).
+  - Parallelized `rraw_optics::execute_richardson_lucy` (`crates/rraw-optics/src/rl.rs`) across rows using Rayon `par_chunks_mut`.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p0_audit6_directory_undo_atomic_tests.rs` (4 tests). 383 workspace tests passing across 86 suites, 0 clippy warnings.
+- [ ] **Task 24.2 (`rraw-app`, `rraw-storage`)**: `DiskThumbnailCache` Integration, `app.rs` & `ui/export.rs` Modular Extraction & Layout State Sync
+- [ ] **Task 24.3 (`rraw-app`, `rraw-optics`, `rraw-export`)**: Final French String Localization & Domain Crate English Purity
+
 
 
 

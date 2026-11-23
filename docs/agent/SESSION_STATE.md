@@ -4,11 +4,18 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 23 — Deep Maturity Audit #5 Remediation (Chantiers P0, P1 & P2 Complete)
-- **Active Tasks**: Task 23.3 (P2 — 100% Residual French String Localization & Domain Crate Feature Wiring) **Complete**
-- **Next Phase**: Ready for next phase or user milestone verification
-- **Last Verified Baseline**: 379 tests passing across 85 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
-- **Current Milestone**: Phase 23 — Task 23.3 Audit #5 Priority P2 Remediation **Complete**
+- **Active Phase**: Phase 24 — Deep Maturity Audit #6 Remediation (Task 24.1 Complete; Next: Task 24.2)
+- **Active Tasks**: Task 24.1 (Non-Blocking Directory Open, 100% Transactional Undo/Redo Coverage, Rayon Parallel Richardson-Lucy & Atomic Binary Persistence) **Complete**
+- **Next Phase**: Phase 24 — Task 24.2 (`DiskThumbnailCache` Integration, `app.rs` & `ui/export.rs` Modular Extraction & Layout State Sync)
+- **Last Verified Baseline**: 383 tests passing across 86 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Current Milestone**: Phase 24 — Task 24.1 Audit #6 Remediation **Complete**
+  - Eliminated synchronous per-photo `load_photo_sidecars` loop on the UI thread in `RrawApp::open_directory` (`crates/rraw-app/src/app.rs`), preloading only the active photo synchronously while `spawn_directory_indexer` streams folder ratings asynchronously, and added `library.refresh_subdirectories()` on startup in `RrawApp::new()`.
+  - Added `atomic_write_bytes` in `crates/rraw-app/src/sidecar.rs` and switched `.tmap` (`crates/rraw-app/src/ui/export.rs`) and `.exif.json` (`crates/rraw-app/src/ui/exif.rs`) writes to atomic persistence.
+  - Extended transactional Undo/Redo coverage (`record_undo_snapshot` / `notify_grading_edited`) across all interactive viewport tools (`crates/rraw-app/src/ui/viewport/mod.rs`), 3D LUT import/removal/strength slider (`crates/rraw-app/src/ui/presets.rs`), tone curve reset controls (`reset_active_tone_curve`, `reset_all_tone_curves` in `crates/rraw-app/src/ui/tone_curves.rs`), and top-bar Soft Proofing controls (`crates/rraw-app/src/app.rs`).
+  - Parallelized `rraw_optics::execute_richardson_lucy` (`crates/rraw-optics/src/rl.rs`) across rows using Rayon `par_chunks_mut`.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p0_audit6_directory_undo_atomic_tests.rs` (4 new tests).
+  - 383 tests passing across 86 suites, 0 clippy errors, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+- **Preceding Milestone**: Phase 23 — Task 23.3 Audit #5 Priority P2 Remediation **Complete** (Commit `dafdcfb`)
   - **P2.1 100% Residual French String Localization across `rraw-app` UI**: Added 25 language-aware localization helpers in `crates/rraw-app/src/i18n/mod.rs` (`explorer_*`, `exif_*`, `filmstrip_*`, `left_panel_tab_labels`, `soft_proof_out_of_gamut_badge`, `export_hdr_gain_map_*`) with custom catalog override lookup (`I18nEngine::translate_custom`) and built-in `Language::Fr`, Spanish (`lang.is_spanish()`), and `Language::En` translations, wired across `ui/explorer.rs`, `ui/exif.rs`, `ui/filmstrip.rs`, `ui/export.rs`, and `app.rs` (top-bar Soft Proofing profile/intent/out-of-gamut badge).
   - **P2.2 Domain Crate Feature Wiring (`rraw-optics` Richardson-Lucy & `rraw-export` ISO 21496-1 Gain Map HDR)**: Wired `rraw_optics::execute_richardson_lucy` (`RichardsonLucyParams`) into `PreparedGradingFrame::prepare` (`crates/rraw-app/src/preview/pipeline.rs`) when `capture_sharpening_amount > 0.5`, and wired `rraw_export` ISO 21496-1 Gain Map calculation and `.hdrgm.xmp` / `.tmap` sidecar emission (`GainMapCalculator::compute`, `Iso21496Params`, `Iso21496XmpPacket::encode`, `Iso21496TmapBox::encode`) into `ExportBatchController`, `ExportWriteConfig`, `RrawApp::write_iso21496_gain_map_sidecars`, and `render_export_dialog`.
   - Dedicated TDD integration suite `crates/rraw-app/tests/p2_audit5_i18n_and_domain_wiring_tests.rs` (3 new tests).

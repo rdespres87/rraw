@@ -56,6 +56,30 @@ impl RrawApp {
         }
     }
 
+    /// Resets the currently active tone curve channel to linear identity, recording an Undo snapshot and marking sidecars dirty.
+    pub fn reset_active_tone_curve(&mut self) {
+        if self.active_curve().is_identity() {
+            return;
+        }
+        self.record_undo_snapshot();
+        *self.active_curve_mut() = ChannelCurve::new_linear();
+        self.viewport.dragging_curve_point = None;
+        self.session.needs_preview_update = true;
+        self.session.sidecar_dirty = true;
+    }
+
+    /// Resets all tone curve channels to linear identity, recording an Undo snapshot and marking sidecars dirty.
+    pub fn reset_all_tone_curves(&mut self) {
+        if self.session.grading.tone_curves.is_identity() {
+            return;
+        }
+        self.record_undo_snapshot();
+        self.session.grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();
+        self.viewport.dragging_curve_point = None;
+        self.session.needs_preview_update = true;
+        self.session.sidecar_dirty = true;
+    }
+
     /// Renders the tone curves inspector section with interactive spline canvas.
     pub fn render_tone_curves_section(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
@@ -397,9 +421,7 @@ impl RrawApp {
                     .on_hover_text(self.t(crate::i18n::Key::InspectorResetTone))
                     .clicked()
                 {
-                    *self.active_curve_mut() = ChannelCurve::new_linear();
-                    self.viewport.dragging_curve_point = None;
-                    self.session.needs_preview_update = true;
+                    self.reset_active_tone_curve();
                 }
 
                 if ui
@@ -407,10 +429,7 @@ impl RrawApp {
                     .on_hover_text(self.t(crate::i18n::Key::ToneCurvesResetAllTooltip))
                     .clicked()
                 {
-                    self.session.grading.tone_curves =
-                        rraw_core::curves::ToneCurvesRecipe::default();
-                    self.viewport.dragging_curve_point = None;
-                    self.session.needs_preview_update = true;
+                    self.reset_all_tone_curves();
                 }
             });
         });
