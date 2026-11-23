@@ -317,8 +317,24 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Extended transactional Undo/Redo coverage (`record_undo_snapshot` / `notify_grading_edited`) across all interactive viewport tools (`crates/rraw-app/src/ui/viewport/mod.rs`: freehand brush, crop overlay, parallel perspective lines, horizon leveling), 3D LUT import/removal/strength slider (`crates/rraw-app/src/ui/presets.rs`), tone curve reset controls (`reset_active_tone_curve`, `reset_all_tone_curves` in `crates/rraw-app/src/ui/tone_curves.rs`), and top-bar Soft Proofing controls (`crates/rraw-app/src/app.rs`).
   - Parallelized `rraw_optics::execute_richardson_lucy` (`crates/rraw-optics/src/rl.rs`) across rows using Rayon `par_chunks_mut`.
   - Dedicated TDD integration suite `crates/rraw-app/tests/p0_audit6_directory_undo_atomic_tests.rs` (4 tests). 383 workspace tests passing across 86 suites, 0 clippy warnings.
-- [ ] **Task 24.2 (`rraw-app`, `rraw-storage`)**: `DiskThumbnailCache` Integration, `app.rs` & `ui/export.rs` Modular Extraction & Layout State Sync
-- [ ] **Task 24.3 (`rraw-app`, `rraw-optics`, `rraw-export`)**: Final French String Localization & Domain Crate English Purity
+- [x] **Task 24.2 (`rraw-app`, `rraw-storage`)**: `DiskThumbnailCache` Integration, `app.rs` & `ui/export.rs` Modular Extraction & Layout State Sync
+  - Extracted `crates/rraw-app/src/ui/chrome.rs` (651 lines) from `app.rs` (`render_top_bar`, `render_status_bar`, `handle_global_keyboard_shortcuts`), reducing `app.rs` from 2,041 to 1,422 lines.
+  - Extracted `crates/rraw-app/src/ui/export_runner.rs` (756 lines) from `ui/export.rs` (raster disk writers, ISO 21496-1 Gain Map writers, streaming background batch/timelapse threads), reducing `ui/export.rs` from 1,465 to 720 lines.
+  - Connected `rraw_storage::DiskThumbnailCache` in `crates/rraw-app/src/preview/decoder.rs` (`generate_fast_thumbnail`) using SHA-256 content-hash indexing (`path`, file `len`, `mtime`, sidecar `xmp`) with bounds-checked binary serialization.
+  - Added `RrawApp::reset_layout()` restoring default filters (`ToolFamily::All`, `active_tools_only = false`) and deactivating canvas tools (`ActiveCanvasTool::None`), wired to the `DarkroomResetLayout` header button in `ui/inspector.rs`.
+  - Wired `activate_canvas_tool(ActiveCanvasTool::None)` when canvas tools (crop, horizon, perspective) complete in `ui/viewport/mod.rs`.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p1_audit6_task24_2_cache_chrome_layout_tests.rs` (3 tests). 387 workspace tests passing across 87 suites, 0 clippy warnings.
+- [x] **Task 24.3 (`rraw-app`, `rraw-optics`, `rraw-export`)**: Final French String Localization & Domain Crate English Purity
+  - Registered 5 tool deactivation keys (`EscapeCropDeactivated`, `EscapeHorizonDeactivated`, `EscapePerspectiveDeactivated`, `EscapeBrushDeactivated`, `EscapeSelectionReset`) in `Key` enum, updated `Key::COUNT = 458`, `ALL_KEYS`, `as_str()`, `from_str()`, and populated all 3 JSON translation catalogs (`en.json`, `fr.json`, `es.json`).
+  - Added localized helper functions in `crates/rraw-app/src/i18n/mod.rs` (`batch_selection_count_message`, `batch_deselection_message`, `batch_toggle_photo_message`) handling dynamic pluralization across French, Spanish, and English.
+  - Converted all runtime error and completion messages in `crates/rraw-app/src/ui/export_runner.rs` to 100% English, achieving zero non-English strings in domain logic.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p2_audit6_task24_3_i18n_purity_tests.rs` (2 new tests). 389 workspace tests passing across 88 suites, 0 clippy warnings.
+
+---
+
+## Phase 25 — Pre-Release Hardening & Performance Benchmarks
+- [ ] **Task 25.1 (`workspace`)**: End-to-End Performance Benchmarking & Memory Profile
+- [ ] **Task 25.2 (`rraw-app`)**: Packaging, Bundle Validation & Release Readiness
 
 
 
