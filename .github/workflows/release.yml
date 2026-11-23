@@ -1,0 +1,102 @@
+# .github/workflows/release.yml
+#
+# Builds the Rraw macOS desktop application and publishes a GitHub Release
+# with the DMG and its SHA-256 checksum.
+#
+# Triggers:
+#   • Push of a tag matching `v*` (e.g. v0.1.0)
+#   • Manual dispatch from the GitHub Actions UI
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag to release (e.g. v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+# Cancel in-progress runs for the same ref to save runner minutes.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Build & Release (macOS / Apple Silicon)
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── 2. Rust toolchain ───────────────────────────────────────────────
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # ── 3. Dependency / build cache ─────────────────────────────────────
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: macos-arm64
+
+      # ── 4. Package ──────────────────────────────────────────────────────
+      - name: Package macOS Application Bundle & DMG
+        run: |
+          set -euo pipefail
+          chmod +x ./scripts/package_macos.sh
+          ./scripts/package_macos.sh
+
+      # ── 5. Verify distribution assets ───────────────────────────────────
+      - name: Verify distribution assets
+        run: |
+          set -euo pipefail
+
+          DMG=$(ls target/dist/Rraw-*.dmg 2>/dev/null | head -n 1)
+          SHA=$(ls target/dist/Rraw-*.dmg.sha256 2>/dev/null | head -n 1)
+
+          if [[ -z "$DMG" ]]; then
+            echo "::error::No .dmg file found in target/dist/"
+            exit 1
+          fi
+          if [[ -z "$SHA" ]]; then
+            echo "::error::No .dmg.sha256 file found in target/dist/"
+            exit 1
+          fi
+
+          echo "────────────────────────────────────────────"
+          echo "  DMG file : $DMG"
+          echo "  Size     : $(du -h "$DMG" | cut -f1)"
+          echo "  SHA-256  : $(cat "$SHA")"
+          echo "────────────────────────────────────────────"
+
+          # Sanity-check: verify the checksum actually matches the file.
+          cd target/dist
+          shasum -a 256 -c "$(basename "$SHA")"
+          cd -
+
+      # ── 6. Create GitHub Release ────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          name: "Rraw ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            target/dist/Rraw-*.dmg
+            target/dist/Rraw-*.dmg.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

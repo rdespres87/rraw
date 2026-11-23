@@ -2,9 +2,18 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Official Release Tagging & GitHub Release v0.1.0**:
-  - Create annotated Git tag `v0.1.0` (`git tag -a v0.1.0 -m "Release v0.1.0"`).
-  - Distribute `target/dist/Rraw-v0.1.0.dmg` with SHA-256 checksum `fd9f3f1b51062b2e8cc29286269795f8fefdc86e0c5bbfa7f0f27d7073f66e12`.
+- **Official Release Push & CI Verification**:
+  - Push tag `v0.1.0` to remote (`git push origin v0.1.0`) to trigger `.github/workflows/release.yml`.
+  - Verify GitHub Release generation and attached `Rraw-v0.1.0.dmg` and checksums.
+
+---
+
+## Last Completed Milestone
+
+- **Automated GitHub Release Workflow (`.github/workflows/release.yml`) — COMPLETE**:
+  - Implemented Apple Silicon `macos-14` workflow triggered on tags `v*` and manual `workflow_dispatch`.
+  - Integrates `scripts/package_macos.sh`, verifies DMG and SHA-256 artifacts, and publishes GitHub Release with `softprops/action-gh-release@v2`.
+  - Audited by Inquisitor Qwen 3.6 35B A3B with auto-healed `workflow_dispatch` tag parameter selection.
 
 ---
 
