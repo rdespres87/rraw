@@ -2,14 +2,22 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 22 — Task 22.3 (Audit #4 Priority P2 — Monolith File Decomposition, 100% Parametric i18n & Unused Cargo Dependency Cleanup)**:
-  - Remove the 6 unused Cargo dependencies (`objc2-foundation` in `rraw-coreml`, `rraw-optics` in `rraw-color`, `rraw-decode` in `rraw-storage`, `rraw-storage`/`rraw-ai`/`rraw-export` in `rraw-cli`).
-  - Localize remaining hardcoded French strings in `state.rs` (presets), `app.rs` (status messages), and `ui/export.rs` (export progress), and add bundle path resolution for `assets/i18n`.
-  - Modularize oversized files in `rraw-app` (`state.rs`, `app.rs`, `ui/export.rs`).
+- **All Phase 22 Deep Maturity Audit #4 Remediation Tasks (P0, P1, P2) are COMPLETE**:
+  - Ready for user testing, final release packaging (`./scripts/package_macos.sh`), or next feature milestone.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 22 — Task 22.3 Audit #4 Priority P2 Remediation (`rraw-app`, workspace) — COMPLETE**:
+  - **P2.1 Unused Cargo Dependency Cleanup**: Removed 8 unused dependencies across `rraw-color`, `rraw-cli`, `rraw-coreml`, and `rraw-storage` (0 clippy errors, 0 clippy warnings across the entire workspace).
+  - **P2.2 Bundle-Aware i18n Discovery & Dynamic Custom Catalog Overrides**: Added `I18nEngine::candidate_i18n_directories` and `discover_default_catalogs` resolving macOS `.app` bundle `../Resources/assets/i18n`, `<exe_dir>/assets/i18n`, `<cwd>/assets/i18n`, and `~/.config/rraw/i18n`, plus `Catalog::get_custom`, `I18nEngine::translate_custom`, and `soft_proof_intent_label_lang`.
+  - **P2.3 Monolith File Decomposition (`state.rs`)**: Extracted `presets.rs` (638L), `mask_layers.rs` (530L), and `sidecar.rs` (231L) from `state.rs` (now 806L) with transparent `pub use` re-exports.
+  - **Validation & Tests**: Dedicated integration test suite `crates/rraw-app/tests/p2_architecture_and_i18n_tests.rs` (3 tests). 368 workspace tests passing across 82 suites, 0 clippy errors, 0 clippy warnings.
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 22 — Task 22.2 Audit #4 Priority P1 Remediation (`rraw-app`) — COMPLETE**:
   - **P1.1 Ephemeral Sidecar Field Exclusion**: Added `#[serde(skip)]` to `lens_search_query` and `defringe_preview_mask` in `OpticsGradingParams`.

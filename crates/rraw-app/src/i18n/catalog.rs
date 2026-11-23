@@ -12,6 +12,7 @@ pub struct Catalog {
     language: Language,
     display_name: &'static str,
     entries: Box<[&'static str; Key::COUNT]>,
+    extra: HashMap<String, &'static str>,
 }
 
 impl Catalog {
@@ -19,6 +20,7 @@ impl Catalog {
     ///
     /// Any keys missing from the JSON payload fall back to the provided `fallback` catalog,
     /// or to the key's identifier name if no fallback is available.
+    /// Any additional dynamic keys (e.g., `"Preset.AsShot.Name"`) are stored for zero-allocation lookup.
     pub fn from_json_str(
         language: Language,
         json_str: &str,
@@ -53,10 +55,18 @@ impl Catalog {
             }
         };
 
+        let mut extra = fallback.map_or_else(HashMap::new, |fb| fb.extra.clone());
+        for (k, v) in map {
+            if !k.starts_with('_') {
+                extra.insert(k, Box::leak(v.into_boxed_str()));
+            }
+        }
+
         Ok(Self {
             language,
             display_name,
             entries,
+            extra,
         })
     }
 
@@ -88,6 +98,7 @@ impl Catalog {
             language,
             display_name,
             entries,
+            extra: HashMap::new(),
         }
     }
 
@@ -101,5 +112,12 @@ impl Catalog {
         } else {
             key.as_str()
         }
+    }
+
+    /// Retrieves a dynamic custom translation entry (e.g. preset names/descriptions or rendering intents) if defined in the JSON catalog.
+    #[inline]
+    #[must_use]
+    pub fn get_custom(&self, custom_key: &str) -> Option<&'static str> {
+        self.extra.get(custom_key).copied()
     }
 }

@@ -2976,7 +2976,6 @@ checksum = "e3e0adef53c21f888deb4fa59fc59f7eb17404926ee8a6f59f5df0fd7f9f3272"
 dependencies = [
  "bitflags 2.13.2",
  "block2 0.6.2",
- "libc",
  "objc2 0.6.5",
  "objc2-core-foundation",
 ]
@@ -3851,14 +3850,9 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "png 0.17.16",
- "rraw-ai",
  "rraw-color",
  "rraw-core",
  "rraw-decode",
- "rraw-export",
- "rraw-gpu",
- "rraw-optics",
- "rraw-storage",
 ]
 
 [[package]]
@@ -3868,7 +3862,6 @@ dependencies = [
  "glam",
  "png 0.17.16",
  "rraw-core",
- "rraw-optics",
  "serde",
  "thiserror 2.0.21",
 ]
@@ -3889,7 +3882,6 @@ name = "rraw-coreml"
 version = "0.1.0"
 dependencies = [
  "objc2 0.6.5",
- "objc2-foundation 0.3.2",
  "rayon",
  "rraw-ai",
  "rraw-core",
@@ -3963,7 +3955,6 @@ version = "0.1.0"
 dependencies = [
  "quick-xml 0.37.5",
  "rraw-core",
- "rraw-decode",
  "rusqlite",
  "serde",
  "serde_json",

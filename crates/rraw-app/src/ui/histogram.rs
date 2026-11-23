@@ -47,9 +47,18 @@ impl RrawApp {
                         self.viewport.clipping_overlay.highlights = !hl_on;
                         self.session.needs_preview_update = true;
                     }
+                    let cur_lang = self.lang();
+                    let is_es = cur_lang.is_spanish();
+                    let blacks_short = if cur_lang == crate::i18n::Language::Fr {
+                        "Noirs"
+                    } else if is_es {
+                        "Negros"
+                    } else {
+                        "Blacks"
+                    };
                     let sh_on = self.viewport.clipping_overlay.shadows;
                     let sh_text = egui::RichText::new(format!(
-                        "Noirs {}",
+                        "{blacks_short} {}",
                         self.viewport.histogram.shadow_clipped
                     ))
                     .small()
@@ -133,33 +142,43 @@ impl RrawApp {
             ));
 
             // Zone labels at the bottom of the card
+            let cur_lang = self.lang();
+            let is_es = cur_lang.is_spanish();
+            let (lbl_blacks, lbl_shadows, lbl_exposure, lbl_highlights) =
+                if cur_lang == crate::i18n::Language::Fr {
+                    ("Noirs", "Ombres", "Exposition", "Hautes Lum.")
+                } else if is_es {
+                    ("Negros", "Sombras", "Exposición", "Altas Luces")
+                } else {
+                    ("Blacks", "Shadows", "Exposure", "Highlights")
+                };
             let label_col = Color32::from_rgb(85, 90, 105);
             let label_font = egui::FontId::proportional(8.5);
             painter.text(
                 egui::pos2(rect.left() + rect.width() * 0.125, rect.bottom() - 7.0),
                 egui::Align2::CENTER_CENTER,
-                "Noirs",
+                lbl_blacks,
                 label_font.clone(),
                 label_col,
             );
             painter.text(
                 egui::pos2(rect.left() + rect.width() * 0.375, rect.bottom() - 7.0),
                 egui::Align2::CENTER_CENTER,
-                "Ombres",
+                lbl_shadows,
                 label_font.clone(),
                 label_col,
             );
             painter.text(
                 egui::pos2(rect.left() + rect.width() * 0.625, rect.bottom() - 7.0),
                 egui::Align2::CENTER_CENTER,
-                "Exposition",
+                lbl_exposure,
                 label_font.clone(),
                 label_col,
             );
             painter.text(
                 egui::pos2(rect.left() + rect.width() * 0.875, rect.bottom() - 7.0),
                 egui::Align2::CENTER_CENTER,
-                "Hautes Lum.",
+                lbl_highlights,
                 label_font,
                 label_col,
             );
@@ -176,7 +195,13 @@ impl RrawApp {
                         ],
                         egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 120)),
                     );
-                    let tip = format!("Niveau: {} | Pixels: {}", bin_idx, lum_v);
+                    let tip = if cur_lang == crate::i18n::Language::Fr {
+                        format!("Niveau: {} | Pixels: {}", bin_idx, lum_v)
+                    } else if is_es {
+                        format!("Nivel: {} | Píxeles: {}", bin_idx, lum_v)
+                    } else {
+                        format!("Level: {} | Pixels: {}", bin_idx, lum_v)
+                    };
                     painter.text(
                         egui::pos2(
                             pos.x.clamp(rect.left() + 45.0, rect.right() - 45.0),

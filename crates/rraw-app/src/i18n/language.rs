@@ -28,6 +28,13 @@ impl Language {
     /// Built-in static languages.
     pub const ALL: [Self; 2] = [Self::Fr, Self::En];
 
+    /// Returns true if this language represents Spanish (`es` / `es-*`).
+    #[inline]
+    #[must_use]
+    pub const fn is_spanish(self) -> bool {
+        matches!(self, Self::Custom([b'e', b's', ..]))
+    }
+
     /// Returns the uppercase two-letter or short code (e.g. "FR", "EN", "ES").
     #[must_use]
     pub fn code(self) -> &'static str {

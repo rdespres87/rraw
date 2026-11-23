@@ -42,7 +42,8 @@ fn test_hud_soft_proofing() {
             show_gamut_warning: true,
             ..Default::default()
         };
-        hud::render_soft_proofing_hud(ui.painter(), available_rect, &config, 42);
+        hud::render_soft_proofing_hud(ui.painter(), available_rect, &config, 42, Language::Fr);
+        hud::render_soft_proofing_hud(ui.painter(), available_rect, &config, 42, Language::En);
     });
 }
 

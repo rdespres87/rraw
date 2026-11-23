@@ -8,7 +8,6 @@ description = "Dual-illuminant DNG spectral colorimetry, ACEScg grading, AgX/Ope
 
 [dependencies]
 rraw-core.workspace = true
-rraw-optics.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 glam.workspace = true

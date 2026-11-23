@@ -3,7 +3,7 @@
 //! Central thread-safe internationalization runtime engine and external catalog loader.
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock, RwLock};
 
 use crate::i18n::{Catalog, Key, Language};
@@ -135,6 +135,97 @@ impl I18nEngine {
                 }
             }
         }
+    }
+
+    /// Translates a dynamic custom key (such as `"Preset.AsShot.Name"`) if defined in the language catalog.
+    #[inline]
+    #[must_use]
+    pub fn translate_custom(&self, lang: Language, custom_key: &str) -> Option<&'static str> {
+        let guard = match self.catalogs.read() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        if let Some(cat) = guard.get(&lang) {
+            cat.get_custom(custom_key)
+        } else {
+            match lang {
+                Language::Fr => self.default_fr.get_custom(custom_key),
+                Language::En => self.default_en.get_custom(custom_key),
+                Language::Custom(_) => self.default_en.get_custom(custom_key),
+            }
+        }
+    }
+
+    /// Computes the ordered list of candidate i18n catalog directories across macOS `.app` bundles,
+    /// portable executable directories, development workspaces, and user configuration folders.
+    #[must_use]
+    pub fn candidate_i18n_directories(
+        exe_path: Option<&Path>,
+        cwd: Option<&Path>,
+        config_file_path: Option<&Path>,
+    ) -> Vec<PathBuf> {
+        let mut dirs = Vec::with_capacity(5);
+
+        if let Some(exe) = exe_path {
+            if let Some(exe_dir) = exe.parent() {
+                // 1. macOS .app bundle layout: Contents/MacOS/rraw-app -> Contents/Resources/assets/i18n
+                if let Some(contents_dir) = exe_dir.parent() {
+                    let bundle_assets = contents_dir.join("Resources").join("assets").join("i18n");
+                    if !dirs.contains(&bundle_assets) {
+                        dirs.push(bundle_assets);
+                    }
+                    let bundle_i18n = contents_dir.join("Resources").join("i18n");
+                    if !dirs.contains(&bundle_i18n) {
+                        dirs.push(bundle_i18n);
+                    }
+                }
+                // 2. Portable binary adjacent layout: <exe_dir>/assets/i18n
+                let exe_assets = exe_dir.join("assets").join("i18n");
+                if !dirs.contains(&exe_assets) {
+                    dirs.push(exe_assets);
+                }
+            }
+        }
+
+        // 3. Development workspace CWD layout: <cwd>/assets/i18n
+        if let Some(current_dir) = cwd {
+            let cwd_assets = current_dir.join("assets").join("i18n");
+            if !dirs.contains(&cwd_assets) {
+                dirs.push(cwd_assets);
+            }
+        } else {
+            let rel_assets = PathBuf::from("assets/i18n");
+            if !dirs.contains(&rel_assets) {
+                dirs.push(rel_assets);
+            }
+        }
+
+        // 4. User configuration override directory: ~/.config/rraw/i18n (loaded last to allow user overrides)
+        if let Some(cfg_file) = config_file_path {
+            if let Some(cfg_dir) = cfg_file.parent() {
+                let user_i18n = cfg_dir.join("i18n");
+                if !dirs.contains(&user_i18n) {
+                    dirs.push(user_i18n);
+                }
+            }
+        }
+
+        dirs
+    }
+
+    /// Discovers and loads external JSON translation catalogs from all standard candidate directories.
+    pub fn discover_default_catalogs(&self, config_file_path: Option<&Path>) -> usize {
+        let exe_path = std::env::current_exe().ok();
+        let cwd = std::env::current_dir().ok();
+        let candidates =
+            Self::candidate_i18n_directories(exe_path.as_deref(), cwd.as_deref(), config_file_path);
+        let mut total = 0;
+        for dir in candidates {
+            if let Ok(n) = self.load_from_directory(&dir) {
+                total += n;
+            }
+        }
+        total
     }
 
     /// Returns all currently registered and available languages.

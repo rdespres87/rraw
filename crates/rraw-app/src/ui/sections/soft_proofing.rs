@@ -33,12 +33,19 @@ pub fn render(
     ui.label(t(Key::InspectorParamSoftProofProfile));
     let combo_w = (ui.available_width() - 8.0).max(100.0);
     egui::ComboBox::from_id_salt("soft_proof_profile_combo")
-        .selected_text(soft_proof.profile.label())
+        .selected_text(crate::i18n::soft_proof_profile_label_lang(
+            soft_proof.profile,
+            cur_lang,
+        ))
         .width(combo_w)
         .show_ui(ui, |ui| {
             for prof in SoftProofProfile::ALL {
                 if ui
-                    .selectable_value(&mut soft_proof.profile, prof, prof.label())
+                    .selectable_value(
+                        &mut soft_proof.profile,
+                        prof,
+                        crate::i18n::soft_proof_profile_label_lang(prof, cur_lang),
+                    )
                     .changed()
                 {
                     if prof.is_print_medium() {
@@ -53,12 +60,19 @@ pub fn render(
     ui.label(t(Key::InspectorParamSoftProofIntent));
     let intent_w = (ui.available_width() - 8.0).max(100.0);
     egui::ComboBox::from_id_salt("soft_proof_intent_combo")
-        .selected_text(soft_proof.intent.label())
+        .selected_text(crate::i18n::soft_proof_intent_label_lang(
+            soft_proof.intent,
+            cur_lang,
+        ))
         .width(intent_w)
         .show_ui(ui, |ui| {
             for intent in SoftProofRenderingIntent::ALL {
                 if ui
-                    .selectable_value(&mut soft_proof.intent, intent, intent.label())
+                    .selectable_value(
+                        &mut soft_proof.intent,
+                        intent,
+                        crate::i18n::soft_proof_intent_label_lang(intent, cur_lang),
+                    )
                     .changed()
                 {
                     sp_changed = true;
@@ -92,20 +106,30 @@ pub fn render(
         sp_changed = true;
     }
 
+    let is_es = cur_lang.is_spanish();
+    let short_prof = crate::i18n::soft_proof_profile_short_label_lang(soft_proof.profile, cur_lang);
     let status_text = if out_of_gamut_count > 0 {
-        egui::RichText::new(format!(
-            "⚠️ {out_of_gamut_count} pixels hors-gamut ({})",
-            soft_proof.profile.short_label()
-        ))
-        .small()
-        .color(Color32::from_rgb(255, 130, 220))
+        let msg = if cur_lang == Language::Fr {
+            format!("⚠️ {out_of_gamut_count} pixels hors-gamut ({short_prof})")
+        } else if is_es {
+            format!("⚠️ {out_of_gamut_count} píxeles fuera de gama ({short_prof})")
+        } else {
+            format!("⚠️ {out_of_gamut_count} out-of-gamut pixels ({short_prof})")
+        };
+        egui::RichText::new(msg)
+            .small()
+            .color(Color32::from_rgb(255, 130, 220))
     } else {
-        egui::RichText::new(format!(
-            "✓ 100% dans le gamut ({})",
-            soft_proof.profile.short_label()
-        ))
-        .small()
-        .color(Color32::from_rgb(110, 220, 145))
+        let msg = if cur_lang == Language::Fr {
+            format!("✓ 100% dans le gamut ({short_prof})")
+        } else if is_es {
+            format!("✓ 100% dentro de la gama ({short_prof})")
+        } else {
+            format!("✓ 100% in gamut ({short_prof})")
+        };
+        egui::RichText::new(msg)
+            .small()
+            .color(Color32::from_rgb(110, 220, 145))
     };
     ui.label(status_text);
 

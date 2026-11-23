@@ -4,11 +4,17 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 22 — Deep Maturity Audit #4 Remediation (Chantiers P0 & P1 Complete)
-- **Active Tasks**: Task 22.2 (P1 — State Machine & Enum Hygiene, Duplicate Field Elimination, Ephemeral Sidecar Field Exclusion) **Complete**
-- **Next Phase**: Task 22.3 (P2 — Monolith File Decomposition, 100% Parametric i18n, Unused Cargo Dependency Cleanup)
-- **Last Verified Baseline**: 365 tests passing across 81 test suites, 0 clippy errors under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
-- **Current Milestone**: Phase 22 — Task 22.2 Audit #4 Priority P1 Remediation **Complete**
+- **Active Phase**: Phase 22 — Deep Maturity Audit #4 Remediation (Chantiers P0, P1 & P2 Complete)
+- **Active Tasks**: Task 22.3 (P2 — Monolith File Decomposition, Bundle-Aware Dynamic i18n & Unused Cargo Dependency Cleanup) **Complete**
+- **Next Phase**: All Phase 22 Audit #4 Remediation Tasks Complete (Production-Ready Release Candidate)
+- **Last Verified Baseline**: 369 tests passing across 82 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Current Milestone**: Phase 22 — Task 22.3 Audit #4 Priority P2 Remediation **Complete**
+  - **P2.1 Unused Cargo Dependency Cleanup**: Removed 9 unused dependencies across 5 workspace crates (`rraw-optics` from `rraw-color`; `rraw-ai`, `rraw-storage`, `rraw-export`, `rraw-gpu`, `rraw-optics` from `rraw-cli`; `objc2-foundation` from `rraw-coreml`; `rraw-decode` from `rraw-storage`; `rraw-decode` from `rraw-optics`), bringing `cargo clippy --workspace --all-targets -- -D warnings` to 0 errors and 0 warnings.
+  - **P2.2 Bundle-Aware i18n Discovery & Complete Soft-Proof / Viewport HUD Localization**: Added `I18nEngine::candidate_i18n_directories` and `discover_default_catalogs` resolving macOS `.app` bundle `../Resources/assets/i18n`, `<exe_dir>/assets/i18n`, `<cwd>/assets/i18n`, and `~/.config/rraw/i18n`. Extended `Catalog` and `I18nEngine` with `get_custom` / `translate_custom`, `Language::is_spanish`, `soft_proof_profile_label_lang`, `soft_proof_profile_short_label_lang`, `soft_proof_intent_label_lang`, `soft_proof_intent_short_label_lang`, and `format_soft_proofing_hud_text`, localizing the canvas Soft Proofing HUD banner, local mask/brush HUD overlays, top bar soft-proofing dropdowns, and histogram zone labels across FR, EN, ES, and custom JSON catalogs.
+  - **P2.3 Monolith File Decomposition (`state.rs`)**: Extracted `presets.rs` (638 lines), `mask_layers.rs` (530 lines), and `sidecar.rs` (231 lines) from `crates/rraw-app/src/state.rs`, reducing `state.rs` from 2,122 lines down to 806 lines while preserving 100% backward compatibility via transparent `pub use` re-exports.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p2_architecture_and_i18n_tests.rs` (4 new tests).
+  - 369 tests passing across 82 suites, 0 clippy errors, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+- **Preceding Milestone**: Phase 22 — Task 22.2 Audit #4 Priority P1 Remediation **Complete** (Commit `37c0a46`)
   - **P1.1 Ephemeral Sidecar Field Exclusion**: Added `#[serde(skip)]` to `lens_search_query: String` and `defringe_preview_mask: bool` in `OpticsGradingParams`, preventing ephemeral UI state from polluting `<photo>.rraw.json` sidecar files.
   - **P1.2 Unified Modal Dialog State Machine (`ActiveModalDialog`)**: Added `ActiveModalDialog` (`Export`, `Shortcuts`, `About`), `open_dialog`, `toggle_dialog`, `active_modal_dialog`, and `set_target_mode` on `ExportBatchController`, enforcing mutual exclusion across modal dialogs and strict synchronization between `export_target_mode` and `export_batch_selection`.
   - **P1.3 Mutually Exclusive Interactive Canvas Tools (`ActiveCanvasTool`)**: Added `ActiveCanvasTool` (`None`, `Crop`, `Horizon`, `ParallelLines(ParallelToolPhase)`, `FreehandBrush(usize)`) with `active_canvas_tool` and `activate_canvas_tool` on `RrawApp`, plus automatic tool exclusivity enforcement in `ui/inspector.rs` and horizon cancellation in `handle_escape_key`.

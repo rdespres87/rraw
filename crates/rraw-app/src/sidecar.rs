@@ -1,0 +1,231 @@
+#![forbid(unsafe_code)]
+
+//! Non-destructive `<photo>.rraw.json` and `<photo>.xmp` sidecar serialization and atomic persistence.
+
+use std::path::Path;
+
+use rraw_storage::{SidecarPaths, XmpEditor};
+use serde::{Deserialize, Serialize};
+
+use crate::grading::*;
+use crate::mask_layers::{LocalMaskLayer, SemanticMaskLayer};
+use crate::presets::GradingPreset;
+use crate::state::{CustomClutState, DarkroomGradingState};
+
+/// Serialized recipe saved into adjacent `<photo>.rraw.json` sidecar.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SidecarRecipe {
+    pub schema_version: u32,
+    #[serde(default)]
+    pub preset: Option<String>,
+    #[serde(default)]
+    pub rating: u8,
+    #[serde(flatten)]
+    pub tone: ToneGradingParams,
+    #[serde(flatten)]
+    pub color: ColorRecipeParams,
+    #[serde(flatten)]
+    pub denoise_sharpen: DenoiseSharpenParams,
+    #[serde(flatten)]
+    pub optics: OpticsGradingParams,
+    #[serde(flatten)]
+    pub effects: EffectsGradingParams,
+    #[serde(flatten)]
+    pub geometry: GeometryRecipeParams,
+    #[serde(default)]
+    pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
+    pub custom_lut_path: Option<String>,
+    #[serde(default = "default_one_f32")]
+    pub custom_lut_strength: f32,
+    #[serde(default)]
+    pub semantic_masks: Vec<SemanticMaskLayer>,
+    #[serde(default)]
+    pub local_masks: Vec<LocalMaskLayer>,
+    #[serde(default)]
+    pub soft_proof: rraw_color::SoftProofConfig,
+    #[serde(default)]
+    pub smart_lighting: rraw_core::SmartLightingParams,
+}
+
+impl SidecarRecipe {
+    #[must_use]
+    pub fn from_state(grading: &DarkroomGradingState, rating: u8) -> Self {
+        Self {
+            schema_version: 1,
+            preset: Some(grading.preset.id_str().to_string()),
+            rating,
+            tone: grading.tone.clone(),
+            color: ColorRecipeParams::from(&grading.color),
+            denoise_sharpen: grading.denoise_sharpen.clone(),
+            optics: grading.optics.clone(),
+            effects: grading.effects.clone(),
+            geometry: GeometryRecipeParams::from(&grading.geometry),
+            tone_curves: grading.tone_curves.clone(),
+            custom_lut_path: grading
+                .custom_clut
+                .as_ref()
+                .and_then(|c| c.path.as_ref().map(|p| p.to_string_lossy().to_string())),
+            custom_lut_strength: grading.custom_clut.as_ref().map_or(1.0, |c| c.strength),
+            semantic_masks: grading.semantic_masks.clone(),
+            local_masks: grading.local_masks.clone(),
+            soft_proof: grading.soft_proof,
+            smart_lighting: grading.smart_lighting.clone(),
+        }
+    }
+
+    pub fn apply_to(&self, grading: &mut DarkroomGradingState) {
+        grading.tone = self.tone.clone();
+        self.color.apply_to(&mut grading.color);
+        grading.denoise_sharpen = self.denoise_sharpen.clone();
+        grading.optics = self.optics.clone();
+        grading.effects = self.effects.clone();
+        self.geometry.apply_to(&mut grading.geometry);
+        grading.tone_curves = self.tone_curves.clone();
+        if let Some(path_str) = &self.custom_lut_path {
+            let path = std::path::PathBuf::from(path_str);
+            if path.exists() {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if let Ok(lut) = rraw_color::ColorLut3d::from_cube_str(&content) {
+                        let name = path
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("Custom LUT")
+                            .to_string();
+                        grading.custom_clut = Some(CustomClutState {
+                            name,
+                            path: Some(path),
+                            lut: std::sync::Arc::new(lut),
+                            strength: self.custom_lut_strength.clamp(0.0, 1.0),
+                        });
+                    }
+                }
+            }
+        } else {
+            grading.custom_clut = None;
+        }
+        grading.semantic_masks = self.semantic_masks.clone();
+        grading.local_masks = self.local_masks.clone();
+        grading.soft_proof = self.soft_proof;
+        grading.smart_lighting = self.smart_lighting.clone();
+        if let Some(ref pid) = self.preset {
+            if let Some(preset) = GradingPreset::from_id_str(pid) {
+                grading.preset = preset;
+            }
+        }
+    }
+}
+
+/// Standard XMP template preserving XML namespaces.
+fn default_xmp_template() -> String {
+    r#"<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+    xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+    xmlns:dc="http://purl.org/dc/elements/1.1/">
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>"#
+        .to_string()
+}
+
+/// Writes `content` to `target` atomically using a temporary adjacent file and POSIX/OS rename.
+pub fn atomic_write_str(target: &Path, content: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
+    let pid = std::process::id();
+    let file_name = target
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("sidecar");
+    let tmp_path = target.with_file_name(format!(".{file_name}.tmp.{pid}.{seq}"));
+
+    let mut file = std::fs::File::create(&tmp_path)?;
+    if let Err(err) = file
+        .write_all(content.as_bytes())
+        .and_then(|()| file.flush())
+        .and_then(|()| file.sync_all())
+    {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(err);
+    }
+    drop(file);
+
+    if let Err(err) = std::fs::rename(&tmp_path, target) {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(err);
+    }
+    Ok(())
+}
+
+pub fn save_photo_sidecars(photo_path: &Path, grading: &DarkroomGradingState, rating: u8) {
+    let sidecars = SidecarPaths::from_raw_path(photo_path);
+
+    // 1. Write <photo>.rraw.json recipe atomically
+    let recipe = SidecarRecipe::from_state(grading, rating);
+    if let Ok(json_str) = serde_json::to_string_pretty(&recipe) {
+        if let Err(err) = atomic_write_str(&sidecars.recipe_json, &json_str) {
+            eprintln!(
+                "rraw: failed to persist recipe sidecar {}: {err}",
+                sidecars.recipe_json.display()
+            );
+        }
+    }
+
+    // 2. Write <photo>.xmp sidecar atomically
+    let initial_xml = if sidecars.xmp_sidecar.exists() {
+        std::fs::read_to_string(&sidecars.xmp_sidecar).unwrap_or_else(|_| default_xmp_template())
+    } else {
+        default_xmp_template()
+    };
+
+    if let Ok(mut editor) = XmpEditor::parse_str(&initial_xml) {
+        editor.set_rating(rating);
+        if let Ok(xmp_out) = editor.to_xml_string() {
+            if let Err(err) = atomic_write_str(&sidecars.xmp_sidecar, &xmp_out) {
+                eprintln!(
+                    "rraw: failed to persist XMP sidecar {}: {err}",
+                    sidecars.xmp_sidecar.display()
+                );
+            }
+        }
+    }
+}
+
+/// Attempts to load non-destructive settings from adjacent `<photo>.rraw.json` (primary source of truth)
+/// with fallback to `<photo>.xmp` when `.rraw.json` is absent.
+#[must_use]
+pub fn load_photo_sidecars(photo_path: &Path) -> (Option<DarkroomGradingState>, Option<u8>) {
+    let sidecars = SidecarPaths::from_raw_path(photo_path);
+    let mut grading = None;
+    let mut rating = None;
+
+    // 1. Primary source of truth: <photo>.rraw.json
+    if sidecars.recipe_json.exists() {
+        if let Ok(content) = std::fs::read_to_string(&sidecars.recipe_json) {
+            if let Ok(recipe) = serde_json::from_str::<SidecarRecipe>(&content) {
+                let mut state = DarkroomGradingState::default();
+                recipe.apply_to(&mut state);
+                rating = Some(recipe.rating);
+                grading = Some(state);
+            }
+        }
+    }
+
+    // 2. Fallback: <photo>.xmp (only populates rating if .rraw.json did not provide one)
+    if rating.is_none() && sidecars.xmp_sidecar.exists() {
+        if let Ok(content) = std::fs::read_to_string(&sidecars.xmp_sidecar) {
+            if let Ok(editor) = XmpEditor::parse_str(&content) {
+                if let Some(r) = editor.rating() {
+                    rating = Some(r);
+                }
+            }
+        }
+    }
+
+    (grading, rating)
+}

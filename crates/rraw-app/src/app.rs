@@ -66,14 +66,10 @@ impl RrawApp {
 
         let workers = BackgroundWorkers::new();
 
-        // Discover external translation catalogs from assets/i18n and ~/.config/rraw/i18n
+        // Discover external translation catalogs across macOS .app bundle, workspace assets/i18n, and ~/.config/rraw/i18n
         let i18n_engine = crate::i18n::I18nEngine::global();
-        let _ = i18n_engine.load_from_directory(std::path::Path::new("assets/i18n"));
-        if let Some(mut user_config_i18n) = AppLayoutConfig::config_path() {
-            user_config_i18n.pop();
-            user_config_i18n.push("i18n");
-            let _ = i18n_engine.load_from_directory(&user_config_i18n);
-        }
+        let cfg_path = AppLayoutConfig::config_path();
+        let _ = i18n_engine.discover_default_catalogs(cfg_path.as_deref());
 
         let layout_config = AppLayoutConfig::load();
         let active_tool_family = layout_config.active_tool_family;

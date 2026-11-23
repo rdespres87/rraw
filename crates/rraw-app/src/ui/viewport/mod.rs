@@ -285,6 +285,8 @@ impl RrawApp {
                 egui::StrokeKind::Outside,
             );
 
+            let cur_lang = self.lang();
+
             // Live Original HUD Badge
             if show_original {
                 hud::render_original_badge(&painter, available_rect, self.t(Key::ViewportOriginalBadge));
@@ -297,18 +299,24 @@ impl RrawApp {
                     available_rect,
                     &self.session.grading.soft_proof,
                     self.viewport.histogram.out_of_gamut_count,
+                    cur_lang,
                 );
             }
 
             // Active Local Mask Overlay HUD Badge
             if let Some(mask_idx) = self.session.grading.show_local_mask_overlay {
+                let default_mask_name = if cur_lang == crate::i18n::Language::Fr {
+                    "Masque"
+                } else {
+                    "Mask"
+                };
                 let mask_name = self
                     .session
                     .grading
                     .local_masks
                     .get(mask_idx)
-                    .map_or("Masque", |m| m.name.as_str());
-                hud::render_local_mask_hud(&painter, available_rect, mask_name);
+                    .map_or(default_mask_name, |m| m.name.as_str());
+                hud::render_local_mask_hud(&painter, available_rect, mask_name, cur_lang);
             }
 
             let brush_ctx = brush_overlay::BrushViewportContext {
@@ -346,12 +354,11 @@ impl RrawApp {
                             mask,
                             has_mask_overlay,
                             self.viewport.zoom_level,
+                            cur_lang,
                         );
                     }
                 }
             }
-
-            let cur_lang = self.lang();
 
             // Interactive mouse cropping
             if self.session.grading.geometry.crop_enabled && self.viewport.is_crop_editing {
@@ -444,19 +451,36 @@ impl RrawApp {
                 split_divider_rect = Some(preview_rect);
             }
         } else if self.workers.is_decoding {
+            let cur_lang = self.lang();
+            let is_es = cur_lang.is_spanish();
+            let msg = if cur_lang == crate::i18n::Language::Fr {
+                "Décodage du fichier RAW en arrière-plan..."
+            } else if is_es {
+                "Decodificando archivo RAW en segundo plano..."
+            } else {
+                "Decoding RAW file in background..."
+            };
             painter.text(
                 available_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "Décodage du fichier RAW en arrière-plan...",
+                msg,
                 egui::FontId::proportional(18.0),
                 egui::Color32::from_rgb(100, 180, 255),
             );
         } else {
-            // Empty state prompt
+            let cur_lang = self.lang();
+            let is_es = cur_lang.is_spanish();
+            let msg = if cur_lang == crate::i18n::Language::Fr {
+                "Aucune image RAW chargée.\nCliquez sur « Ouvrir image... » ou choisissez un fichier dans l'explorateur."
+            } else if is_es {
+                "Ninguna imagen RAW cargada.\nHaga clic en « Abrir imagen... » o elija un archivo en el explorador."
+            } else {
+                "No RAW image loaded.\nClick \"Open image...\" or select a file in the explorer."
+            };
             painter.text(
                 available_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "Aucune image RAW chargée.\nCliquez sur « Ouvrir image... » ou choisissez un fichier dans l'explorateur.",
+                msg,
                 egui::FontId::proportional(16.0),
                 egui::Color32::from_rgb(140, 145, 155),
             );
