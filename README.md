@@ -2,6 +2,10 @@
 
 **Rraw** is a high-performance, native macOS (Apple Silicon M-series) photographic RAW development workstation engineered in Rust. It combines a catalog-free filesystem browser, a mathematically grounded 7-stage GPU pipeline (`wgpu` / Metal), dual wavelet and neural sensor-noise reduction, regularized Richardson-Lucy optical deconvolution, dual-illuminant spectral colorimetry in `ACEScg` (`AP1` D60), and 120 Hz ProMotion Extended Dynamic Range (EDR) display rendering.
 
+<p align="center">
+  <img src="assets/screenshots/darkroom_ui.jpg" alt="Rraw 120 Hz Metal EDR Darkroom Interface" width="100%">
+</p>
+
 ---
 
 ## Key Capabilities & Features

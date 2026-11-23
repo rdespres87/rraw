@@ -2,9 +2,49 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 25 — Pre-Release Hardening & Performance Benchmarks**:
-  - Run full performance benchmarks on RAW decoding, Richardson-Lucy deconvolution, Gain Map generation, and UI responsiveness.
-  - Evaluate end-to-end user workflows on sample RAW formats (ARW, CR3, DNG, NEF, RAF, RW2).
+- **Official Release Tagging & GitHub Release v0.1.0**:
+  - Create annotated Git tag `v0.1.0` (`git tag -a v0.1.0 -m "Release v0.1.0"`).
+  - Distribute `target/dist/Rraw-v0.1.0.dmg` with SHA-256 checksum `fd9f3f1b51062b2e8cc29286269795f8fefdc86e0c5bbfa7f0f27d7073f66e12`.
+
+---
+
+## Last Completed Milestone
+
+- **Phase 25 — Pre-Release Hardening, Performance Benchmarks & Packaging (Tasks 25.1, 25.2, 25.3) — COMPLETE**:
+  - **Task 25.1 End-to-End Performance Benchmarking & Memory Profile**:
+    - Benchmarked RAW decoding throughput: verified 52.8 MPx/s on real 24.1 MP Pentax DNG, synthetic DNG opcode stream build & parse in ~250 µs.
+    - Benchmarked Richardson-Lucy capture sharpening deconvolution with Rayon row parallelization: verified deterministic convergence, energy preservation, and no NaN/Inf.
+    - Benchmarked ISO 21496-1 Gain Map calculation (28 MPx/s for 1 MPx) and sidecar serialization: verified 40-byte binary ISOBMFF `.tmap` box and Apple HDRGainMap XMP packet round-trip in ~32 µs.
+    - Validated memory bounds: 800 MB photo cache cap, LRU eviction across 10 photos (153.6 MB for 10 entries), and sub-millisecond `DiskThumbnailCache` read/write latency.
+    - Multi-format matrix evaluation: extension matching across all 9 camera RAW formats (ARW, CR2, CR3, DNG, NEF, RAF, RW2, ORF, PEF), TIFF Little-Endian & Big-Endian EXIF orientation tags (1..=8), JPEG orientation, and graceful rejection of corrupt files without panics.
+    - Interactive UI darkroom responsiveness: full grading pipeline verified within interactive budget.
+  - **Task 25.2 Production macOS Packaging, Bundle Validation & Release Readiness**:
+    - Added idempotent i18n translation catalog bundling (`assets/i18n` -> `Contents/Resources/assets/i18n`) in `scripts/package_macos.sh`.
+    - Executed production release build producing signed `Rraw.app` bundle and compressed UDZO `Rraw-v0.1.0.dmg` (12.7 MB, SHA-256 `fd9f3f1b51062b2e8cc29286269795f8fefdc86e0c5bbfa7f0f27d7073f66e12`).
+    - Verified codesign validity and hardened runtime entitlements with `codesign --verify --deep --strict`.
+    - Dedicated TDD integration suite `crates/rraw-app/tests/phase25_benchmarks_and_formats_tests.rs` (7 new tests).
+  - **Task 25.3 Darkroom UI Documentation & README Showcase**:
+    - Added high-resolution Darkroom UI screenshot to `assets/screenshots/darkroom_ui.jpg`.
+    - Updated `README.md` showcasing the 120 Hz Metal EDR interface with real-time histogram, tone curves, and filmstrip.
+    - 396 tests passing across 89 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+
+---
+
+## Last Completed Milestone
+
+- **Phase 25 — Pre-Release Hardening & Performance Benchmarks (Tasks 25.1, 25.2) — COMPLETE**:
+  - **Task 25.1 End-to-End Performance Benchmarking & Memory Profile**:
+    - Benchmarked RAW decoding throughput: verified 52.8 MPx/s on real 24.1 MP Pentax DNG, synthetic DNG opcode stream build & parse in ~250 µs.
+    - Benchmarked Richardson-Lucy capture sharpening deconvolution with Rayon row parallelization: verified deterministic convergence, energy preservation, and no NaN/Inf.
+    - Benchmarked ISO 21496-1 Gain Map calculation (28 MPx/s for 1 MPx) and sidecar serialization: verified 40-byte binary ISOBMFF `.tmap` box and Apple HDRGainMap XMP packet round-trip in ~32 µs.
+    - Validated memory bounds: 800 MB photo cache cap, LRU eviction across 10 photos (153.6 MB for 10 entries), and sub-millisecond `DiskThumbnailCache` read/write latency.
+    - Multi-format matrix evaluation: extension matching across all 9 camera RAW formats (ARW, CR2, CR3, DNG, NEF, RAF, RW2, ORF, PEF), TIFF Little-Endian & Big-Endian EXIF orientation tags (1..=8), JPEG orientation, and graceful rejection of corrupt files without panics.
+    - Interactive UI darkroom responsiveness: full grading pipeline verified within interactive budget.
+  - **Task 25.2 Packaging, Bundle Validation & Release Readiness**:
+    - Added idempotent i18n translation catalog bundling (`assets/i18n` -> `Contents/Resources/assets/i18n`) in `scripts/package_macos.sh`.
+    - Validated candidate i18n directory discovery in mock macOS `.app` bundle structure, confirming runtime discovery and registration of all catalogs (FR, EN, ES).
+    - Dedicated TDD integration suite `crates/rraw-app/tests/phase25_benchmarks_and_formats_tests.rs` (7 new tests).
+    - 396 tests passing across 89 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
 
 ---
 

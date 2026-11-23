@@ -332,9 +332,24 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 
 ---
 
-## Phase 25 — Pre-Release Hardening & Performance Benchmarks
-- [ ] **Task 25.1 (`workspace`)**: End-to-End Performance Benchmarking & Memory Profile
-- [ ] **Task 25.2 (`rraw-app`)**: Packaging, Bundle Validation & Release Readiness
+## Phase 25 — Pre-Release Hardening, Performance Benchmarks & Packaging
+- [x] **Task 25.1 (`workspace`)**: End-to-End Performance Benchmarking & Memory Profile
+  - Full performance benchmarks on RAW decoding (52.8 MPx/s on real 24MP DNG, synthetic DNG opcode parsing in ~250 µs), Richardson-Lucy Rayon deconvolution scaling, ISO 21496-1 Gain Map calculation (28 MPx/s) and sidecar serialization (40-byte ISOBMFF .tmap, Apple HDRGainMap XMP packet).
+  - Memory footprint bounds verification: 800 MB photo cache cap, LRU eviction across 10 photos, and sub-millisecond `DiskThumbnailCache` read/write latency.
+  - Multi-format matrix evaluation: extension matching across all 9 camera RAW formats (ARW, CR2, CR3, DNG, NEF, RAF, RW2, ORF, PEF), TIFF Little-Endian & Big-Endian EXIF orientation tags (1..=8), JPEG orientation, and graceful rejection of corrupt files without panics.
+  - Interactive UI darkroom responsiveness: full grading pipeline verified within interactive budget.
+- [x] **Task 25.2 (`rraw-app`, `scripts`)**: Production macOS Packaging, Bundle Validation & Release Readiness
+  - Added idempotent i18n translation catalog bundling (`assets/i18n` -> `Contents/Resources/assets/i18n`) in `scripts/package_macos.sh`.
+  - Executed production release build producing signed `Rraw.app` bundle and compressed UDZO `Rraw-v0.1.0.dmg` (12.7 MB, SHA-256 `fd9f3f1b51062b2e8cc29286269795f8fefdc86e0c5bbfa7f0f27d7073f66e12`).
+  - Verified codesign validity and hardened runtime entitlements with `codesign --verify --deep --strict`.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/phase25_benchmarks_and_formats_tests.rs` (7 new tests). 396 workspace tests passing across 89 suites, 0 clippy warnings.
+- [x] **Task 25.3 (`docs`, `assets`)**: Darkroom UI Documentation & README Showcase
+  - Added high-resolution Darkroom UI screenshot to `assets/screenshots/darkroom_ui.jpg`.
+  - Updated `README.md` showcasing the 120 Hz Metal EDR interface with real-time histogram, tone curves, and filmstrip.
+
+
+
+
 
 
 
