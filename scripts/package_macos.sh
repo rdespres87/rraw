@@ -164,6 +164,14 @@ chmod +x "${BUNDLE_DIR}/Contents/MacOS/rraw-app"
 # Copy Icon
 cp "${ICNS_FILE}" "${BUNDLE_DIR}/Contents/Resources/AppIcon.icns"
 
+# Copy i18n catalogs
+if [[ -d "${WORKSPACE_ROOT}/assets/i18n" ]]; then
+    mkdir -p "${BUNDLE_DIR}/Contents/Resources/assets"
+    rm -rf "${BUNDLE_DIR}/Contents/Resources/assets/i18n"
+    cp -R "${WORKSPACE_ROOT}/assets/i18n" "${BUNDLE_DIR}/Contents/Resources/assets/"
+    echo "    Bundled i18n translation catalogs into Contents/Resources/assets/i18n"
+fi
+
 # Generate Info.plist with substituted metadata
 PLIST_TEMPLATE="${WORKSPACE_ROOT}/assets/macos/Info.plist"
 if [[ ! -f "${PLIST_TEMPLATE}" ]]; then
