@@ -463,10 +463,15 @@ pub enum Key {
     ViewportAfter,
     ViewportBefore,
     ViewportOriginalBadge,
+    EscapeCropDeactivated,
+    EscapeHorizonDeactivated,
+    EscapePerspectiveDeactivated,
+    EscapeBrushDeactivated,
+    EscapeSelectionReset,
 }
 
 impl Key {
-    pub const COUNT: usize = 453;
+    pub const COUNT: usize = 458;
 
     /// Returns the 0-based dense index corresponding to this key.
     #[inline]
@@ -944,6 +949,11 @@ impl Key {
             Self::ViewportAfter => "ViewportAfter",
             Self::ViewportBefore => "ViewportBefore",
             Self::ViewportOriginalBadge => "ViewportOriginalBadge",
+            Self::EscapeCropDeactivated => "EscapeCropDeactivated",
+            Self::EscapeHorizonDeactivated => "EscapeHorizonDeactivated",
+            Self::EscapePerspectiveDeactivated => "EscapePerspectiveDeactivated",
+            Self::EscapeBrushDeactivated => "EscapeBrushDeactivated",
+            Self::EscapeSelectionReset => "EscapeSelectionReset",
         }
     }
 
@@ -1418,6 +1428,11 @@ impl Key {
             "ViewportAfter" => Some(Self::ViewportAfter),
             "ViewportBefore" => Some(Self::ViewportBefore),
             "ViewportOriginalBadge" => Some(Self::ViewportOriginalBadge),
+            "EscapeCropDeactivated" => Some(Self::EscapeCropDeactivated),
+            "EscapeHorizonDeactivated" => Some(Self::EscapeHorizonDeactivated),
+            "EscapePerspectiveDeactivated" => Some(Self::EscapePerspectiveDeactivated),
+            "EscapeBrushDeactivated" => Some(Self::EscapeBrushDeactivated),
+            "EscapeSelectionReset" => Some(Self::EscapeSelectionReset),
             _ => None,
         }
     }
@@ -1884,4 +1899,9 @@ pub const ALL_KEYS: [Key; Key::COUNT] = [
     Key::ViewportAfter,
     Key::ViewportBefore,
     Key::ViewportOriginalBadge,
+    Key::EscapeCropDeactivated,
+    Key::EscapeHorizonDeactivated,
+    Key::EscapePerspectiveDeactivated,
+    Key::EscapeBrushDeactivated,
+    Key::EscapeSelectionReset,
 ];

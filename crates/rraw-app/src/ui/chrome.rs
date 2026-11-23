@@ -202,11 +202,8 @@ impl RrawApp {
                         .iter()
                         .filter(|p| self.matches_active_filter(p))
                         .count();
-                    self.status_message = format!(
-                        "Sélection : {sel_count} photo{} cochée{} pour l'export",
-                        if sel_count > 1 { "s" } else { "" },
-                        if sel_count > 1 { "s" } else { "" }
-                    );
+                    self.status_message =
+                        crate::i18n::batch_selection_count_message(self.lang(), sel_count);
                 }
                 if i.key_pressed(egui::Key::Backslash) {
                     self.session.is_comparing_original = !self.session.is_comparing_original;
@@ -215,15 +212,7 @@ impl RrawApp {
                     let prev = self.library.selected_photos.len();
                     self.library.selected_photos.clear();
                     self.session.grading.active_brush_mask_idx = None;
-                    self.status_message = if prev > 0 {
-                        format!(
-                            "Désélection : {prev} photo{} retirée{} du lot d'export",
-                            if prev > 1 { "s" } else { "" },
-                            if prev > 1 { "s" } else { "" }
-                        )
-                    } else {
-                        "Sélection d'exportation : aucune photo cochée".to_string()
-                    };
+                    self.status_message = crate::i18n::batch_deselection_message(self.lang(), prev);
                 }
                 if i.key_pressed(egui::Key::Space) {
                     // In Darkroom with brush active, Space is reserved for panning zoomed image
@@ -231,15 +220,17 @@ impl RrawApp {
                         if let Some(photo) = &self.session.loaded_photo {
                             if self.library.selected_photos.contains(&photo.path) {
                                 self.library.selected_photos.remove(&photo.path);
-                                self.status_message = format!(
-                                    "Photo retirée du lot d'export (reste {})",
-                                    self.library.selected_photos.len()
+                                self.status_message = crate::i18n::batch_toggle_photo_message(
+                                    self.lang(),
+                                    false,
+                                    self.library.selected_photos.len(),
                                 );
                             } else {
                                 self.library.selected_photos.insert(photo.path.clone());
-                                self.status_message = format!(
-                                    "Photo ajoutée au lot d'export ({} au total)",
-                                    self.library.selected_photos.len()
+                                self.status_message = crate::i18n::batch_toggle_photo_message(
+                                    self.lang(),
+                                    true,
+                                    self.library.selected_photos.len(),
                                 );
                             }
                         }

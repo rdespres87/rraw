@@ -713,7 +713,7 @@ impl RrawApp {
                 self.export.is_exporting = false;
                 self.export.export_status =
                     Some((format!("{}{err}", t(Key::ExportFailedPrefix)), false));
-                self.status_message = format!("❌ Erreur d'export: {err}");
+                self.status_message = format!("{}{err}", t(Key::ExportFailedPrefix));
             }
         }
     }

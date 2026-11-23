@@ -452,5 +452,10 @@
   "TopBarZoomFitted": "Fit",
   "ViewportAfter": "After",
   "ViewportBefore": "Before",
-  "ViewportOriginalBadge": "👁️ Original (Before grading)"
+  "ViewportOriginalBadge": "👁️ Original (Before grading)",
+  "EscapeCropDeactivated": "Crop tool deactivated",
+  "EscapeHorizonDeactivated": "Horizon tool deactivated",
+  "EscapePerspectiveDeactivated": "Perspective tool deactivated",
+  "EscapeBrushDeactivated": "Brush tool deactivated",
+  "EscapeSelectionReset": "Export selection reset (0 photos)"
 }

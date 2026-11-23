@@ -452,5 +452,10 @@
   "TopBarZoomFitted": "Ajustado",
   "ViewportAfter": "DESPUÉS",
   "ViewportBefore": "ANTES",
-  "ViewportOriginalBadge": "📸 ORIGINAL"
+  "ViewportOriginalBadge": "📸 ORIGINAL",
+  "EscapeCropDeactivated": "Herramienta de recorte desactivada",
+  "EscapeHorizonDeactivated": "Herramienta de horizonte desactivada",
+  "EscapePerspectiveDeactivated": "Herramienta de perspectiva desactivada",
+  "EscapeBrushDeactivated": "Herramienta de pincel desactivada",
+  "EscapeSelectionReset": "Selección de exportación restablecida (0 fotos)"
 }

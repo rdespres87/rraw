@@ -269,6 +269,66 @@ pub fn explorer_parent_folder_label(lang: Language) -> &'static str {
     }
 }
 
+/// Returns the localized batch export selection status message.
+#[must_use]
+pub fn batch_selection_count_message(lang: Language, sel_count: usize) -> String {
+    if lang == Language::Fr {
+        let plural = if sel_count > 1 { "s" } else { "" };
+        format!("Sélection : {sel_count} photo{plural} cochée{plural} pour l'export")
+    } else if lang.is_spanish() {
+        let plural = if sel_count > 1 { "s" } else { "" };
+        format!("Selección: {sel_count} foto{plural} marcada{plural} para exportar")
+    } else {
+        let plural = if sel_count > 1 { "s" } else { "" };
+        format!("Selection: {sel_count} photo{plural} checked for export")
+    }
+}
+
+/// Returns the localized batch export deselection status message.
+#[must_use]
+pub fn batch_deselection_message(lang: Language, prev_count: usize) -> String {
+    if prev_count > 0 {
+        if lang == Language::Fr {
+            let plural = if prev_count > 1 { "s" } else { "" };
+            format!("Désélection : {prev_count} photo{plural} retirée{plural} du lot d'export")
+        } else if lang.is_spanish() {
+            let plural = if prev_count > 1 { "s" } else { "" };
+            format!(
+                "Deselección: {prev_count} foto{plural} eliminada{plural} del lote de exportación"
+            )
+        } else {
+            let plural = if prev_count > 1 { "s" } else { "" };
+            format!("Deselection: {prev_count} photo{plural} removed from export batch")
+        }
+    } else if lang == Language::Fr {
+        "Sélection d'exportation : aucune photo cochée".to_string()
+    } else if lang.is_spanish() {
+        "Selección de exportación: ninguna foto marcada".to_string()
+    } else {
+        "Export selection: no photos checked".to_string()
+    }
+}
+
+/// Returns the localized message when adding/removing active photo to export batch.
+#[must_use]
+pub fn batch_toggle_photo_message(lang: Language, added: bool, total_count: usize) -> String {
+    if added {
+        if lang == Language::Fr {
+            format!("Photo ajoutée au lot d'export ({total_count} au total)")
+        } else if lang.is_spanish() {
+            format!("Foto añadida al lote de exportación ({total_count} en total)")
+        } else {
+            format!("Photo added to export batch ({total_count} total)")
+        }
+    } else if lang == Language::Fr {
+        format!("Photo retirée du lot d'export (reste {total_count})")
+    } else if lang.is_spanish() {
+        format!("Foto eliminada del lote de exportación (quedan {total_count})")
+    } else {
+        format!("Photo removed from export batch ({total_count} remaining)")
+    }
+}
+
 /// Returns the localized parent folder hover tooltip in the explorer sidebar.
 #[must_use]
 pub fn explorer_parent_folder_tooltip(lang: Language, parent_display: &str) -> String {

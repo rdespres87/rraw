@@ -24,7 +24,7 @@ impl RrawApp {
         match config.format {
             ExportFormatChoice::Jpeg => {
                 let file = std::fs::File::create(target_path)
-                    .map_err(|e| format!("Impossible de créer le fichier: {e}"))?;
+                    .map_err(|e| format!("Failed to create file: {e}"))?;
                 let mut writer = std::io::BufWriter::new(file);
                 let quality = config.jpeg_quality.clamp(1, 100);
                 image::codecs::jpeg::JpegEncoder::new_with_quality(&mut writer, quality)
@@ -34,11 +34,11 @@ impl RrawApp {
                         out_h as u32,
                         image::ExtendedColorType::Rgb8,
                     )
-                    .map_err(|e| format!("Erreur d'encodage JPEG: {e}"))?;
+                    .map_err(|e| format!("JPEG encoding error: {e}"))?;
             }
             ExportFormatChoice::Png => {
                 let file = std::fs::File::create(target_path)
-                    .map_err(|e| format!("Impossible de créer le fichier: {e}"))?;
+                    .map_err(|e| format!("Failed to create file: {e}"))?;
                 let mut writer = std::io::BufWriter::new(file);
                 match config.bit_depth {
                     ExportBitDepth::Bits16 => {
@@ -48,14 +48,14 @@ impl RrawApp {
                         encoder.set_depth(png::BitDepth::Sixteen);
                         let mut png_writer = encoder
                             .write_header()
-                            .map_err(|e| format!("Erreur header PNG 16: {e}"))?;
+                            .map_err(|e| format!("PNG 16 header error: {e}"))?;
                         let mut raw_u16_bytes = vec![0_u8; out_w * out_h * 3 * 2];
                         for (i, &sample) in u16_samples.iter().enumerate() {
                             BigEndian::write_u16(&mut raw_u16_bytes[i * 2..i * 2 + 2], sample);
                         }
                         png_writer
                             .write_image_data(&raw_u16_bytes)
-                            .map_err(|e| format!("Erreur d'écriture PNG 16: {e}"))?;
+                            .map_err(|e| format!("PNG 16 write error: {e}"))?;
                     }
                     ExportBitDepth::Bits8 => {
                         let mut encoder =
@@ -64,16 +64,16 @@ impl RrawApp {
                         encoder.set_depth(png::BitDepth::Eight);
                         let mut png_writer = encoder
                             .write_header()
-                            .map_err(|e| format!("Erreur header PNG 8: {e}"))?;
+                            .map_err(|e| format!("PNG 8 header error: {e}"))?;
                         png_writer
                             .write_image_data(u8_bytes)
-                            .map_err(|e| format!("Erreur d'écriture PNG 8: {e}"))?;
+                            .map_err(|e| format!("PNG 8 write error: {e}"))?;
                     }
                 }
             }
             ExportFormatChoice::Tiff => {
                 let file = std::fs::File::create(target_path)
-                    .map_err(|e| format!("Impossible de créer le fichier: {e}"))?;
+                    .map_err(|e| format!("Failed to create file: {e}"))?;
                 let mut writer = std::io::BufWriter::new(file);
                 match config.bit_depth {
                     ExportBitDepth::Bits16 => {
@@ -84,7 +84,7 @@ impl RrawApp {
                                 out_h as u32,
                                 image::ExtendedColorType::Rgb16,
                             )
-                            .map_err(|e| format!("Erreur d'encodage TIFF 16: {e}"))?;
+                            .map_err(|e| format!("TIFF 16 encoding error: {e}"))?;
                     }
                     ExportBitDepth::Bits8 => {
                         image::codecs::tiff::TiffEncoder::new(&mut writer)
@@ -94,14 +94,14 @@ impl RrawApp {
                                 out_h as u32,
                                 image::ExtendedColorType::Rgb8,
                             )
-                            .map_err(|e| format!("Erreur d'encodage TIFF 8: {e}"))?;
+                            .map_err(|e| format!("TIFF 8 encoding error: {e}"))?;
                     }
                 }
             }
             ExportFormatChoice::Avif => {
                 use std::io::Write;
                 let file = std::fs::File::create(target_path)
-                    .map_err(|e| format!("Impossible de créer le fichier: {e}"))?;
+                    .map_err(|e| format!("Failed to create file: {e}"))?;
                 let mut writer = std::io::BufWriter::new(file);
                 let quality = config.jpeg_quality.clamp(1, 100);
                 let encoder = image::codecs::avif::AvifEncoder::new_with_speed_quality(
@@ -116,10 +116,10 @@ impl RrawApp {
                         out_h as u32,
                         image::ExtendedColorType::Rgb8,
                     )
-                    .map_err(|e| format!("Erreur d'encodage AVIF: {e}"))?;
+                    .map_err(|e| format!("AVIF encoding error: {e}"))?;
                 writer
                     .flush()
-                    .map_err(|e| format!("Erreur lors de la finalisation du fichier AVIF: {e}"))?;
+                    .map_err(|e| format!("Failed to flush AVIF file: {e}"))?;
             }
         }
         if config.hdr_gain_map {
@@ -311,7 +311,7 @@ impl RrawApp {
                     if let Some(loaded) = &self.session.loaded_photo {
                         vec![loaded.path.clone()]
                     } else {
-                        return Err("Aucune photo sélectionnée pour l'export par lot.".to_string());
+                        return Err("No photos selected for batch export.".to_string());
                     }
                 } else {
                     let mut sorted = matching_selected;
@@ -441,11 +441,8 @@ impl RrawApp {
                         } else {
                             let _ = tx.send((
                                 base_frac + step_frac,
-                                format!("Échec du décodage de {fname}"),
-                                Some(Err(format!(
-                                    "Impossible de décoder {}",
-                                    item.path.display()
-                                ))),
+                                format!("Failed decoding {fname}"),
+                                Some(Err(format!("Failed to decode {}", item.path.display()))),
                             ));
                             continue;
                         }
@@ -502,17 +499,17 @@ impl RrawApp {
                         last_path = Some(item.target_path);
                     }
                     Err(e) => {
-                        let _ = tx.send((1.0, format!("Erreur: {e}"), Some(Err(e))));
+                        let _ = tx.send((1.0, format!("Error: {e}"), Some(Err(e))));
                         return;
                     }
                 }
             }
 
-            let result = last_path.ok_or_else(|| "Erreur lors de l'exportation".to_string());
+            let result = last_path.ok_or_else(|| "Export failed".to_string());
             let final_msg = if total > 1 {
-                format!("Export terminé : {total} photos exportées")
+                format!("Export completed: {total} photos exported")
             } else {
-                "Export terminé".to_string()
+                "Export completed".to_string()
             };
             let _ = tx.send((1.0, final_msg, Some(result)));
         });
@@ -612,7 +609,7 @@ impl RrawApp {
 
         std::thread::spawn(move || {
             if let Err(e) = std::fs::create_dir_all(&final_dest) {
-                let msg = format!("Impossible de créer le dossier Timelapse: {e}");
+                let msg = format!("Failed to create Timelapse directory: {e}");
                 let _ = tx.send((1.0, msg.clone(), Some(Err(msg))));
                 return;
             }
@@ -658,7 +655,7 @@ impl RrawApp {
             }
 
             if valid_snapshots.is_empty() {
-                let msg = "Impossible de décoder les images de la séquence Timelapse.".to_string();
+                let msg = "Failed to decode images in Timelapse sequence.".to_string();
                 let _ = tx.send((1.0, msg.clone(), Some(Err(msg))));
                 return;
             }
@@ -723,7 +720,7 @@ impl RrawApp {
                     raster_buf.as_u8_slice().unwrap_or(&[]),
                     raster_buf.as_u16_slice().unwrap_or(&[]),
                 ) {
-                    let _ = tx.send((1.0, format!("Erreur: {e}"), Some(Err(e))));
+                    let _ = tx.send((1.0, format!("Error: {e}"), Some(Err(e))));
                     return;
                 }
                 last_path = Some(target_path);
@@ -737,15 +734,15 @@ impl RrawApp {
                 valid_total,
                 &offsets_ev,
             )
-            .map_err(|e| format!("Erreur lors de l'écriture du manifeste Timelapse: {e}"));
+            .map_err(|e| format!("Error writing Timelapse manifest: {e}"));
 
             match manifest_res {
                 Ok(manifest_path) => {
                     let out_path = last_path.unwrap_or(manifest_path);
-                    let _ = tx.send((1.0, "Timelapse terminé".to_string(), Some(Ok(out_path))));
+                    let _ = tx.send((1.0, "Timelapse completed".to_string(), Some(Ok(out_path))));
                 }
                 Err(e) => {
-                    let _ = tx.send((1.0, format!("Erreur: {e}"), Some(Err(e))));
+                    let _ = tx.send((1.0, format!("Error: {e}"), Some(Err(e))));
                 }
             }
         });

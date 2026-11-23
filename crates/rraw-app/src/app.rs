@@ -801,28 +801,28 @@ impl RrawApp {
         } else if self.viewport.is_crop_editing {
             self.viewport.is_crop_editing = false;
             self.viewport.crop_drag_handle = CropDragHandle::None;
-            self.status_message = "Outil de recadrage désactivé".to_string();
+            self.status_message = self.t(Key::EscapeCropDeactivated).to_string();
             true
         } else if self.viewport.horizon_tool_active {
             self.viewport.horizon_tool_active = false;
             self.viewport.horizon_start_point = None;
-            self.status_message = "Outil d'horizon désactivé".to_string();
+            self.status_message = self.t(Key::EscapeHorizonDeactivated).to_string();
             true
         } else if self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive {
             self.viewport.parallel_tool_phase = ParallelToolPhase::Inactive;
             self.viewport.parallel_line1 = None;
             self.viewport.parallel_line2 = None;
             self.viewport.parallel_drag_start = None;
-            self.status_message = "Outil de perspective désactivé".to_string();
+            self.status_message = self.t(Key::EscapePerspectiveDeactivated).to_string();
             true
         } else if self.session.grading.active_brush_mask_idx.is_some() {
             self.session.grading.active_brush_mask_idx = None;
-            self.status_message = "Outil pinceau désactivé".to_string();
+            self.status_message = self.t(Key::EscapeBrushDeactivated).to_string();
             true
         } else if !self.library.selected_photos.is_empty() {
             let prev = self.library.selected_photos.len();
             self.library.selected_photos.clear();
-            self.status_message = "Sélection d'exportation réinitialisée (0 photo)".to_string();
+            self.status_message = self.t(Key::EscapeSelectionReset).to_string();
             prev > 0
         } else {
             false
