@@ -89,7 +89,7 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
             let raw_bytes = thumb.into_raw();
             let (grading_opt, _) = load_photo_sidecars(path);
             if let Some(grading) = grading_opt {
-                let samples_rgb = raw_bytes
+                let samples_rgb: Vec<[f32; 3]> = raw_bytes
                     .as_chunks::<3>()
                     .0
                     .iter()
@@ -104,7 +104,7 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
                 let base = BaseRgbPreview {
                     width: w as usize,
                     height: h as usize,
-                    samples_rgb,
+                    samples_rgb: std::sync::Arc::from(samples_rgb),
                     as_shot_wb: [1.0, 1.0, 1.0],
                     cam_to_srgb: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
                     semantic_masks: std::sync::Arc::new(rraw_ai::SemanticMaskSet {

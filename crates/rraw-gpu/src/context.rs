@@ -33,11 +33,17 @@ impl GpuContext {
             });
 
         let adapter = adapter_res.map_err(|_| GpuError::AdapterNotFound)?;
+        let adapter_limits = adapter.limits();
 
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("rraw-headless-gpu-device"),
             required_features: wgpu::Features::empty(),
-            required_limits: wgpu::Limits::default(),
+            required_limits: wgpu::Limits {
+                max_buffer_size: adapter_limits.max_buffer_size,
+                max_storage_buffer_binding_size: adapter_limits.max_storage_buffer_binding_size,
+                max_texture_dimension_2d: adapter_limits.max_texture_dimension_2d,
+                ..wgpu::Limits::default()
+            },
             memory_hints: wgpu::MemoryHints::Performance,
             ..Default::default()
         }))

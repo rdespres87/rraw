@@ -236,7 +236,7 @@ fn test_optical_mode_isolation_profile_vs_manual() {
     let base = BaseRgbPreview {
         width,
         height,
-        samples_rgb,
+        samples_rgb: Arc::from(samples_rgb),
         as_shot_wb: [1.0, 1.0, 1.0],
         cam_to_srgb: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         semantic_masks: Arc::new(rraw_ai::SemanticMaskSet {
@@ -357,7 +357,7 @@ fn test_manual_lens_profile_override_in_preview_pipeline() {
     let base = BaseRgbPreview {
         width: 100,
         height: 100,
-        samples_rgb: vec![[0.5, 0.5, 0.5]; 10000],
+        samples_rgb: std::sync::Arc::new([[0.5, 0.5, 0.5]; 10000]),
         as_shot_wb: [1.0, 1.0, 1.0],
         cam_to_srgb: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         semantic_masks: std::sync::Arc::new(rraw_ai::SemanticMaskSet {

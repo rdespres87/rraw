@@ -56,14 +56,10 @@ impl DecodeCoordinator {
         }
     }
 
-    /// Checks whether `epoch` is still current for active foreground requests.
+    /// Checks whether `epoch` is still current for foreground and prefetch requests.
     #[must_use]
-    pub fn is_current(&self, epoch: u64, is_prefetch: bool) -> bool {
-        if is_prefetch {
-            true
-        } else {
-            epoch == self.active_epoch.load(Ordering::Acquire)
-        }
+    pub fn is_current(&self, epoch: u64, _is_prefetch: bool) -> bool {
+        epoch == self.active_epoch.load(Ordering::Acquire)
     }
 
     /// Returns the current active epoch.
@@ -87,13 +83,13 @@ pub fn run_decode_worker(
 ) {
     while let Ok(req) = rx.recv() {
         // Fast abort: check if job was already superseded before touching disk or CPU
-        if !req.is_prefetch && req.epoch != active_epoch.load(Ordering::Acquire) {
+        if req.epoch != active_epoch.load(Ordering::Acquire) {
             continue;
         }
 
         if let Some(payload) = decode_photo_file_payload(&req.path, req.is_prefetch, req.epoch) {
             // Post-decode abort: verify again before shipping payload over channel
-            if !req.is_prefetch && req.epoch != active_epoch.load(Ordering::Acquire) {
+            if req.epoch != active_epoch.load(Ordering::Acquire) {
                 continue;
             }
             let _ = tx.send(payload);

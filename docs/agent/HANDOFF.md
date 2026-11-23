@@ -2,11 +2,21 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 21 — Final Optimization & Production Hardening**:
-  - **Task 21.1 (`rraw-core`, `rraw-gpu`, `rraw-app`)**: Memory Footprint Optimization & Zero-Copy Metal Pipeline
-    - Profile memory allocations across large 45MP+ RAW previews and batch exports.
-    - Implement zero-copy buffer sharing between Metal/WGPU and native macOS surfaces.
-    - End-to-end latency benchmarks and stress testing.
+- **Phase 21 — Task 21.2 End-to-End Latency Benchmarks & Stage-by-Stage Profiling (`rraw-core`, `rraw-gpu`, `rraw-app`)**:
+  - Instrument all 7 stages of the rendering pipeline (decode, calibration, white balance, demosaicing, optical corrections/UV LUT, tonal grading/PCHIP curves, mask blending, and EDR display mapping).
+  - Add latency regression test suite ensuring constant 120 FPS EDR viewport navigation and sub-50ms full-frame 45MP demosaicing on Apple Silicon.
+  - Implement automated micro-benchmarks (`cargo bench` / headless metrics CLI).
+
+---
+
+## Last Completed Milestone
+
+- **Phase 21 — Task 21.1 Memory Footprint Optimization & Zero-Copy Metal Pipeline (`rraw-core`, `rraw-gpu`, `rraw-app`) — COMPLETE**:
+  - **Zero-Copy SignedCfaBuffer**: Converted sensor samples to `Arc<[f32]>` with `from_arc` and `samples_arc`, enabling zero-cost $O(1)$ buffer cloning between background decoders, cache entries, and export queues (~181 MB saved per clone on 45.4 MP images).
+  - **Zero-Copy BaseRgbPreview**: Wrapped preview RGB samples in `Arc<[[f32; 3]]>` eliminating 545 MB buffer copies on 1:1 image previews.
+  - **Unrestricted WGPU Buffer Allocation**: Queried native `adapter.limits()` in `GpuContext::new_headless()`, bypassing WebGPU's 128 MB storage buffer clamp to enable gigabyte-scale buffer allocations on Apple Silicon Metal UMA.
+  - **LRU Memory-Budget Eviction**: Enforced 1.5 GB cache ceiling in `RrawApp::insert_cached_photo` with `memory_footprint_bytes()` and underflow-safe `saturating_sub` arithmetic.
+  - **Validation & Tests**: 3 dedicated test suites added (`memory_footprint_tests.rs`, `zero_copy_metal_tests.rs`, `memory_optimization_tests.rs`). 341 workspace tests passing across 76 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
 
 ---
 

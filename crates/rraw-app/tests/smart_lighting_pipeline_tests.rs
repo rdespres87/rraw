@@ -28,7 +28,7 @@ fn make_test_base_preview(width: usize, height: usize) -> BaseRgbPreview {
     BaseRgbPreview {
         width,
         height,
-        samples_rgb,
+        samples_rgb: Arc::from(samples_rgb),
         as_shot_wb: [1.0, 1.0, 1.0],
         cam_to_srgb: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         semantic_masks: Arc::new(rraw_ai::SemanticMaskSet {

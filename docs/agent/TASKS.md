@@ -241,6 +241,27 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Expanded multilingual dictionaries (FR, EN, ES) with 7 new typed keys (453 total typed keys).
   - Added dedicated integration tests in `crates/rraw-app/tests/ane_ui_pipeline_tests.rs` (4 tests). 335 workspace tests passing across 73 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
+---
+
+## Phase 21 — Final Optimization, Latency Profiling & Production Hardening
+- [x] **Task 21.1 (`rraw-core`, `rraw-gpu`, `rraw-app`)**: Memory Footprint Optimization & Zero-Copy Metal Pipeline
+  - Converted `SignedCfaBuffer` samples to `Arc<[f32]>` in `rraw-core` with zero-copy constructor `from_arc`, `samples_arc`, and `allocation_size_bytes`, achieving $O(1)$ zero-copy cloning across background decode threads, caches, and export queues (saving ~181 MB per clone on 45.4 MP images).
+  - Converted `BaseRgbPreview.samples_rgb` to `Arc<[[f32; 3]]>` in `rraw-app` for $O(1)$ zero-copy preview sharing (saving ~545 MB per clone on full-frame 45.4 MP previews).
+  - Eliminated artificial WebGPU 128 MB storage buffer clamp in `rraw-gpu` (`GpuContext::new_headless`) by querying native `adapter.limits()`, enabling allocation of full-resolution multi-gigabyte buffers on Metal Apple Silicon UMA.
+  - Implemented dynamic memory budget tracking in `rraw-app` (`insert_cached_photo` with 1.5 GB RAM cap and `memory_footprint_bytes()`), enforcing LRU eviction with underflow-safe `saturating_sub` arithmetic.
+  - Dedicated unit and integration tests in `crates/rraw-core/tests/memory_footprint_tests.rs`, `crates/rraw-gpu/tests/zero_copy_metal_tests.rs`, and `crates/rraw-app/tests/memory_optimization_tests.rs` (3 new suites, 6 new tests). 341 workspace tests passing across 76 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
+
+- [ ] **Task 21.2 (`rraw-core`, `rraw-gpu`, `rraw-app`)**: End-to-End Latency Benchmarks & Stage-by-Stage Profiling
+  - Instrument all 7 stages of the rendering pipeline (decode, calibration/black level, white balance, demosaicing, optical corrections/UV LUT, tonal grading/PCHIP curves, mask blending, and EDR display mapping).
+  - Add latency regression test suite ensuring constant 120 FPS EDR viewport navigation and sub-50ms full-frame 45MP demosaicing on Apple Silicon.
+  - Provide automated micro-benchmark commands (`cargo bench` / headless metrics CLI).
+
+- [ ] **Task 21.3 (`rraw-app`, CI / Packaging)**: Production Hardening, Release Polish & macOS App Packaging
+  - Address residual UI edge cases and keyboard navigation polish across all views (Filmstrip, Darkroom, Metadata, Export).
+  - Implement native macOS application bundle packaging script (`Rraw.app`) and `.dmg` disk image creation with notarization readiness.
+  - Verify 100% clean build, zero compiler/linter warnings, and updated user-facing documentation.
+
+
 
 
 

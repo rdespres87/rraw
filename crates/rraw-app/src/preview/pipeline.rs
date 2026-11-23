@@ -130,7 +130,7 @@ pub fn render_preview_from_base(
     let show_defringe_mask = grading.optics.defringe_preview_mask;
 
     let processed_samples = if need_denoise || need_defringe || show_defringe_mask {
-        let mut s = base.samples_rgb.clone();
+        let mut s = base.samples_rgb.to_vec();
         if need_denoise {
             rraw_core::denoise_rgb_with_wb(
                 &mut s,
@@ -809,7 +809,7 @@ pub fn render_export_image(
     let show_defringe_mask = false;
 
     let processed_samples = if need_denoise || need_defringe || show_defringe_mask {
-        let mut s = base.samples_rgb.clone();
+        let mut s = base.samples_rgb.to_vec();
         if need_denoise {
             rraw_core::denoise_rgb_with_wb(
                 &mut s,

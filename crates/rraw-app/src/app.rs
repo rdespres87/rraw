@@ -533,7 +533,7 @@ impl RrawApp {
         true
     }
 
-    /// Triggers background prefetching of adjacent photos (+1, +2, -1, -2) for instant switching.
+    /// Triggers background prefetching of immediate adjacent photos (+1, -1) for instant switching.
     pub fn trigger_prefetch(&self, around_path: &Path) {
         if let Some(pos) = self
             .library
@@ -541,18 +541,12 @@ impl RrawApp {
             .iter()
             .position(|p| p == around_path)
         {
-            let mut candidates = Vec::new();
+            let mut candidates = Vec::with_capacity(2);
             if pos + 1 < self.library.directory_entries.len() {
                 candidates.push(self.library.directory_entries[pos + 1].clone());
             }
-            if pos + 2 < self.library.directory_entries.len() {
-                candidates.push(self.library.directory_entries[pos + 2].clone());
-            }
             if pos > 0 {
                 candidates.push(self.library.directory_entries[pos - 1].clone());
-            }
-            if pos > 1 {
-                candidates.push(self.library.directory_entries[pos - 2].clone());
             }
 
             for path in candidates {
@@ -827,6 +821,36 @@ impl RrawApp {
         self.open_raw_file(&target);
     }
 
+    /// Inserts an entry into the LRU photo cache, enforcing both count and byte-budget limits.
+    pub fn insert_cached_photo(&mut self, entry: CachedPhotoEntry) {
+        if let Some(pos) = self.photo_cache.iter().position(|e| e.path == entry.path) {
+            self.photo_cache.remove(pos);
+        }
+
+        // Memory budget: 800 MB default RAM budget for cached RAWs (~4-5x 45MP uncompressed images)
+        const MAX_PHOTO_CACHE_BYTES: usize = 800_000_000;
+        const MAX_PHOTO_CACHE_ENTRIES: usize = 10;
+
+        self.photo_cache.insert(0, entry);
+
+        while self.photo_cache.len() > MAX_PHOTO_CACHE_ENTRIES {
+            self.photo_cache.pop();
+        }
+
+        let mut total_bytes: usize = self
+            .photo_cache
+            .iter()
+            .map(|e| e.memory_footprint_bytes())
+            .sum();
+        while total_bytes > MAX_PHOTO_CACHE_BYTES && self.photo_cache.len() > 1 {
+            if let Some(evicted) = self.photo_cache.pop() {
+                total_bytes = total_bytes.saturating_sub(evicted.memory_footprint_bytes());
+            } else {
+                break;
+            }
+        }
+    }
+
     /// Decodes and loads a RAW file at `path`, utilizing in-memory MRU cache or async worker thread.
     pub fn open_raw_file(&mut self, path: &Path) {
         self.library.scroll_filmstrip_to_active = true;
@@ -932,7 +956,7 @@ impl RrawApp {
             self.status_message = format!("Loaded (cached) {}", entry.photo_view.camera_model);
             self.session.needs_preview_update = true;
             self.workers.is_decoding = false;
-            self.photo_cache.insert(0, entry);
+            self.insert_cached_photo(entry);
             self.trigger_prefetch(&abs_path);
             return;
         }
@@ -1124,19 +1148,13 @@ impl eframe::App for RrawApp {
         // Collect results from background decoding worker without blocking the UI
         while let Ok(payload) = self.workers.decode_receiver.try_recv() {
             if payload.is_prefetch {
-                if self.photo_cache.len() >= 30 {
-                    self.photo_cache.pop();
-                }
                 if !self.photo_cache.iter().any(|e| e.path == payload.path) {
-                    self.photo_cache.insert(
-                        0,
-                        CachedPhotoEntry {
-                            path: payload.path,
-                            photo_view: payload.photo_view,
-                            base_preview: payload.base_preview,
-                            cfa: payload.cfa,
-                        },
-                    );
+                    self.insert_cached_photo(CachedPhotoEntry {
+                        path: payload.path,
+                        photo_view: payload.photo_view,
+                        base_preview: payload.base_preview,
+                        cfa: payload.cfa,
+                    });
                 }
                 continue;
             }
@@ -1179,19 +1197,13 @@ impl eframe::App for RrawApp {
             if !is_still_active_target {
                 // If the user already switched to another photo while this background thread was running,
                 // cache the result in memory but do NOT hijack the active viewport.
-                if self.photo_cache.len() >= 30 {
-                    self.photo_cache.pop();
-                }
                 if !self.photo_cache.iter().any(|e| e.path == payload.path) {
-                    self.photo_cache.insert(
-                        0,
-                        CachedPhotoEntry {
-                            path: payload.path,
-                            photo_view: payload.photo_view,
-                            base_preview: payload.base_preview,
-                            cfa: payload.cfa,
-                        },
-                    );
+                    self.insert_cached_photo(CachedPhotoEntry {
+                        path: payload.path,
+                        photo_view: payload.photo_view,
+                        base_preview: payload.base_preview,
+                        cfa: payload.cfa,
+                    });
                 }
                 continue;
             }
@@ -1215,18 +1227,12 @@ impl eframe::App for RrawApp {
                 self.session.current_preset = GradingPreset::AsShot;
             }
 
-            if self.photo_cache.len() >= 30 {
-                self.photo_cache.pop();
-            }
-            self.photo_cache.insert(
-                0,
-                CachedPhotoEntry {
-                    path: payload.path.clone(),
-                    photo_view: payload.photo_view,
-                    base_preview: payload.base_preview,
-                    cfa: payload.cfa,
-                },
-            );
+            self.insert_cached_photo(CachedPhotoEntry {
+                path: payload.path.clone(),
+                photo_view: payload.photo_view,
+                base_preview: payload.base_preview,
+                cfa: payload.cfa,
+            });
 
             self.workers.is_decoding = false;
             self.session.needs_preview_update = true;

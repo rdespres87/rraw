@@ -152,7 +152,7 @@ pub fn compute_cam_to_srgb_matrix(cm: Option<&[f32; 9]>, wb: &[f32; 3]) -> [f32;
 pub struct BaseRgbPreview {
     pub width: usize,
     pub height: usize,
-    pub samples_rgb: Vec<[f32; 3]>,
+    pub samples_rgb: std::sync::Arc<[[f32; 3]]>,
     pub as_shot_wb: [f32; 3],
     pub cam_to_srgb: [f32; 9],
     /// Pre-inferred 4-class CoreML AI semantic segmentation probability maps.
@@ -201,7 +201,7 @@ impl BaseRgbPreview {
             return Self {
                 width: 1,
                 height: 1,
-                samples_rgb: vec![[0.0, 0.0, 0.0]],
+                samples_rgb: std::sync::Arc::new([[0.0, 0.0, 0.0]]),
                 as_shot_wb,
                 cam_to_srgb,
                 semantic_masks,
@@ -234,7 +234,7 @@ impl BaseRgbPreview {
             return Self {
                 width: preview_w,
                 height: preview_h,
-                samples_rgb,
+                samples_rgb: std::sync::Arc::from(samples_rgb),
                 as_shot_wb,
                 cam_to_srgb,
                 semantic_masks,
@@ -320,7 +320,7 @@ impl BaseRgbPreview {
         Self {
             width: preview_w,
             height: preview_h,
-            samples_rgb,
+            samples_rgb: std::sync::Arc::from(samples_rgb),
             as_shot_wb,
             cam_to_srgb,
             semantic_masks,
@@ -366,7 +366,7 @@ impl BaseRgbPreview {
         Self {
             width: preview_w,
             height: preview_h,
-            samples_rgb,
+            samples_rgb: std::sync::Arc::from(samples_rgb),
             as_shot_wb,
             cam_to_srgb,
             semantic_masks,
@@ -375,6 +375,14 @@ impl BaseRgbPreview {
             focal_length_mm: None,
             aperture_f_number: None,
         }
+    }
+
+    /// Returns the allocated memory footprint of this base preview in bytes.
+    #[must_use]
+    pub fn memory_footprint_bytes(&self) -> usize {
+        let preview_bytes = self.samples_rgb.len() * std::mem::size_of::<[f32; 3]>();
+        let mask_bytes = self.semantic_masks.subject.len() * 4 * std::mem::size_of::<f32>();
+        preview_bytes + mask_bytes
     }
 
     /// Rotates/flips the base RGB preview according to EXIF Orientation (`1..=8`) and updates semantic masks.
@@ -394,7 +402,7 @@ impl BaseRgbPreview {
             );
             self.width = new_w;
             self.height = new_h;
-            self.samples_rgb = new_samples;
+            self.samples_rgb = std::sync::Arc::from(new_samples);
             self.semantic_masks = infer_preview_semantic_masks(
                 &self.samples_rgb,
                 self.width,
@@ -414,6 +422,16 @@ pub struct CachedPhotoEntry {
     pub photo_view: LoadedPhotoView,
     pub base_preview: BaseRgbPreview,
     pub cfa: SignedCfaBuffer,
+}
+
+impl CachedPhotoEntry {
+    /// Computes the total allocated memory footprint in bytes.
+    #[must_use]
+    pub fn memory_footprint_bytes(&self) -> usize {
+        let cfa_bytes = self.cfa.allocation_size_bytes();
+        let preview_bytes = self.base_preview.memory_footprint_bytes();
+        cfa_bytes + preview_bytes
+    }
 }
 
 /// Payload sent from the background decoding thread to the main UI thread.

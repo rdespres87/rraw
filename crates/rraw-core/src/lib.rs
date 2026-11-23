@@ -313,7 +313,7 @@ pub struct SignedCfaBuffer {
     width: usize,
     height: usize,
     pattern: CfaPattern,
-    samples: Vec<f32>,
+    samples: std::sync::Arc<[f32]>,
 }
 
 impl SignedCfaBuffer {
@@ -323,6 +323,33 @@ impl SignedCfaBuffer {
         height: usize,
         pattern: CfaPattern,
         samples: Vec<f32>,
+    ) -> Result<Self, CoreError> {
+        let Some(expected) = width.checked_mul(height) else {
+            return Err(CoreError::InvalidDimensions { width, height });
+        };
+        if expected == 0 {
+            return Err(CoreError::InvalidDimensions { width, height });
+        }
+        if samples.len() != expected {
+            return Err(CoreError::BufferLengthMismatch {
+                expected,
+                actual: samples.len(),
+            });
+        }
+        Ok(Self {
+            width,
+            height,
+            pattern,
+            samples: samples.into(),
+        })
+    }
+
+    /// Creates a signed CFA buffer from a pre-allocated `Arc<[f32]>` without heap copy (zero-copy).
+    pub fn from_arc(
+        width: usize,
+        height: usize,
+        pattern: CfaPattern,
+        samples: std::sync::Arc<[f32]>,
     ) -> Result<Self, CoreError> {
         let Some(expected) = width.checked_mul(height) else {
             return Err(CoreError::InvalidDimensions { width, height });
@@ -351,7 +378,7 @@ impl Default for SignedCfaBuffer {
             width: 1,
             height: 1,
             pattern: CfaPattern::Bayer(BayerOrigin::Rggb),
-            samples: vec![0.0],
+            samples: std::sync::Arc::new([0.0]),
         }
     }
 }
@@ -379,6 +406,18 @@ impl SignedCfaBuffer {
     #[must_use]
     pub fn samples(&self) -> &[f32] {
         &self.samples
+    }
+
+    /// Reference to the underlying shared `Arc<[f32]>` for zero-copy buffer sharing across threads and pipelines.
+    #[must_use]
+    pub fn samples_arc(&self) -> &std::sync::Arc<[f32]> {
+        &self.samples
+    }
+
+    /// Exact memory allocation size of this buffer in bytes.
+    #[must_use]
+    pub fn allocation_size_bytes(&self) -> usize {
+        self.samples.len() * std::mem::size_of::<f32>()
     }
 }
 
