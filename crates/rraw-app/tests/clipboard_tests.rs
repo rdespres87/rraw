@@ -147,6 +147,7 @@ fn test_grading_recipe_clipboard_capture_and_selective_application(
             color_denoise: 18.0,
             luma_denoise: 5.0,
             capture_sharpening_amount: 0.4,
+            ..Default::default()
         },
         ..Default::default()
     };

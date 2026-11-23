@@ -375,7 +375,19 @@ pub fn render(
     *active_brush_mask_idx = active_brush_idx;
 
     ui.separator();
-    ui.label(egui::RichText::new(t(Key::InspectorAiMasksTitle)).strong());
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(t(Key::InspectorAiMasksTitle)).strong());
+        let caps = rraw_coreml::CoreMlHardwareCapabilities::detect();
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if caps.has_ane {
+                ui.label(
+                    egui::RichText::new(t(Key::MaskAiHardwareAne))
+                        .small()
+                        .color(Color32::from_rgb(90, 220, 140)),
+                );
+            }
+        });
+    });
     ui.label(
         egui::RichText::new(t(Key::InspectorAiMasksSubtitle))
             .small()

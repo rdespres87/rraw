@@ -2,10 +2,22 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 20 — Native Apple Silicon Neural Engine Bridge (CoreML)**:
-  - **Task 20.2 (`rraw-app`, `rraw-gpu`)**: Interactive AI Masking & Real-Time Neural Denoising UI — **READY FOR DEV**
-    - Connect real CoreML segmentation output to GPU Stage 6 mask blending pipeline.
-    - Add interactive toggle and progress feedback for ANE RAW denoising during preview and export.
+- **Phase 21 — Final Optimization & Production Hardening**:
+  - **Task 21.1 (`rraw-core`, `rraw-gpu`, `rraw-app`)**: Memory Footprint Optimization & Zero-Copy Metal Pipeline
+    - Profile memory allocations across large 45MP+ RAW previews and batch exports.
+    - Implement zero-copy buffer sharing between Metal/WGPU and native macOS surfaces.
+    - End-to-end latency benchmarks and stress testing.
+
+---
+
+## Last Completed Milestone
+
+- **Phase 20 — Task 20.2 Interactive AI Masking & Real-Time Neural Denoising UI (`rraw-app`, `rraw-gpu`) — COMPLETE**:
+  - **GPU Stage 6 Mask Blending**: Connected real CoreML semantic segmentation output (`SemanticMaskSet.to_rgba_interleaved()`) to GPU Stage 6 compute pipeline (`execute_stage6_gpu`).
+  - **Real-Time ANE Denoising**: Added ratio-preserving luminance scaling neural denoising in preview and export rendering loops (`apply_ane_neural_denoise_rgb`), strictly maintaining chromaticity and color saturation invariant.
+  - **Interactive Darkroom UI**: Added ANE neural denoise toggle, strength slider (0–100%), dynamic hardware detection badge (`⚡ ANE Accéléré` vs `⚙️ Émulation CPU`), and tile processing status in Detail & Denoise and AI Masking sections.
+  - **Multilingual i18n**: Added 7 new typed keys in FR, EN, ES catalogs with 453 total typed keys in `crates/rraw-app/src/i18n/key.rs`.
+  - **Validation & Tests**: Dedicated tests in `crates/rraw-app/tests/ane_ui_pipeline_tests.rs` (4 tests). 335 workspace tests passing across 73 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
 
 ---
 

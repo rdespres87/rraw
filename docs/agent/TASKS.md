@@ -234,9 +234,12 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Connected `AneSemanticSegmenter` into `rraw-app` preview masks pipeline (`crates/rraw-app/src/preview/masks.rs`).
   - Dedicated unit and integration tests in `crates/rraw-coreml/tests/ane_bridge_tests.rs` (8 tests). 331 workspace tests passing across 72 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
-- [ ] **Task 20.2 (`rraw-app`, `rraw-gpu`)**: Interactive AI Masking & Real-Time Neural Denoising UI
-  - Connect real CoreML segmentation output to GPU Stage 6 mask blending pipeline.
-  - Add interactive toggle and progress feedback for ANE RAW denoising during preview and export.
+- [x] **Task 20.2 (`rraw-app`, `rraw-gpu`)**: Interactive AI Masking & Real-Time Neural Denoising UI
+  - Connected real CoreML segmentation output (`SemanticMaskSet.to_rgba_interleaved()`) directly to GPU Stage 6 mask blending pipeline (`execute_stage6_gpu`).
+  - Added interactive toggle, strength slider (0–100%), and dynamic hardware badge (`⚡ ANE Accéléré (16 cœurs)` vs `⚙️ Émulation CPU`) in Darkroom Detail & Denoise section.
+  - Integrated ratio-preserving luminance scaling neural denoising in preview and export rendering loops (`apply_ane_neural_denoise_rgb`).
+  - Expanded multilingual dictionaries (FR, EN, ES) with 7 new typed keys (453 total typed keys).
+  - Added dedicated integration tests in `crates/rraw-app/tests/ane_ui_pipeline_tests.rs` (4 tests). 335 workspace tests passing across 73 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
 
 

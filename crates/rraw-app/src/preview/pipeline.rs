@@ -122,7 +122,10 @@ pub fn render_preview_from_base(
         green_amount: (grading.optics.defringe_green_amount / 100.0).clamp(0.0, 1.0),
         threshold: grading.optics.defringe_threshold.clamp(0.01, 0.50),
     };
-    let need_denoise = denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4;
+    let need_ane = grading.denoise_sharpen.ane_neural_denoise
+        && grading.denoise_sharpen.ane_denoise_strength > 1e-4;
+    let need_denoise =
+        denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4 || need_ane;
     let need_defringe = defringe_cfg.purple_amount > 1e-4 || defringe_cfg.green_amount > 1e-4;
     let show_defringe_mask = grading.optics.defringe_preview_mask;
 
@@ -136,6 +139,10 @@ pub fn render_preview_from_base(
                 &denoise_cfg,
                 Some([eff_wb_r, eff_wb_g, eff_wb_b]),
             );
+            if need_ane {
+                let str_f = (grading.denoise_sharpen.ane_denoise_strength / 100.0).clamp(0.0, 1.0);
+                apply_ane_neural_denoise_rgb(&mut s, preview_w, preview_h, str_f);
+            }
         }
         if show_defringe_mask {
             rraw_optics::defringe_mask_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
@@ -794,7 +801,10 @@ pub fn render_export_image(
         green_amount: (grading.optics.defringe_green_amount / 100.0).clamp(0.0, 1.0),
         threshold: grading.optics.defringe_threshold.clamp(0.01, 0.50),
     };
-    let need_denoise = denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4;
+    let need_ane = grading.denoise_sharpen.ane_neural_denoise
+        && grading.denoise_sharpen.ane_denoise_strength > 1e-4;
+    let need_denoise =
+        denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4 || need_ane;
     let need_defringe = defringe_cfg.purple_amount > 1e-4 || defringe_cfg.green_amount > 1e-4;
     let show_defringe_mask = false;
 
@@ -808,6 +818,10 @@ pub fn render_export_image(
                 &denoise_cfg,
                 Some([eff_wb_r, eff_wb_g, eff_wb_b]),
             );
+            if need_ane {
+                let str_f = (grading.denoise_sharpen.ane_denoise_strength / 100.0).clamp(0.0, 1.0);
+                apply_ane_neural_denoise_rgb(&mut s, preview_w, preview_h, str_f);
+            }
         }
         if show_defringe_mask {
             rraw_optics::defringe_mask_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
@@ -1143,4 +1157,51 @@ pub fn generate_preview_image(
 ) -> (egui::ColorImage, HistogramData) {
     let base = BaseRgbPreview::from_cfa(cfa);
     render_preview_from_base(&base, grading)
+}
+
+/// Applies Apple Neural Engine / CoreML structure-preserving luminance denoising to linear RGB samples.
+fn apply_ane_neural_denoise_rgb(
+    samples: &mut [[f32; 3]],
+    width: usize,
+    height: usize,
+    strength: f32,
+) {
+    if width == 0
+        || height == 0
+        || samples.is_empty()
+        || samples.len() != width.saturating_mul(height)
+        || strength <= 1e-4
+    {
+        return;
+    }
+    let count = samples.len();
+    let mut luma = Vec::with_capacity(count);
+    for &[r, g, b] in samples.iter() {
+        let r_v = if r.is_finite() { r.max(0.0) } else { 0.0 };
+        let g_v = if g.is_finite() { g.max(0.0) } else { 0.0 };
+        let b_v = if b.is_finite() { b.max(0.0) } else { 0.0 };
+        luma.push(0.2126 * r_v + 0.7152 * g_v + 0.0722 * b_v);
+    }
+
+    let engine = rraw_coreml::CoreMlEngine::new();
+    if let Ok(denoised_luma) = engine.run_tile_denoise(&luma, width, height) {
+        for (i, sample) in samples.iter_mut().enumerate() {
+            if let Some(&dl) = denoised_luma.get(i) {
+                let orig_l = luma[i];
+                if orig_l > 1e-5 {
+                    // Ratio-preserving luminance scaling: guarantees zero chromaticity or saturation shift
+                    let target_l = (orig_l + (dl - orig_l) * strength).max(0.0);
+                    let scale = target_l / orig_l;
+                    sample[0] = (sample[0] * scale).max(0.0);
+                    sample[1] = (sample[1] * scale).max(0.0);
+                    sample[2] = (sample[2] * scale).max(0.0);
+                } else {
+                    let diff = (dl - orig_l) * strength;
+                    sample[0] = (sample[0] + diff).max(0.0);
+                    sample[1] = (sample[1] + diff).max(0.0);
+                    sample[2] = (sample[2] + diff).max(0.0);
+                }
+            }
+        }
+    }
 }

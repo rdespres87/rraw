@@ -4,12 +4,19 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 20 — Native Apple Silicon Neural Engine Bridge (CoreML)
-- **Active Tasks**:
-  - Task 20.2: Interactive AI Masking & Real-Time Neural Denoising UI (`rraw-app`, `rraw-gpu`) — **READY FOR DEV**
+- **Active Phase**: Phase 20 — Native Apple Silicon Neural Engine Bridge (CoreML) — **COMPLETE**
+- **Active Tasks**: None — All Phase 20 tasks completed
 - **Next Phase**: Phase 21 — Final Optimization & Production Hardening
-- **Last Verified Baseline**: 331 tests passants across 72 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 20 — Task 20.1 Hardware ANE Inference Bridge **Complete**
+- **Last Verified Baseline**: 335 tests passants across 73 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Phase 20 — Task 20.2 Interactive AI Masking & Real-Time Neural Denoising UI **Complete**
+  - Câblage des masques de segmentation sémantique CoreML réels (`SemanticMaskSet.to_rgba_interleaved()`) dans le pipeline GPU compute Stage 6 (`execute_stage6_gpu` / `Stage6Pipeline`).
+  - Intégration du débruitage neuronal ANE dans les boucles de rendu de prévisualisation et d'export (`apply_ane_neural_denoise_rgb`) avec redimensionnement de luminance par ratio préservant strictement la chromaticité et la saturation ($R' = R \times \frac{L_{cible}}{L_{orig}}$).
+  - Contrôles interactifs dans l'inspecteur Débruitage & Netteté : interrupteur d'activation, curseur de dosage (0–100 %), badge dynamique de détection matérielle (⚡ ANE Accéléré / ⚙️ Émulation CPU) et indicateur de traitement par tuiles.
+  - Badge matériel ANE ajouté dans l'en-tête de la section Masques IA.
+  - Internationalisation complète FR, EN, ES avec 7 nouvelles clés typées (453 clés totales dans le dictionnaire compilé).
+  - Suite de tests unitaires et d'intégration dédiée `crates/rraw-app/tests/ane_ui_pipeline_tests.rs` (4 tests).
+  - 335 tests passants across 73 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 20 — Task 20.1 Hardware ANE Inference Bridge **Complete**
   - Création de la crate dédiée `rraw-coreml` (`#![deny(unsafe_code)]` avec blocs `// SAFETY:` rigoureusement documentés) isolant le pont matériel CoreML et Objective-C (`MLModel`), garantissant que 10 des 12 crates du workspace conservent `#![forbid(unsafe_code)]`.
   - Détection matérielle de l'Apple Silicon et de l'Apple Neural Engine (ANE) via `sysctlbyname` avec repli propre sur les plateformes non-macOS ou x86_64 (`CoreMlHardwareCapabilities`, `CoreMlComputeUnits::CpuAndNeuralEngine`).
   - Implémentation du débruiteur CFA ANE `AneRawDenoiser` pour tuiles fixes de 504×504 avec stabilisation de variance par Transformée d'Anscombe Généralisée (GAT) avant inférence tensorielle et inversion exacte post-traitement.

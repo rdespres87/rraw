@@ -38,6 +38,12 @@ pub enum Key {
     DarkroomResetLayout,
     DarkroomResetLayoutTooltip,
     DarkroomTitle,
+    DetailAneBadgeActive,
+    DetailAneBadgeFallback,
+    DetailAneDenoise,
+    DetailAneDenoiseTooltip,
+    DetailAneStatusTile,
+    DetailAneStrength,
     DetailAutoDenoise,
     DetailAutoDenoiseTooltip,
     DetailChromaTooltip,
@@ -339,6 +345,7 @@ pub enum Key {
     InspectorTimelapseExport,
     InspectorValidateCrop,
     MaskAiDeselectTooltip,
+    MaskAiHardwareAne,
     MaskAiSelectTooltip,
     MaskBrushClearTooltip,
     MaskBrushEraseTooltip,
@@ -459,8 +466,7 @@ pub enum Key {
 }
 
 impl Key {
-    /// Total number of keys defined in the enum.
-    pub const COUNT: usize = 446;
+    pub const COUNT: usize = 453;
 
     /// Returns the 0-based dense index corresponding to this key.
     #[inline]
@@ -513,6 +519,12 @@ impl Key {
             Self::DarkroomResetLayout => "DarkroomResetLayout",
             Self::DarkroomResetLayoutTooltip => "DarkroomResetLayoutTooltip",
             Self::DarkroomTitle => "DarkroomTitle",
+            Self::DetailAneBadgeActive => "DetailAneBadgeActive",
+            Self::DetailAneBadgeFallback => "DetailAneBadgeFallback",
+            Self::DetailAneDenoise => "DetailAneDenoise",
+            Self::DetailAneDenoiseTooltip => "DetailAneDenoiseTooltip",
+            Self::DetailAneStatusTile => "DetailAneStatusTile",
+            Self::DetailAneStrength => "DetailAneStrength",
             Self::DetailAutoDenoise => "DetailAutoDenoise",
             Self::DetailAutoDenoiseTooltip => "DetailAutoDenoiseTooltip",
             Self::DetailChromaTooltip => "DetailChromaTooltip",
@@ -814,6 +826,7 @@ impl Key {
             Self::InspectorTimelapseExport => "InspectorTimelapseExport",
             Self::InspectorValidateCrop => "InspectorValidateCrop",
             Self::MaskAiDeselectTooltip => "MaskAiDeselectTooltip",
+            Self::MaskAiHardwareAne => "MaskAiHardwareAne",
             Self::MaskAiSelectTooltip => "MaskAiSelectTooltip",
             Self::MaskBrushClearTooltip => "MaskBrushClearTooltip",
             Self::MaskBrushEraseTooltip => "MaskBrushEraseTooltip",
@@ -934,17 +947,18 @@ impl Key {
         }
     }
 
-    /// Resolves the typed key to its translation for the requested language.
+    /// Parses a string slice into a strongly-typed `Key`.
     #[inline]
     #[must_use]
-    pub fn translate(self, lang: Language) -> &'static str {
-        I18nEngine::global().translate(lang, self)
+    pub fn from_str_name(s: &str) -> Option<Self> {
+        Self::from_str(s)
     }
 
-    /// Parses a string slice into its typed `Key` representation if valid.
+    /// Parses a string slice into a strongly-typed `Key`.
     #[must_use]
-    pub fn from_str_name(name: &str) -> Option<Self> {
-        match name {
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
             "AboutBuildDate" => Some(Self::AboutBuildDate),
             "AboutClose" => Some(Self::AboutClose),
             "AboutCommit" => Some(Self::AboutCommit),
@@ -973,6 +987,12 @@ impl Key {
             "DarkroomResetLayout" => Some(Self::DarkroomResetLayout),
             "DarkroomResetLayoutTooltip" => Some(Self::DarkroomResetLayoutTooltip),
             "DarkroomTitle" => Some(Self::DarkroomTitle),
+            "DetailAneBadgeActive" => Some(Self::DetailAneBadgeActive),
+            "DetailAneBadgeFallback" => Some(Self::DetailAneBadgeFallback),
+            "DetailAneDenoise" => Some(Self::DetailAneDenoise),
+            "DetailAneDenoiseTooltip" => Some(Self::DetailAneDenoiseTooltip),
+            "DetailAneStatusTile" => Some(Self::DetailAneStatusTile),
+            "DetailAneStrength" => Some(Self::DetailAneStrength),
             "DetailAutoDenoise" => Some(Self::DetailAutoDenoise),
             "DetailAutoDenoiseTooltip" => Some(Self::DetailAutoDenoiseTooltip),
             "DetailChromaTooltip" => Some(Self::DetailChromaTooltip),
@@ -1280,6 +1300,7 @@ impl Key {
             "InspectorTimelapseExport" => Some(Self::InspectorTimelapseExport),
             "InspectorValidateCrop" => Some(Self::InspectorValidateCrop),
             "MaskAiDeselectTooltip" => Some(Self::MaskAiDeselectTooltip),
+            "MaskAiHardwareAne" => Some(Self::MaskAiHardwareAne),
             "MaskAiSelectTooltip" => Some(Self::MaskAiSelectTooltip),
             "MaskBrushClearTooltip" => Some(Self::MaskBrushClearTooltip),
             "MaskBrushEraseTooltip" => Some(Self::MaskBrushEraseTooltip),
@@ -1400,9 +1421,15 @@ impl Key {
             _ => None,
         }
     }
+
+    /// Translates this key using the global I18nEngine.
+    #[inline]
+    #[must_use]
+    pub fn translate(self, lang: Language) -> &'static str {
+        I18nEngine::global().translate(lang, self)
+    }
 }
 
-/// Static slice of all available keys in order.
 pub const ALL_KEYS: [Key; Key::COUNT] = [
     Key::AboutBuildDate,
     Key::AboutClose,
@@ -1432,6 +1459,12 @@ pub const ALL_KEYS: [Key; Key::COUNT] = [
     Key::DarkroomResetLayout,
     Key::DarkroomResetLayoutTooltip,
     Key::DarkroomTitle,
+    Key::DetailAneBadgeActive,
+    Key::DetailAneBadgeFallback,
+    Key::DetailAneDenoise,
+    Key::DetailAneDenoiseTooltip,
+    Key::DetailAneStatusTile,
+    Key::DetailAneStrength,
     Key::DetailAutoDenoise,
     Key::DetailAutoDenoiseTooltip,
     Key::DetailChromaTooltip,
@@ -1733,6 +1766,7 @@ pub const ALL_KEYS: [Key; Key::COUNT] = [
     Key::InspectorTimelapseExport,
     Key::InspectorValidateCrop,
     Key::MaskAiDeselectTooltip,
+    Key::MaskAiHardwareAne,
     Key::MaskAiSelectTooltip,
     Key::MaskBrushClearTooltip,
     Key::MaskBrushEraseTooltip,

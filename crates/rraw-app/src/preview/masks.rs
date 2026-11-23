@@ -108,3 +108,31 @@ pub fn eval_all_mask_adjustments(
 
     (ev, contrast, sat, temp)
 }
+
+/// Executes GPU Stage 6 local geometric and CoreML AI semantic masks on a GPU context.
+pub fn execute_stage6_gpu(
+    ctx: &rraw_gpu::GpuContext,
+    rgb_in: &[f32],
+    width: u32,
+    height: u32,
+    masks: &rraw_core::Stage6MasksParams,
+    semantic_masks: &SemanticMaskSet,
+) -> Result<Vec<f32>, rraw_gpu::GpuError> {
+    let pipeline = rraw_gpu::Stage6Pipeline::new(ctx)?;
+    let params = rraw_gpu::Stage6Params {
+        width,
+        height,
+        masks: masks.clone(),
+    };
+    let sem_rgba = semantic_masks.to_rgba_interleaved();
+    pipeline.execute_with_semantics(
+        ctx,
+        rgb_in,
+        &params,
+        Some((
+            &sem_rgba,
+            semantic_masks.width as u32,
+            semantic_masks.height as u32,
+        )),
+    )
+}

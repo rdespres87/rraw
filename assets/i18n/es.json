@@ -1,4 +1,5 @@
 {
+  "_language_name": "Español",
   "AboutBuildDate": "Fecha de compilación",
   "AboutClose": "Cerrar",
   "AboutCommit": "Commit",
@@ -27,6 +28,12 @@
   "DarkroomResetLayout": "↺ Disposición",
   "DarkroomResetLayoutTooltip": "Restablecer el orden de las secciones",
   "DarkroomTitle": "🛠️ Revelado",
+  "DetailAneBadgeActive": "⚡ ANE Acelerado (16 núcleos)",
+  "DetailAneBadgeFallback": "⚙️ Emulación CPU",
+  "DetailAneDenoise": "⚡ Reducción de ruido neuronal ANE",
+  "DetailAneDenoiseTooltip": "Reducción de ruido acelerada por red neuronal en Apple Neural Engine (ANE) antes del demosaicing",
+  "DetailAneStatusTile": "Inferencia 504×504 ANE activa",
+  "DetailAneStrength": "Intensidad ANE",
   "DetailAutoDenoise": "Auto (25)",
   "DetailAutoDenoiseTooltip": "Restablecer valor automático recomendado",
   "DetailChromaTooltip": "Elimina manchas de color sin desenfocar detalles nítidos",
@@ -328,6 +335,7 @@
   "InspectorTimelapseExport": "Exportar secuencia timelapse...",
   "InspectorValidateCrop": "✓ Validar recorte",
   "MaskAiDeselectTooltip": "Clic para desactivar esta máscara IA",
+  "MaskAiHardwareAne": "⚡ Apple Neural Engine activo",
   "MaskAiSelectTooltip": "Clic para activar esta máscara IA",
   "MaskBrushClearTooltip": "Borrar todos los trazos de este pincel",
   "MaskBrushEraseTooltip": "Modo borrador: restar de la máscara",
@@ -444,6 +452,5 @@
   "TopBarZoomFitted": "Ajustado",
   "ViewportAfter": "DESPUÉS",
   "ViewportBefore": "ANTES",
-  "ViewportOriginalBadge": "📸 ORIGINAL",
-  "_language_name": "Español"
+  "ViewportOriginalBadge": "📸 ORIGINAL"
 }

@@ -1,4 +1,5 @@
 {
+  "_language_name": "Français",
   "AboutBuildDate": "Date de build",
   "AboutClose": "Fermer",
   "AboutCommit": "Commit",
@@ -27,6 +28,12 @@
   "DarkroomResetLayout": "↺ Disposition",
   "DarkroomResetLayoutTooltip": "Réinitialiser l'ordre des sections",
   "DarkroomTitle": "🛠️ Développement",
+  "DetailAneBadgeActive": "⚡ ANE Accéléré (16 cœurs)",
+  "DetailAneBadgeFallback": "⚙️ Émulation CPU",
+  "DetailAneDenoise": "⚡ Débruitage neuronal ANE",
+  "DetailAneDenoiseTooltip": "Débruitage accéléré par réseau neuronal convolutif sur l'Apple Neural Engine (ANE) avant dématriçage",
+  "DetailAneStatusTile": "Inférence 504×504 ANE active",
+  "DetailAneStrength": "Intensité ANE",
   "DetailAutoDenoise": "Auto (25)",
   "DetailAutoDenoiseTooltip": "Rétablir la valeur automatique recommandée",
   "DetailChromaTooltip": "Supprime les marbrures et tavelures colorées sans flouter les détails",
@@ -328,6 +335,7 @@
   "InspectorTimelapseExport": "🎬 Exporter la séquence Timelapse...",
   "InspectorValidateCrop": "✅ Valider le recadrage",
   "MaskAiDeselectTooltip": "Cliquer pour décocher et retirer ce masque IA",
+  "MaskAiHardwareAne": "⚡ Apple Neural Engine actif",
   "MaskAiSelectTooltip": "Cliquer pour cocher et activer ce masque IA",
   "MaskBrushClearTooltip": "Effacer tous les traits de ce pinceau",
   "MaskBrushEraseTooltip": "Mode gomme : soustrait du masque",
@@ -444,6 +452,5 @@
   "TopBarZoomFitted": "Ajusté",
   "ViewportAfter": "Après",
   "ViewportBefore": "Avant",
-  "ViewportOriginalBadge": "👁️ Original (Avant retouche)",
-  "_language_name": "Français"
+  "ViewportOriginalBadge": "👁️ Original (Avant retouche)"
 }

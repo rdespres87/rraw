@@ -1,4 +1,5 @@
 {
+  "_language_name": "English",
   "AboutBuildDate": "Build date",
   "AboutClose": "Close",
   "AboutCommit": "Commit",
@@ -27,6 +28,12 @@
   "DarkroomResetLayout": "↺ Layout",
   "DarkroomResetLayoutTooltip": "Reset sections order",
   "DarkroomTitle": "🛠️ Develop",
+  "DetailAneBadgeActive": "⚡ ANE Accelerated (16 cores)",
+  "DetailAneBadgeFallback": "⚙️ CPU Fallback",
+  "DetailAneDenoise": "⚡ ANE Neural Denoising",
+  "DetailAneDenoiseTooltip": "Hardware-accelerated convolutional neural network denoising on Apple Neural Engine (ANE) before demosaicing",
+  "DetailAneStatusTile": "504×504 ANE tiled inference active",
+  "DetailAneStrength": "ANE Strength",
   "DetailAutoDenoise": "Auto (25)",
   "DetailAutoDenoiseTooltip": "Restore recommended auto value",
   "DetailChromaTooltip": "Removes color blotches without blurring sharp details",
@@ -328,6 +335,7 @@
   "InspectorTimelapseExport": "🎬 Export Timelapse sequence...",
   "InspectorValidateCrop": "✅ Apply crop",
   "MaskAiDeselectTooltip": "Click to uncheck and remove this AI mask",
+  "MaskAiHardwareAne": "⚡ Apple Neural Engine active",
   "MaskAiSelectTooltip": "Click to check and enable this AI mask",
   "MaskBrushClearTooltip": "Clear all strokes from this brush",
   "MaskBrushEraseTooltip": "Eraser mode: subtract from mask",
@@ -444,6 +452,5 @@
   "TopBarZoomFitted": "Fit",
   "ViewportAfter": "After",
   "ViewportBefore": "Before",
-  "ViewportOriginalBadge": "👁️ Original (Before grading)",
-  "_language_name": "English"
+  "ViewportOriginalBadge": "👁️ Original (Before grading)"
 }
