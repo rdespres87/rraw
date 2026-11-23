@@ -201,7 +201,10 @@ impl RrawApp {
         if close_requested {
             is_open = false;
         }
-        self.export.show_shortcuts_dialog = is_open;
+        self.export.set_dialog_open(
+            crate::controllers::export::ActiveModalDialog::Shortcuts,
+            is_open,
+        );
     }
 }
 

@@ -2,11 +2,21 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 23 — Task 23.2 (`rraw-app`)**: Deep Maturity Audit #5 Priority P1 — Ghost Boolean Eradication (`ActiveModalDialog` & `ActiveCanvasTool` Single Source of Truth), True LRU Thumbnail Recency (`get_and_touch`) & Dead Code Purge (`ui/export.rs`, `ui/exif.rs`, `ui/presets.rs`).
+- **Phase 23 — Task 23.3 (`rraw-app`)**: Deep Maturity Audit #5 Priority P2 — 100% Residual French String Localization (`ui/explorer.rs`, `ui/exif.rs`, `ui/filmstrip.rs`, `ui/export.rs`, `app.rs`) & Domain Crate Feature Wiring (`rraw-optics` Richardson-Lucy deconvolution / `rraw-export` ISO 21496-1 Gain Map HDR).
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 23 — Task 23.2 Audit #5 Priority P1 Remediation (`rraw-app`) — COMPLETE**:
+  - **P1.1 Modal Dialog Single Source of Truth (`ExportBatchController`)**: Added `set_dialog_open` and `close_dialog` and routed all modal open/close/toggle sites (`ui/about.rs`, `ui/shortcuts.rs`, `ui/export.rs`, `ui/canvas_hud.rs`, `ui/inspector.rs`, `app.rs`) through typed `ExportBatchController` transitions.
+  - **P1.2 Interactive Canvas Tool Mutual Exclusion (`ActiveCanvasTool`)**: Added `RrawApp::reconcile_canvas_tool_transitions`, wired across all tool sections in `ui/inspector.rs`, and enforced automatic tool deactivation when `crop_enabled` or `geometry_enabled` is unchecked.
+  - **P1.3 True LRU Thumbnail Recency & Dead Code Purge (~502 Lines Removed)**: Upgraded thumbnail access in `ui/filmstrip.rs` to `get_and_touch(entry)` and purged uncalled synchronous export and legacy EXIF/presets methods across `ui/export.rs`, `ui/exif.rs`, and `ui/presets.rs`.
+  - **Validation & Tests**: Dedicated integration test suite `crates/rraw-app/tests/p1_audit5_typestate_lru_cleanup_tests.rs` (3 tests). 376 workspace tests passing across 84 suites, 0 clippy errors, 0 clippy warnings.
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 23 — Task 23.1 Audit #5 Priority P0 Remediation (`rraw-app`) — COMPLETE**:
   - **P0.1 Real-Time UI Thread `fsync` Elimination & Drag Coalescing**: Removed synchronous per-frame `save_photo_sidecars` from `render_darkroom_section` and detached thread spawning from `open_raw_file`; added `PhotoSession::sidecar_dirty` and `RrawApp::flush_dirty_sidecar_if_idle`.

@@ -22,8 +22,15 @@ pub fn render(
 
     let c_crop = ui.checkbox(&mut geometry.crop_enabled, t(Key::InspectorEnableCrop));
     if c_crop.changed() {
+        if !geometry.crop_enabled {
+            *is_crop_editing = false;
+        }
         out.needs_preview_update = true;
         ui.ctx().request_repaint();
+    }
+
+    if !geometry.crop_enabled {
+        *is_crop_editing = false;
     }
 
     if geometry.crop_enabled {

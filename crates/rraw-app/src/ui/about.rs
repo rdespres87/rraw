@@ -78,6 +78,9 @@ impl RrawApp {
         if close_requested {
             is_open = false;
         }
-        self.export.show_about_dialog = is_open;
+        self.export.set_dialog_open(
+            crate::controllers::export::ActiveModalDialog::About,
+            is_open,
+        );
     }
 }

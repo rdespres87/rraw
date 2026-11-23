@@ -69,7 +69,8 @@ impl RrawApp {
             .on_hover_text(self.t(Key::ToggleShortcutsTooltip))
             .clicked()
         {
-            self.export.show_shortcuts_dialog = !self.export.show_shortcuts_dialog;
+            self.export
+                .toggle_dialog(crate::controllers::export::ActiveModalDialog::Shortcuts);
         }
     }
 

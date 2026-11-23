@@ -37,6 +37,13 @@ pub fn render(
         ui.ctx().request_repaint();
     }
 
+    if !geometry.geometry_enabled {
+        *tool_state.phase = ParallelToolPhase::Inactive;
+        *tool_state.line1 = None;
+        *tool_state.line2 = None;
+        *tool_state.drag_start = None;
+    }
+
     if geometry.geometry_enabled {
         let is_parallel_active = *tool_state.phase != ParallelToolPhase::Inactive;
         let parallel_btn_label = if is_parallel_active {

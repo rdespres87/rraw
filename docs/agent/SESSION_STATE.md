@@ -4,11 +4,17 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 23 — Deep Maturity Audit #5 Remediation (Chantier P0 Complete; P1 & P2 Next)
-- **Active Tasks**: Task 23.1 (P0 — Real-Time UI Thread I/O Unblocking, Explorer Subdirectory Cache, Bounded Undo/Redo Stack & Unified Pixel Kernel) **Complete**
-- **Next Phase**: Phase 23 — Task 23.2 (Priority P1 — Ghost Boolean Eradication, True LRU Thumbnail Recency & Dead Code Purge)
-- **Last Verified Baseline**: 373 tests passing across 83 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
-- **Current Milestone**: Phase 23 — Task 23.1 Audit #5 Priority P0 Remediation **Complete**
+- **Active Phase**: Phase 23 — Deep Maturity Audit #5 Remediation (Chantiers P0 & P1 Complete; P2 Next)
+- **Active Tasks**: Task 23.2 (P1 — Ghost Boolean Eradication, True LRU Thumbnail Recency & Dead Code Purge) **Complete**
+- **Next Phase**: Phase 23 — Task 23.3 (Priority P2 — 100% Residual French String Localization & Domain Crate Feature Wiring)
+- **Last Verified Baseline**: 376 tests passing across 84 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Current Milestone**: Phase 23 — Task 23.2 Audit #5 Priority P1 Remediation **Complete**
+  - **P1.1 Modal Dialog Single Source of Truth (`ExportBatchController`)**: Added `set_dialog_open(dialog, is_open)` and `close_dialog(dialog)` on `ExportBatchController` (`crates/rraw-app/src/controllers/export.rs`) and replaced all raw `show_*_dialog = ...` mutations across `ui/about.rs`, `ui/shortcuts.rs`, `ui/export.rs`, `ui/canvas_hud.rs`, `ui/inspector.rs`, and `app.rs` (`handle_escape_key`, top bar, status bar) so `active_dialog` and boolean flags never desynchronize.
+  - **P1.2 Interactive Canvas Tool Mutual Exclusion (`ActiveCanvasTool`)**: Added `RrawApp::reconcile_canvas_tool_transitions` (`crates/rraw-app/src/app.rs`), wired across `AiSemanticMasks`, `Crop`, `Straighten`, and `Geometry` in `ui/inspector.rs`, and enforced automatic deactivation of `is_crop_editing` and `parallel_tool_phase` when `crop_enabled` or `geometry_enabled` is unchecked in `ui/sections/crop.rs` and `ui/sections/geometry.rs`.
+  - **P1.3 True LRU Thumbnail Recency & Dead Code Purge (~502 Lines Removed)**: Upgraded filmstrip thumbnail lookup in `crates/rraw-app/src/ui/filmstrip.rs` to `get_and_touch(entry)`, restoring true LRU eviction order, and removed ~502 lines of uncalled dead code (`execute_export`, `execute_timelapse_export`, `write_exported_image`, `build_export_base_from_cfa`, `resolve_photo_preview_and_grading` in `ui/export.rs`; `render_exif_compact_card`, `render_exif_card`, `render_exif_full_panel` in `ui/exif.rs`; `render_presets_tab` in `ui/presets.rs`).
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p1_audit5_typestate_lru_cleanup_tests.rs` (3 new tests).
+  - 376 tests passing across 84 suites, 0 clippy errors, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+- **Preceding Milestone**: Phase 23 — Task 23.1 Audit #5 Priority P0 Remediation **Complete** (Commit `58ede6b`)
   - **P0.1 Real-Time UI Thread `fsync` Elimination & Drag Coalescing**: Removed the synchronous per-frame `save_photo_sidecars` call from `render_darkroom_section` (`crates/rraw-app/src/ui/inspector.rs`) and replaced the detached racing `std::thread::spawn` in `open_raw_file` with deterministic `PhotoSession::sidecar_dirty` tracking and `RrawApp::flush_dirty_sidecar_if_idle(pointer_down)`.
   - **P0.2 Explorer Subdirectory Cache & Alphabetical Sorting**: Added `LibraryController::cached_subdirectories` and `refresh_subdirectories()` (`crates/rraw-app/src/controllers/library.rs`), eliminating 60-120 Hz `std::fs::read_dir` syscalls in `render_explorer_tab` (`crates/rraw-app/src/ui/explorer.rs`).
   - **P0.3 Bounded 64-Step Undo / Redo Stack (`Cmd+Z` / `Cmd+Shift+Z`)**: Added `PhotoSession::MAX_UNDO_HISTORY = 64`, `undo_stack`, `redo_stack`, `record_undo_snapshot`, `notify_grading_edited`, `undo`, `redo`, and `clear_history`, wired to `RrawApp::undo_grading`, `redo_grading`, keyboard shortcuts `Cmd+Z` / `Cmd+Shift+Z` / `Cmd+Y`, and top-bar `↶` / `↷` buttons.

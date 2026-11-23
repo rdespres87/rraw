@@ -151,9 +151,4 @@ impl RrawApp {
             }
         });
     }
-
-    /// Renders the presets selection tab (delegates to dropdown section).
-    pub fn render_presets_tab(&mut self, ui: &mut egui::Ui) {
-        self.render_presets_section(ui);
-    }
 }

@@ -411,7 +411,9 @@ impl RrawApp {
                                         Color32::from_rgb(14, 16, 20),
                                     );
 
-                                    if let Some(tex) = self.workers.thumbnail_textures.get(entry) {
+                                    if let Some(tex) =
+                                        self.workers.thumbnail_textures.get_and_touch(entry)
+                                    {
                                         let tex_size = tex.size_vec2();
                                         let tex_aspect = tex_size.x / tex_size.y.max(1.0);
                                         let frame_aspect = thumb_rect.width() / thumb_rect.height().max(1.0);

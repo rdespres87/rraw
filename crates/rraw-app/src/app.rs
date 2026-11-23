@@ -253,6 +253,33 @@ impl RrawApp {
         }
     }
 
+    /// Reconciles canvas tool transitions after an inspector section renders, ensuring that
+    /// newly activated tools strictly deactivate any previously active competing canvas tool.
+    pub fn reconcile_canvas_tool_transitions(
+        &mut self,
+        prev_crop: bool,
+        prev_horizon: bool,
+        prev_parallel: ParallelToolPhase,
+        prev_brush: Option<usize>,
+    ) {
+        use crate::controllers::viewport::ActiveCanvasTool;
+
+        if !prev_crop && self.viewport.is_crop_editing {
+            self.activate_canvas_tool(ActiveCanvasTool::Crop);
+        } else if !prev_horizon && self.viewport.horizon_tool_active {
+            self.activate_canvas_tool(ActiveCanvasTool::Horizon);
+        } else if prev_parallel == ParallelToolPhase::Inactive
+            && self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive
+        {
+            let phase = self.viewport.parallel_tool_phase;
+            self.activate_canvas_tool(ActiveCanvasTool::ParallelLines(phase));
+        } else if let Some(idx) = self.session.grading.active_brush_mask_idx {
+            if prev_brush != Some(idx) {
+                self.activate_canvas_tool(ActiveCanvasTool::FreehandBrush(idx));
+            }
+        }
+    }
+
     /// Translates a UI text key into the currently active language.
     #[must_use]
     pub fn t(&self, key: Key) -> &'static str {
@@ -730,13 +757,16 @@ impl RrawApp {
     /// Returns `true` if an active dialog, tool, or selection was dismissed.
     pub fn handle_escape_key(&mut self) -> bool {
         if self.export.show_about_dialog {
-            self.export.show_about_dialog = false;
+            self.export
+                .close_dialog(crate::controllers::export::ActiveModalDialog::About);
             true
         } else if self.export.show_shortcuts_dialog {
-            self.export.show_shortcuts_dialog = false;
+            self.export
+                .close_dialog(crate::controllers::export::ActiveModalDialog::Shortcuts);
             true
         } else if self.export.show_export_dialog {
-            self.export.show_export_dialog = false;
+            self.export
+                .close_dialog(crate::controllers::export::ActiveModalDialog::Export);
             true
         } else if self.viewport.is_crop_editing {
             self.viewport.is_crop_editing = false;
@@ -1372,7 +1402,8 @@ impl eframe::App for RrawApp {
                 self.toggle_clipping_overlay();
             }
             if toggle_shortcuts {
-                self.export.show_shortcuts_dialog = !self.export.show_shortcuts_dialog;
+                self.export
+                    .toggle_dialog(crate::controllers::export::ActiveModalDialog::Shortcuts);
             }
 
             let has_cmd_ctrl_alt =
@@ -1560,7 +1591,8 @@ impl eframe::App for RrawApp {
                         };
                         self.status_message = status_txt.clone();
                         self.export.export_status = Some((status_txt, true));
-                        self.export.show_export_dialog = false;
+                        self.export
+                            .close_dialog(crate::controllers::export::ActiveModalDialog::Export);
                     }
                     Err(err) => {
                         self.export.export_status = Some((
@@ -1632,7 +1664,8 @@ impl eframe::App for RrawApp {
                     }
 
                     if ui.button(self.t(Key::TopBarExport)).clicked() {
-                        self.export.show_export_dialog = true;
+                        self.export
+                            .open_dialog(crate::controllers::export::ActiveModalDialog::Export);
                         self.export.export_status = None;
                     }
 
@@ -1641,9 +1674,11 @@ impl eframe::App for RrawApp {
                         .on_hover_text(self.t(Key::TopBarTimelapseTooltip))
                         .clicked()
                     {
-                        self.export.export_target_mode = ExportTargetMode::TimelapseSequence;
+                        self.export
+                            .set_target_mode(ExportTargetMode::TimelapseSequence);
                         self.export.export_subfolder = "Timelapse".to_string();
-                        self.export.show_export_dialog = true;
+                        self.export
+                            .open_dialog(crate::controllers::export::ActiveModalDialog::Export);
                         self.export.export_status = None;
                     }
 
@@ -1910,7 +1945,8 @@ impl eframe::App for RrawApp {
                             .on_hover_text(rraw_core::build_info::BuildInfo::about_text())
                             .clicked()
                         {
-                            self.export.show_about_dialog = true;
+                            self.export
+                                .open_dialog(crate::controllers::export::ActiveModalDialog::About);
                         }
                         ui.label(egui::RichText::new("·").weak());
                         ui.label(self.t(Key::StatusSurfaceInfo));

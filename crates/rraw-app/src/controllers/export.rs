@@ -145,6 +145,25 @@ impl ExportBatchController {
         self.active_modal_dialog().is_some()
     }
 
+    /// Opens or closes a specific modal dialog while keeping `active_dialog` and boolean flags synchronized.
+    pub fn set_dialog_open(&mut self, dialog: ActiveModalDialog, is_open: bool) {
+        if is_open {
+            self.open_dialog(dialog);
+        } else {
+            self.close_dialog(dialog);
+        }
+    }
+
+    /// Closes a specific modal dialog and reconciles `active_dialog` with any remaining open dialog.
+    pub fn close_dialog(&mut self, dialog: ActiveModalDialog) {
+        match dialog {
+            ActiveModalDialog::Export => self.show_export_dialog = false,
+            ActiveModalDialog::Shortcuts => self.show_shortcuts_dialog = false,
+            ActiveModalDialog::About => self.show_about_dialog = false,
+        }
+        self.active_dialog = self.active_modal_dialog();
+    }
+
     /// Closes all open modal dialogs.
     pub fn close_all_dialogs(&mut self) {
         self.active_dialog = None;
