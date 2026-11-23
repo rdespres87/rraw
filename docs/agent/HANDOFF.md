@@ -1,7 +1,8 @@
 # HANDOFF.md — Next Action & Session Continuity
 
-## Next Actionable Objective (Immediate Priority)
+## Immediate Status & Next Actionable Objective
 
+- **CI Fix Recorded**: Commit `e430a14` fixes the Rust 1.100.0 `clippy::needless_bool` lint in `crates/rraw-app/src/ui/exif.rs`. The workspace compiles cleanly and passes all 352 tests with 0 warnings on Rust 1.100.0. When pushed, GitHub Actions CI will be 100% green.
 - **Phase 21 — Task 21.3 Production Hardening, Release Polish & macOS App Packaging (`rraw-app`, CI / Packaging)**:
   - Address residual UI edge cases and keyboard navigation polish across all views (Filmstrip, Darkroom, Metadata, Export).
   - Implement native macOS application bundle packaging script (`Rraw.app`) and `.dmg` disk image creation with notarization readiness.

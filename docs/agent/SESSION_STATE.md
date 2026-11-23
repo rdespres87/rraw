@@ -7,7 +7,7 @@
 - **Active Phase**: Phase 21 — Final Optimization, Latency Profiling & Production Hardening
 - **Active Tasks**: Task 21.3 — Production Hardening, Release Polish & macOS App Packaging
 - **Next Phase**: Release & Distribution
-- **Last Verified Baseline**: 352 tests passants across 78 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Last Verified Baseline**: 352 tests passants across 78 test suites, 0 clippy warnings sous Rust 1.100.0 (`#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`). Commit local `e430a14` corrigeant le lint `needless_bool` apparu sous Rust 1.100.0 dans `exif.rs`.
 - **Current Milestone**: Phase 21 — Task 21.2 End-to-End Latency Benchmarks & Stage-by-Stage Profiling **Complete**
   - Implémentation du module unifié d'instrumentation et de profiling (`crates/rraw-core/src/profiling.rs`) définissant les types `PipelineStageId`, `ExecutionBackend`, `StageTiming`, `PipelineTiming` et le chronomètre RAII `StageTimer`.
   - Conception de `GpuPipelineProfiler` dans `rraw-gpu` orchestrant et mesurant les 7 étapes WGSL compute (`Stage1Pipeline` à `Stage7Pipeline`) avec calcul de débit (MPx/s) protégé contre la division par zéro et validation du budget 120 FPS (8,33 ms).
