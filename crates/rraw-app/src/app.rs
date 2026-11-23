@@ -194,6 +194,18 @@ impl RrawApp {
     pub fn set_active_tool_family(&mut self, family: ToolFamily) {
         self.active_tool_family = family;
         self.layout_config.active_tool_family = family;
+
+        if !matches!(family, ToolFamily::All | ToolFamily::LocalMasks) {
+            self.session.grading.active_brush_mask_idx = None;
+        }
+
+        if !matches!(family, ToolFamily::All | ToolFamily::Geometry) {
+            self.viewport.is_crop_editing = false;
+            self.viewport.crop_drag_handle = CropDragHandle::None;
+            self.viewport.horizon_tool_active = false;
+            self.viewport.horizon_start_point = None;
+            self.viewport.parallel_tool_phase = ParallelToolPhase::Inactive;
+        }
     }
 
     /// Sets the active-tools-only filter and synchronizes `layout_config.active_tools_only`.
@@ -1070,7 +1082,8 @@ impl RrawApp {
         self.save_current_photo_sidecar();
         self.session.clear_history();
 
-        // Reset zoom & pan to Fit on new photo open
+        // Reset zoom & pan and active canvas tools on new photo open
+        self.activate_canvas_tool(crate::controllers::viewport::ActiveCanvasTool::None);
         self.viewport.zoom_level = 0.0;
         self.viewport.pan_offset = egui::Vec2::ZERO;
         self.session.original_texture = None;

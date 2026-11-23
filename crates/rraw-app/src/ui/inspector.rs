@@ -88,6 +88,9 @@ impl RrawApp {
 
     /// Resets all parameters of a specific darkroom section back to standard defaults.
     pub fn reset_section(&mut self, section: DarkroomSection) {
+        if section != DarkroomSection::AiSemanticMasks {
+            self.session.grading.active_brush_mask_idx = None;
+        }
         self.record_undo_snapshot();
         match section {
             DarkroomSection::ExposureTone => {
@@ -361,6 +364,10 @@ impl RrawApp {
                 );
                 if is_specific_family {
                     state.set_open(true);
+                }
+                let is_section_open = state.is_open();
+                if section == DarkroomSection::AiSemanticMasks && !is_section_open {
+                    self.session.grading.active_brush_mask_idx = None;
                 }
 
                 state
@@ -658,11 +665,17 @@ impl RrawApp {
                             self.session.needs_preview_update = true;
                             ui.ctx().request_repaint();
                         }
-                        if self.session.grading != pre_edit_grading {
+                        let grading_edited = self.session.grading != pre_edit_grading;
+                        if grading_edited {
                             self.notify_grading_edited(pre_edit_grading, pointer_down);
                             ui.ctx().request_repaint();
                         } else if out.save_sidecar {
                             self.save_current_photo_sidecar();
+                        }
+                        if section != DarkroomSection::AiSemanticMasks
+                            && (out.needs_preview_update || grading_edited)
+                        {
+                            self.session.grading.active_brush_mask_idx = None;
                         }
                     });
             });

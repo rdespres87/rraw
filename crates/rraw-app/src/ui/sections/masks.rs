@@ -96,10 +96,13 @@ pub fn render(
                         )
                         .changed()
                     {
+                        if !mask.enabled && active_brush_idx == Some(idx) {
+                            active_brush_idx = None;
+                        }
                         changed = true;
                     }
 
-                    if matches!(mask.kind, LocalMaskKind::FreehandBrush { .. }) {
+                    if mask.enabled && matches!(mask.kind, LocalMaskKind::FreehandBrush { .. }) {
                         let is_painting = active_brush_idx == Some(idx);
                         if ui
                             .selectable_label(is_painting, t(Key::InspectorPaintButton))
