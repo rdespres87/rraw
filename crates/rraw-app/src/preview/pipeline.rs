@@ -5,7 +5,7 @@
 use egui::Color32;
 use rayon::prelude::*;
 use rraw_color::{apply_agx_edr, apply_opendrt, DisplayTransform};
-use rraw_core::SignedCfaBuffer;
+use rraw_core::{ExecutionBackend, PipelineStageId, PipelineTiming, SignedCfaBuffer, StageTimer};
 
 use super::masks::eval_all_mask_adjustments;
 use super::types::BaseRgbPreview;
@@ -19,8 +19,27 @@ pub fn render_preview_from_base(
     base: &BaseRgbPreview,
     grading: &DarkroomGradingState,
 ) -> (egui::ColorImage, HistogramData) {
+    let (img, hist, _) = render_preview_from_base_profiled(base, grading);
+    (img, hist)
+}
+
+/// Evaluates darkroom grading, optical distortion, vignetting, and histogram from `BaseRgbPreview`
+/// with granular stage timing instrumentation across Stages 5, 6, and 7.
+#[must_use]
+pub fn render_preview_from_base_profiled(
+    base: &BaseRgbPreview,
+    grading: &DarkroomGradingState,
+) -> (egui::ColorImage, HistogramData, PipelineTiming) {
+    let mut timing = PipelineTiming::new();
     let preview_w = base.width;
     let preview_h = base.height;
+    let num_pixels = preview_w * preview_h;
+
+    let t_optics = StageTimer::start(
+        PipelineStageId::Stage5Optics,
+        ExecutionBackend::CpuScalar,
+        num_pixels,
+    );
 
     let exposure_gain = 2.0_f32.powf(grading.tone.exposure_ev);
 
@@ -298,6 +317,13 @@ pub fn render_preview_from_base(
         highlight_clipped: u32,
         out_of_gamut_count: u32,
     }
+
+    t_optics.finish_and_record(&mut timing);
+    let t_tonal = StageTimer::start(
+        PipelineStageId::Stage6TonalGrading,
+        ExecutionBackend::CpuRayon,
+        num_pixels,
+    );
 
     let mut color_pixels = vec![Color32::TRANSPARENT; preview_w * preview_h];
 
@@ -626,6 +652,13 @@ pub fn render_preview_from_base(
         })
         .collect();
 
+    t_tonal.finish_and_record(&mut timing);
+    let t_edr = StageTimer::start(
+        PipelineStageId::Stage7EdrDisplay,
+        ExecutionBackend::CpuScalar,
+        num_pixels,
+    );
+
     let mut hist_r = [0_u32; 256];
     let mut hist_g = [0_u32; 256];
     let mut hist_b = [0_u32; 256];
@@ -659,9 +692,12 @@ pub fn render_preview_from_base(
         out_of_gamut_count,
     };
 
+    t_edr.finish_and_record(&mut timing);
+
     (
         egui::ColorImage::new([preview_w, preview_h], color_pixels),
         hist_data,
+        timing,
     )
 }
 

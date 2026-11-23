@@ -5,10 +5,17 @@
 ## Current Status
 
 - **Active Phase**: Phase 21 — Final Optimization, Latency Profiling & Production Hardening
-- **Active Tasks**: Task 21.2 — End-to-End Latency Benchmarks & Stage-by-Stage Profiling
+- **Active Tasks**: Task 21.3 — Production Hardening, Release Polish & macOS App Packaging
 - **Next Phase**: Release & Distribution
-- **Last Verified Baseline**: 341 tests passants across 76 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 21 — Task 21.1 Memory Footprint Optimization & Zero-Copy Metal Pipeline **Complete** (Commit `0e8d5c6`)
+- **Last Verified Baseline**: 352 tests passants across 78 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
+- **Current Milestone**: Phase 21 — Task 21.2 End-to-End Latency Benchmarks & Stage-by-Stage Profiling **Complete**
+  - Implémentation du module unifié d'instrumentation et de profiling (`crates/rraw-core/src/profiling.rs`) définissant les types `PipelineStageId`, `ExecutionBackend`, `StageTiming`, `PipelineTiming` et le chronomètre RAII `StageTimer`.
+  - Conception de `GpuPipelineProfiler` dans `rraw-gpu` orchestrant et mesurant les 7 étapes WGSL compute (`Stage1Pipeline` à `Stage7Pipeline`) avec calcul de débit (MPx/s) protégé contre la division par zéro et validation du budget 120 FPS (8,33 ms).
+  - Profilage granularisé du pipeline de prévisualisation Darkroom CPU/Rayon (`render_preview_from_base_profiled`) et du coordinateur de décodage asynchrone (`decode_photo_file_payload_profiled`) dans `rraw-app`.
+  - Mode benchmark et profilage en ligne de commande ajouté à `rraw-cli` (`--profile` / `-P`), générant des rapports de performance ASCII structurés avec métriques par étape et verdict 120 Hz / 50 ms.
+  - Deux nouvelles suites de tests d'intégration dédiées `crates/rraw-gpu/tests/pipeline_latency_benchmarks.rs` et `crates/rraw-app/tests/end_to_end_latency_tests.rs` (6 nouveaux tests).
+  - 352 tests passants across 78 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 21 — Task 21.1 Memory Footprint Optimization & Zero-Copy Metal Pipeline **Complete** (Commit `0e8d5c6`)
   - Conversion des tampons d'échantillons `SignedCfaBuffer` en `Arc<[f32]>` dans `rraw-core` avec constructeur zéro-copie `from_arc`, méthode `samples_arc` et calcul exact `allocation_size_bytes`, permettant un clonage $O(1)$ sans copie entre threads de décodage, session UI et export (~181 Mo économisés par clone sur un RAW de 45,4 MP).
   - Conversion des échantillons de prévisualisation `BaseRgbPreview.samples_rgb` en `Arc<[[f32; 3]]>` dans `rraw-app`, éliminant la duplication de 545 Mo sur les prévisualisations 1:1 en mémoire.
   - Annulation atomique des requêtes de préchargement obsolètes dans `run_decode_worker` dès que l'époque avance, éliminant l'empilement de décodages superflus lors du défilement rapide au clavier.

@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use rraw_core::SignedCfaBuffer;
+use rraw_core::{ExecutionBackend, PipelineStageId, PipelineTiming, SignedCfaBuffer, StageTimer};
 use rraw_decode::{PureRustRawDecoder, RawDecoder};
 
 use super::orientation::{
@@ -157,11 +157,22 @@ pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
 }
 
 /// Decodes a RAW image file from disk and precomputes its base RGB preview.
+#[must_use]
 pub fn decode_photo_file_payload(
     target_path: &Path,
     is_prefetch: bool,
     epoch: u64,
 ) -> Option<BackgroundDecodePayload> {
+    decode_photo_file_payload_profiled(target_path, is_prefetch, epoch).0
+}
+
+/// Decodes a RAW image file from disk and precomputes its base RGB preview, recording stage-by-stage timing.
+pub fn decode_photo_file_payload_profiled(
+    target_path: &Path,
+    is_prefetch: bool,
+    epoch: u64,
+) -> (Option<BackgroundDecodePayload>, PipelineTiming) {
+    let mut timing = PipelineTiming::new();
     let ext_lower = target_path
         .extension()
         .and_then(|s| s.to_str())
@@ -171,12 +182,26 @@ pub fn decode_photo_file_payload(
     let header_orient = read_exif_orientation(target_path);
 
     if matches!(ext_lower.as_str(), "jpg" | "jpeg" | "png" | "tif" | "tiff") {
+        let t_decode = StageTimer::start(
+            PipelineStageId::Stage1Decode,
+            ExecutionBackend::CpuScalar,
+            0,
+        );
         if let Ok(dyn_img) = image::open(target_path) {
+            t_decode.finish_and_record(&mut timing);
             let rgb = dyn_img.to_rgb8();
             let (raw_w, raw_h) = rgb.dimensions();
             let (orig_w, orig_h) = oriented_dimensions(raw_w, raw_h, header_orient);
+            let num_px = (raw_w as usize).saturating_mul(raw_h as usize);
+
+            let t_demosaic = StageTimer::start(
+                PipelineStageId::Stage4Demosaic,
+                ExecutionBackend::CpuScalar,
+                num_px,
+            );
             let base =
                 BaseRgbPreview::from_rgb_image(&rgb, 1600).with_exif_orientation(header_orient);
+            t_demosaic.finish_and_record(&mut timing);
             let dummy_cfa = SignedCfaBuffer::default();
 
             let file_name = target_path
@@ -205,25 +230,44 @@ pub fn decode_photo_file_payload(
                 ],
             };
 
-            return Some(BackgroundDecodePayload {
-                epoch,
-                path: target_path.to_path_buf(),
-                photo_view,
-                base_preview: base,
-                cfa: dummy_cfa,
-                is_prefetch,
-            });
+            return (
+                Some(BackgroundDecodePayload {
+                    epoch,
+                    path: target_path.to_path_buf(),
+                    photo_view,
+                    base_preview: base,
+                    cfa: dummy_cfa,
+                    is_prefetch,
+                }),
+                timing,
+            );
         }
+        return (None, timing);
     }
 
+    let t_decode = StageTimer::start(PipelineStageId::Stage1Decode, ExecutionBackend::CpuRayon, 0);
     let decoder = PureRustRawDecoder::new();
-    let decoded = decoder.decode_file(target_path).ok()?;
+    let decoded = match decoder.decode_file(target_path) {
+        Ok(d) => {
+            t_decode.finish_and_record(&mut timing);
+            d
+        }
+        Err(_) => return (None, timing),
+    };
+
     let orient = if decoded.orientation > 1 {
         decoded.orientation
     } else {
         header_orient
     };
     let meta = decoded.metadata;
+    let num_pixels = meta.width.saturating_mul(meta.height);
+
+    let t_calib = StageTimer::start(
+        PipelineStageId::Stage2Calibration,
+        ExecutionBackend::CpuScalar,
+        num_pixels,
+    );
     let make = meta.camera_make.clone();
     let model = meta.camera_model.clone();
     let make_model = format!("{make} {model}");
@@ -283,8 +327,21 @@ pub fn decode_photo_file_payload(
         rating: meta.rating,
         exif_tags: decoded.exif_tags,
     };
+    t_calib.finish_and_record(&mut timing);
 
+    let t_color = StageTimer::start(
+        PipelineStageId::Stage3ColorWb,
+        ExecutionBackend::CpuScalar,
+        num_pixels,
+    );
     let matched_lens = rraw_optics::LensfunDatabase::global().match_metadata(&meta);
+    t_color.finish_and_record(&mut timing);
+
+    let t_demosaic = StageTimer::start(
+        PipelineStageId::Stage4Demosaic,
+        ExecutionBackend::CpuRayon,
+        num_pixels,
+    );
     let mut base = BaseRgbPreview::from_cfa_with_color(
         &decoded.cfa_signed,
         [
@@ -298,15 +355,19 @@ pub fn decode_photo_file_payload(
     base.matched_lens = Some(matched_lens);
     base.focal_length_mm = meta.focal_length_mm;
     base.aperture_f_number = meta.aperture_f_number;
+    t_demosaic.finish_and_record(&mut timing);
 
-    Some(BackgroundDecodePayload {
-        epoch,
-        path: target_path.to_path_buf(),
-        photo_view,
-        base_preview: base,
-        cfa: decoded.cfa_signed,
-        is_prefetch,
-    })
+    (
+        Some(BackgroundDecodePayload {
+            epoch,
+            path: target_path.to_path_buf(),
+            photo_view,
+            base_preview: base,
+            cfa: decoded.cfa_signed,
+            is_prefetch,
+        }),
+        timing,
+    )
 }
 
 /// Computes per-frame grading states for a timelapse sequence, applying optional Holy Grail

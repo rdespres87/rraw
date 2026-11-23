@@ -10,12 +10,14 @@ pub mod build_info;
 pub mod curves;
 pub mod demosaic;
 pub mod denoise;
+pub mod profiling;
 pub mod recipe;
 
 pub use build_info::*;
 pub use curves::*;
 pub use demosaic::*;
 pub use denoise::*;
+pub use profiling::*;
 pub use recipe::*;
 
 /// Typed error returned by `rraw-core` invariant constructors and validators.
@@ -220,6 +222,16 @@ impl NoiseProfile {
             0.0
         };
         self.shot_gain_alpha[idx] * positive_signal + self.read_variance_sigma2[idx]
+    }
+}
+
+impl Default for NoiseProfile {
+    fn default() -> Self {
+        Self {
+            shot_gain_alpha: [0.0; 3],
+            read_variance_sigma2: [0.0; 3],
+            source: NoiseProfileSource::CameraTable,
+        }
     }
 }
 

@@ -251,10 +251,12 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Implemented dynamic memory budget tracking in `rraw-app` (`insert_cached_photo` with 1.5 GB RAM cap and `memory_footprint_bytes()`), enforcing LRU eviction with underflow-safe `saturating_sub` arithmetic.
   - Dedicated unit and integration tests in `crates/rraw-core/tests/memory_footprint_tests.rs`, `crates/rraw-gpu/tests/zero_copy_metal_tests.rs`, and `crates/rraw-app/tests/memory_optimization_tests.rs` (3 new suites, 6 new tests). 341 workspace tests passing across 76 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
-- [ ] **Task 21.2 (`rraw-core`, `rraw-gpu`, `rraw-app`)**: End-to-End Latency Benchmarks & Stage-by-Stage Profiling
-  - Instrument all 7 stages of the rendering pipeline (decode, calibration/black level, white balance, demosaicing, optical corrections/UV LUT, tonal grading/PCHIP curves, mask blending, and EDR display mapping).
-  - Add latency regression test suite ensuring constant 120 FPS EDR viewport navigation and sub-50ms full-frame 45MP demosaicing on Apple Silicon.
-  - Provide automated micro-benchmark commands (`cargo bench` / headless metrics CLI).
+- [x] **Task 21.2 (`rraw-core`, `rraw-gpu`, `rraw-app`, `rraw-cli`)**: End-to-End Latency Benchmarks & Stage-by-Stage Profiling
+  - Implemented comprehensive rendering pipeline timing instrumentation (`PipelineStageId`, `ExecutionBackend`, `StageTiming`, `PipelineTiming`, `StageTimer`) across all 7 discrete photographic stages in `rraw-core`.
+  - Created `GpuPipelineProfiler` in `rraw-gpu` orchestrating and profiling all 7 WGSL compute pipelines (`Stage1Pipeline` through `Stage7Pipeline`) with division-by-zero safe throughput arithmetic (MPx/s) and sub-8.33ms 120 FPS frame time validation.
+  - Profiled CPU/Rayon Darkroom preview pipeline (`render_preview_from_base_profiled`) and asynchronous decode coordinator (`decode_photo_file_payload_profiled`) in `rraw-app`.
+  - Added CLI profiling and micro-benchmark mode in `rraw-cli` (`--profile` / `-P`) outputting structured ASCII performance reports with per-stage latency, throughput, and 120Hz/50ms pass/fail verdicts.
+  - Dedicated integration latency test suites in `crates/rraw-gpu/tests/pipeline_latency_benchmarks.rs` and `crates/rraw-app/tests/end_to_end_latency_tests.rs` (2 new suites, 6 new tests). 352 workspace tests passing across 78 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
 - [ ] **Task 21.3 (`rraw-app`, CI / Packaging)**: Production Hardening, Release Polish & macOS App Packaging
   - Address residual UI edge cases and keyboard navigation polish across all views (Filmstrip, Darkroom, Metadata, Export).

@@ -2,10 +2,21 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 21 — Task 21.2 End-to-End Latency Benchmarks & Stage-by-Stage Profiling (`rraw-core`, `rraw-gpu`, `rraw-app`)**:
-  - Instrument all 7 stages of the rendering pipeline (decode, calibration, white balance, demosaicing, optical corrections/UV LUT, tonal grading/PCHIP curves, mask blending, and EDR display mapping).
-  - Add latency regression test suite ensuring constant 120 FPS EDR viewport navigation and sub-50ms full-frame 45MP demosaicing on Apple Silicon.
-  - Implement automated micro-benchmarks (`cargo bench` / headless metrics CLI).
+- **Phase 21 — Task 21.3 Production Hardening, Release Polish & macOS App Packaging (`rraw-app`, CI / Packaging)**:
+  - Address residual UI edge cases and keyboard navigation polish across all views (Filmstrip, Darkroom, Metadata, Export).
+  - Implement native macOS application bundle packaging script (`Rraw.app`) and `.dmg` disk image creation with notarization readiness.
+  - Verify 100% clean build, zero compiler/linter warnings, and updated user-facing documentation.
+
+---
+
+## Last Completed Milestone
+
+- **Phase 21 — Task 21.2 End-to-End Latency Benchmarks & Stage-by-Stage Profiling (`rraw-core`, `rraw-gpu`, `rraw-app`, `rraw-cli`) — COMPLETE**:
+  - **Unified Pipeline Instrumentation**: Created `rraw-core::profiling` defining `PipelineStageId`, `ExecutionBackend`, `StageTiming`, `PipelineTiming`, and `StageTimer` covering all 7 photographic stages.
+  - **7-Stage GPU Pipeline Profiler**: Implemented `GpuPipelineProfiler` in `rraw-gpu` executing and benchmarking all 7 GPU compute shaders sequentially or in interactive darkroom viewport mode (Stages 4-7).
+  - **Profiled Preview & Decoder Loops**: Added `render_preview_from_base_profiled` and `decode_photo_file_payload_profiled` in `rraw-app`.
+  - **Automated CLI Performance Reports**: Added `--profile` / `-P` mode to `rraw-cli` printing ASCII throughput and latency breakdowns with 120 FPS / sub-50ms checks.
+  - **Validation & Tests**: 2 dedicated test suites added (`pipeline_latency_benchmarks.rs`, `end_to_end_latency_tests.rs`). 352 workspace tests passing across 78 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
 
 ---
 
