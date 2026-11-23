@@ -8,11 +8,12 @@
 - **Active Tasks**: Task 21.2 — End-to-End Latency Benchmarks & Stage-by-Stage Profiling
 - **Next Phase**: Release & Distribution
 - **Last Verified Baseline**: 341 tests passants across 76 test suites, 0 clippy warnings sous `#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`.
-- **Current Milestone**: Phase 21 — Task 21.1 Memory Footprint Optimization & Zero-Copy Metal Pipeline **Complete**
+- **Current Milestone**: Phase 21 — Task 21.1 Memory Footprint Optimization & Zero-Copy Metal Pipeline **Complete** (Commit `0e8d5c6`)
   - Conversion des tampons d'échantillons `SignedCfaBuffer` en `Arc<[f32]>` dans `rraw-core` avec constructeur zéro-copie `from_arc`, méthode `samples_arc` et calcul exact `allocation_size_bytes`, permettant un clonage $O(1)$ sans copie entre threads de décodage, session UI et export (~181 Mo économisés par clone sur un RAW de 45,4 MP).
   - Conversion des échantillons de prévisualisation `BaseRgbPreview.samples_rgb` en `Arc<[[f32; 3]]>` dans `rraw-app`, éliminant la duplication de 545 Mo sur les prévisualisations 1:1 en mémoire.
+  - Annulation atomique des requêtes de préchargement obsolètes dans `run_decode_worker` dès que l'époque avance, éliminant l'empilement de décodages superflus lors du défilement rapide au clavier.
   - Déverrouillage des limites d'allocation de tampons de stockage WGPU dans `rraw-gpu` (`GpuContext::new_headless`) en interrogeant dynamiquement `adapter.limits()`, évitant le bridage artificiel WebGPU à 128 Mo sur l'architecture de mémoire unifiée Apple Silicon UMA (Metal).
-  - Gestion dynamique du budget mémoire dans `rraw-app` (`insert_cached_photo` avec plafond de 1,5 Go de RAM et éviction LRU basée sur `memory_footprint_bytes` et soustraction saturée).
+  - Gestion dynamique du budget mémoire dans `rraw-app` (`insert_cached_photo` avec plafond de 800 Mo de RAM, 10 photos max et éviction LRU basée sur `memory_footprint_bytes` et soustraction saturée, validant en situation réelle un pic mémoire plafonné à 1,4 Go au lieu de 2,3 Go).
   - Suites de tests unitaires et d'intégration dédiées `crates/rraw-core/tests/memory_footprint_tests.rs`, `crates/rraw-gpu/tests/zero_copy_metal_tests.rs` et `crates/rraw-app/tests/memory_optimization_tests.rs` (3 nouvelles suites, 6 nouveaux tests).
   - 341 tests passants across 76 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
 - **Preceding Milestone**: Phase 20 — Task 20.2 Interactive AI Masking & Real-Time Neural Denoising UI **Complete**
