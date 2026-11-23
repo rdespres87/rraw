@@ -39,7 +39,7 @@ impl RrawApp {
                 ui.add_space(8.0);
 
                 egui::ScrollArea::vertical().max_height(480.0).show(ui, |ui| {
-                    let is_es = matches!(lang, Language::Custom(code) if &code[..2] == b"es");
+                    let is_es = lang.is_spanish();
                     let (sec_view, sec_nav, sec_batch, sec_files, sec_brush) = if lang == Language::Fr {
                         (
                             &[
@@ -62,11 +62,12 @@ impl RrawApp {
                                 ("Cmd + A", "Sélectionner / cocher toutes les photos pour l'export par lot"),
                                 ("Cmd + D", "Tout désélectionner / décocher le lot d'export"),
                                 ("Espace", "Ajouter ou retirer la photo active du lot d'export"),
-                                ("Shift + ◀/▶", "Naviguer en étendant la sélection multiple"),
                             ][..],
                             &[
-                                ("Cmd + Shift + C", "Copier le rendu colorimétrique & tonal de la photo"),
-                                ("Cmd + Shift + V", "Coller le rendu sur la photo active ou la sélection multiple"),
+                                ("Cmd + Z", "Annuler la dernière modification de développement (Undo)"),
+                                ("Cmd + Y", "Rétablir la modification annulée (Redo)"),
+                                ("Cmd + C", "Copier le rendu colorimétrique & tonal de la photo"),
+                                ("Cmd + V", "Coller le rendu sur la photo active ou la sélection multiple"),
                                 ("Clic droit", "Menu contextuel sur vignette (Copier / Coller / Cocher)"),
                             ][..],
                             &[
@@ -106,11 +107,12 @@ impl RrawApp {
                                 ("Cmd + A", "Seleccionar / marcar todas las fotos para exportación por lote"),
                                 ("Cmd + D", "Deseleccionar todas las fotos del lote de exportación"),
                                 ("Espacio", "Añadir o quitar la foto activa del lote de exportación"),
-                                ("Shift + ◀/▶", "Navegar ampliando la selección múltiple"),
                             ][..],
                             &[
-                                ("Cmd + Shift + C", "Copiar ajustes de color y tono de la foto"),
-                                ("Cmd + Shift + V", "Pegar ajustes en la foto activa o selección"),
+                                ("Cmd + Z", "Deshacer el último ajuste de revelado (Undo)"),
+                                ("Cmd + Y", "Rehacer el ajuste deshecho (Redo)"),
+                                ("Cmd + C", "Copiar ajustes de color y tono de la foto"),
+                                ("Cmd + V", "Pegar ajustes en la foto activa o selección"),
                                 ("Clic derecho", "Menú contextual en miniatura (Copiar / Pegar / Marcar)"),
                             ][..],
                             &[
@@ -149,11 +151,12 @@ impl RrawApp {
                                 ("Cmd + A", "Select / check all photos for batch export"),
                                 ("Cmd + D", "Deselect / uncheck all photos from export"),
                                 ("Space", "Toggle current photo in batch export selection"),
-                                ("Shift + ◀/▶", "Extend multi-photo range selection"),
                             ][..],
                             &[
-                                ("Cmd + Shift + C", "Copy color & tone grading recipe from active photo"),
-                                ("Cmd + Shift + V", "Paste recipe onto active photo or multi-selection"),
+                                ("Cmd + Z", "Undo last darkroom grading modification"),
+                                ("Cmd + Y", "Redo previously undone grading modification"),
+                                ("Cmd + C", "Copy color & tone grading recipe from active photo"),
+                                ("Cmd + V", "Paste recipe onto active photo or multi-selection"),
                                 ("Right click", "Thumbnail context menu (Copy / Paste / Export)"),
                             ][..],
                             &[

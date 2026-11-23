@@ -87,26 +87,17 @@ impl RrawApp {
                     }
                 }
 
-                // Subdirectories list
-                let subdirs: Vec<PathBuf> = std::fs::read_dir(&dir)
-                    .ok()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|e| e.ok())
-                    .filter(|e| e.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
-                    .map(|e| e.path())
-                    .collect();
-
-                if !subdirs.is_empty() {
+                // Subdirectories list (served from sorted cache without per-frame read_dir syscalls)
+                if !self.library.cached_subdirectories.is_empty() {
                     ui.add_space(2.0);
-                    for subdir in subdirs {
+                    for subdir in &self.library.cached_subdirectories {
                         let name = subdir
                             .file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or("folder");
                         let btn = ui.add(egui::Button::new(format!("📁 {name}")).frame(false));
                         if btn.clicked() {
-                            dir_to_open = Some(subdir);
+                            dir_to_open = Some(subdir.clone());
                         }
                     }
                 }

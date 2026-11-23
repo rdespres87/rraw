@@ -180,7 +180,7 @@
   "FilmstripSelectFolderPrompt": "Abra una carpeta o use el explorador de la barra lateral.",
   "FilmstripToggleExport": "Marcar / desmarcar para exportación por lotes",
   "FilmstripToolbarCopy": "Copiar receta",
-  "FilmstripToolbarCopyTooltip": "Copiar ajustes de color y tono al portapapeles (Cmd+Shift+C)",
+  "FilmstripToolbarCopyTooltip": "Copiar ajustes de color y tono al portapapeles (Cmd+C)",
   "FilmstripToolbarPaste": "Pegar en selección",
   "FilmstripToolbarPasteSelection": "📥 Pegar selección",
   "GeometryAdjustedStatus": "Perspectiva corregida: Keystone V {:.1}, Rotación {:.1}°",

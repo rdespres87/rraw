@@ -88,6 +88,7 @@ impl RrawApp {
 
     /// Resets all parameters of a specific darkroom section back to standard defaults.
     pub fn reset_section(&mut self, section: DarkroomSection) {
+        self.record_undo_snapshot();
         match section {
             DarkroomSection::ExposureTone => {
                 self.session.grading.tone.exposure_ev = 0.0;
@@ -408,6 +409,8 @@ impl RrawApp {
                     })
                     .body_unindented(|ui| {
                         ui.add_space(2.0);
+                        let pre_edit_grading = self.session.grading.clone();
+                        let pointer_down = ui.ctx().input(|i| i.pointer.any_down());
 
                         let out = match section {
                             DarkroomSection::ExposureTone => sections::exposure_tone::render(
@@ -643,7 +646,10 @@ impl RrawApp {
                             self.session.needs_preview_update = true;
                             ui.ctx().request_repaint();
                         }
-                        if out.save_sidecar {
+                        if self.session.grading != pre_edit_grading {
+                            self.notify_grading_edited(pre_edit_grading, pointer_down);
+                            ui.ctx().request_repaint();
+                        } else if out.save_sidecar {
                             self.save_current_photo_sidecar();
                         }
                     });
@@ -654,13 +660,6 @@ impl RrawApp {
                 self.library
                     .photo_gradings
                     .insert(photo.path.clone(), self.session.grading.clone());
-                let rating = self
-                    .library
-                    .photo_ratings
-                    .get(&photo.path)
-                    .copied()
-                    .unwrap_or(photo.rating);
-                save_photo_sidecars(&photo.path, &self.session.grading, rating);
             }
         }
 

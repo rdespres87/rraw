@@ -213,7 +213,7 @@ impl RrawApp {
                         if ui
                             .add(paste_btn)
                             .on_hover_text(format!(
-                                "Coller le rendu ({clip_summary}) sur la sélection ou la photo active (Cmd+Shift+V)"
+                                "Coller le rendu ({clip_summary}) sur la sélection ou la photo active (Cmd+V)"
                             ))
                             .clicked()
                         {

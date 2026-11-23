@@ -143,7 +143,9 @@ The resulting artifacts in `target/dist/`:
 | `0` to `5` | Filmstrip / Darkroom | Assign 0 to 5 star rating (0 to clear) |
 | `Space` | Filmstrip / Darkroom | Toggle active photo in batch export selection |
 | `Cmd + A` / `Cmd + D` | Filmstrip | Select all / Deselect all photos for batch export |
-| `Shift + ◀` / `▶` | Filmstrip | Extend range selection across photos |
+| `Cmd + Z` | Darkroom | Undo last darkroom grading modification |
+| `Cmd + Y` | Darkroom | Redo previously undone grading modification |
+| `Cmd + C` / `Cmd + V` | Darkroom / Filmstrip | Copy / Paste color & tone grading recipe |
 | `Cmd + 1` / `2` / `3` | Left Panel | Switch left panel tab between **Files**, **Styles**, and **EXIF** |
 | `Y` | Darkroom Viewport | Toggle Before \| After split comparison slider |
 | `D` or `P` or `\` | Darkroom Viewport | Hold to preview untouched camera original (Before) |

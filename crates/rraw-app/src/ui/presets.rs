@@ -33,6 +33,7 @@ impl RrawApp {
                                 .selectable_label(is_sel, preset.name_lang(cur_lang))
                                 .clicked()
                             {
+                                self.record_undo_snapshot();
                                 self.session.current_preset = preset;
                                 preset.apply(&mut self.session.grading);
                                 self.session.needs_preview_update = true;
@@ -47,6 +48,7 @@ impl RrawApp {
                     .on_hover_text(self.t(Key::PresetsResetTooltip))
                     .clicked()
                 {
+                    self.record_undo_snapshot();
                     GradingPreset::AsShot.apply(&mut self.session.grading);
                     self.session.current_preset = GradingPreset::AsShot;
                     self.session.needs_preview_update = true;

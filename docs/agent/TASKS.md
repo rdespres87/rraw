@@ -282,10 +282,23 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Added `set_left_panel_tab`, `set_active_tool_family`, and `set_active_tools_only` on `RrawApp` to maintain strict synchronization with `AppLayoutConfig`.
   - Dedicated TDD integration suite `crates/rraw-app/tests/p1_state_machine_hygiene_tests.rs` (4 tests). 365 workspace tests passing across 81 suites.
 - [x] **Task 22.3 (`rraw-app`, workspace)**: Priority P2 — Monolith File Decomposition, Bundle-Aware Parametric i18n & Unused Cargo Dependency Cleanup
-  - Removed 8 unused Cargo dependencies across `rraw-color`, `rraw-cli`, `rraw-coreml`, and `rraw-storage`, achieving 0 compiler/clippy warnings across all 12 workspace crates.
-  - Added `I18nEngine::candidate_i18n_directories` and `discover_default_catalogs` supporting macOS `.app` bundle `../Resources/assets/i18n`, `<exe_dir>/assets/i18n`, `<cwd>/assets/i18n`, and `~/.config/rraw/i18n`, plus `Catalog::get_custom`, `I18nEngine::translate_custom`, and `soft_proof_intent_label_lang` for zero-code dynamic translation of presets and soft-proofing intents.
+  - Removed 9 unused Cargo dependencies across `rraw-color`, `rraw-cli`, `rraw-coreml`, `rraw-storage`, and `rraw-optics`, achieving 0 compiler/clippy warnings across all 12 workspace crates.
+  - Added `I18nEngine::candidate_i18n_directories` and `discover_default_catalogs` supporting macOS `.app` bundle `../Resources/assets/i18n`, `<exe_dir>/assets/i18n`, `<cwd>/assets/i18n`, and `~/.config/rraw/i18n`, plus `Catalog::get_custom`, `I18nEngine::translate_custom`, `Language::is_spanish`, and localized Soft Proofing HUD and profiles.
   - Extracted `crates/rraw-app/src/presets.rs` (638 lines), `crates/rraw-app/src/mask_layers.rs` (530 lines), and `crates/rraw-app/src/sidecar.rs` (231 lines) from `crates/rraw-app/src/state.rs` (reduced from 2,122 to 806 lines) with transparent `pub use` re-exports.
-  - Dedicated TDD integration suite `crates/rraw-app/tests/p2_architecture_and_i18n_tests.rs` (3 tests). 368 workspace tests passing across 82 suites, 0 clippy warnings.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p2_architecture_and_i18n_tests.rs` (4 tests). 369 workspace tests passing across 82 suites, 0 clippy warnings.
+
+---
+
+## Phase 23 — Deep Maturity Audit #5 Remediation (P0 / P1 / P2)
+- [x] **Task 23.1 (`rraw-app`)**: Priority P0 — Real-Time UI Thread I/O Unblocking, Explorer Subdirectory Cache, Bounded Undo/Redo Stack & Unified Pixel Kernel
+  - Eliminated synchronous per-frame `save_photo_sidecars` (`fsync`) from `render_darkroom_section` (`crates/rraw-app/src/ui/inspector.rs`) during continuous 60-120 Hz slider drags and removed the detached racing `std::thread::spawn` in `open_raw_file`, coalescing disk persistence via `PhotoSession::sidecar_dirty` and `RrawApp::flush_dirty_sidecar_if_idle`.
+  - Added `LibraryController::cached_subdirectories` and `refresh_subdirectories()` (`crates/rraw-app/src/controllers/library.rs`), eliminating per-frame `std::fs::read_dir` syscalls in `render_explorer_tab` (`crates/rraw-app/src/ui/explorer.rs`) and guaranteeing alphabetical directory ordering.
+  - Implemented a bounded 64-step Undo/Redo history stack in `PhotoSession` (`MAX_UNDO_HISTORY = 64`, `undo_stack`, `redo_stack`, `record_undo_snapshot`, `notify_grading_edited`, `undo`, `redo`, `clear_history`) and wired `undo_grading`, `redo_grading`, `Cmd+Z` / `Cmd+Shift+Z` / `Cmd+Y`, and top-bar `↶` / `↷` controls in `RrawApp`.
+  - Extracted `PreparedGradingFrame<'a>` in `crates/rraw-app/src/preview/pipeline.rs` (reducing `pipeline.rs` from 1,422 lines to 853 lines), unifying per-pixel optical, tonal, curve, LUT, mask, DRT, and soft-proofing evaluation between interactive preview and 8-bit/16-bit export.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p0_audit5_realtime_undo_pipeline_tests.rs` (4 tests). 373 workspace tests passing across 83 suites, 0 clippy warnings.
+- [ ] **Task 23.2 (`rraw-app`)**: Priority P1 — Ghost Boolean Eradication (`ActiveModalDialog` & `ActiveCanvasTool` Single Source of Truth), True LRU Thumbnail Recency & Dead Code Purge
+- [ ] **Task 23.3 (`rraw-app`)**: Priority P2 — 100% Residual French String Localization & Domain Crate Feature Wiring
+
 
 
 

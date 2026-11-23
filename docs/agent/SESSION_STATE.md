@@ -4,11 +4,18 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 22 — Deep Maturity Audit #4 Remediation (Chantiers P0, P1 & P2 Complete)
-- **Active Tasks**: Task 22.3 (P2 — Monolith File Decomposition, Bundle-Aware Dynamic i18n & Unused Cargo Dependency Cleanup) **Complete**
-- **Next Phase**: All Phase 22 Audit #4 Remediation Tasks Complete (Production-Ready Release Candidate)
-- **Last Verified Baseline**: 369 tests passing across 82 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
-- **Current Milestone**: Phase 22 — Task 22.3 Audit #4 Priority P2 Remediation **Complete**
+- **Active Phase**: Phase 23 — Deep Maturity Audit #5 Remediation (Chantier P0 Complete; P1 & P2 Next)
+- **Active Tasks**: Task 23.1 (P0 — Real-Time UI Thread I/O Unblocking, Explorer Subdirectory Cache, Bounded Undo/Redo Stack & Unified Pixel Kernel) **Complete**
+- **Next Phase**: Phase 23 — Task 23.2 (Priority P1 — Ghost Boolean Eradication, True LRU Thumbnail Recency & Dead Code Purge)
+- **Last Verified Baseline**: 373 tests passing across 83 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Current Milestone**: Phase 23 — Task 23.1 Audit #5 Priority P0 Remediation **Complete**
+  - **P0.1 Real-Time UI Thread `fsync` Elimination & Drag Coalescing**: Removed the synchronous per-frame `save_photo_sidecars` call from `render_darkroom_section` (`crates/rraw-app/src/ui/inspector.rs`) and replaced the detached racing `std::thread::spawn` in `open_raw_file` with deterministic `PhotoSession::sidecar_dirty` tracking and `RrawApp::flush_dirty_sidecar_if_idle(pointer_down)`.
+  - **P0.2 Explorer Subdirectory Cache & Alphabetical Sorting**: Added `LibraryController::cached_subdirectories` and `refresh_subdirectories()` (`crates/rraw-app/src/controllers/library.rs`), eliminating 60-120 Hz `std::fs::read_dir` syscalls in `render_explorer_tab` (`crates/rraw-app/src/ui/explorer.rs`).
+  - **P0.3 Bounded 64-Step Undo / Redo Stack (`Cmd+Z` / `Cmd+Shift+Z`)**: Added `PhotoSession::MAX_UNDO_HISTORY = 64`, `undo_stack`, `redo_stack`, `record_undo_snapshot`, `notify_grading_edited`, `undo`, `redo`, and `clear_history`, wired to `RrawApp::undo_grading`, `redo_grading`, keyboard shortcuts `Cmd+Z` / `Cmd+Shift+Z` / `Cmd+Y`, and top-bar `↶` / `↷` buttons.
+  - **P0.4 Unified Preview & Export Pixel Math Kernel (`PreparedGradingFrame<'a>`)**: Extracted `PreparedGradingFrame<'a>` in `crates/rraw-app/src/preview/pipeline.rs` (reducing `pipeline.rs` from 1,422 lines to 853 lines) and unified per-pixel grading math and negative gamut excursion handling across interactive preview and 8-bit/16-bit export.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p0_audit5_realtime_undo_pipeline_tests.rs` (4 new tests).
+  - 373 tests passing across 83 suites, 0 clippy errors, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+- **Preceding Milestone**: Phase 22 — Task 22.3 Audit #4 Priority P2 Remediation **Complete** (Commit `fa3b355`)
   - **P2.1 Unused Cargo Dependency Cleanup**: Removed 9 unused dependencies across 5 workspace crates (`rraw-optics` from `rraw-color`; `rraw-ai`, `rraw-storage`, `rraw-export`, `rraw-gpu`, `rraw-optics` from `rraw-cli`; `objc2-foundation` from `rraw-coreml`; `rraw-decode` from `rraw-storage`; `rraw-decode` from `rraw-optics`), bringing `cargo clippy --workspace --all-targets -- -D warnings` to 0 errors and 0 warnings.
   - **P2.2 Bundle-Aware i18n Discovery & Complete Soft-Proof / Viewport HUD Localization**: Added `I18nEngine::candidate_i18n_directories` and `discover_default_catalogs` resolving macOS `.app` bundle `../Resources/assets/i18n`, `<exe_dir>/assets/i18n`, `<cwd>/assets/i18n`, and `~/.config/rraw/i18n`. Extended `Catalog` and `I18nEngine` with `get_custom` / `translate_custom`, `Language::is_spanish`, `soft_proof_profile_label_lang`, `soft_proof_profile_short_label_lang`, `soft_proof_intent_label_lang`, `soft_proof_intent_short_label_lang`, and `format_soft_proofing_hud_text`, localizing the canvas Soft Proofing HUD banner, local mask/brush HUD overlays, top bar soft-proofing dropdowns, and histogram zone labels across FR, EN, ES, and custom JSON catalogs.
   - **P2.3 Monolith File Decomposition (`state.rs`)**: Extracted `presets.rs` (638 lines), `mask_layers.rs` (530 lines), and `sidecar.rs` (231 lines) from `crates/rraw-app/src/state.rs`, reducing `state.rs` from 2,122 lines down to 806 lines while preserving 100% backward compatibility via transparent `pub use` re-exports.

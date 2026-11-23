@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Dedicated domain controller managing the local image library, navigation, selection and ratings.
 
 use crate::state::{DarkroomGradingState, GradingRecipeClipboard, RatingFilter};
@@ -14,6 +16,8 @@ pub struct LibraryController {
     pub session_dam: Option<SqliteDamIndex>,
     /// Image files discovered in `current_directory`.
     pub directory_entries: Vec<PathBuf>,
+    /// Cached and alphabetically sorted subdirectories of `current_directory` (eliminating per-frame `read_dir` syscalls).
+    pub cached_subdirectories: Vec<PathBuf>,
     /// Filter displaying only genuine RAW files in the filmstrip.
     pub raw_only_filter: bool,
     /// Active rating filter applied to bottom filmstrip.
@@ -50,6 +54,7 @@ impl LibraryController {
             current_directory: None,
             session_dam: None,
             directory_entries: Vec::new(),
+            cached_subdirectories: Vec::new(),
             raw_only_filter: false,
             rating_filter: RatingFilter::All,
             photo_gradings: HashMap::new(),
@@ -61,6 +66,29 @@ impl LibraryController {
             last_dir_poll: std::time::Instant::now(),
             scroll_filmstrip_to_active: false,
         }
+    }
+
+    /// Refreshes and alphabetically sorts `cached_subdirectories` from `current_directory`.
+    pub fn refresh_subdirectories(&mut self) {
+        let Some(dir) = &self.current_directory else {
+            self.cached_subdirectories.clear();
+            return;
+        };
+        let mut subdirs: Vec<PathBuf> = std::fs::read_dir(dir)
+            .ok()
+            .into_iter()
+            .flatten()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
+            .filter(|e| {
+                e.file_name()
+                    .to_str()
+                    .is_none_or(|name| !name.starts_with('.'))
+            })
+            .map(|e| e.path())
+            .collect();
+        subdirs.sort();
+        self.cached_subdirectories = subdirs;
     }
 
     /// Returns the number of photos in `directory_entries` with rating >= `min_stars`.

@@ -2,12 +2,22 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **All Phase 22 Deep Maturity Audit #4 Remediation Tasks (P0, P1, P2) are COMPLETE**:
-  - Ready for user testing, final release packaging (`./scripts/package_macos.sh`), or next feature milestone.
+- **Phase 23 — Task 23.2 (`rraw-app`)**: Deep Maturity Audit #5 Priority P1 — Ghost Boolean Eradication (`ActiveModalDialog` & `ActiveCanvasTool` Single Source of Truth), True LRU Thumbnail Recency (`get_and_touch`) & Dead Code Purge (`ui/export.rs`, `ui/exif.rs`, `ui/presets.rs`).
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 23 — Task 23.1 Audit #5 Priority P0 Remediation (`rraw-app`) — COMPLETE**:
+  - **P0.1 Real-Time UI Thread `fsync` Elimination & Drag Coalescing**: Removed synchronous per-frame `save_photo_sidecars` from `render_darkroom_section` and detached thread spawning from `open_raw_file`; added `PhotoSession::sidecar_dirty` and `RrawApp::flush_dirty_sidecar_if_idle`.
+  - **P0.2 Explorer Subdirectory Cache & Alphabetical Sorting**: Added `LibraryController::cached_subdirectories` and `refresh_subdirectories()`, removing per-frame `std::fs::read_dir` syscalls from `ui/explorer.rs`.
+  - **P0.3 Bounded 64-Step Undo / Redo Stack**: Added `PhotoSession::MAX_UNDO_HISTORY = 64`, `undo_stack`, `redo_stack`, `record_undo_snapshot`, `notify_grading_edited`, `undo`, `redo`, `clear_history`, `RrawApp::undo_grading`, `redo_grading`, `Cmd+Z` / `Cmd+Shift+Z` / `Cmd+Y`, and top-bar `↶` / `↷` buttons.
+  - **P0.4 Unified Preview & Export Pixel Math Kernel**: Extracted `PreparedGradingFrame<'a>` in `crates/rraw-app/src/preview/pipeline.rs` (reduced from 1,422L to 853L), guaranteeing 100% mathematical parity between preview and export.
+  - **Validation & Tests**: Dedicated integration test suite `crates/rraw-app/tests/p0_audit5_realtime_undo_pipeline_tests.rs` (4 tests). 373 workspace tests passing across 83 suites, 0 clippy errors, 0 clippy warnings.
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 22 — Task 22.3 Audit #4 Priority P2 Remediation (`rraw-app`, workspace) — COMPLETE**:
   - **P2.1 Unused Cargo Dependency Cleanup**: Removed 8 unused dependencies across `rraw-color`, `rraw-cli`, `rraw-coreml`, and `rraw-storage` (0 clippy errors, 0 clippy warnings across the entire workspace).

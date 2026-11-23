@@ -336,7 +336,67 @@ impl RrawApp {
                 .photo_gradings
                 .insert(photo.path.clone(), self.session.grading.clone());
             save_photo_sidecars(&photo.path, &self.session.grading, rating);
+            self.session.sidecar_dirty = false;
         }
+    }
+
+    /// Records the current grading state onto the session's bounded Undo stack before a discrete mutation.
+    pub fn record_undo_snapshot(&mut self) {
+        self.session.record_undo_snapshot();
+    }
+
+    /// Notifies the session that grading parameters were modified during a UI frame,
+    /// coalescing continuous drag frames into a single Undo snapshot and deferring disk `fsync` until pointer release.
+    pub fn notify_grading_edited(&mut self, pre_edit: DarkroomGradingState, pointer_down: bool) {
+        self.session.notify_grading_edited(pre_edit, pointer_down);
+        if let Some(photo) = &self.session.loaded_photo {
+            self.library
+                .photo_gradings
+                .insert(photo.path.clone(), self.session.grading.clone());
+        }
+    }
+
+    /// Flushes pending sidecar changes to disk once pointer dragging has stopped (`pointer_down == false`).
+    /// Returns `true` if sidecars were flushed to disk during this call.
+    pub fn flush_dirty_sidecar_if_idle(&mut self, pointer_down: bool) -> bool {
+        if pointer_down {
+            return false;
+        }
+        self.session.is_continuous_drag_active = false;
+        if !self.session.sidecar_dirty {
+            return false;
+        }
+        self.session.sidecar_dirty = false;
+        self.save_current_photo_sidecar();
+        true
+    }
+
+    /// Restores the most recent Undo snapshot (`Cmd+Z`), updating memory cache and sidecars.
+    pub fn undo_grading(&mut self) -> bool {
+        if !self.session.undo() {
+            return false;
+        }
+        self.save_current_photo_sidecar();
+        self.status_message = match self.lang() {
+            Language::Fr => "↶ Action annulée (Undo)".to_string(),
+            lang if lang.is_spanish() => "↶ Acción deshecha (Undo)".to_string(),
+            _ => "↶ Undone grading change".to_string(),
+        };
+        true
+    }
+
+    /// Re-applies the most recent Redo snapshot (`Cmd+Shift+Z`), updating memory cache and sidecars.
+    pub fn redo_grading(&mut self) -> bool {
+        if !self.session.redo() {
+            return false;
+        }
+        self.save_current_photo_sidecar();
+        self.status_message = match self.lang() {
+            Language::Fr => "↷ Action rétablie (Redo)".to_string(),
+            lang if lang.is_spanish() => "↷ Acción rehecha (Redo)".to_string(),
+            _ => "↷ Redone grading change".to_string(),
+        };
+        true
     }
 
     /// Copies the active photo's color & tone grading parameters into the in-memory clipboard.
@@ -378,7 +438,7 @@ impl RrawApp {
             Some(c) => c,
             None => {
                 self.status_message =
-                    "Presse-papiers vide : copiez un rendu d'abord (Cmd+Shift+C)".to_string();
+                    "Presse-papiers vide : copiez un rendu d'abord (Cmd+C)".to_string();
                 return;
             }
         };
@@ -394,7 +454,7 @@ impl RrawApp {
             Some(c) => c,
             None => {
                 self.status_message =
-                    "Presse-papiers vide : copiez un rendu d'abord (Cmd+Shift+C)".to_string();
+                    "Presse-papiers vide : copiez un rendu d'abord (Cmd+C)".to_string();
                 return;
             }
         };
@@ -430,6 +490,7 @@ impl RrawApp {
             self.session.loaded_photo.as_ref().map(|p| p.path.as_path()) == Some(target_path);
 
         if is_loaded {
+            self.record_undo_snapshot();
             clipboard.apply_to_grading(&mut self.session.grading);
             self.session.current_preset = self.session.grading.preset;
             self.library
@@ -516,6 +577,7 @@ impl RrawApp {
 
         self.library.current_directory = Some(abs_dir.clone());
         self.library.directory_entries = scan_directory_for_images(&abs_dir);
+        self.library.refresh_subdirectories();
 
         // Evict GPU textures of thumbnails belonging to previously opened folders
         self.workers
@@ -597,6 +659,7 @@ impl RrawApp {
         }
         self.library.selected_photos.retain(|p| latest.contains(p));
         self.library.directory_entries = latest;
+        self.library.refresh_subdirectories();
         true
     }
 
@@ -963,23 +1026,9 @@ impl RrawApp {
         }
         self.layout_config.save();
 
-        // Save current photo's grading and sidecars in background before switching
-        if let Some(loaded) = &self.session.loaded_photo {
-            self.library
-                .photo_gradings
-                .insert(loaded.path.clone(), self.session.grading.clone());
-            let rating = self
-                .library
-                .photo_ratings
-                .get(&loaded.path)
-                .copied()
-                .unwrap_or(loaded.rating);
-            let path_to_save = loaded.path.clone();
-            let grading_to_save = self.session.grading.clone();
-            std::thread::spawn(move || {
-                save_photo_sidecars(&path_to_save, &grading_to_save, rating);
-            });
-        }
+        // Flush current photo's grading and sidecars cleanly before switching photos
+        self.save_current_photo_sidecar();
+        self.session.clear_history();
 
         // Reset zoom & pan to Fit on new photo open
         self.viewport.zoom_level = 0.0;
@@ -1062,9 +1111,8 @@ impl eframe::App for RrawApp {
 
         let wants_keyboard = ui.ctx().egui_wants_keyboard_input();
 
-        // Keyboard navigation and multi-selection (only when text input doesn't have focus)
+        // Keyboard navigation (only when text input doesn't have focus)
         if !wants_keyboard {
-            let shift = ui.input(|i| i.modifiers.shift);
             let nav_prev = ui
                 .input(|i| i.key_pressed(egui::Key::ArrowLeft) || i.key_pressed(egui::Key::PageUp));
             let nav_next = ui.input(|i| {
@@ -1074,25 +1122,47 @@ impl eframe::App for RrawApp {
             let nav_end = ui.input(|i| i.key_pressed(egui::Key::End));
 
             if nav_prev {
-                self.navigate_relative_with_shift(-1, shift);
+                self.navigate_relative(-1);
             } else if nav_next {
-                self.navigate_relative_with_shift(1, shift);
+                self.navigate_relative(1);
             } else if nav_home {
-                self.navigate_to_filtered_index(0, shift);
+                self.navigate_to_filtered_index(0, false);
             } else if nav_end {
-                self.navigate_to_filtered_index(usize::MAX, shift);
+                self.navigate_to_filtered_index(usize::MAX, false);
             }
         }
 
-        // Batch Recipe Clipboard shortcuts: Cmd/Ctrl + Shift + C (Copy) / Cmd/Ctrl + Shift + V (Paste)
-        let (copy_recipe, paste_recipe) = ui.input(|i| {
+        // Batch Recipe Clipboard & Undo/Redo shortcuts (when no text field has keyboard focus):
+        // - Cmd/Ctrl + Z: Undo
+        // - Cmd/Ctrl + Y (or Cmd/Ctrl + Shift + Z): Redo
+        // - Cmd/Ctrl + C (or Cmd/Ctrl + Shift + C / egui::Event::Copy): Copy recipe
+        // - Cmd/Ctrl + V (or Cmd/Ctrl + Shift + V / egui::Event::Paste): Paste recipe
+        let (undo_cmd, redo_cmd, copy_recipe, paste_recipe) = ui.input(|i| {
             let cmd = i.modifiers.command || i.modifiers.ctrl;
+            let has_copy_event = i.events.iter().any(|ev| matches!(ev, egui::Event::Copy));
+            let has_paste_event = i
+                .events
+                .iter()
+                .any(|ev| matches!(ev, egui::Event::Paste(_)));
             (
-                cmd && i.modifiers.shift && i.key_pressed(egui::Key::C),
-                cmd && i.modifiers.shift && i.key_pressed(egui::Key::V),
+                !wants_keyboard && cmd && !i.modifiers.shift && i.key_pressed(egui::Key::Z),
+                !wants_keyboard
+                    && cmd
+                    && (i.key_pressed(egui::Key::Y)
+                        || (i.modifiers.shift && i.key_pressed(egui::Key::Z))),
+                !wants_keyboard && ((cmd && i.key_pressed(egui::Key::C)) || has_copy_event),
+                !wants_keyboard && ((cmd && i.key_pressed(egui::Key::V)) || has_paste_event),
             )
         });
-        if copy_recipe {
+        if undo_cmd {
+            if self.undo_grading() {
+                ui.ctx().request_repaint();
+            }
+        } else if redo_cmd {
+            if self.redo_grading() {
+                ui.ctx().request_repaint();
+            }
+        } else if copy_recipe {
             self.copy_active_recipe();
         } else if paste_recipe {
             let ctx = ui.ctx().clone();
@@ -1579,6 +1649,41 @@ impl eframe::App for RrawApp {
 
                     ui.separator();
 
+                    let can_undo = self.session.can_undo();
+                    let can_redo = self.session.can_redo();
+                    let (undo_tip, redo_tip) = match self.lang() {
+                        Language::Fr => (
+                            "Annuler la dernière modification (Cmd+Z)",
+                            "Rétablir la modification annulée (Cmd+Y)",
+                        ),
+                        lang if lang.is_spanish() => (
+                            "Deshacer el último ajuste (Cmd+Z)",
+                            "Rehacer el ajuste deshecho (Cmd+Y)",
+                        ),
+                        _ => (
+                            "Undo last grading change (Cmd+Z)",
+                            "Redo grading change (Cmd+Y)",
+                        ),
+                    };
+                    if ui
+                        .add_enabled(can_undo, egui::Button::new("↶"))
+                        .on_hover_text(undo_tip)
+                        .clicked()
+                        && self.undo_grading()
+                    {
+                        ui.ctx().request_repaint();
+                    }
+                    if ui
+                        .add_enabled(can_redo, egui::Button::new("↷"))
+                        .on_hover_text(redo_tip)
+                        .clicked()
+                        && self.redo_grading()
+                    {
+                        ui.ctx().request_repaint();
+                    }
+
+                    ui.separator();
+
                     // Live EDR Headroom Badge (compact; details on hover)
                     let (headroom_text, headroom_col, headroom_tip) = if headroom > 1.05 {
                         (
@@ -1857,6 +1962,10 @@ impl eframe::App for RrawApp {
 
         // 9. Render "About" version dialog if active
         self.render_about_dialog(ui.ctx());
+
+        // 10. Coalesced sidecar flush once continuous slider/curve pointer drag ends
+        let pointer_down = ui.input(|i| i.pointer.any_down());
+        self.flush_dirty_sidecar_if_idle(pointer_down);
     }
 
     fn on_exit(&mut self) {
