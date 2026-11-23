@@ -24,7 +24,7 @@ pub struct OpticsGradingParams {
     pub lens_profile_auto: bool,
     #[serde(default)]
     pub lens_profile_override: Option<String>,
-    #[serde(default)]
+    #[serde(skip)]
     pub lens_search_query: String,
     #[serde(default = "default_100_f32")]
     pub lens_distortion_strength: f32,
@@ -41,7 +41,7 @@ pub struct OpticsGradingParams {
     pub defringe_green_amount: f32,
     #[serde(default = "default_defringe_threshold")]
     pub defringe_threshold: f32,
-    #[serde(default)]
+    #[serde(skip)]
     pub defringe_preview_mask: bool,
     pub vignette_correction: bool,
     pub vignette_amount: f32,

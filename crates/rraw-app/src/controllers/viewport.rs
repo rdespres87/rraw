@@ -3,6 +3,21 @@
 use crate::state::{CropDragHandle, CurveChannel, HistogramData, ParallelToolPhase};
 use crate::view_tools::ClippingOverlay;
 
+/// Mutually exclusive interactive canvas tool active in the central viewport.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActiveCanvasTool {
+    /// Standard pan/zoom inspection mode (no interactive drawing overlay active).
+    None,
+    /// Interactive crop & aspect ratio framing handles.
+    Crop,
+    /// Interactive horizon leveling line tool.
+    Horizon,
+    /// Interactive 2-parallel-lines perspective keystone guide tool.
+    ParallelLines(ParallelToolPhase),
+    /// Interactive freehand brush painting on the specified local mask index.
+    FreehandBrush(usize),
+}
+
 /// Viewport and interactive overlay controller.
 #[derive(Debug, Clone)]
 pub struct ViewportController {

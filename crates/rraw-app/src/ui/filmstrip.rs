@@ -175,8 +175,9 @@ impl RrawApp {
                             )
                             .clicked()
                         {
-                            self.export.export_batch_selection = true;
-                            self.export.show_export_dialog = true;
+                            self.export.set_target_mode(ExportTargetMode::BatchSelection);
+                            self.export
+                                .open_dialog(crate::controllers::export::ActiveModalDialog::Export);
                             self.export.export_status = None;
                         }
                     }
@@ -742,8 +743,7 @@ impl RrawApp {
                             .on_hover_text(format!("{label} ({tip})"))
                             .clicked()
                         {
-                            self.left_panel_tab = tab;
-                            self.layout_config.left_panel_tab = tab;
+                            self.set_left_panel_tab(tab);
                             self.layout_config.save();
                         }
                     }

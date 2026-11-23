@@ -187,6 +187,76 @@ impl RrawApp {
         self.layout_config.language
     }
 
+    /// Sets the active left panel tab and synchronizes `layout_config.left_panel_tab`.
+    pub fn set_left_panel_tab(&mut self, tab: LeftPanelTab) {
+        self.left_panel_tab = tab;
+        self.layout_config.left_panel_tab = tab;
+    }
+
+    /// Sets the active darkroom tool family filter and synchronizes `layout_config.active_tool_family`.
+    pub fn set_active_tool_family(&mut self, family: ToolFamily) {
+        self.active_tool_family = family;
+        self.layout_config.active_tool_family = family;
+    }
+
+    /// Sets the active-tools-only filter and synchronizes `layout_config.active_tools_only`.
+    pub fn set_active_tools_only(&mut self, active_only: bool) {
+        self.active_tools_only = active_only;
+        self.layout_config.active_tools_only = active_only;
+    }
+
+    /// Returns the currently active interactive canvas tool in the central viewport.
+    #[must_use]
+    pub fn active_canvas_tool(&self) -> crate::controllers::viewport::ActiveCanvasTool {
+        use crate::controllers::viewport::ActiveCanvasTool;
+        if self.viewport.is_crop_editing {
+            ActiveCanvasTool::Crop
+        } else if self.viewport.horizon_tool_active {
+            ActiveCanvasTool::Horizon
+        } else if self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive {
+            ActiveCanvasTool::ParallelLines(self.viewport.parallel_tool_phase)
+        } else if let Some(idx) = self.session.grading.active_brush_mask_idx {
+            ActiveCanvasTool::FreehandBrush(idx)
+        } else {
+            ActiveCanvasTool::None
+        }
+    }
+
+    /// Activates an interactive canvas tool while strictly deactivating all other competing canvas tools.
+    pub fn activate_canvas_tool(&mut self, tool: crate::controllers::viewport::ActiveCanvasTool) {
+        use crate::controllers::viewport::ActiveCanvasTool;
+
+        self.viewport.is_crop_editing = false;
+        self.viewport.crop_drag_handle = CropDragHandle::None;
+        self.viewport.horizon_tool_active = false;
+        self.viewport.horizon_start_point = None;
+        self.viewport.parallel_tool_phase = ParallelToolPhase::Inactive;
+        self.viewport.parallel_line1 = None;
+        self.viewport.parallel_line2 = None;
+        self.viewport.parallel_drag_start = None;
+        self.session.grading.active_brush_mask_idx = None;
+
+        match tool {
+            ActiveCanvasTool::None => {}
+            ActiveCanvasTool::Crop => {
+                self.viewport.is_crop_editing = true;
+            }
+            ActiveCanvasTool::Horizon => {
+                self.viewport.horizon_tool_active = true;
+            }
+            ActiveCanvasTool::ParallelLines(phase) => {
+                self.viewport.parallel_tool_phase = if phase == ParallelToolPhase::Inactive {
+                    ParallelToolPhase::DrawingLine1
+                } else {
+                    phase
+                };
+            }
+            ActiveCanvasTool::FreehandBrush(mask_idx) => {
+                self.session.grading.active_brush_mask_idx = Some(mask_idx);
+            }
+        }
+    }
+
     /// Translates a UI text key into the currently active language.
     #[must_use]
     pub fn t(&self, key: Key) -> &'static str {
@@ -613,6 +683,11 @@ impl RrawApp {
             self.viewport.is_crop_editing = false;
             self.viewport.crop_drag_handle = CropDragHandle::None;
             self.status_message = "Outil de recadrage désactivé".to_string();
+            true
+        } else if self.viewport.horizon_tool_active {
+            self.viewport.horizon_tool_active = false;
+            self.viewport.horizon_start_point = None;
+            self.status_message = "Outil d'horizon désactivé".to_string();
             true
         } else if self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive {
             self.viewport.parallel_tool_phase = ParallelToolPhase::Inactive;
@@ -1130,21 +1205,19 @@ impl eframe::App for RrawApp {
                     }
                 }
             } else if cmd_export {
-                self.export.show_export_dialog = true;
+                self.export
+                    .open_dialog(crate::controllers::export::ActiveModalDialog::Export);
                 self.export.export_status = None;
             } else if switch_tab_1 {
-                self.left_panel_tab = LeftPanelTab::Explorer;
-                self.layout_config.left_panel_tab = LeftPanelTab::Explorer;
+                self.set_left_panel_tab(LeftPanelTab::Explorer);
                 self.layout_config.save();
                 ui.ctx().request_repaint();
             } else if switch_tab_2 {
-                self.left_panel_tab = LeftPanelTab::Presets;
-                self.layout_config.left_panel_tab = LeftPanelTab::Presets;
+                self.set_left_panel_tab(LeftPanelTab::Presets);
                 self.layout_config.save();
                 ui.ctx().request_repaint();
             } else if switch_tab_3 {
-                self.left_panel_tab = LeftPanelTab::Exif;
-                self.layout_config.left_panel_tab = LeftPanelTab::Exif;
+                self.set_left_panel_tab(LeftPanelTab::Exif);
                 self.layout_config.save();
                 ui.ctx().request_repaint();
             }

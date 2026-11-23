@@ -301,6 +301,8 @@ impl RrawApp {
                 ui.horizontal(|ui| {
                     if ui.button("Onglet EXIF complet 📋").clicked() {
                         self.left_panel_tab = LeftPanelTab::Exif;
+                        self.layout_config.left_panel_tab = LeftPanelTab::Exif;
+                        self.layout_config.save();
                     }
                     if ui.button("Copier JSON").clicked() {
                         ui.ctx().copy_text(photo.export_exif_json());

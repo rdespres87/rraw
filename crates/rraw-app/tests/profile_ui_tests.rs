@@ -180,7 +180,7 @@ fn test_optical_sidecar_roundtrip_with_tabs_and_threshold() -> Result<(), Box<dy
 
     assert!(serialized.contains(r#""optical_tab":"Manual""#));
     assert!(serialized.contains("defringe_threshold"));
-    assert!(serialized.contains("defringe_preview_mask"));
+    assert!(!serialized.contains("defringe_preview_mask"));
 
     let deserialized: SidecarRecipe = serde_json::from_str(&serialized)?;
     assert_eq!(
@@ -188,13 +188,13 @@ fn test_optical_sidecar_roundtrip_with_tabs_and_threshold() -> Result<(), Box<dy
         OpticalCorrectionTab::Manual
     );
     assert!((deserialized.optics.defringe_threshold - 0.14).abs() < 1e-4);
-    assert!(deserialized.optics.defringe_preview_mask);
+    assert!(!deserialized.optics.defringe_preview_mask);
 
     let mut restored = DarkroomGradingState::default();
     deserialized.apply_to(&mut restored);
     assert_eq!(restored.optics.optical_tab, OpticalCorrectionTab::Manual);
     assert!((restored.optics.defringe_threshold - 0.14).abs() < 1e-4);
-    assert!(restored.optics.defringe_preview_mask);
+    assert!(!restored.optics.defringe_preview_mask);
 
     Ok(())
 }

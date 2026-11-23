@@ -1289,7 +1289,7 @@ impl RrawApp {
                         )
                         .clicked()
                     {
-                        self.export.export_batch_selection = false;
+                        self.export.set_target_mode(ExportTargetMode::CurrentPhoto);
                     }
                     let batch_word = t(Key::ExportTargetBatch);
                     let s_suffix = if sel_count > 1 { "s" } else { "" };
@@ -1302,7 +1302,8 @@ impl RrawApp {
                         )
                         .clicked()
                     {
-                        self.export.export_batch_selection = true;
+                        self.export
+                            .set_target_mode(ExportTargetMode::BatchSelection);
                     }
                     if ui
                         .radio_value(
@@ -1312,7 +1313,8 @@ impl RrawApp {
                         )
                         .clicked()
                     {
-                        self.export.export_batch_selection = true;
+                        self.export
+                            .set_target_mode(ExportTargetMode::TimelapseSequence);
                         if self.export.export_subfolder == "Export" {
                             self.export.export_subfolder = "Timelapse".to_string();
                         }

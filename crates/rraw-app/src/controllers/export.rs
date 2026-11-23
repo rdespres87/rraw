@@ -3,9 +3,22 @@
 use crate::state::{ExportBitDepth, ExportFormatChoice, ExportScaleMode, ExportTargetMode};
 use std::path::PathBuf;
 
+/// Mutually exclusive modal dialog state for the application shell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActiveModalDialog {
+    /// Export & timelapse modal dialog (`Cmd+Shift+E`).
+    Export,
+    /// Keyboard shortcuts cheat sheet modal (`F1`).
+    Shortcuts,
+    /// Application "About" version modal.
+    About,
+}
+
 /// Batch export, modal dialogs and timelapse sequence controller.
 #[derive(Debug, Clone)]
 pub struct ExportBatchController {
+    /// Active top-level modal dialog (mutually exclusive via typed transitions).
+    pub active_dialog: Option<ActiveModalDialog>,
     /// Whether the export modal dialog is open.
     pub show_export_dialog: bool,
     /// Whether the keyboard shortcuts cheat sheet dialog is open.
@@ -61,6 +74,7 @@ impl ExportBatchController {
     #[must_use]
     pub fn new() -> Self {
         Self {
+            active_dialog: None,
             show_export_dialog: false,
             show_shortcuts_dialog: false,
             show_about_dialog: false,
@@ -85,14 +99,55 @@ impl ExportBatchController {
         }
     }
 
+    /// Opens the requested modal dialog exclusively, closing any other active modal dialog.
+    pub fn open_dialog(&mut self, dialog: ActiveModalDialog) {
+        self.active_dialog = Some(dialog);
+        self.show_export_dialog = dialog == ActiveModalDialog::Export;
+        self.show_shortcuts_dialog = dialog == ActiveModalDialog::Shortcuts;
+        self.show_about_dialog = dialog == ActiveModalDialog::About;
+    }
+
+    /// Toggles the requested modal dialog exclusively.
+    pub fn toggle_dialog(&mut self, dialog: ActiveModalDialog) {
+        if self.active_modal_dialog() == Some(dialog) {
+            self.close_all_dialogs();
+        } else {
+            self.open_dialog(dialog);
+        }
+    }
+
+    /// Returns the currently active modal dialog, reconciling with legacy boolean flags if mutated directly.
+    #[must_use]
+    pub fn active_modal_dialog(&self) -> Option<ActiveModalDialog> {
+        if self.show_about_dialog {
+            Some(ActiveModalDialog::About)
+        } else if self.show_shortcuts_dialog {
+            Some(ActiveModalDialog::Shortcuts)
+        } else if self.show_export_dialog {
+            Some(ActiveModalDialog::Export)
+        } else {
+            None
+        }
+    }
+
+    /// Sets the export target mode and keeps the legacy `export_batch_selection` flag strictly synchronized.
+    pub fn set_target_mode(&mut self, mode: ExportTargetMode) {
+        self.export_target_mode = mode;
+        self.export_batch_selection = matches!(
+            mode,
+            ExportTargetMode::BatchSelection | ExportTargetMode::TimelapseSequence
+        );
+    }
+
     /// Returns true if any modal dialog is currently open.
     #[must_use]
     pub fn is_any_dialog_open(&self) -> bool {
-        self.show_export_dialog || self.show_shortcuts_dialog || self.show_about_dialog
+        self.active_modal_dialog().is_some()
     }
 
     /// Closes all open modal dialogs.
     pub fn close_all_dialogs(&mut self) {
+        self.active_dialog = None;
         self.show_export_dialog = false;
         self.show_shortcuts_dialog = false;
         self.show_about_dialog = false;

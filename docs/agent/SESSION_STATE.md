@@ -4,11 +4,18 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 22 — Deep Maturity Audit #4 Remediation (Chantier P0 Complete)
-- **Active Tasks**: Task 22.1 (P0 — Parallel Single-Buffer Export, Streaming O(1)-RAM Timelapse, Precomputed AABB Brush Grid & Atomic Sidecar Persistence) **Complete**
-- **Next Phase**: Task 22.2 (P1 — State Machine & Enum Hygiene, Duplicate Field Elimination, Ephemeral Sidecar Field Exclusion)
-- **Last Verified Baseline**: 361 tests passants across 80 test suites, 0 clippy errors sous Rust 1.100.0 (`#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`).
-- **Current Milestone**: Phase 22 — Task 22.1 Audit #4 Priority P0 Remediation **Complete**
+- **Active Phase**: Phase 22 — Deep Maturity Audit #4 Remediation (Chantiers P0 & P1 Complete)
+- **Active Tasks**: Task 22.2 (P1 — State Machine & Enum Hygiene, Duplicate Field Elimination, Ephemeral Sidecar Field Exclusion) **Complete**
+- **Next Phase**: Task 22.3 (P2 — Monolith File Decomposition, 100% Parametric i18n, Unused Cargo Dependency Cleanup)
+- **Last Verified Baseline**: 365 tests passing across 81 test suites, 0 clippy errors under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Current Milestone**: Phase 22 — Task 22.2 Audit #4 Priority P1 Remediation **Complete**
+  - **P1.1 Ephemeral Sidecar Field Exclusion**: Added `#[serde(skip)]` to `lens_search_query: String` and `defringe_preview_mask: bool` in `OpticsGradingParams`, preventing ephemeral UI state from polluting `<photo>.rraw.json` sidecar files.
+  - **P1.2 Unified Modal Dialog State Machine (`ActiveModalDialog`)**: Added `ActiveModalDialog` (`Export`, `Shortcuts`, `About`), `open_dialog`, `toggle_dialog`, `active_modal_dialog`, and `set_target_mode` on `ExportBatchController`, enforcing mutual exclusion across modal dialogs and strict synchronization between `export_target_mode` and `export_batch_selection`.
+  - **P1.3 Mutually Exclusive Interactive Canvas Tools (`ActiveCanvasTool`)**: Added `ActiveCanvasTool` (`None`, `Crop`, `Horizon`, `ParallelLines(ParallelToolPhase)`, `FreehandBrush(usize)`) with `active_canvas_tool` and `activate_canvas_tool` on `RrawApp`, plus automatic tool exclusivity enforcement in `ui/inspector.rs` and horizon cancellation in `handle_escape_key`.
+  - **P1.4 Strict `RrawApp` <-> `AppLayoutConfig` Synchronization**: Added `set_left_panel_tab`, `set_active_tool_family`, and `set_active_tools_only` on `RrawApp` and eliminated the `left_panel_tab` desynchronization bug in `ui/exif.rs`.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p1_state_machine_hygiene_tests.rs` (4 new tests).
+  - 365 tests passing across 81 suites, 0 clippy errors, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+- **Preceding Milestone**: Phase 22 — Task 22.1 Audit #4 Priority P0 Remediation **Complete** (Commit `f281ca5`)
   - **P0.1 Parallel Single-Buffer Export & Preview Parity**: Introduit `ExportRasterBuffer` (`U8(Vec<u8>)` | `U16(Vec<u16>)`) et `render_export_image_with_depth` parallélisé sur tous les cœurs CPU via Rayon (`par_chunks_exact_mut`), éliminant la double allocation systématique 8-bit + 16-bit (économisant jusqu'à 272 Mo par export 8-bit sur 45 MP) et restaurant la parité mathématique exacte avec la prévisualisation (plancher de contraste `.max(0.05)`, soft proofing et conversion monochrome).
   - **P0.2 Asynchronous O(1)-RAM Streaming Timelapse**: Refactorisé l'export Timelapse (`spawn_background_timelapse_export` et `execute_timelapse_export`) en un pipeline streaming à 2 passes (`prepare_timelapse_gradings_from_lumas`) exécuté hors du thread UI : Passe 1 mesurant la luminance logarithmique par image avec libération immédiate de la mémoire ; Passe 2 décodant, rendant et écrivant image par image avec progression temps réel sans jamais accumuler la séquence entière en RAM (prévenant tout OOM).
   - **P0.3 O(1) AABB-Localized Brush Grid (`PrecomputedBrushGrid`)**: Implémenté une grille 512×512 localisée sur la boîte englobante AABB `[min_u, min_v, max_u, max_v]` des traits de pinceau libre (`FreehandBrush`), remplaçant l'évaluation $\mathcal{O}(W \times H \times D)$ par un échantillonnage bilinéaire $\mathcal{O}(1)$ avec rejet AABB immédiat dans `eval_all_mask_adjustments_with_brush_grids`.

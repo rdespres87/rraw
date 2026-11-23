@@ -225,8 +225,7 @@ impl RrawApp {
                             .add_sized([btn_w, 22.0], egui::Button::new(text).selected(is_sel))
                             .clicked()
                         {
-                            self.active_tool_family = family;
-                            self.layout_config.active_tool_family = family;
+                            self.set_active_tool_family(family);
                             self.layout_config.save();
                         }
                     }
@@ -241,8 +240,7 @@ impl RrawApp {
                             .add_sized([btn_w, 22.0], egui::Button::new(text).selected(is_sel))
                             .clicked()
                         {
-                            self.active_tool_family = family;
-                            self.layout_config.active_tool_family = family;
+                            self.set_active_tool_family(family);
                             self.layout_config.save();
                         }
                     }
@@ -266,8 +264,7 @@ impl RrawApp {
                     .on_hover_text(t(Key::DarkroomActiveOnlyTooltip))
                     .clicked()
                 {
-                    self.active_tools_only = !self.active_tools_only;
-                    self.layout_config.active_tools_only = self.active_tools_only;
+                    self.set_active_tools_only(!self.active_tools_only);
                     self.layout_config.save();
                 }
 
@@ -307,8 +304,7 @@ impl RrawApp {
                                 if self.active_tools_only
                                     && ui.button(t(Key::InspectorShowAllTools)).clicked()
                                 {
-                                    self.active_tools_only = false;
-                                    self.layout_config.active_tools_only = false;
+                                    self.set_active_tools_only(false);
                                     self.layout_config.save();
                                 }
                             });
@@ -426,15 +422,26 @@ impl RrawApp {
                                 &mut self.session.grading.tone,
                                 cur_lang,
                             ),
-                            DarkroomSection::AiSemanticMasks => sections::masks::render(
-                                ui,
-                                &mut self.session.grading.local_masks,
-                                &mut self.session.grading.show_local_mask_overlay,
-                                &mut self.session.grading.active_brush_mask_idx,
-                                &mut self.session.grading.semantic_masks,
-                                &mut self.session.grading.show_semantic_mask_overlay,
-                                cur_lang,
-                            ),
+                            DarkroomSection::AiSemanticMasks => {
+                                let prev_brush = self.session.grading.active_brush_mask_idx;
+                                let out = sections::masks::render(
+                                    ui,
+                                    &mut self.session.grading.local_masks,
+                                    &mut self.session.grading.show_local_mask_overlay,
+                                    &mut self.session.grading.active_brush_mask_idx,
+                                    &mut self.session.grading.semantic_masks,
+                                    &mut self.session.grading.show_semantic_mask_overlay,
+                                    cur_lang,
+                                );
+                                if let Some(idx) = self.session.grading.active_brush_mask_idx {
+                                    if prev_brush != Some(idx) {
+                                        self.activate_canvas_tool(
+                                            crate::controllers::viewport::ActiveCanvasTool::FreehandBrush(idx),
+                                        );
+                                    }
+                                }
+                                out
+                            }
                             DarkroomSection::SoftProofing => sections::soft_proofing::render(
                                 ui,
                                 &mut self.session.grading.soft_proof,
@@ -446,24 +453,41 @@ impl RrawApp {
                                 sections::SectionOutput::nothing()
                             }
                             DarkroomSection::Crop => {
+                                let prev_crop = self.viewport.is_crop_editing;
                                 let dims = self.session.loaded_photo.as_ref().map(|p| p.dimensions);
-                                sections::crop::render(
+                                let out = sections::crop::render(
                                     ui,
                                     &mut self.session.grading.geometry,
                                     &mut self.viewport.is_crop_editing,
                                     dims,
                                     cur_lang,
-                                )
+                                );
+                                if !prev_crop && self.viewport.is_crop_editing {
+                                    self.activate_canvas_tool(
+                                        crate::controllers::viewport::ActiveCanvasTool::Crop,
+                                    );
+                                }
+                                out
                             }
-                            DarkroomSection::Straighten => sections::straighten::render(
-                                ui,
-                                &mut self.session.grading.geometry,
-                                &mut self.viewport.horizon_tool_active,
-                                &mut self.viewport.horizon_start_point,
-                                &mut self.status_message,
-                                cur_lang,
-                            ),
+                            DarkroomSection::Straighten => {
+                                let prev_horizon = self.viewport.horizon_tool_active;
+                                let out = sections::straighten::render(
+                                    ui,
+                                    &mut self.session.grading.geometry,
+                                    &mut self.viewport.horizon_tool_active,
+                                    &mut self.viewport.horizon_start_point,
+                                    &mut self.status_message,
+                                    cur_lang,
+                                );
+                                if !prev_horizon && self.viewport.horizon_tool_active {
+                                    self.activate_canvas_tool(
+                                        crate::controllers::viewport::ActiveCanvasTool::Horizon,
+                                    );
+                                }
+                                out
+                            }
                             DarkroomSection::Geometry => {
+                                let prev_phase = self.viewport.parallel_tool_phase;
                                 let mut tool_state = sections::geometry::ParallelLinesToolState {
                                     phase: &mut self.viewport.parallel_tool_phase,
                                     line1: &mut self.viewport.parallel_line1,
@@ -471,12 +495,22 @@ impl RrawApp {
                                     drag_start: &mut self.viewport.parallel_drag_start,
                                     status_message: &mut self.status_message,
                                 };
-                                sections::geometry::render(
+                                let out = sections::geometry::render(
                                     ui,
                                     &mut self.session.grading.geometry,
                                     &mut tool_state,
                                     cur_lang,
-                                )
+                                );
+                                if prev_phase == crate::state::ParallelToolPhase::Inactive
+                                    && self.viewport.parallel_tool_phase
+                                        != crate::state::ParallelToolPhase::Inactive
+                                {
+                                    let phase = self.viewport.parallel_tool_phase;
+                                    self.activate_canvas_tool(
+                                        crate::controllers::viewport::ActiveCanvasTool::ParallelLines(phase),
+                                    );
+                                }
+                                out
                             }
                             DarkroomSection::DetailDenoise => sections::detail_denoise::render(
                                 ui,

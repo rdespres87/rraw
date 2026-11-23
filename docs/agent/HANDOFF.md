@@ -2,14 +2,25 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 22 — Task 22.2 (Audit #4 Priority P1 — State Machine & Enum Hygiene)**:
-  - Replace independent boolean flags in `ExportBatchController` (`show_export_dialog`, `show_shortcuts_dialog`, `show_about_dialog`, `export_batch_selection`) and `ViewportController` (`is_crop_editing`, `horizon_tool_active`, `parallel_tool_phase`, `active_brush_mask_idx`) with mutually-exclusive typed enums.
-  - Eliminate duplicate state fields between `RrawApp` and `AppLayoutConfig`.
-  - Exclude ephemeral UI fields (`lens_search_query`, `defringe_preview_mask`, `optical_tab`) from `<photo>.rraw.json` sidecar serialization in `OpticsGradingParams`.
+- **Phase 22 — Task 22.3 (Audit #4 Priority P2 — Monolith File Decomposition, 100% Parametric i18n & Unused Cargo Dependency Cleanup)**:
+  - Remove the 6 unused Cargo dependencies (`objc2-foundation` in `rraw-coreml`, `rraw-optics` in `rraw-color`, `rraw-decode` in `rraw-storage`, `rraw-storage`/`rraw-ai`/`rraw-export` in `rraw-cli`).
+  - Localize remaining hardcoded French strings in `state.rs` (presets), `app.rs` (status messages), and `ui/export.rs` (export progress), and add bundle path resolution for `assets/i18n`.
+  - Modularize oversized files in `rraw-app` (`state.rs`, `app.rs`, `ui/export.rs`).
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 22 — Task 22.2 Audit #4 Priority P1 Remediation (`rraw-app`) — COMPLETE**:
+  - **P1.1 Ephemeral Sidecar Field Exclusion**: Added `#[serde(skip)]` to `lens_search_query` and `defringe_preview_mask` in `OpticsGradingParams`.
+  - **P1.2 Unified Modal Dialog State Machine**: Added `ActiveModalDialog`, `open_dialog`, `toggle_dialog`, `active_modal_dialog`, and `set_target_mode` on `ExportBatchController`.
+  - **P1.3 Mutually Exclusive Interactive Canvas Tools**: Added `ActiveCanvasTool` (`None`, `Crop`, `Horizon`, `ParallelLines(ParallelToolPhase)`, `FreehandBrush(usize)`) with `active_canvas_tool` and `activate_canvas_tool` on `RrawApp` and automatic tool exclusivity in `ui/inspector.rs`.
+  - **P1.4 Strict `RrawApp` <-> `AppLayoutConfig` Synchronization**: Added `set_left_panel_tab`, `set_active_tool_family`, and `set_active_tools_only` on `RrawApp` and fixed `ui/exif.rs` tab synchronization.
+  - **Validation & Tests**: Dedicated integration test suite `crates/rraw-app/tests/p1_state_machine_hygiene_tests.rs` (4 tests). 365 workspace tests passing across 81 suites, 0 clippy errors.
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 22 — Task 22.1 Audit #4 Priority P0 Remediation (`rraw-app`) — COMPLETE**:
   - **P0.1 Parallel Single-Buffer Export & Preview Parity**: Implemented `ExportRasterBuffer` (`U8` | `U16`) and Rayon-parallelized `render_export_image_with_depth`, avoiding dual 8-bit/16-bit buffer allocation and unifying pixel math with `render_preview_from_base_profiled`.

@@ -275,7 +275,12 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Implemented `PrecomputedBrushGrid` (512x512 AABB-localized bilinear lookup grid) and `eval_all_mask_adjustments_with_brush_grids`, reducing per-pixel freehand brush evaluation from $O(D)$ to $O(1)$.
   - Added `atomic_write_str` (temp sibling file + `flush` + `sync_all` + atomic `rename`) for sidecars and layout config, and enforced `.rraw.json` > `.xmp` rating precedence in `load_photo_sidecars`.
   - Dedicated TDD integration suite `crates/rraw-app/tests/p0_audit_remediation_tests.rs` (4 tests). 361 workspace tests passing across 80 suites.
-- [ ] **Task 22.2 (`rraw-app`)**: Priority P1 — State Machine & Enum Hygiene, Duplicate Field Elimination & Ephemeral Sidecar Field Exclusion
+- [x] **Task 22.2 (`rraw-app`)**: Priority P1 — State Machine & Enum Hygiene, Duplicate Field Elimination & Ephemeral Sidecar Field Exclusion
+  - Added `#[serde(skip)]` on `lens_search_query` and `defringe_preview_mask` in `OpticsGradingParams` so ephemeral UI fields never pollute `<photo>.rraw.json` sidecar files.
+  - Implemented `ActiveModalDialog` (`Export`, `Shortcuts`, `About`), `open_dialog`, `toggle_dialog`, `active_modal_dialog`, and `set_target_mode` on `ExportBatchController`.
+  - Implemented `ActiveCanvasTool` (`None`, `Crop`, `Horizon`, `ParallelLines(ParallelToolPhase)`, `FreehandBrush(usize)`) with `active_canvas_tool` and `activate_canvas_tool` on `RrawApp`, enforcing mutual exclusion across interactive viewport tools.
+  - Added `set_left_panel_tab`, `set_active_tool_family`, and `set_active_tools_only` on `RrawApp` to maintain strict synchronization with `AppLayoutConfig`.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p1_state_machine_hygiene_tests.rs` (4 tests). 365 workspace tests passing across 81 suites.
 - [ ] **Task 22.3 (`rraw-app`, workspace)**: Priority P2 — Monolith File Decomposition, 100% Parametric i18n & Unused Cargo Dependency Cleanup
 
 
