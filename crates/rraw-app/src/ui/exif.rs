@@ -129,7 +129,7 @@ impl RrawApp {
 
                     if !photo.exposure_bias.is_empty() {
                         ui.label(
-                            egui::RichText::new("Biais d'exposition :")
+                            egui::RichText::new(crate::i18n::exif_exposure_bias_label(self.lang()))
                                 .strong()
                                 .size(12.0),
                         );
@@ -149,16 +149,21 @@ impl RrawApp {
                 });
 
             ui.add_space(6.0);
+            let cur_lang = self.lang();
             ui.horizontal(|ui| {
                 if ui.small_button(self.t(Key::ExifCopyButton)).clicked() {
                     ui.ctx().copy_text(photo.export_exif_json());
-                    self.status_message = "Métadonnées EXIF copiées au presse-papier !".to_string();
+                    self.status_message =
+                        crate::i18n::exif_copied_clipboard_status(cur_lang).to_string();
                 }
                 if ui.small_button(self.t(Key::ExifExportButton)).clicked() {
                     let out_path = photo.path.with_extension("exif.json");
                     let json = photo.export_exif_json();
                     if std::fs::write(&out_path, json).is_ok() {
-                        self.status_message = format!("EXIF exporté vers {}", out_path.display());
+                        self.status_message = crate::i18n::exif_exported_to_status(
+                            cur_lang,
+                            &out_path.display().to_string(),
+                        );
                     }
                 }
             });
@@ -230,7 +235,7 @@ impl RrawApp {
 
                     if filtered_tags.is_empty() {
                         ui.label(
-                            egui::RichText::new("Aucun tag correspondant.")
+                            egui::RichText::new(crate::i18n::exif_no_matching_tags(lang))
                                 .small()
                                 .italics()
                                 .color(Color32::GRAY),

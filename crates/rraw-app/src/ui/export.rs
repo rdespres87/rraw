@@ -20,6 +20,7 @@ pub struct ExportWriteConfig {
     pub jpeg_quality: u8,
     pub bit_depth: ExportBitDepth,
     pub scale_mode: ExportScaleMode,
+    pub hdr_gain_map: bool,
 }
 
 impl RrawApp {
@@ -132,6 +133,92 @@ impl RrawApp {
                     .map_err(|e| format!("Erreur lors de la finalisation du fichier AVIF: {e}"))?;
             }
         }
+        if config.hdr_gain_map {
+            Self::write_iso21496_gain_map_sidecars(
+                target_path,
+                out_w,
+                out_h,
+                u8_bytes,
+                u16_samples,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Computes the ISO 21496-1 HDR Gain Map via `rraw_export::GainMapCalculator` and writes
+    /// the standardized `.hdrgm.xmp` XMP packet and `.tmap` binary ISOBMFF box alongside `target_path`.
+    pub fn write_iso21496_gain_map_sidecars(
+        target_path: &Path,
+        out_w: usize,
+        out_h: usize,
+        u8_bytes: &[u8],
+        u16_samples: &[u16],
+    ) -> Result<(), String> {
+        let count = out_w.saturating_mul(out_h);
+        let expected_samples = count.saturating_mul(3);
+        if count == 0 {
+            return Ok(());
+        }
+
+        let sdr_f32: Vec<f32> = if u8_bytes.len() == expected_samples {
+            u8_bytes.iter().map(|&b| (b as f32) / 255.0).collect()
+        } else if u16_samples.len() == expected_samples {
+            u16_samples
+                .iter()
+                .map(|&s| ((s as f32) / 65535.0).min(1.0))
+                .collect()
+        } else {
+            vec![0.5_f32; expected_samples]
+        };
+
+        let hdr_f32: Vec<f32> = if u16_samples.len() == expected_samples {
+            u16_samples
+                .iter()
+                .map(|&s| {
+                    let norm = (s as f32) / 65535.0;
+                    if norm > 0.75 {
+                        norm * (1.0 + (norm - 0.75) * 8.0)
+                    } else {
+                        norm
+                    }
+                })
+                .collect()
+        } else {
+            sdr_f32
+                .iter()
+                .map(|&v| {
+                    if v > 0.75 {
+                        v * (1.0 + (v - 0.75) * 8.0)
+                    } else {
+                        v
+                    }
+                })
+                .collect()
+        };
+
+        let base_params = rraw_export::Iso21496Params::default();
+        let gain_map =
+            rraw_export::GainMapCalculator::compute(&sdr_f32, &hdr_f32, out_w, out_h, &base_params)
+                .map_err(|e| format!("ISO 21496-1 Gain Map calculation failed: {e}"))?;
+
+        let peak_d = gain_map.iter().copied().fold(0.0_f32, f32::max);
+        let effective_max = (1.0 + peak_d * (base_params.gain_map_max - 1.0)).clamp(1.5, 8.0);
+        let params = rraw_export::Iso21496Params {
+            gain_map_max: effective_max,
+            hdr_capacity_max: effective_max,
+            ..base_params
+        };
+
+        let xmp_xml = rraw_export::Iso21496XmpPacket::encode(&params);
+        let tmap_bytes = rraw_export::Iso21496TmapBox::encode(&params)
+            .map_err(|e| format!("ISO 21496-1 tmap encode failed: {e}"))?;
+
+        let xmp_path = target_path.with_extension("hdrgm.xmp");
+        let tmap_path = target_path.with_extension("tmap");
+        atomic_write_str(&xmp_path, &xmp_xml)
+            .map_err(|e| format!("Failed to write ISO 21496-1 XMP packet: {e}"))?;
+        std::fs::write(&tmap_path, tmap_bytes)
+            .map_err(|e| format!("Failed to write ISO 21496-1 tmap box: {e}"))?;
         Ok(())
     }
 
@@ -333,6 +420,7 @@ impl RrawApp {
             jpeg_quality: self.export.export_jpeg_quality,
             bit_depth: self.export.export_bit_depth,
             scale_mode: self.export.export_scale_mode,
+            hdr_gain_map: self.export.export_hdr_gain_map,
         };
         let tx = self.workers.export_sender.clone();
 
@@ -525,6 +613,7 @@ impl RrawApp {
             jpeg_quality: self.export.export_jpeg_quality,
             bit_depth: self.export.export_bit_depth,
             scale_mode: self.export.export_scale_mode,
+            hdr_gain_map: self.export.export_hdr_gain_map,
         };
         let keyframe_ramping = self.export.timelapse_keyframe_ramping;
         let deflicker_cfg = self.export.timelapse_deflicker;
@@ -1191,6 +1280,13 @@ impl RrawApp {
                         });
                     }
                 }
+
+                ui.add_space(4.0);
+                ui.checkbox(
+                    &mut self.export.export_hdr_gain_map,
+                    crate::i18n::export_hdr_gain_map_checkbox_label(lang),
+                )
+                .on_hover_text(crate::i18n::export_hdr_gain_map_checkbox_tooltip(lang));
 
                 ui.separator();
                 ui.heading(t(Key::ExportResizeHeading));

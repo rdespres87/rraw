@@ -2,11 +2,20 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Phase 23 — Task 23.3 (`rraw-app`)**: Deep Maturity Audit #5 Priority P2 — 100% Residual French String Localization (`ui/explorer.rs`, `ui/exif.rs`, `ui/filmstrip.rs`, `ui/export.rs`, `app.rs`) & Domain Crate Feature Wiring (`rraw-optics` Richardson-Lucy deconvolution / `rraw-export` ISO 21496-1 Gain Map HDR).
+- **Phase 23 Complete**: All P0, P1, and P2 remediation tasks from Deep Maturity Audit #5 (Tasks 23.1, 23.2, and 23.3) are implemented, verified with dedicated TDD integration test suites (379 tests across 85 suites), and audited at 0 cloud tokens.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 23 — Task 23.3 Audit #5 Priority P2 Remediation (`rraw-app`) — COMPLETE**:
+  - **P2.1 100% Residual French String Localization**: Added 25 language-aware helpers in `crates/rraw-app/src/i18n/mod.rs` and localized all remaining hardcoded French strings across `ui/explorer.rs`, `ui/exif.rs`, `ui/filmstrip.rs`, `ui/export.rs`, and `app.rs` (top-bar Soft Proofing profile/intent/out-of-gamut badge).
+  - **P2.2 Domain Crate Feature Wiring**: Wired `rraw_optics::execute_richardson_lucy` into `PreparedGradingFrame::prepare` (`crates/rraw-app/src/preview/pipeline.rs`) for `capture_sharpening_amount > 0.5`, and wired `rraw_export` ISO 21496-1 Gain Map HDR calculation and `.hdrgm.xmp` / `.tmap` emission into `ExportBatchController`, `ExportWriteConfig`, `RrawApp::write_iso21496_gain_map_sidecars`, and `render_export_dialog`.
+  - **Validation & Tests**: Dedicated integration test suite `crates/rraw-app/tests/p2_audit5_i18n_and_domain_wiring_tests.rs` (3 tests). 379 workspace tests passing across 85 suites, 0 clippy errors, 0 clippy warnings.
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 23 — Task 23.2 Audit #5 Priority P1 Remediation (`rraw-app`) — COMPLETE**:
   - **P1.1 Modal Dialog Single Source of Truth (`ExportBatchController`)**: Added `set_dialog_open` and `close_dialog` and routed all modal open/close/toggle sites (`ui/about.rs`, `ui/shortcuts.rs`, `ui/export.rs`, `ui/canvas_hud.rs`, `ui/inspector.rs`, `app.rs`) through typed `ExportBatchController` transitions.

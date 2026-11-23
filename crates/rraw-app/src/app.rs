@@ -1827,8 +1827,12 @@ impl eframe::App for RrawApp {
                     }
 
                     if sp_active {
+                        let cur_lang = self.lang();
                         egui::ComboBox::from_id_salt("top_bar_soft_proof_profile")
-                            .selected_text(self.session.grading.soft_proof.profile.short_label())
+                            .selected_text(crate::i18n::soft_proof_profile_short_label_lang(
+                                self.session.grading.soft_proof.profile,
+                                cur_lang,
+                            ))
                             .width(120.0)
                             .show_ui(ui, |ui| {
                                 for prof in rraw_color::SoftProofProfile::ALL {
@@ -1836,7 +1840,9 @@ impl eframe::App for RrawApp {
                                         .selectable_value(
                                             &mut self.session.grading.soft_proof.profile,
                                             prof,
-                                            prof.label(),
+                                            crate::i18n::soft_proof_profile_label_lang(
+                                                prof, cur_lang,
+                                            ),
                                         )
                                         .changed()
                                     {
@@ -1850,12 +1856,10 @@ impl eframe::App for RrawApp {
                             });
 
                         egui::ComboBox::from_id_salt("top_bar_soft_proof_intent")
-                            .selected_text(match self.session.grading.soft_proof.intent {
-                                rraw_color::SoftProofRenderingIntent::Perceptual => "Perceptuel",
-                                rraw_color::SoftProofRenderingIntent::RelativeColorimetric => {
-                                    "Relatif"
-                                }
-                            })
+                            .selected_text(crate::i18n::soft_proof_intent_short_label_lang(
+                                self.session.grading.soft_proof.intent,
+                                cur_lang,
+                            ))
                             .width(90.0)
                             .show_ui(ui, |ui| {
                                 for intent in rraw_color::SoftProofRenderingIntent::ALL {
@@ -1863,7 +1867,9 @@ impl eframe::App for RrawApp {
                                         .selectable_value(
                                             &mut self.session.grading.soft_proof.intent,
                                             intent,
-                                            intent.label(),
+                                            crate::i18n::soft_proof_intent_label_lang(
+                                                intent, cur_lang,
+                                            ),
                                         )
                                         .changed()
                                     {
@@ -1893,9 +1899,11 @@ impl eframe::App for RrawApp {
                         let oog_count = self.viewport.histogram.out_of_gamut_count;
                         let oog_btn_label = if oog_active {
                             if oog_count > 0 {
-                                egui::RichText::new(format!("✓ ⚠️ Hors-Gamut ({oog_count})"))
-                                    .strong()
-                                    .color(Color32::from_rgb(255, 110, 230))
+                                egui::RichText::new(crate::i18n::soft_proof_out_of_gamut_badge(
+                                    cur_lang, oog_count,
+                                ))
+                                .strong()
+                                .color(Color32::from_rgb(255, 110, 230))
                             } else {
                                 egui::RichText::new(self.t(Key::TopBarGamutOk))
                                     .strong()

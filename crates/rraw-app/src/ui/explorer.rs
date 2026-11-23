@@ -68,18 +68,24 @@ impl RrawApp {
                 ui.separator();
 
                 // "📁 .." parent directory navigation entry at the top of the list
+                let lang = self.lang();
                 if let Some(parent) = dir.parent() {
                     if !parent.as_os_str().is_empty() {
                         let btn = ui.add(
                             egui::Button::new(
-                                egui::RichText::new("📁 .. (Dossier parent)")
-                                    .strong()
-                                    .color(Color32::from_rgb(140, 190, 255)),
+                                egui::RichText::new(crate::i18n::explorer_parent_folder_label(
+                                    lang,
+                                ))
+                                .strong()
+                                .color(Color32::from_rgb(140, 190, 255)),
                             )
                             .frame(false),
                         );
                         if btn
-                            .on_hover_text(format!("Remonter vers {}", parent.display()))
+                            .on_hover_text(crate::i18n::explorer_parent_folder_tooltip(
+                                lang,
+                                &parent.display().to_string(),
+                            ))
                             .clicked()
                         {
                             dir_to_open = Some(parent.to_path_buf());
@@ -102,8 +108,12 @@ impl RrawApp {
                     }
                 }
             } else {
-                ui.label("Aucun dossier ouvert.");
-                if ui.button("📂 Parcourir un dossier...").clicked() {
+                let lang = self.lang();
+                ui.label(crate::i18n::explorer_no_folder_open(lang));
+                if ui
+                    .button(crate::i18n::explorer_browse_folder_button(lang))
+                    .clicked()
+                {
                     if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                         dir_to_open = Some(folder);
                     }

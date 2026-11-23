@@ -198,32 +198,69 @@ impl<'a> PreparedGradingFrame<'a> {
             denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4 || need_ane;
         let need_defringe = defringe_cfg.purple_amount > 1e-4 || defringe_cfg.green_amount > 1e-4;
         let show_defringe_mask = allow_defringe_mask && grading.optics.defringe_preview_mask;
+        let sharpen_excess = (grading.denoise_sharpen.capture_sharpening_amount - 0.5).max(0.0);
+        let need_sharpen = !show_defringe_mask && sharpen_excess > 1e-4;
 
-        let processed_samples = if need_denoise || need_defringe || show_defringe_mask {
-            let mut s = base.samples_rgb.to_vec();
-            if need_denoise {
-                rraw_core::denoise_rgb_with_wb(
-                    &mut s,
-                    preview_w,
-                    preview_h,
-                    &denoise_cfg,
-                    Some([eff_wb_r, eff_wb_g, eff_wb_b]),
-                );
-                if need_ane {
-                    let str_f =
-                        (grading.denoise_sharpen.ane_denoise_strength / 100.0).clamp(0.0, 1.0);
-                    apply_ane_neural_denoise_rgb(&mut s, preview_w, preview_h, str_f);
+        let processed_samples =
+            if need_denoise || need_defringe || show_defringe_mask || need_sharpen {
+                let mut s = base.samples_rgb.to_vec();
+                if need_denoise {
+                    rraw_core::denoise_rgb_with_wb(
+                        &mut s,
+                        preview_w,
+                        preview_h,
+                        &denoise_cfg,
+                        Some([eff_wb_r, eff_wb_g, eff_wb_b]),
+                    );
+                    if need_ane {
+                        let str_f =
+                            (grading.denoise_sharpen.ane_denoise_strength / 100.0).clamp(0.0, 1.0);
+                        apply_ane_neural_denoise_rgb(&mut s, preview_w, preview_h, str_f);
+                    }
                 }
-            }
-            if show_defringe_mask {
-                rraw_optics::defringe_mask_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
-            } else if need_defringe {
-                rraw_optics::defringe_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
-            }
-            Some(s)
-        } else {
-            None
-        };
+                if need_sharpen && preview_w > 0 && preview_h > 0 {
+                    if let (Ok(w_u32), Ok(h_u32), Ok(noise_profile)) = (
+                        u32::try_from(preview_w),
+                        u32::try_from(preview_h),
+                        rraw_core::NoiseProfile::new(
+                            [0.0002; 3],
+                            [0.00005; 3],
+                            rraw_core::NoiseProfileSource::WaveletMadFallback,
+                        ),
+                    ) {
+                        let rl_params = rraw_optics::RichardsonLucyParams {
+                            iterations: if sharpen_excess >= 1.0 { 2 } else { 1 },
+                            epsilon: 1e-4,
+                            base_psf_sigma: (0.45 + sharpen_excess * 0.45).clamp(0.35, 1.25),
+                            deringing_threshold: 0.08,
+                            noise_profile,
+                        };
+                        let mut flat_rgb = Vec::with_capacity(s.len().saturating_mul(3));
+                        for px in &s {
+                            flat_rgb.extend_from_slice(px);
+                        }
+                        let deconvolved = rraw_optics::execute_richardson_lucy(
+                            &flat_rgb, w_u32, h_u32, &rl_params,
+                        );
+                        let blend = sharpen_excess.clamp(0.0, 1.0);
+                        if deconvolved.len() == s.len().saturating_mul(3) {
+                            for (i, px) in s.iter_mut().enumerate() {
+                                px[0] = px[0] * (1.0 - blend) + deconvolved[i * 3] * blend;
+                                px[1] = px[1] * (1.0 - blend) + deconvolved[i * 3 + 1] * blend;
+                                px[2] = px[2] * (1.0 - blend) + deconvolved[i * 3 + 2] * blend;
+                            }
+                        }
+                    }
+                }
+                if show_defringe_mask {
+                    rraw_optics::defringe_mask_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
+                } else if need_defringe {
+                    rraw_optics::defringe_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
+                }
+                Some(s)
+            } else {
+                None
+            };
 
         let has_creative_vignette = grading.effects.creative_vignette_amount.abs() > 0.1;
         let cv_amt = grading.effects.creative_vignette_amount / 100.0;

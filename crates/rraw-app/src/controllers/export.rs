@@ -33,6 +33,8 @@ pub struct ExportBatchController {
     pub export_bit_depth: ExportBitDepth,
     /// Scaling mode applied during export.
     pub export_scale_mode: ExportScaleMode,
+    /// Whether to compute and emit ISO 21496-1 Gain Map HDR metadata (`.hdrgm.xmp` + `.tmap`).
+    pub export_hdr_gain_map: bool,
     /// Custom export destination folder, if chosen by user.
     pub export_custom_dir: Option<PathBuf>,
     /// Status message from latest export operation: (message, is_success).
@@ -82,6 +84,7 @@ impl ExportBatchController {
             export_jpeg_quality: 92,
             export_bit_depth: ExportBitDepth::Bits8,
             export_scale_mode: ExportScaleMode::Original,
+            export_hdr_gain_map: false,
             export_custom_dir: None,
             export_status: None,
             export_use_subfolder: true,

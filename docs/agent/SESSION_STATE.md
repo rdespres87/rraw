@@ -4,11 +4,16 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 23 — Deep Maturity Audit #5 Remediation (Chantiers P0 & P1 Complete; P2 Next)
-- **Active Tasks**: Task 23.2 (P1 — Ghost Boolean Eradication, True LRU Thumbnail Recency & Dead Code Purge) **Complete**
-- **Next Phase**: Phase 23 — Task 23.3 (Priority P2 — 100% Residual French String Localization & Domain Crate Feature Wiring)
-- **Last Verified Baseline**: 376 tests passing across 84 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
-- **Current Milestone**: Phase 23 — Task 23.2 Audit #5 Priority P1 Remediation **Complete**
+- **Active Phase**: Phase 23 — Deep Maturity Audit #5 Remediation (Chantiers P0, P1 & P2 Complete)
+- **Active Tasks**: Task 23.3 (P2 — 100% Residual French String Localization & Domain Crate Feature Wiring) **Complete**
+- **Next Phase**: Ready for next phase or user milestone verification
+- **Last Verified Baseline**: 379 tests passing across 85 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Current Milestone**: Phase 23 — Task 23.3 Audit #5 Priority P2 Remediation **Complete**
+  - **P2.1 100% Residual French String Localization across `rraw-app` UI**: Added 25 language-aware localization helpers in `crates/rraw-app/src/i18n/mod.rs` (`explorer_*`, `exif_*`, `filmstrip_*`, `left_panel_tab_labels`, `soft_proof_out_of_gamut_badge`, `export_hdr_gain_map_*`) with custom catalog override lookup (`I18nEngine::translate_custom`) and built-in `Language::Fr`, Spanish (`lang.is_spanish()`), and `Language::En` translations, wired across `ui/explorer.rs`, `ui/exif.rs`, `ui/filmstrip.rs`, `ui/export.rs`, and `app.rs` (top-bar Soft Proofing profile/intent/out-of-gamut badge).
+  - **P2.2 Domain Crate Feature Wiring (`rraw-optics` Richardson-Lucy & `rraw-export` ISO 21496-1 Gain Map HDR)**: Wired `rraw_optics::execute_richardson_lucy` (`RichardsonLucyParams`) into `PreparedGradingFrame::prepare` (`crates/rraw-app/src/preview/pipeline.rs`) when `capture_sharpening_amount > 0.5`, and wired `rraw_export` ISO 21496-1 Gain Map calculation and `.hdrgm.xmp` / `.tmap` sidecar emission (`GainMapCalculator::compute`, `Iso21496Params`, `Iso21496XmpPacket::encode`, `Iso21496TmapBox::encode`) into `ExportBatchController`, `ExportWriteConfig`, `RrawApp::write_iso21496_gain_map_sidecars`, and `render_export_dialog`.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p2_audit5_i18n_and_domain_wiring_tests.rs` (3 new tests).
+  - 379 tests passing across 85 suites, 0 clippy errors, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+- **Preceding Milestone**: Phase 23 — Task 23.2 Audit #5 Priority P1 Remediation **Complete** (Commit `ffd286f`)
   - **P1.1 Modal Dialog Single Source of Truth (`ExportBatchController`)**: Added `set_dialog_open(dialog, is_open)` and `close_dialog(dialog)` on `ExportBatchController` (`crates/rraw-app/src/controllers/export.rs`) and replaced all raw `show_*_dialog = ...` mutations across `ui/about.rs`, `ui/shortcuts.rs`, `ui/export.rs`, `ui/canvas_hud.rs`, `ui/inspector.rs`, and `app.rs` (`handle_escape_key`, top bar, status bar) so `active_dialog` and boolean flags never desynchronize.
   - **P1.2 Interactive Canvas Tool Mutual Exclusion (`ActiveCanvasTool`)**: Added `RrawApp::reconcile_canvas_tool_transitions` (`crates/rraw-app/src/app.rs`), wired across `AiSemanticMasks`, `Crop`, `Straighten`, and `Geometry` in `ui/inspector.rs`, and enforced automatic deactivation of `is_crop_editing` and `parallel_tool_phase` when `crop_enabled` or `geometry_enabled` is unchecked in `ui/sections/crop.rs` and `ui/sections/geometry.rs`.
   - **P1.3 True LRU Thumbnail Recency & Dead Code Purge (~502 Lines Removed)**: Upgraded filmstrip thumbnail lookup in `crates/rraw-app/src/ui/filmstrip.rs` to `get_and_touch(entry)`, restoring true LRU eviction order, and removed ~502 lines of uncalled dead code (`execute_export`, `execute_timelapse_export`, `write_exported_image`, `build_export_base_from_cfa`, `resolve_photo_preview_and_grading` in `ui/export.rs`; `render_exif_compact_card`, `render_exif_card`, `render_exif_full_panel` in `ui/exif.rs`; `render_presets_tab` in `ui/presets.rs`).

@@ -21,14 +21,25 @@ impl RrawApp {
             )
             .show(ui, |ui| {
                 // Filmstrip Toolbar: Rating Filter Chips & Quick Navigation
+                let lang = self.lang();
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Filtre :").strong().size(12.0));
+                    ui.label(
+                        egui::RichText::new(crate::i18n::filmstrip_filter_label(lang))
+                            .strong()
+                            .size(12.0),
+                    );
 
                     let mut filter_changed = false;
 
-                    let all_label = format!("Toutes ({})", self.library.directory_entries.len());
+                    let all_label = crate::i18n::filmstrip_filter_all(
+                        lang,
+                        self.library.directory_entries.len(),
+                    );
                     if ui
-                        .selectable_label(self.library.rating_filter == RatingFilter::All, all_label)
+                        .selectable_label(
+                            self.library.rating_filter == RatingFilter::All,
+                            all_label,
+                        )
                         .clicked()
                     {
                         self.library.rating_filter = RatingFilter::All;
@@ -73,14 +84,13 @@ impl RrawApp {
                                 .is_some_and(crate::preview::is_raw_extension)
                         })
                         .count();
-                    let has_non_raw = raw_count < self.library.directory_entries.len() && raw_count > 0;
+                    let has_non_raw =
+                        raw_count < self.library.directory_entries.len() && raw_count > 0;
                     if has_non_raw {
                         let raw_chip_text = format!("📷 RAW ({raw_count})");
                         if ui
                             .selectable_label(self.library.raw_only_filter, raw_chip_text)
-                            .on_hover_text(
-                                "Masquer les fichiers JPG/PNG pour n'afficher que les fichiers RAW d'origine",
-                            )
+                            .on_hover_text(crate::i18n::filmstrip_raw_only_tooltip(lang))
                             .clicked()
                         {
                             self.library.raw_only_filter = !self.library.raw_only_filter;
@@ -117,15 +127,7 @@ impl RrawApp {
                         .iter()
                         .filter(|p| self.matches_active_filter(p))
                         .count();
-                    let sel_text = if sel_count > 0 {
-                        format!(
-                            "Lot d'export : ✓ {} cochée{}",
-                            sel_count,
-                            if sel_count > 1 { "s" } else { "" }
-                        )
-                    } else {
-                        "Lot d'export : 0 cochée".to_string()
-                    };
+                    let sel_text = crate::i18n::filmstrip_export_batch_count(lang, sel_count);
                     ui.label(
                         egui::RichText::new(sel_text)
                             .small()
@@ -147,14 +149,15 @@ impl RrawApp {
                             }
                         }
                     }
-                    if sel_count > 0 && ui.small_button(self.t(Key::FilmstripDeselectAll)).clicked() {
+                    if sel_count > 0 && ui.small_button(self.t(Key::FilmstripDeselectAll)).clicked()
+                    {
                         self.library.selected_photos.clear();
                     }
                     if let Some(photo) = &self.session.loaded_photo {
                         if !self.library.selected_photos.contains(&photo.path)
                             && ui
-                                .small_button("+ Cocher active")
-                                .on_hover_text("Ajouter la photo courante à la sélection d'export")
+                                .small_button(crate::i18n::filmstrip_check_active_button(lang))
+                                .on_hover_text(crate::i18n::filmstrip_check_active_tooltip(lang))
                                 .clicked()
                         {
                             self.library.selected_photos.insert(photo.path.clone());
@@ -163,19 +166,20 @@ impl RrawApp {
 
                     if sel_count > 0 {
                         let export_btn = egui::Button::new(
-                            egui::RichText::new(format!("📤 Exporter sélection ({sel_count})"))
-                                .strong()
-                                .color(Color32::WHITE),
+                            egui::RichText::new(crate::i18n::filmstrip_export_selection_button(
+                                lang, sel_count,
+                            ))
+                            .strong()
+                            .color(Color32::WHITE),
                         )
                         .fill(Color32::from_rgb(30, 120, 225));
                         if ui
                             .add(export_btn)
-                            .on_hover_text(
-                                "Ouvrir la fenêtre d'export pour les photos sélectionnées",
-                            )
+                            .on_hover_text(crate::i18n::filmstrip_export_selection_tooltip(lang))
                             .clicked()
                         {
-                            self.export.set_target_mode(ExportTargetMode::BatchSelection);
+                            self.export
+                                .set_target_mode(ExportTargetMode::BatchSelection);
                             self.export
                                 .open_dialog(crate::controllers::export::ActiveModalDialog::Export);
                             self.export.export_status = None;
@@ -200,7 +204,10 @@ impl RrawApp {
                             .map(|c| c.summary())
                             .unwrap_or_default();
                         let paste_label = if sel_count > 0 {
-                            format!("{} ({sel_count})", self.t(Key::FilmstripToolbarPasteSelection))
+                            format!(
+                                "{} ({sel_count})",
+                                self.t(Key::FilmstripToolbarPasteSelection)
+                            )
                         } else {
                             self.t(Key::FilmstripToolbarPaste).to_string()
                         };
@@ -212,8 +219,9 @@ impl RrawApp {
                         .fill(Color32::from_rgb(32, 54, 38));
                         if ui
                             .add(paste_btn)
-                            .on_hover_text(format!(
-                                "Coller le rendu ({clip_summary}) sur la sélection ou la photo active (Cmd+V)"
+                            .on_hover_text(crate::i18n::filmstrip_paste_tooltip(
+                                lang,
+                                &clip_summary,
                             ))
                             .clicked()
                         {
@@ -225,20 +233,20 @@ impl RrawApp {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .button("▶")
-                            .on_hover_text("Photo suivante (Flèche droite)")
+                            .on_hover_text(crate::i18n::filmstrip_next_photo_tooltip(lang))
                             .clicked()
                         {
                             self.navigate_relative(1);
                         }
                         if ui
                             .button("◀")
-                            .on_hover_text("Photo précédente (Flèche gauche)")
+                            .on_hover_text(crate::i18n::filmstrip_prev_photo_tooltip(lang))
                             .clicked()
                         {
                             self.navigate_relative(-1);
                         }
                         ui.label(
-                            egui::RichText::new("Raccourcis : ◀/▶ (Naviguer) | 0-5 (Noter)")
+                            egui::RichText::new(crate::i18n::filmstrip_shortcuts_hint(lang))
                                 .small()
                                 .color(Color32::GRAY),
                         );
@@ -296,7 +304,8 @@ impl RrawApp {
                                         self.library.photo_ratings.get(entry).copied().unwrap_or(0);
 
                                     let is_selected = active_path.as_ref() == Some(entry);
-                                    let is_multi_selected = self.library.selected_photos.contains(entry);
+                                    let is_multi_selected =
+                                        self.library.selected_photos.contains(entry);
                                     let is_cached =
                                         self.photo_cache.iter().any(|e| &e.path == entry);
 
@@ -349,7 +358,8 @@ impl RrawApp {
                                             ui.close();
                                         }
 
-                                        let is_in_selection = self.library.selected_photos.contains(entry);
+                                        let is_in_selection =
+                                            self.library.selected_photos.contains(entry);
                                         let paste_label = if is_in_selection
                                             && self.library.selected_photos.len() > 1
                                         {
@@ -369,20 +379,21 @@ impl RrawApp {
 
                                         if let Some(summary) = &clipboard_summary {
                                             ui.label(
-                                                egui::RichText::new(format!(
-                                                    "Presse-papiers : {summary}"
-                                                ))
+                                                egui::RichText::new(
+                                                    crate::i18n::filmstrip_clipboard_prefix(
+                                                        lang, summary,
+                                                    ),
+                                                )
                                                 .small()
                                                 .color(Color32::from_rgb(140, 150, 165)),
                                             );
                                         }
 
                                         ui.separator();
-                                        let chk_label = if is_multi_selected {
-                                            "✕ Décocher du lot d'export"
-                                        } else {
-                                            "✓ Cocher pour le lot d'export"
-                                        };
+                                        let chk_label = crate::i18n::filmstrip_toggle_batch_label(
+                                            lang,
+                                            is_multi_selected,
+                                        );
                                         if ui.button(chk_label).clicked() {
                                             toggle_export_path = Some(entry.clone());
                                             ui.close();
@@ -416,10 +427,12 @@ impl RrawApp {
                                     {
                                         let tex_size = tex.size_vec2();
                                         let tex_aspect = tex_size.x / tex_size.y.max(1.0);
-                                        let frame_aspect = thumb_rect.width() / thumb_rect.height().max(1.0);
+                                        let frame_aspect =
+                                            thumb_rect.width() / thumb_rect.height().max(1.0);
                                         let fitted_rect = if tex_aspect > frame_aspect {
                                             // Limited by width (letterbox top/bottom)
-                                            let h = (thumb_rect.width() / tex_aspect).clamp(10.0, thumb_rect.height());
+                                            let h = (thumb_rect.width() / tex_aspect)
+                                                .clamp(10.0, thumb_rect.height());
                                             let y = thumb_rect.center().y - h * 0.5;
                                             egui::Rect::from_min_size(
                                                 egui::pos2(thumb_rect.left(), y),
@@ -427,7 +440,8 @@ impl RrawApp {
                                             )
                                         } else {
                                             // Limited by height (pillarbox left/right for portrait / square crops)
-                                            let w = (thumb_rect.height() * tex_aspect).clamp(10.0, thumb_rect.width());
+                                            let w = (thumb_rect.height() * tex_aspect)
+                                                .clamp(10.0, thumb_rect.width());
                                             let x = thumb_rect.center().x - w * 0.5;
                                             egui::Rect::from_min_size(
                                                 egui::pos2(x, thumb_rect.top()),
@@ -622,7 +636,8 @@ impl RrawApp {
                                     // Classical mouse selection: Click opens photo, Cmd/Ctrl+Click or Checkbox toggles batch selection, Shift+Click selects range
                                     if response.clicked() && star_change.is_none() && !clicked_chk {
                                         if ui.input(|i| i.modifiers.shift) {
-                                            let anchor = self.library.last_selected_index.unwrap_or(0);
+                                            let anchor =
+                                                self.library.last_selected_index.unwrap_or(0);
                                             let min_i = anchor.min(entry_idx);
                                             let max_i = anchor.max(entry_idx);
                                             for i in min_i..=max_i {
@@ -712,12 +727,7 @@ impl RrawApp {
 
                 // 2. High-Level Contextual Navigation Tabs (Cmd+1 / Cmd+2 / Cmd+3)
                 let tab_w = ((ui.available_width() - 8.0) / 3.0).floor();
-                let is_fr = lang == crate::i18n::Language::Fr;
-                let (tab1_label, tab2_label, tab3_label) = if is_fr {
-                    ("📁 Fichiers", "🎨 Styles", "ℹ️ EXIF")
-                } else {
-                    ("📁 Files", "🎨 Styles", "ℹ️ EXIF")
-                };
+                let (tab1_label, tab2_label, tab3_label) = crate::i18n::left_panel_tab_labels(lang);
 
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = egui::vec2(4.0, 0.0);
