@@ -2,19 +2,19 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Official Release Push & CI Verification**:
-  - Push tag `v0.1.0` to remote (`git push origin v0.1.0`) to trigger `.github/workflows/release.yml`.
-  - Verify GitHub Release generation and attached `Rraw-v0.1.0.dmg` and checksums.
+- **Monitor GitHub Release Generation (`v0.1.1`)**:
+  - Pushed tag `v0.1.1` to remote (`git push origin v0.1.1`) triggering `.github/workflows/release.yml`.
+  - Verify GitHub Release generation and attached `Rraw-v0.1.1.dmg` and checksums on GitHub repository.
 
 ---
 
 ## Last Completed Milestone
 
-- **Full XMP Purge, Instant Star Ratings & Clean `.rraw/` Architecture — COMPLETE**:
-  - Completely purged all XMP sidecar writing, reading, and fallback logic across the repository.
-  - Centralized native recipe sidecars strictly in `<parent>/.rraw/<photo>.rraw.json`.
-  - Resolved UI star rating display bug by synchronously pre-loading ratings on folder open and fixing the egui repaint condition (`dam_drained > 0`).
-  - Verified with 397 passing tests across 89 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+- **Release Tagging & CI Workflow Trigger (`v0.1.1`) — COMPLETE**:
+  - Bumped workspace version to `0.1.1` across `Cargo.toml` and `Cargo.lock`.
+  - Pushed commits (`99cf746`, `9b0e4f4`, `5a56077`) to `origin/main`.
+  - Created and pushed annotated tag `v0.1.1`.
+  - Full suite verified: 397 tests pass, 0 clippy warnings, local Inquisitor APPROVED.
 
 ---
 

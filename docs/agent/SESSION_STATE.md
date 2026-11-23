@@ -5,9 +5,12 @@
 ## Current Status
 
 - **Active Phase**: Phase 25 — Pre-Release Hardening, Performance Benchmarks & Packaging
-- **Active Tasks**: Release Tagging & GitHub Automated Release CI (`v0.1.1`)
-- **Next Phase**: Tag Push (`git tag -a v0.1.1`) & GitHub Release Verification
+- **Active Tasks**: Release Tagging & GitHub Automated Release CI (`v0.1.1`) **Triggered**
+- **Next Phase**: Monitor GitHub Release Action (`v0.1.1`) & Verify DMG Artifact
 - **Last Verified Baseline**: 397 tests passing across 89 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Current Milestone**: Tag `v0.1.1` and `main` Pushed to GitHub
+  - Pushed commits `99cf746`, `9b0e4f4`, and `5a56077` to `origin/main`.
+  - Pushed annotated tag `v0.1.1` to `origin`, triggering the GitHub Actions `Release` workflow on `macos-latest` (Apple Silicon).
 - **Current Milestone**: Full XMP Purge, Instant Star Ratings & Clean `.rraw/` Architecture **Complete**
   - **Full XMP Purge**: Completely removed all XMP sidecar generation, parsing, and fallback code across the engine.
   - **Clean Finder Architecture**: Centralized native recipe sidecars in `<parent>/.rraw/<photo>.rraw.json` adjacent to `.rraw/cache.db`.
