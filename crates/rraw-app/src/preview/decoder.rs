@@ -2,10 +2,12 @@
 
 //! Photo decoding from disk, thumbnail generation, and timelapse grading preparation.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rraw_core::{ExecutionBackend, PipelineStageId, PipelineTiming, SignedCfaBuffer, StageTimer};
 use rraw_decode::{PureRustRawDecoder, RawDecoder};
+use rraw_storage::{DiskThumbnailCache, ThumbnailSize};
+use sha2::{Digest, Sha256};
 
 use super::orientation::{
     apply_exif_orientation_dyn_image, oriented_dimensions, read_exif_orientation,
@@ -13,6 +15,92 @@ use super::orientation::{
 use super::pipeline::render_preview_from_base;
 use super::types::{BackgroundDecodePayload, BaseRgbPreview, LoadedPhotoView};
 use crate::state::{load_photo_sidecars, DarkroomGradingState};
+
+/// Returns the on-disk thumbnail cache directory.
+#[must_use]
+pub fn thumbnail_cache_dir() -> PathBuf {
+    std::env::temp_dir().join("rraw_thumbnails")
+}
+
+/// Computes a fast, content-addressed 64-character hex hash for thumbnail disk caching.
+#[must_use]
+pub fn compute_thumbnail_content_hash(path: &Path) -> Option<String> {
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let path_str = canonical.to_string_lossy();
+    let meta = std::fs::metadata(&canonical).ok()?;
+    let len = meta.len();
+    let mtime = meta
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_millis();
+
+    let mut hasher = Sha256::new();
+    hasher.update(b"RRAW_THUMB_V1:");
+    hasher.update(path_str.as_bytes());
+    hasher.update(b":");
+    hasher.update(len.to_le_bytes());
+    hasher.update(b":");
+    hasher.update(mtime.to_le_bytes());
+
+    let sidecar_xmp = canonical.with_extension("xmp");
+    if let Ok(xmp_meta) = std::fs::metadata(&sidecar_xmp) {
+        let xmp_mtime = xmp_meta
+            .modified()
+            .ok()
+            .and_then(|m| m.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        hasher.update(b":xmp:");
+        hasher.update(xmp_mtime.to_le_bytes());
+    }
+
+    let result = hasher.finalize();
+    let mut hex = String::with_capacity(64);
+    for byte in result {
+        use std::fmt::Write;
+        let _ = write!(&mut hex, "{byte:02x}");
+    }
+    Some(hex)
+}
+
+/// Serializes an `egui::ColorImage` into binary bytes (`[w: u32][h: u32][pixels: [u8; 4]]`).
+#[must_use]
+pub fn serialize_color_image(img: &egui::ColorImage) -> Vec<u8> {
+    let w = img.size[0] as u32;
+    let h = img.size[1] as u32;
+    let pixel_count = (w as usize).saturating_mul(h as usize);
+    let mut buf = Vec::with_capacity(8 + pixel_count * 4);
+    buf.extend_from_slice(&w.to_le_bytes());
+    buf.extend_from_slice(&h.to_le_bytes());
+    for px in &img.pixels {
+        buf.extend_from_slice(&px.to_array());
+    }
+    buf
+}
+
+/// Deserializes binary bytes back into an `egui::ColorImage`.
+#[must_use]
+pub fn deserialize_color_image(data: &[u8]) -> Option<egui::ColorImage> {
+    if data.len() < 8 {
+        return None;
+    }
+    let w = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
+    let h = u32::from_le_bytes([data[4], data[5], data[6], data[7]]) as usize;
+    let expected_pixels = w.saturating_mul(h);
+    let expected_bytes = 8 + expected_pixels.saturating_mul(4);
+    if w == 0 || h == 0 || data.len() < expected_bytes {
+        return None;
+    }
+    let mut pixels = Vec::with_capacity(expected_pixels);
+    for chunk in data[8..expected_bytes].as_chunks::<4>().0 {
+        pixels.push(egui::Color32::from_rgba_unmultiplied(
+            chunk[0], chunk[1], chunk[2], chunk[3],
+        ));
+    }
+    Some(egui::ColorImage::new([w, h], pixels))
+}
 
 /// Extracts a cropped, downscaled thumbnail `egui::ColorImage` from an existing rendered preview image.
 #[must_use]
@@ -73,6 +161,31 @@ pub fn create_thumbnail_from_preview(
 /// Generates a fast ~140px RGB thumbnail image from a RAW or raster file applying its sidecar grading if available.
 #[must_use]
 pub fn generate_fast_thumbnail(path: &Path) -> Option<egui::ColorImage> {
+    let cache_dir = thumbnail_cache_dir();
+    let cache_opt = DiskThumbnailCache::new(&cache_dir).ok();
+    let hash_opt = compute_thumbnail_content_hash(path);
+
+    if let (Some(cache), Some(hash)) = (&cache_opt, &hash_opt) {
+        if let Some(bytes) = cache.get_thumbnail(hash, ThumbnailSize::Size160) {
+            if let Some(img) = deserialize_color_image(&bytes) {
+                return Some(img);
+            }
+        }
+    }
+
+    let generated = generate_fast_thumbnail_uncached(path)?;
+
+    if let (Some(cache), Some(hash)) = (&cache_opt, &hash_opt) {
+        let serialized = serialize_color_image(&generated);
+        let _ = cache.store_thumbnail(hash, ThumbnailSize::Size160, &serialized);
+    }
+
+    Some(generated)
+}
+
+/// Computes the un-cached ~140px RGB thumbnail image from a RAW or raster file.
+#[must_use]
+pub fn generate_fast_thumbnail_uncached(path: &Path) -> Option<egui::ColorImage> {
     let ext_lower = path
         .extension()
         .and_then(|s| s.to_str())

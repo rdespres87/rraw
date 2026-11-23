@@ -21,6 +21,7 @@ rraw-color.workspace = true
 rraw-gpu.workspace = true
 rraw-ai.workspace = true
 rraw-storage.workspace = true
+sha2.workspace = true
 rraw-export.workspace = true
 rraw-macos-edr.workspace = true
 rraw-coreml.workspace = true

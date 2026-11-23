@@ -4,9 +4,11 @@
 
 pub mod about;
 pub mod canvas_hud;
+pub mod chrome;
 pub mod exif;
 pub mod explorer;
 pub mod export;
+pub mod export_runner;
 pub mod filmstrip;
 pub mod histogram;
 pub mod inspector;

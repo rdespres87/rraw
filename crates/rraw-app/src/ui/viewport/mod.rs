@@ -385,6 +385,9 @@ impl RrawApp {
                 if crop_out.save_sidecar {
                     self.session.sidecar_dirty = true;
                 }
+                if !self.viewport.is_crop_editing {
+                    self.activate_canvas_tool(crate::controllers::viewport::ActiveCanvasTool::None);
+                }
             }
 
             // 2-parallel-lines perspective correction tool interaction
@@ -415,6 +418,9 @@ impl RrawApp {
                 if p_out.save_sidecar {
                     self.session.sidecar_dirty = true;
                 }
+                if self.viewport.parallel_tool_phase == ParallelToolPhase::Inactive {
+                    self.activate_canvas_tool(crate::controllers::viewport::ActiveCanvasTool::None);
+                }
             }
 
             // Leveling horizon line interaction
@@ -436,6 +442,9 @@ impl RrawApp {
                 }
                 if h_out.save_sidecar {
                     self.session.sidecar_dirty = true;
+                }
+                if !self.viewport.horizon_tool_active {
+                    self.activate_canvas_tool(crate::controllers::viewport::ActiveCanvasTool::None);
                 }
             }
 

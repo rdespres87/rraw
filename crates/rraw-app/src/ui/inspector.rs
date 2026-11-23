@@ -203,8 +203,7 @@ impl RrawApp {
                             .on_hover_text(t(Key::DarkroomResetLayoutTooltip))
                             .clicked()
                         {
-                            self.layout_config = AppLayoutConfig::default();
-                            self.layout_config.save();
+                            self.reset_layout();
                         }
                     });
                 });
