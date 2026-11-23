@@ -219,10 +219,7 @@ impl RrawApp {
                                     "Exposure Bias",
                                     "Date/Time Original",
                                 ];
-                                if SUMMARY_TAGS.contains(&tag.as_str()) {
-                                    return false;
-                                }
-                                true
+                                !SUMMARY_TAGS.contains(&tag.as_str())
                             } else {
                                 tag.to_lowercase().contains(&query)
                                     || trans_tag.to_lowercase().contains(&query)
