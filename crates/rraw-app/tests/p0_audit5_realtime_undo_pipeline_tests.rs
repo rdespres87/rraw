@@ -43,7 +43,8 @@ fn test_p0_1_continuous_slider_drag_coalesces_sidecar_writes_and_undo() -> Resul
 
     let photo_path = dir.join("test_drag.dng");
     fs::write(&photo_path, b"dummy raw").map_err(|e| e.to_string())?;
-    let json_sidecar = dir.join("test_drag.dng.rraw.json");
+    let sidecars = rraw_storage::SidecarPaths::from_raw_path(&photo_path);
+    let json_sidecar = sidecars.recipe_json;
 
     let mut app = RrawApp::new_headless();
     app.session.loaded_photo = Some(make_dummy_loaded_photo(photo_path.clone()));

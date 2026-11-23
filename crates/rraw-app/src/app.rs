@@ -654,6 +654,12 @@ impl RrawApp {
         // 1. Open SQLite session database (creates .rraw/cache.db) with WAL pragmas
         match rraw_storage::SqliteDamIndex::open_session_database(&abs_dir) {
             Ok(dam) => {
+                // Synchronously pre-load all existing ratings from SQLite so stars appear immediately at Frame 0
+                if let Ok(ratings) = dam.load_all_ratings() {
+                    for (path, rating) in ratings {
+                        self.library.photo_ratings.insert(path, rating);
+                    }
+                }
                 // Background worker asynchronously preloads cached ratings and indexes directory photos without freezing the UI thread
                 self.workers
                     .spawn_directory_indexer(dam.clone(), self.library.directory_entries.clone());
@@ -1296,7 +1302,7 @@ impl eframe::App for RrawApp {
 
         // Drain background DAM session indexing updates (bounded to 128 per frame to preserve 120 FPS)
         let dam_drained = self.drain_dam_indexing_events(128);
-        if dam_drained == 128 {
+        if dam_drained > 0 {
             ui.ctx().request_repaint();
         }
 

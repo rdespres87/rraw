@@ -89,9 +89,12 @@ fn test_set_rating_bidirectional_sync() -> Result<(), Box<dyn std::error::Error>
     // 1. Verify in-memory rating
     assert_eq!(app.library.photo_ratings.get(&photo_path), Some(&5));
 
-    // 2. Verify .rraw.json sidecar was created with rating 5
-    let sidecar_json = photo_path.with_file_name("PHOTO_BIDI.DNG.rraw.json");
-    assert!(sidecar_json.exists(), "Sidecar .rraw.json must be written");
+    // 2. Verify .rraw.json sidecar was created with rating 5 in .rraw/
+    let sidecars = rraw_storage::SidecarPaths::from_raw_path(&photo_path);
+    assert!(
+        sidecars.recipe_json.exists(),
+        "Sidecar .rraw.json must be written in .rraw/"
+    );
 
     // 3. Verify SQLite DAM database was updated
     let dam = app

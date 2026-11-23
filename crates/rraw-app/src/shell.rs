@@ -62,7 +62,7 @@ pub fn initialize_shell_summary() -> Result<String, ColorError> {
     let _decode_err_marker = std::any::type_name::<DecodeError>();
 
     Ok(format!(
-        "rraw-app ready | mode={:?} | format={:?} | edr_color={:?} | headroom={:.1} | sat_r={:.1} | halo={} | optics={:?} | export={:?} | token_ok={} | xmp={}",
+        "rraw-app ready | mode={:?} | format={:?} | edr_color={:?} | headroom={:.1} | sat_r={:.1} | halo={} | optics={:?} | export={:?} | token_ok={} | recipe={}",
         GpuContextMode::InteractiveMetalSurface,
         format,
         shell.edr_layer.color_space,
@@ -72,6 +72,6 @@ pub fn initialize_shell_summary() -> Result<String, ColorError> {
         OpticalResolutionTier::Tier2LensfunXml,
         export.format,
         is_token_current(token, token),
-        sidecar.xmp_sidecar.display(),
+        sidecar.recipe_json.display(),
     ))
 }

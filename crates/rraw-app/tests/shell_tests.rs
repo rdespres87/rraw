@@ -301,14 +301,16 @@ fn sidecar_saving_and_loading_roundtrip() -> Result<(), Box<dyn std::error::Erro
     };
     let rating = 4_u8;
 
-    // 1. Save both sidecar files: <photo>.rraw.json and <photo>.xmp
+    // 1. Save sidecar files: canonical in .rraw/, clean directory by default
     app::save_photo_sidecars(&photo_path, &grading, rating);
 
-    let json_sidecar = temp_dir.join("SAMPLE_001.DNG.rraw.json");
-    let xmp_sidecar = temp_dir.join("SAMPLE_001.xmp");
+    let sidecars = rraw_storage::SidecarPaths::from_raw_path(&photo_path);
+    let json_sidecar = sidecars.recipe_json;
 
-    assert!(json_sidecar.exists(), "Native JSON recipe must exist");
-    assert!(xmp_sidecar.exists(), "Adobe XMP sidecar must exist");
+    assert!(
+        json_sidecar.exists(),
+        "Native JSON recipe must exist in .rraw/"
+    );
 
     // Verify JSON contents
     let json_text = std::fs::read_to_string(&json_sidecar)?;
@@ -318,10 +320,6 @@ fn sidecar_saving_and_loading_roundtrip() -> Result<(), Box<dyn std::error::Erro
     assert!(json_text.contains("\"shadows\": 25.0"));
     assert!(json_text.contains("\"is_monochrome\": true"));
     assert!(json_text.contains("\"rating\": 4"));
-
-    // Verify XMP contents
-    let xmp_text = std::fs::read_to_string(&xmp_sidecar)?;
-    assert!(xmp_text.contains("<xmp:Rating>4</xmp:Rating>"));
 
     // 2. Load sidecars back
     let (loaded_grading, loaded_rating) = app::load_photo_sidecars(&photo_path);
@@ -340,10 +338,53 @@ fn sidecar_saving_and_loading_roundtrip() -> Result<(), Box<dyn std::error::Erro
     assert_eq!(loaded_rating, Some(4));
 
     // Cleanup
-    let _ = std::fs::remove_file(json_sidecar);
-    let _ = std::fs::remove_file(xmp_sidecar);
-    let _ = std::fs::remove_file(photo_path);
-    let _ = std::fs::remove_dir(temp_dir);
+    let _ = std::fs::remove_dir_all(temp_dir);
+    Ok(())
+}
+
+#[test]
+fn sidecar_rraw_directory_cleanliness() -> Result<(), Box<dyn std::error::Error>> {
+    let temp_dir =
+        std::env::temp_dir().join(format!("rraw_test_cleanliness_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    std::fs::create_dir_all(&temp_dir)?;
+
+    let photo_path = temp_dir.join("PHOTO_001.CR3");
+    std::fs::write(&photo_path, b"dummy raw")?;
+
+    let sidecars = rraw_storage::SidecarPaths::from_raw_path(&photo_path);
+    assert_eq!(
+        sidecars.recipe_json,
+        temp_dir.join(".rraw").join("PHOTO_001.CR3.rraw.json")
+    );
+
+    // 1. Save sidecars: must store inside .rraw/ and leave parent directory 100% clean
+    let mut grading = DarkroomGradingState::default();
+    grading.tone.exposure_ev = 1.75;
+    app::save_photo_sidecars(&photo_path, &grading, 4);
+
+    assert!(sidecars.recipe_json.exists(), "Recipe must exist in .rraw/");
+
+    // Check that parent directory has only the RAW file and the hidden .rraw directory
+    let parent_files: Vec<String> = std::fs::read_dir(&temp_dir)?
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .collect();
+    assert_eq!(
+        parent_files.len(),
+        2,
+        "Expected only RAW file and .rraw directory"
+    );
+    assert!(parent_files.contains(&"PHOTO_001.CR3".to_string()));
+    assert!(parent_files.contains(&".rraw".to_string()));
+
+    // 2. Verify reload loads directly from .rraw/
+    let (loaded_g, loaded_r) = app::load_photo_sidecars(&photo_path);
+    assert_eq!(loaded_r, Some(4));
+    let g = loaded_g.ok_or("grading must load from .rraw/ sidecar")?;
+    assert!((g.tone.exposure_ev - 1.75).abs() < 1e-4);
+
+    let _ = std::fs::remove_dir_all(temp_dir);
     Ok(())
 }
 

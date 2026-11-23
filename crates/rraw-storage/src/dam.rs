@@ -3,7 +3,6 @@
 //! SQLite DAM metadata indexing, session caching, and multi-criteria querying.
 
 use crate::error::StorageError;
-use crate::xmp::XmpEditor;
 use crate::SidecarPaths;
 use rraw_core::{ColorLabel, PhotoMetadata, PickStatus};
 use rusqlite::{params, Connection};
@@ -700,11 +699,7 @@ fn get_latest_mtime(raw_path: &Path) -> i64 {
     let sidecars = SidecarPaths::from_raw_path(raw_path);
     let mut max_mtime = 0i64;
 
-    for path in [
-        &raw_path.to_path_buf(),
-        &sidecars.recipe_json,
-        &sidecars.xmp_sidecar,
-    ] {
+    for path in [&raw_path.to_path_buf(), &sidecars.recipe_json] {
         if let Ok(metadata) = std::fs::metadata(path) {
             if let Ok(modified) = metadata.modified() {
                 if let Ok(duration) = modified.duration_since(UNIX_EPOCH) {
@@ -725,7 +720,7 @@ fn read_sidecar_overrides(raw_path: &Path) -> (Option<u8>, Option<ColorLabel>, O
     let mut label = None;
     let mut pick = None;
 
-    // 1. Read .rraw.json (Single source of truth)
+    // Read .rraw.json from .rraw/ (Single source of truth)
     if sidecars.recipe_json.exists() {
         if let Ok(content) = std::fs::read_to_string(&sidecars.recipe_json) {
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
@@ -745,20 +740,6 @@ fn read_sidecar_overrides(raw_path: &Path) -> (Option<u8>, Option<ColorLabel>, O
                     .and_then(|v| v.as_str())
                 {
                     pick = Some(parse_pick_status(p));
-                }
-            }
-        }
-    }
-
-    // 2. Read .xmp sidecar (complements / fallback)
-    if sidecars.xmp_sidecar.exists() {
-        if let Ok(content) = std::fs::read_to_string(&sidecars.xmp_sidecar) {
-            if let Ok(editor) = XmpEditor::parse_str(&content) {
-                if rating.is_none() {
-                    rating = editor.rating();
-                }
-                if label.is_none() {
-                    label = editor.label();
                 }
             }
         }

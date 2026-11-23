@@ -7,7 +7,12 @@
 - **Active Phase**: Phase 25 — Pre-Release Hardening, Performance Benchmarks & Packaging (Tasks 25.1, 25.2, 25.3 Complete)
 - **Active Tasks**: Pre-Release Hardening, Performance Benchmarks & Packaging **Complete**
 - **Next Phase**: Official Release Tagging (`git tag -a v0.1.0`) & GitHub Release
-- **Last Verified Baseline**: 396 tests passing across 89 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Last Verified Baseline**: 397 tests passing across 89 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Current Milestone**: Full XMP Purge, Instant Star Ratings & Clean `.rraw/` Architecture **Complete**
+  - **Full XMP Purge**: Completely removed all XMP sidecar generation, parsing, and fallback code across the engine.
+  - **Clean Finder Architecture**: Centralized native recipe sidecars in `<parent>/.rraw/<photo>.rraw.json` adjacent to `.rraw/cache.db`.
+  - **Instant Star Rating UI**: Synchronously preloads cached ratings on folder open (`dam.load_all_ratings()`) and fixed the egui batch repaint bug (`dam_drained > 0`), ensuring star ratings display instantly at Frame 0 without requiring photo selection.
+  - **Audit & Validation**: 397 passing tests across 89 test suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
 - **Current Milestone**: Phase 25 — Pre-Release Hardening, Performance Benchmarks & Packaging **Complete**
   - **Task 25.1 End-to-End Performance Benchmarking & Memory Profile**:
     - Benchmarked RAW decoding throughput: verified 52.8 MPx/s on real 24.1 MP Pentax DNG, synthetic DNG opcode stream build & parse in ~250 µs.

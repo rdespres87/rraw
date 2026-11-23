@@ -10,6 +10,16 @@
 
 ## Last Completed Milestone
 
+- **Full XMP Purge, Instant Star Ratings & Clean `.rraw/` Architecture — COMPLETE**:
+  - Completely purged all XMP sidecar writing, reading, and fallback logic across the repository.
+  - Centralized native recipe sidecars strictly in `<parent>/.rraw/<photo>.rraw.json`.
+  - Resolved UI star rating display bug by synchronously pre-loading ratings on folder open and fixing the egui repaint condition (`dam_drained > 0`).
+  - Verified with 397 passing tests across 89 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 cloud tokens).
+
+---
+
+## Preceding Milestone
+
 - **Automated GitHub Release Workflow (`.github/workflows/release.yml`) — COMPLETE**:
   - Implemented Apple Silicon `macos-14` workflow triggered on tags `v*` and manual `workflow_dispatch`.
   - Integrates `scripts/package_macos.sh`, verifies DMG and SHA-256 artifacts, and publishes GitHub Release with `softprops/action-gh-release@v2`.

@@ -1,10 +1,10 @@
 #![forbid(unsafe_code)]
 
-//! Non-destructive `<photo>.rraw.json` and `<photo>.xmp` sidecar serialization and atomic persistence.
+//! Non-destructive `<photo>.rraw.json` sidecar serialization and atomic persistence.
 
 use std::path::Path;
 
-use rraw_storage::{SidecarPaths, XmpEditor};
+use rraw_storage::SidecarPaths;
 use serde::{Deserialize, Serialize};
 
 use crate::grading::*;
@@ -115,21 +115,6 @@ impl SidecarRecipe {
     }
 }
 
-/// Standard XMP template preserving XML namespaces.
-fn default_xmp_template() -> String {
-    r#"<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
- <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-  <rdf:Description rdf:about=""
-    xmlns:xmp="http://ns.adobe.com/xap/1.0/"
-    xmlns:dc="http://purl.org/dc/elements/1.1/">
-  </rdf:Description>
- </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end="w"?>"#
-        .to_string()
-}
-
 /// Writes `bytes` to `target` atomically using a temporary adjacent file and POSIX/OS rename.
 pub fn atomic_write_bytes(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
@@ -170,7 +155,12 @@ pub fn atomic_write_str(target: &Path, content: &str) -> std::io::Result<()> {
 pub fn save_photo_sidecars(photo_path: &Path, grading: &DarkroomGradingState, rating: u8) {
     let sidecars = SidecarPaths::from_raw_path(photo_path);
 
-    // 1. Write <photo>.rraw.json recipe atomically
+    // 1. Ensure canonical .rraw directory exists
+    if let Some(parent) = sidecars.recipe_json.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    // 2. Write canonical <photo>.rraw.json recipe atomically inside .rraw/
     let recipe = SidecarRecipe::from_state(grading, rating);
     if let Ok(json_str) = serde_json::to_string_pretty(&recipe) {
         if let Err(err) = atomic_write_str(&sidecars.recipe_json, &json_str) {
@@ -180,36 +170,16 @@ pub fn save_photo_sidecars(photo_path: &Path, grading: &DarkroomGradingState, ra
             );
         }
     }
-
-    // 2. Write <photo>.xmp sidecar atomically
-    let initial_xml = if sidecars.xmp_sidecar.exists() {
-        std::fs::read_to_string(&sidecars.xmp_sidecar).unwrap_or_else(|_| default_xmp_template())
-    } else {
-        default_xmp_template()
-    };
-
-    if let Ok(mut editor) = XmpEditor::parse_str(&initial_xml) {
-        editor.set_rating(rating);
-        if let Ok(xmp_out) = editor.to_xml_string() {
-            if let Err(err) = atomic_write_str(&sidecars.xmp_sidecar, &xmp_out) {
-                eprintln!(
-                    "rraw: failed to persist XMP sidecar {}: {err}",
-                    sidecars.xmp_sidecar.display()
-                );
-            }
-        }
-    }
 }
 
-/// Attempts to load non-destructive settings from adjacent `<photo>.rraw.json` (primary source of truth)
-/// with fallback to `<photo>.xmp` when `.rraw.json` is absent.
+/// Attempts to load non-destructive settings from canonical `.rraw/<photo>.rraw.json`.
 #[must_use]
 pub fn load_photo_sidecars(photo_path: &Path) -> (Option<DarkroomGradingState>, Option<u8>) {
     let sidecars = SidecarPaths::from_raw_path(photo_path);
     let mut grading = None;
     let mut rating = None;
 
-    // 1. Primary source of truth: <photo>.rraw.json
+    // Primary source of truth: canonical .rraw/<photo>.rraw.json
     if sidecars.recipe_json.exists() {
         if let Ok(content) = std::fs::read_to_string(&sidecars.recipe_json) {
             if let Ok(recipe) = serde_json::from_str::<SidecarRecipe>(&content) {
@@ -217,17 +187,6 @@ pub fn load_photo_sidecars(photo_path: &Path) -> (Option<DarkroomGradingState>, 
                 recipe.apply_to(&mut state);
                 rating = Some(recipe.rating);
                 grading = Some(state);
-            }
-        }
-    }
-
-    // 2. Fallback: <photo>.xmp (only populates rating if .rraw.json did not provide one)
-    if rating.is_none() && sidecars.xmp_sidecar.exists() {
-        if let Ok(content) = std::fs::read_to_string(&sidecars.xmp_sidecar) {
-            if let Ok(editor) = XmpEditor::parse_str(&content) {
-                if let Some(r) = editor.rating() {
-                    rating = Some(r);
-                }
             }
         }
     }

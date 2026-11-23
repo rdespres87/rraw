@@ -21,22 +21,21 @@ use rraw_core::PhotoMetadata;
 pub struct SidecarPaths {
     pub raw_source: PathBuf,
     pub recipe_json: PathBuf,
-    pub xmp_sidecar: PathBuf,
 }
 
 impl SidecarPaths {
-    /// Derives `<photo>.rraw.json` and `<photo>.xmp` adjacent to `raw_source` without modifying it.
+    /// Derives canonical `<parent>/.rraw/<photo>.rraw.json` from a raw source path.
     #[must_use]
     pub fn from_raw_path(raw_source: &Path) -> Self {
-        let mut recipe_os = raw_source.as_os_str().to_os_string();
-        recipe_os.push(".rraw.json");
-        let recipe_json = PathBuf::from(recipe_os);
+        let parent = raw_source.parent().unwrap_or_else(|| Path::new(""));
+        let file_name = raw_source.file_name().unwrap_or_default();
+        let mut recipe_name = file_name.to_os_string();
+        recipe_name.push(".rraw.json");
 
-        let xmp_sidecar = raw_source.with_extension("xmp");
+        let recipe_json = parent.join(".rraw").join(&recipe_name);
         Self {
             raw_source: raw_source.to_path_buf(),
             recipe_json,
-            xmp_sidecar,
         }
     }
 }
@@ -76,20 +75,15 @@ mod tests {
         assert_eq!(paths.raw_source, raw);
         assert_eq!(
             paths.recipe_json,
-            Path::new("/Volumes/Photos/DSC0001.ARW.rraw.json")
+            Path::new("/Volumes/Photos/.rraw/DSC0001.ARW.rraw.json")
         );
-        assert_eq!(paths.xmp_sidecar, Path::new("/Volumes/Photos/DSC0001.xmp"));
 
         let extensionless = Path::new("/Volumes/Photos/RAW_0042");
         let extless_paths = SidecarPaths::from_raw_path(extensionless);
         assert_eq!(extless_paths.raw_source, extensionless);
         assert_eq!(
             extless_paths.recipe_json,
-            Path::new("/Volumes/Photos/RAW_0042.rraw.json")
-        );
-        assert_eq!(
-            extless_paths.xmp_sidecar,
-            Path::new("/Volumes/Photos/RAW_0042.xmp")
+            Path::new("/Volumes/Photos/.rraw/RAW_0042.rraw.json")
         );
     }
 

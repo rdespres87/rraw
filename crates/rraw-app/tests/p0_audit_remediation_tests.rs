@@ -235,27 +235,22 @@ fn test_p0_4_sidecar_atomic_persistence_and_rraw_json_rating_precedence(
         );
     }
 
-    // Overwrite adjacent .xmp with conflicting rating = 2 while .rraw.json has rating = 5
+    // .rraw.json in .rraw/ is the single source of truth (rating == Some(5))
     let sidecars = rraw_storage::SidecarPaths::from_raw_path(&photo_path);
-    let mut xmp =
-        rraw_storage::XmpEditor::parse_str(&std::fs::read_to_string(&sidecars.xmp_sidecar)?)?;
-    xmp.set_rating(2);
-    std::fs::write(&sidecars.xmp_sidecar, xmp.to_xml_string()?)?;
-
-    // .rraw.json MUST remain the single source of truth (rating == Some(5))
+    assert!(sidecars.recipe_json.exists());
     let (loaded_grading, loaded_rating) = load_photo_sidecars(&photo_path);
     assert!(loaded_grading.is_some());
     assert_eq!(
         loaded_rating,
         Some(5),
-        ".rraw.json rating (5) must take precedence over stale .xmp rating (2)"
+        ".rraw.json rating (5) must be loaded from canonical .rraw/ location"
     );
 
-    // When .rraw.json is absent, .xmp fallback (2) must be used
+    // When .rraw.json is absent, load returns None
     std::fs::remove_file(&sidecars.recipe_json)?;
     let (fallback_grading, fallback_rating) = load_photo_sidecars(&photo_path);
     assert!(fallback_grading.is_none());
-    assert_eq!(fallback_rating, Some(2));
+    assert_eq!(fallback_rating, None);
 
     let _ = std::fs::remove_dir_all(&temp_dir);
     Ok(())
