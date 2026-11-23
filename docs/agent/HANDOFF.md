@@ -2,19 +2,19 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Monitor GitHub Release Generation (`v0.1.1`)**:
-  - Pushed tag `v0.1.1` to remote (`git push origin v0.1.1`) triggering `.github/workflows/release.yml`.
-  - Verify GitHub Release generation and attached `Rraw-v0.1.1.dmg` and checksums on GitHub repository.
+- **Post-Release v0.1.1 Roadmap & Features**:
+  - `v0.1.1` is published and live on GitHub Actions & Releases (pointing immutably to `ae12e81`).
+  - Next version (`v0.1.2`) will automatically utilize `RELEASE_NOTES.md` when tagged and pushed.
+  - Ready for subsequent Phase roadmap tasks or feature developments.
 
 ---
 
 ## Last Completed Milestone
 
-- **Release Tagging & CI Workflow Trigger (`v0.1.1`) — COMPLETE**:
-  - Bumped workspace version to `0.1.1` across `Cargo.toml` and `Cargo.lock`.
-  - Pushed commits (`99cf746`, `9b0e4f4`, `5a56077`) to `origin/main`.
-  - Created and pushed annotated tag `v0.1.1`.
-  - Full suite verified: 397 tests pass, 0 clippy warnings, local Inquisitor APPROVED.
+- **Release v0.1.1 Published & Release Notes Automation Prepared — COMPLETE**:
+  - `v0.1.1` successfully built, packaged, and published via GitHub Actions on Apple Silicon (`macos-latest`).
+  - Local workspace retains `RELEASE_NOTES.md` and `body_path: RELEASE_NOTES.md` in `.github/workflows/release.yml` on `main` for upcoming releases.
+  - Tag `v0.1.1` is locked to `ae12e81`, in 100% sync with `origin`.
 
 ---
 

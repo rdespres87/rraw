@@ -4,13 +4,14 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 25 — Pre-Release Hardening, Performance Benchmarks & Packaging
-- **Active Tasks**: Release Tagging & GitHub Automated Release CI (`v0.1.1`) **Triggered**
-- **Next Phase**: Monitor GitHub Release Action (`v0.1.1`) & Verify DMG Artifact
+- **Active Phase**: Phase 25 — Pre-Release Hardening, Performance Benchmarks & Packaging **Complete**
+- **Active Tasks**: Release `v0.1.1` Published on GitHub Releases
+- **Next Phase**: Post-Release Feature Roadmap (Phase 26 / Next Milestone)
 - **Last Verified Baseline**: 397 tests passing across 89 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
-- **Current Milestone**: Tag `v0.1.1` and `main` Pushed to GitHub
-  - Pushed commits `99cf746`, `9b0e4f4`, and `5a56077` to `origin/main`.
-  - Pushed annotated tag `v0.1.1` to `origin`, triggering the GitHub Actions `Release` workflow on `macos-latest` (Apple Silicon).
+- **Current Milestone**: Release `v0.1.1` Published & Release Notes Automation Set
+  - `v0.1.1` successfully built and published via GitHub Actions.
+  - Tag `v0.1.1` locked immutably to `ae12e81` in sync with `origin`.
+  - Configured automated release notes via `RELEASE_NOTES.md` and `body_path: RELEASE_NOTES.md` in `.github/workflows/release.yml` on `main` for upcoming releases.
 - **Current Milestone**: Full XMP Purge, Instant Star Ratings & Clean `.rraw/` Architecture **Complete**
   - **Full XMP Purge**: Completely removed all XMP sidecar generation, parsing, and fallback code across the engine.
   - **Clean Finder Architecture**: Centralized native recipe sidecars in `<parent>/.rraw/<photo>.rraw.json` adjacent to `.rraw/cache.db`.

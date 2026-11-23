@@ -92,7 +92,7 @@ jobs:
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: "Rraw ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           draft: false
           prerelease: false
           files: |
