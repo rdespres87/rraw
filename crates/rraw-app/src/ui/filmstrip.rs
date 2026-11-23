@@ -692,6 +692,7 @@ impl RrawApp {
 
     /// Renders the left sidebar panel containing the reference histogram, folder explorer, styles, and EXIF.
     pub fn render_left_panel(&mut self, ui: &mut egui::Ui) {
+        let lang = self.lang();
         egui::Panel::left("left_panel_fixed")
             .resizable(false)
             .exact_size(320.0)
@@ -706,52 +707,64 @@ impl RrawApp {
 
                 ui.separator();
 
-                // 2. Scrollable contextual modules: Explorer, Presets, and EXIF
+                // 2. High-Level Contextual Navigation Tabs (Cmd+1 / Cmd+2 / Cmd+3)
+                let tab_w = ((ui.available_width() - 8.0) / 3.0).floor();
+                let is_fr = lang == crate::i18n::Language::Fr;
+                let (tab1_label, tab2_label, tab3_label) = if is_fr {
+                    ("📁 Fichiers", "🎨 Styles", "ℹ️ EXIF")
+                } else {
+                    ("📁 Files", "🎨 Styles", "ℹ️ EXIF")
+                };
+
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(4.0, 0.0);
+                    let tabs = [
+                        (LeftPanelTab::Explorer, tab1_label, "Cmd + 1"),
+                        (LeftPanelTab::Presets, tab2_label, "Cmd + 2"),
+                        (LeftPanelTab::Exif, tab3_label, "Cmd + 3"),
+                    ];
+                    for (tab, label, tip) in tabs {
+                        let is_active = self.left_panel_tab == tab;
+                        if ui
+                            .add_sized(
+                                [tab_w, 24.0],
+                                egui::Button::new(
+                                    egui::RichText::new(label).size(11.5).strong().color(
+                                        if is_active {
+                                            Color32::WHITE
+                                        } else {
+                                            Color32::from_rgb(150, 155, 165)
+                                        },
+                                    ),
+                                )
+                                .selected(is_active),
+                            )
+                            .on_hover_text(format!("{label} ({tip})"))
+                            .clicked()
+                        {
+                            self.left_panel_tab = tab;
+                            self.layout_config.left_panel_tab = tab;
+                            self.layout_config.save();
+                        }
+                    }
+                });
+
+                ui.add_space(4.0);
+                ui.separator();
+
+                // 3. Scrollable active module: Explorer, Presets, or EXIF in full height
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        // 2.1 Explorateur de dossiers
-                        egui::CollapsingHeader::new(
-                            egui::RichText::new(self.t(Key::SidebarExplorerTitle))
-                                .strong()
-                                .size(13.0)
-                                .color(Color32::from_rgb(230, 235, 245)),
-                        )
-                        .id_salt("sidebar_explorer_collapsing_header")
-                        .default_open(true)
-                        .show(ui, |ui| {
+                    .show(ui, |ui| match self.left_panel_tab {
+                        LeftPanelTab::Explorer => {
                             self.render_explorer_tab(ui);
-                        });
-
-                        ui.separator();
-
-                        // 2.2 Styles & Préréglages
-                        egui::CollapsingHeader::new(
-                            egui::RichText::new(self.t(Key::SidebarPresetsTitle))
-                                .strong()
-                                .size(13.0)
-                                .color(Color32::from_rgb(230, 235, 245)),
-                        )
-                        .id_salt("sidebar_presets_collapsing_header")
-                        .default_open(true)
-                        .show(ui, |ui| {
+                        }
+                        LeftPanelTab::Presets => {
                             self.render_presets_section(ui);
-                        });
-
-                        ui.separator();
-
-                        // 2.3 Données EXIF
-                        egui::CollapsingHeader::new(
-                            egui::RichText::new(self.t(Key::SidebarExifTitle))
-                                .strong()
-                                .size(13.0)
-                                .color(Color32::from_rgb(230, 235, 245)),
-                        )
-                        .id_salt("sidebar_exif_collapsing_header")
-                        .default_open(false)
-                        .show(ui, |ui| {
+                        }
+                        LeftPanelTab::Exif => {
                             self.render_exif_panel(ui);
-                        });
+                        }
                     });
             });
     }

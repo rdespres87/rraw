@@ -78,7 +78,7 @@
 
 ---
 
-## 11-Crate Workspace Layout
+## 12-Crate Workspace Layout
 
 | Crate | Type | `unsafe` Policy | Responsibility | Internal Dependencies |
 | :--- | :---: | :---: | :--- | :--- |
@@ -106,6 +106,60 @@
 
 ---
 
+## Packaging & Distribution (macOS .app & .dmg)
+
+Rraw includes a production packaging pipeline for macOS that assembles a codesigned application bundle (`Rraw.app`) and generates a compressed, drag-and-drop DMG installer (`Rraw-v<VERSION>.dmg`) with cryptographic SHA-256 verification and Hardened Runtime entitlements:
+
+```bash
+# Generate release .app bundle and .dmg installer (default: target/dist)
+./scripts/package_macos.sh
+
+# Fast assembly reusing pre-built binary
+./scripts/package_macos.sh --skip-build
+
+# Build and sign with official Apple Developer ID and Hardened Runtime entitlements
+./scripts/package_macos.sh --sign "Developer ID Application: Your Name (TEAMID)"
+
+# Build, sign, and submit to Apple Notarization service with automatic ticket stapling
+./scripts/package_macos.sh \
+    --sign "Developer ID Application: Your Name (TEAMID)" \
+    --notarize-profile "AC_PASSWORD"
+```
+
+The resulting artifacts in `target/dist/`:
+- `Rraw.app` — Standalone macOS application bundle with HiDPI application icon (`AppIcon.icns`), camera RAW document associations, and Hardened Runtime entitlements (`assets/macos/Entitlements.plist`).
+- `Rraw-v<VERSION>.dmg` — Read-only compressed DMG image (UDZO) with `/Applications` drag-and-drop installer symlink.
+- `Rraw-v<VERSION>.dmg.sha256` — Cryptographic checksum for secure distribution.
+
+---
+
+## Essential Keyboard Shortcuts
+
+| Shortcut | Context | Action |
+| :--- | :--- | :--- |
+| `◀` / `▶` | Filmstrip / Darkroom | Navigate to previous / next photo |
+| `PageUp` / `PageDown` | Filmstrip / Darkroom | Fast page jump across photos |
+| `Home` / `End` | Filmstrip / Darkroom | Jump to first / last photo in folder |
+| `0` to `5` | Filmstrip / Darkroom | Assign 0 to 5 star rating (0 to clear) |
+| `Space` | Filmstrip / Darkroom | Toggle active photo in batch export selection |
+| `Cmd + A` / `Cmd + D` | Filmstrip | Select all / Deselect all photos for batch export |
+| `Shift + ◀` / `▶` | Filmstrip | Extend range selection across photos |
+| `Cmd + 1` / `2` / `3` | Left Panel | Switch left panel tab between **Files**, **Styles**, and **EXIF** |
+| `Y` | Darkroom Viewport | Toggle Before \| After split comparison slider |
+| `D` or `P` or `\` | Darkroom Viewport | Hold to preview untouched camera original (Before) |
+| `J` | Darkroom Viewport | Toggle clipping zebra warning (Blue = shadows, Red = highlights) |
+| `I` | Darkroom Viewport | Toggle on-canvas shooting parameters & rating HUD |
+| `F9` | Darkroom Viewport | Show / hide bottom filmstrip |
+| `O` | Darkroom Viewport | Toggle colored local mask overlay |
+| `Cmd + O` | Global | Open RAW / TIFF photo file dialog |
+| `Cmd + Shift + O` | Global | Open photo folder dialog |
+| `Cmd + E` | Global | Open Export & Timelapse dialog |
+| `Enter` | Export Dialog | Confirm and initiate background export |
+| `Esc` | Global / Dialogs | Cancel active tool (brush, crop) or dismiss open dialog |
+| `F1` | Global | Open / close keyboard shortcuts guide |
+
+---
+
 ## Build, Lint & Test Commands
 
 ```bash
@@ -115,7 +169,7 @@ cargo fmt --all -- --check
 # Run strict Clippy checks across all workspace targets (zero warnings allowed)
 cargo clippy --workspace --all-targets -- -D warnings
 
-# Run all unit and integration tests across all 11 crates
+# Run all unit and integration tests across all 12 crates
 cargo test --workspace
 ```
 

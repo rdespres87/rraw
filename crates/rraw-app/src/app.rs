@@ -116,12 +116,13 @@ impl RrawApp {
         library.current_directory = Some(initial_dir);
         library.directory_entries = initial_entries;
         library.raw_only_filter = raw_only_filter;
+        let left_panel_tab = layout_config.left_panel_tab;
 
         let mut app = Self {
             headroom_provider,
             layout_config,
             inspector_tab: InspectorTab::Develop,
-            left_panel_tab: LeftPanelTab::Explorer,
+            left_panel_tab,
             active_tool_family,
             active_tools_only,
             status_message: "Ready | 120 Hz Metal EDR Surface | Format: Rgba16Float".to_string(),
@@ -1042,6 +1043,112 @@ impl eframe::App for RrawApp {
 
         // Classical keyboard selection shortcuts: Cmd/Ctrl+A, Cmd/Ctrl+D, Space (when no text field focused)
         if !wants_keyboard {
+            // Top-level file & dialog shortcuts (Cmd/Ctrl + O / Shift+O / E / 1 / 2 / 3)
+            let (
+                cmd_open_file,
+                cmd_open_folder,
+                cmd_export,
+                switch_tab_1,
+                switch_tab_2,
+                switch_tab_3,
+            ) = ui.input(|i| {
+                let cmd = i.modifiers.command || i.modifiers.ctrl;
+                let mut tab1 = false;
+                let mut tab2 = false;
+                let mut tab3 = false;
+
+                if cmd {
+                    if i.key_pressed(egui::Key::Num1) {
+                        tab1 = true;
+                    }
+                    if i.key_pressed(egui::Key::Num2) {
+                        tab2 = true;
+                    }
+                    if i.key_pressed(egui::Key::Num3) {
+                        tab3 = true;
+                    }
+
+                    // Inspect events to support both physical keys (AZERTY Mac) and logical keys (QWERTY)
+                    for event in &i.events {
+                        if let egui::Event::Key {
+                            key,
+                            physical_key,
+                            pressed: true,
+                            modifiers,
+                            ..
+                        } = event
+                        {
+                            if modifiers.command || modifiers.ctrl {
+                                if *key == egui::Key::Num1 || *physical_key == Some(egui::Key::Num1)
+                                {
+                                    tab1 = true;
+                                }
+                                if *key == egui::Key::Num2 || *physical_key == Some(egui::Key::Num2)
+                                {
+                                    tab2 = true;
+                                }
+                                if *key == egui::Key::Num3 || *physical_key == Some(egui::Key::Num3)
+                                {
+                                    tab3 = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                (
+                    cmd && !i.modifiers.shift && i.key_pressed(egui::Key::O),
+                    cmd && i.modifiers.shift && i.key_pressed(egui::Key::O),
+                    cmd && i.key_pressed(egui::Key::E),
+                    tab1,
+                    tab2,
+                    tab3,
+                )
+            });
+
+            if cmd_open_file {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter(
+                        "Supported Images",
+                        &[
+                            "arw", "cr2", "cr3", "dng", "nef", "raf", "rw2", "orf", "jpg", "jpeg",
+                            "png", "tif", "tiff",
+                        ],
+                    )
+                    .pick_file()
+                {
+                    self.open_raw_file(&path);
+                }
+            } else if cmd_open_folder {
+                if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                    self.open_directory(&folder);
+                    if let Some(first_file) = self
+                        .first_filtered_entry()
+                        .or_else(|| self.library.directory_entries.first().cloned())
+                    {
+                        self.open_raw_file(&first_file);
+                    }
+                }
+            } else if cmd_export {
+                self.export.show_export_dialog = true;
+                self.export.export_status = None;
+            } else if switch_tab_1 {
+                self.left_panel_tab = LeftPanelTab::Explorer;
+                self.layout_config.left_panel_tab = LeftPanelTab::Explorer;
+                self.layout_config.save();
+                ui.ctx().request_repaint();
+            } else if switch_tab_2 {
+                self.left_panel_tab = LeftPanelTab::Presets;
+                self.layout_config.left_panel_tab = LeftPanelTab::Presets;
+                self.layout_config.save();
+                ui.ctx().request_repaint();
+            } else if switch_tab_3 {
+                self.left_panel_tab = LeftPanelTab::Exif;
+                self.layout_config.left_panel_tab = LeftPanelTab::Exif;
+                self.layout_config.save();
+                ui.ctx().request_repaint();
+            }
+
             ui.input(|i| {
                 if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::A) {
                     for entry in &self.library.directory_entries {
@@ -1129,18 +1236,22 @@ impl eframe::App for RrawApp {
                 self.export.show_shortcuts_dialog = !self.export.show_shortcuts_dialog;
             }
 
-            for digit in 0..=5 {
-                let key = match digit {
-                    0 => egui::Key::Num0,
-                    1 => egui::Key::Num1,
-                    2 => egui::Key::Num2,
-                    3 => egui::Key::Num3,
-                    4 => egui::Key::Num4,
-                    5 => egui::Key::Num5,
-                    _ => unreachable!(),
-                };
-                if ui.input(|i| i.key_pressed(key)) {
-                    self.set_current_photo_rating(digit);
+            let has_cmd_ctrl_alt =
+                ui.input(|i| i.modifiers.command || i.modifiers.ctrl || i.modifiers.alt);
+            if !has_cmd_ctrl_alt {
+                for digit in 0..=5 {
+                    let key = match digit {
+                        0 => egui::Key::Num0,
+                        1 => egui::Key::Num1,
+                        2 => egui::Key::Num2,
+                        3 => egui::Key::Num3,
+                        4 => egui::Key::Num4,
+                        5 => egui::Key::Num5,
+                        _ => unreachable!(),
+                    };
+                    if ui.input(|i| i.key_pressed(key)) {
+                        self.set_current_photo_rating(digit);
+                    }
                 }
             }
         }

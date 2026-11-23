@@ -20,6 +20,7 @@ TARGET=""
 SKIP_BUILD=false
 SKIP_DMG=false
 CODESIGN_IDENTITY="-" # Default to ad-hoc codesign
+NOTARIZE_PROFILE=""
 OUT_DIR="${WORKSPACE_ROOT}/target/dist"
 APP_NAME="Rraw"
 BUNDLE_ID="com.rraw.darkroom"
@@ -29,18 +30,20 @@ usage() {
 Usage: $(basename "$0") [OPTIONS]
 
 Options:
-    --debug               Build debug binary instead of release
-    --target <TRIPLE>     Cargo target triple (e.g. aarch64-apple-darwin)
-    --skip-build          Reuse existing target binary without invoking cargo
-    --skip-dmg            Assemble Rraw.app bundle only, skip DMG creation
-    --sign <IDENTITY>     Codesign identity (default: "-" for ad-hoc signing)
-    --out-dir <DIR>       Output directory for .app and .dmg (default: target/dist)
-    -h, --help            Show this help message
+    --debug                       Build debug binary instead of release
+    --target <TRIPLE>             Cargo target triple (e.g. aarch64-apple-darwin)
+    --skip-build                  Reuse existing target binary without invoking cargo
+    --skip-dmg                    Assemble Rraw.app bundle only, skip DMG creation
+    --sign <IDENTITY>             Codesign identity (default: "-" for ad-hoc signing)
+    --notarize-profile <PROFILE>  Keychain profile for xcrun notarytool submit
+    --out-dir <DIR>               Output directory for .app and .dmg (default: target/dist)
+    -h, --help                    Show this help message
 
 Examples:
     ./scripts/package_macos.sh
     ./scripts/package_macos.sh --skip-build
     ./scripts/package_macos.sh --sign "Developer ID Application: Your Name (TEAMID)"
+    ./scripts/package_macos.sh --sign "Developer ID Application: ..." --notarize-profile "AC_PASSWORD"
 EOF
     exit 0
 }
@@ -66,6 +69,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --sign)
             CODESIGN_IDENTITY="$2"
+            shift 2
+            ;;
+        --notarize-profile)
+            NOTARIZE_PROFILE="$2"
             shift 2
             ;;
         --out-dir)
@@ -173,14 +180,21 @@ sed \
 # Write PkgInfo
 echo -n "APPL????" > "${BUNDLE_DIR}/Contents/PkgInfo"
 
-# Codesign bundle
+# Codesign bundle with Hardened Runtime entitlements
 echo "==> [5/6] Signing application bundle..."
+ENTITLEMENTS_FILE="${WORKSPACE_ROOT}/assets/macos/Entitlements.plist"
+ENTITLEMENTS_ARG=()
+if [[ -f "${ENTITLEMENTS_FILE}" ]]; then
+    ENTITLEMENTS_ARG=("--entitlements" "${ENTITLEMENTS_FILE}")
+    echo "    Using entitlements: ${ENTITLEMENTS_FILE}"
+fi
+
 if [[ "${CODESIGN_IDENTITY}" == "-" ]]; then
     echo "    Ad-hoc signing ${BUNDLE_DIR}..."
-    codesign --force --deep --sign - "${BUNDLE_DIR}"
+    codesign --force --deep "${ENTITLEMENTS_ARG[@]}" --sign - "${BUNDLE_DIR}"
 else
     echo "    Signing with identity '${CODESIGN_IDENTITY}' and runtime hardening..."
-    codesign --force --deep --options runtime --timestamp --sign "${CODESIGN_IDENTITY}" "${BUNDLE_DIR}"
+    codesign --force --deep --options runtime --timestamp "${ENTITLEMENTS_ARG[@]}" --sign "${CODESIGN_IDENTITY}" "${BUNDLE_DIR}"
 fi
 
 # Verify signature
@@ -215,6 +229,21 @@ if [[ "${SKIP_DMG}" = false ]]; then
 
     # Cleanup staging directory
     rm -rf "${DMG_STAGING}"
+
+    # Sign DMG container if valid identity provided
+    if [[ "${CODESIGN_IDENTITY}" != "-" ]]; then
+        echo "    Signing DMG disk image..."
+        codesign --force --sign "${CODESIGN_IDENTITY}" --timestamp "${DMG_PATH}"
+    fi
+
+    # Optional Apple Notarization submission
+    if [[ -n "${NOTARIZE_PROFILE}" ]]; then
+        echo "    Submitting DMG to Apple Notarization Service (profile: ${NOTARIZE_PROFILE})..."
+        xcrun notarytool submit "${DMG_PATH}" --keychain-profile "${NOTARIZE_PROFILE}" --wait
+        echo "    Stapling notarization ticket to DMG..."
+        xcrun stapler staple "${DMG_PATH}"
+        echo "    Notarization and stapling complete."
+    fi
 
     # Compute SHA-256 Checksum
     (cd "${OUT_DIR}" && shasum -a 256 "${DMG_NAME}" > "${DMG_NAME}.sha256")

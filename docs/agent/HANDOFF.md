@@ -1,12 +1,20 @@
 # HANDOFF.md — Next Action & Session Continuity
 
-## Immediate Status & Next Actionable Objective
+## Next Actionable Objective (Immediate Priority)
 
-- **CI Fix Recorded**: Commit `e430a14` fixes the Rust 1.100.0 `clippy::needless_bool` lint in `crates/rraw-app/src/ui/exif.rs`. The workspace compiles cleanly and passes all 352 tests with 0 warnings on Rust 1.100.0. When pushed, GitHub Actions CI will be 100% green.
-- **Phase 21 — Task 21.3 Production Hardening, Release Polish & macOS App Packaging (`rraw-app`, CI / Packaging)**:
-  - Address residual UI edge cases and keyboard navigation polish across all views (Filmstrip, Darkroom, Metadata, Export).
-  - Implement native macOS application bundle packaging script (`Rraw.app`) and `.dmg` disk image creation with notarization readiness.
-  - Verify 100% clean build, zero compiler/linter warnings, and updated user-facing documentation.
+- **Production Release & Distribution**:
+  - The entire roadmap through Phase 21 (all tasks 21.1, 21.2, 21.3) is complete and verified with 357 passing tests and 0 clippy warnings.
+  - Final readiness for tagged production release `v0.1.0` and binary distribution.
+
+---
+
+## Last Completed Milestone
+
+- **Phase 21 — Task 21.3 Production Hardening, Release Polish & macOS App Packaging (`rraw-app`, CI / Packaging) — COMPLETE**:
+  - **Keyboard Navigation & View Shortcuts**: Implemented `Cmd+O` / `Cmd+Shift+O` (Open Image / Open Folder), `Cmd+E` (Export Dialog), `Cmd+1/2/3` (instant left panel tab switching between Files, Styles, and EXIF Metadata), and `Enter` to confirm export dialog. Restored right inspector panel 100% to Darkroom development without redundancy.
+  - **Star Rating Modifier Guards**: Isolated star ratings `0..=5` from Cmd/Ctrl/Alt modifier keys to eliminate shortcut collisions.
+  - **Hardened Runtime Packaging**: Updated `scripts/package_macos.sh` with `assets/macos/Entitlements.plist`, codesigning verification, compressed drag-and-drop DMG generation (UDZO), SHA-256 checksums, and Apple Notarization (`--notarize-profile`) / stapling.
+  - **Documentation & Tests**: Updated `README.md` with distribution guide and keyboard shortcuts table; added dedicated integration test suite `crates/rraw-app/tests/keyboard_navigation_tests.rs`. 357 workspace tests passing across 79 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
 
 ---
 

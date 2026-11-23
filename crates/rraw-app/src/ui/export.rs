@@ -999,6 +999,9 @@ impl RrawApp {
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             close_dialog = true;
         }
+        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) && !ctx.egui_wants_keyboard_input() {
+            trigger_export = true;
+        }
 
         egui::Window::new(t(Key::ExportWindowTitle))
             .id(egui::Id::NULL.with("export_timelapse_modal_window"))

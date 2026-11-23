@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 /// Navigation tabs in the left panel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum LeftPanelTab {
     #[default]
     Explorer,
@@ -426,6 +426,9 @@ pub struct AppLayoutConfig {
     /// If `None`, defaults adaptively to `raw_count > 0`.
     #[serde(default)]
     pub raw_only_filter: Option<bool>,
+    /// Active contextual tab in the left sidebar panel (toggled with `Cmd+1/2/3`).
+    #[serde(default)]
+    pub left_panel_tab: LeftPanelTab,
 }
 
 const fn default_true() -> bool {
@@ -444,6 +447,7 @@ impl Default for AppLayoutConfig {
             last_open_directory: None,
             last_open_photo: None,
             raw_only_filter: None,
+            left_panel_tab: LeftPanelTab::Explorer,
         }
     }
 }
@@ -493,6 +497,7 @@ impl AppLayoutConfig {
             last_open_directory: loaded.last_open_directory,
             last_open_photo: loaded.last_open_photo,
             raw_only_filter: loaded.raw_only_filter,
+            left_panel_tab: loaded.left_panel_tab,
         }
     }
 

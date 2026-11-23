@@ -258,10 +258,13 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Added CLI profiling and micro-benchmark mode in `rraw-cli` (`--profile` / `-P`) outputting structured ASCII performance reports with per-stage latency, throughput, and 120Hz/50ms pass/fail verdicts.
   - Dedicated integration latency test suites in `crates/rraw-gpu/tests/pipeline_latency_benchmarks.rs` and `crates/rraw-app/tests/end_to_end_latency_tests.rs` (2 new suites, 6 new tests). 352 workspace tests passing across 78 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
-- [ ] **Task 21.3 (`rraw-app`, CI / Packaging)**: Production Hardening, Release Polish & macOS App Packaging
-  - Address residual UI edge cases and keyboard navigation polish across all views (Filmstrip, Darkroom, Metadata, Export).
-  - Implement native macOS application bundle packaging script (`Rraw.app`) and `.dmg` disk image creation with notarization readiness.
-  - Verify 100% clean build, zero compiler/linter warnings, and updated user-facing documentation.
+- [x] **Task 21.3 (`rraw-app`, CI / Packaging)**: Production Hardening, Release Polish & macOS App Packaging
+  - Polished keyboard navigation and shortcuts across all views: added `Cmd+O` / `Cmd+Shift+O` (Open Image / Open Folder), `Cmd+E` (Export Dialog), `Cmd+1/2/3` (instant left panel tab switching between Files, Styles, and EXIF Metadata), and `Enter` to confirm export dialog. Dedicated right panel purely to Darkroom development without redundancy.
+  - Guarded star rating shortcuts (`0..=5`) against Command/Ctrl/Alt modifiers to prevent accidental rating changes when using system shortcuts.
+  - Hardened native macOS application packaging pipeline (`scripts/package_macos.sh`) with Hardened Runtime entitlements (`assets/macos/Entitlements.plist`), codesigning verification, compressed drag-and-drop DMG generation (UDZO), SHA-256 checksums, and Apple Notarization (`--notarize-profile`) and stapling readiness.
+  - Comprehensive user-facing documentation in `README.md` including packaging guide and complete keyboard shortcuts cheat sheet.
+  - Dedicated integration test suite `crates/rraw-app/tests/keyboard_navigation_tests.rs` verifying tab transitions, rating invariants, entitlements validity, Info.plist attributes, and packaging script attributes.
+  - 357 workspace tests passing across 79 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
 
 

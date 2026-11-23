@@ -4,11 +4,18 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 21 — Final Optimization, Latency Profiling & Production Hardening
-- **Active Tasks**: Task 21.3 — Production Hardening, Release Polish & macOS App Packaging
-- **Next Phase**: Release & Distribution
-- **Last Verified Baseline**: 352 tests passants across 78 test suites, 0 clippy warnings sous Rust 1.100.0 (`#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`). Commit local `e430a14` corrigeant le lint `needless_bool` apparu sous Rust 1.100.0 dans `exif.rs`.
-- **Current Milestone**: Phase 21 — Task 21.2 End-to-End Latency Benchmarks & Stage-by-Stage Profiling **Complete**
+- **Active Phase**: Phase 21 — Final Optimization, Latency Profiling & Production Hardening (ALL TASKS COMPLETE)
+- **Active Tasks**: All Phase 21 Tasks Complete (Task 21.1, 21.2, 21.3)
+- **Next Phase**: Production Release & Distribution
+- **Last Verified Baseline**: 357 tests passants across 79 test suites, 0 clippy warnings sous Rust 1.100.0 (`#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Current Milestone**: Phase 21 — Task 21.3 Production Hardening, Release Polish & macOS App Packaging **Complete**
+  - Ergonomie et raccourcis clavier unifiés dans `rraw-app` : `Cmd+O` / `Cmd+Shift+O` (Ouvrir photo / dossier), `Cmd+E` (Export / Timelapse), `Cmd+1/2/3` (Basculement instantané des onglets du panneau gauche : Fichiers, Styles & Préréglages, Métadonnées EXIF), `Entrée` (Validation et lancement d'export). Panneau droit 100% dédié au développement (Chambre Noire) sans aucune redondance.
+  - Protection des raccourcis de notation par étoiles (`0..=5`) contre les modificateurs Command/Ctrl/Alt pour éliminer tout conflit avec les raccourcis système.
+  - Script de packaging industriel `scripts/package_macos.sh` avec signature Hardened Runtime, entitlements Apple (`assets/macos/Entitlements.plist`), création de DMG compressé (UDZO) avec lien de glisser-déposer vers `/Applications`, empreintes cryptographiques SHA-256 et intégration de la notarisation Apple (`--notarize-profile`).
+  - Documentation utilisateur mise à jour dans `README.md` (guide de distribution, tableau complet des raccourcis clavier).
+  - Suite de tests unitaires et d'intégration dédiée `crates/rraw-app/tests/keyboard_navigation_tests.rs` (5 nouveaux tests).
+  - 357 tests passants across 79 suites, 0 clippy warnings, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 21 — Task 21.2 End-to-End Latency Benchmarks & Stage-by-Stage Profiling **Complete**
   - Implémentation du module unifié d'instrumentation et de profiling (`crates/rraw-core/src/profiling.rs`) définissant les types `PipelineStageId`, `ExecutionBackend`, `StageTiming`, `PipelineTiming` et le chronomètre RAII `StageTimer`.
   - Conception de `GpuPipelineProfiler` dans `rraw-gpu` orchestrant et mesurant les 7 étapes WGSL compute (`Stage1Pipeline` à `Stage7Pipeline`) avec calcul de débit (MPx/s) protégé contre la division par zéro et validation du budget 120 FPS (8,33 ms).
   - Profilage granularisé du pipeline de prévisualisation Darkroom CPU/Rayon (`render_preview_from_base_profiled`) et du coordinateur de décodage asynchrone (`decode_photo_file_payload_profiled`) dans `rraw-app`.
