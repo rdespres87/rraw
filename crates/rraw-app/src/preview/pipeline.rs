@@ -7,9 +7,40 @@ use rayon::prelude::*;
 use rraw_color::{apply_agx_edr, apply_opendrt, DisplayTransform};
 use rraw_core::{ExecutionBackend, PipelineStageId, PipelineTiming, SignedCfaBuffer, StageTimer};
 
-use super::masks::eval_all_mask_adjustments;
+use super::masks::eval_all_mask_adjustments_with_brush_grids;
 use super::types::BaseRgbPreview;
 use crate::state::*;
+
+/// Single-allocation output raster buffer for photographic exports (either 8-bit or 16-bit RGB).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExportRasterBuffer {
+    /// 8-bit interleaved RGB bytes (`width * height * 3`).
+    U8(Vec<u8>),
+    /// 16-bit interleaved RGB samples (`width * height * 3`).
+    U16(Vec<u16>),
+}
+
+impl ExportRasterBuffer {
+    /// Returns the 8-bit RGB slice if this buffer is `ExportRasterBuffer::U8`.
+    #[inline]
+    #[must_use]
+    pub fn as_u8_slice(&self) -> Option<&[u8]> {
+        match self {
+            Self::U8(b) => Some(b.as_slice()),
+            Self::U16(_) => None,
+        }
+    }
+
+    /// Returns the 16-bit RGB slice if this buffer is `ExportRasterBuffer::U16`.
+    #[inline]
+    #[must_use]
+    pub fn as_u16_slice(&self) -> Option<&[u16]> {
+        match self {
+            Self::U8(_) => None,
+            Self::U16(s) => Some(s.as_slice()),
+        }
+    }
+}
 
 /// Evaluates darkroom grading, optical distortion, vignetting, and histogram from `BaseRgbPreview`.
 ///
@@ -182,6 +213,11 @@ pub fn render_preview_from_base_profiled(
 
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();
+    let brush_grids: Vec<Option<PrecomputedBrushGrid>> = grading
+        .local_masks
+        .iter()
+        .map(PrecomputedBrushGrid::from_layer)
+        .collect();
 
     let opt_zoom = if k_dist > 1e-5 {
         let mut z = 1.0 + k_dist * 0.8;
@@ -466,10 +502,11 @@ pub fn render_preview_from_base_profiled(
 
                 let (sem_ev, sem_contrast, sem_sat, sem_temp) =
                     if !grading.semantic_masks.is_empty() || !grading.local_masks.is_empty() {
-                        eval_all_mask_adjustments(
+                        eval_all_mask_adjustments_with_brush_grids(
                             &base.semantic_masks,
                             &grading.semantic_masks,
                             &grading.local_masks,
+                            &brush_grids,
                             u_norm,
                             v_norm,
                         )
@@ -610,7 +647,12 @@ pub fn render_preview_from_base_profiled(
 
                 if let Some(mask_idx) = grading.show_local_mask_overlay {
                     if let Some(m) = grading.local_masks.get(mask_idx) {
-                        let mask_w = m.evaluate_weight(u_norm, v_norm) * 0.65;
+                        let raw_mw = if let Some(Some(grid)) = brush_grids.get(mask_idx) {
+                            grid.sample(u_norm, v_norm)
+                        } else {
+                            m.evaluate_weight(u_norm, v_norm)
+                        };
+                        let mask_w = raw_mw * 0.65;
                         if mask_w > 1e-3 {
                             u8_r = ((u8_r as f32) * (1.0 - mask_w) + 255.0 * mask_w)
                                 .clamp(0.0, 255.0) as u8;
@@ -702,12 +744,39 @@ pub fn render_preview_from_base_profiled(
 }
 
 /// Renders the fully developed photographic raster for export, applying all darkroom grades,
-/// cropping boundaries, geometric corrections, color transform, and scaling.
+/// cropping boundaries, geometric corrections, color transform, and scaling across all CPU cores.
 #[must_use]
 pub fn render_export_image(
     base: &BaseRgbPreview,
     grading: &DarkroomGradingState,
     scale: f32,
+) -> (usize, usize, Vec<u8>, Vec<u16>) {
+    render_export_image_internal(base, grading, scale, None)
+}
+
+/// Renders the developed photographic raster for export using Rayon parallelization and allocating
+/// ONLY the requested bit-depth buffer (`ExportBitDepth::Bits8` or `ExportBitDepth::Bits16`).
+#[must_use]
+pub fn render_export_image_with_depth(
+    base: &BaseRgbPreview,
+    grading: &DarkroomGradingState,
+    scale: f32,
+    bit_depth: ExportBitDepth,
+) -> (usize, usize, ExportRasterBuffer) {
+    let (out_w, out_h, u8_bytes, u16_samples) =
+        render_export_image_internal(base, grading, scale, Some(bit_depth));
+    let buf = match bit_depth {
+        ExportBitDepth::Bits8 => ExportRasterBuffer::U8(u8_bytes),
+        ExportBitDepth::Bits16 => ExportRasterBuffer::U16(u16_samples),
+    };
+    (out_w, out_h, buf)
+}
+
+fn render_export_image_internal(
+    base: &BaseRgbPreview,
+    grading: &DarkroomGradingState,
+    scale: f32,
+    bit_depth: Option<ExportBitDepth>,
 ) -> (usize, usize, Vec<u8>, Vec<u16>) {
     let preview_w = base.width;
     let preview_h = base.height;
@@ -878,6 +947,11 @@ pub fn render_export_image(
 
     let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
     let has_curves = !grading.tone_curves.is_identity();
+    let brush_grids: Vec<Option<PrecomputedBrushGrid>> = grading
+        .local_masks
+        .iter()
+        .map(PrecomputedBrushGrid::from_layer)
+        .collect();
 
     let opt_zoom = if k_dist > 1e-5 {
         let mut z = 1.0 + k_dist * 0.8;
@@ -912,9 +986,24 @@ pub fn render_export_image(
         1.0
     };
     let auto_zoom = geom_zoom * opt_zoom;
-
-    let mut u8_bytes = Vec::with_capacity(out_w * out_h * 3);
-    let mut u16_samples = Vec::with_capacity(out_w * out_h * 3);
+    let is_identity_geom = crop_x0 == 0
+        && crop_y0 == 0
+        && out_w == preview_w
+        && out_h == preview_h
+        && rot_deg.abs() < 1e-4
+        && k_dist.abs() < 1e-5
+        && keystone_v.abs() < 1e-5
+        && keystone_h.abs() < 1e-5
+        && flip_x > 0.0
+        && flip_y > 0.0
+        && (auto_zoom - 1.0).abs() < 1e-4;
+    let has_tonal_adjustment = grading.tone.shadows.abs() > 0.01
+        || grading.tone.highlights.abs() > 0.01
+        || grading.tone.blacks.abs() > 0.01;
+    let base_factor = 1.0 + (grading.tone.contrast / 100.0).clamp(-0.8, 2.0);
+    let base_vibrance = 0.10_f32;
+    let user_vibrance = grading.tone.vibrance / 100.0;
+    let user_sat = grading.tone.saturation / 100.0;
 
     let smart_lighting_map: Option<Vec<f32>> = if grading.smart_lighting.is_active() {
         let n_pix = preview_w * preview_h;
@@ -971,11 +1060,21 @@ pub fn render_export_image(
         None
     };
 
-    for oy in 0..out_h {
-        let orig_y = crop_y0 as f32 + (oy as f32 / out_h as f32) * cropped_h as f32;
-        let raw_dy = (orig_y - cy) * flip_y;
-
-        for ox in 0..out_w {
+    let eval_export_pixel_f32 = |ox: usize, oy: usize| -> [f32; 3] {
+        let (orig_x, orig_y, sample_idx, v_mult) = if is_identity_geom {
+            let s_idx = (oy * preview_w + ox).min(effective_samples.len().saturating_sub(1));
+            let v = if v_gain > 1e-4 {
+                let kx = ox as f32 - cx;
+                let ky = oy as f32 - cy;
+                let norm_r2 = (kx * kx + ky * ky) / max_radius_sq;
+                1.0 + v_gain * norm_r2 + (v_gain * 0.4) * (norm_r2 * norm_r2)
+            } else {
+                1.0
+            };
+            (ox as f32, oy as f32, s_idx, v)
+        } else {
+            let orig_y = crop_y0 as f32 + (oy as f32 / out_h as f32) * cropped_h as f32;
+            let raw_dy = (orig_y - cy) * flip_y;
             let orig_x = crop_x0 as f32 + (ox as f32 / out_w as f32) * cropped_w as f32;
             let raw_dx = (orig_x - cx) * flip_x;
 
@@ -987,7 +1086,7 @@ pub fn render_export_image(
             let h_scale = (1.0 + keystone_h * (kx / cx)).max(0.1);
             let ky = (ry / h_scale) / auto_zoom;
 
-            let sample_idx = if k_dist.abs() > 1e-5 {
+            let s_idx = if k_dist.abs() > 1e-5 {
                 let r2 = (kx * kx + ky * ky) / max_radius_sq;
                 let warp = 1.0 + k_dist * r2;
                 let warped_x =
@@ -1001,35 +1100,43 @@ pub fn render_export_image(
                 sy * preview_w + sx
             };
 
-            let [mean_r, mean_g, mean_b] = effective_samples[sample_idx];
-
-            let v_mult = if v_gain > 1e-4 {
+            let v = if v_gain > 1e-4 {
                 let norm_r2 = (kx * kx + ky * ky) / max_radius_sq;
                 1.0 + v_gain * norm_r2 + (v_gain * 0.4) * (norm_r2 * norm_r2)
             } else {
                 1.0
             };
+            (
+                orig_x,
+                orig_y,
+                s_idx.min(effective_samples.len().saturating_sub(1)),
+                v,
+            )
+        };
 
-            let r_wb = mean_r * eff_wb_r;
-            let g_wb = mean_g * eff_wb_g;
-            let b_wb = mean_b * eff_wb_b;
+        let [mean_r, mean_g, mean_b] = effective_samples[sample_idx];
 
-            let r_linear = (mat[0] * r_wb + mat[1] * g_wb + mat[2] * b_wb).max(0.0);
-            let g_linear = (mat[3] * r_wb + mat[4] * g_wb + mat[5] * b_wb).max(0.0);
-            let b_linear = (mat[6] * r_wb + mat[7] * g_wb + mat[8] * b_wb).max(0.0);
+        let r_wb = mean_r * eff_wb_r;
+        let g_wb = mean_g * eff_wb_g;
+        let b_wb = mean_b * eff_wb_b;
 
-            let mut r_scaled = (r_linear * exposure_gain * v_mult).max(0.0);
-            let mut g_scaled = (g_linear * exposure_gain * v_mult).max(0.0);
-            let mut b_scaled = (b_linear * exposure_gain * v_mult).max(0.0);
+        let r_linear = (mat[0] * r_wb + mat[1] * g_wb + mat[2] * b_wb).max(0.0);
+        let g_linear = (mat[3] * r_wb + mat[4] * g_wb + mat[5] * b_wb).max(0.0);
+        let b_linear = (mat[6] * r_wb + mat[7] * g_wb + mat[8] * b_wb).max(0.0);
 
-            if let Some(gains) = &smart_lighting_map {
-                let sl_idx = sample_idx.min(gains.len().saturating_sub(1));
-                let g = gains[sl_idx];
-                r_scaled *= g;
-                g_scaled *= g;
-                b_scaled *= g;
-            }
+        let mut r_scaled = (r_linear * exposure_gain * v_mult).max(0.0);
+        let mut g_scaled = (g_linear * exposure_gain * v_mult).max(0.0);
+        let mut b_scaled = (b_linear * exposure_gain * v_mult).max(0.0);
 
+        if let Some(gains) = &smart_lighting_map {
+            let sl_idx = sample_idx.min(gains.len().saturating_sub(1));
+            let g = gains[sl_idx];
+            r_scaled *= g;
+            g_scaled *= g;
+            b_scaled *= g;
+        }
+
+        let (r_toned, g_toned, b_toned) = if has_tonal_adjustment {
             let lum = 0.2126 * r_scaled + 0.7152 * g_scaled + 0.0722 * b_scaled;
             let y_norm = lum / (lum + 0.18);
             let shadow_weight = (1.0 - y_norm).powi(2);
@@ -1039,150 +1146,222 @@ pub fn render_export_image(
             let blacks_weight = (1.0 - y_norm).powi(4);
             let blacks_shift = (grading.tone.blacks / 100.0) * 1.5 * blacks_weight;
             let tone_gain = 2.0_f32.powf(shadow_shift + highlight_shift + blacks_shift);
+            (
+                (r_scaled * tone_gain).max(0.0),
+                (g_scaled * tone_gain).max(0.0),
+                (b_scaled * tone_gain).max(0.0),
+            )
+        } else {
+            (r_scaled, g_scaled, b_scaled)
+        };
 
-            let r_toned = (r_scaled * tone_gain).max(0.0);
-            let g_toned = (g_scaled * tone_gain).max(0.0);
-            let b_toned = (b_scaled * tone_gain).max(0.0);
+        let (r_toned, g_toned, b_toned) = if has_curves {
+            let c = rraw_color::curves::apply_tone_curves_lut(
+                glam::Vec3::new(r_toned, g_toned, b_toned),
+                &curves_lut,
+            );
+            (c.x, c.y, c.z)
+        } else {
+            (r_toned, g_toned, b_toned)
+        };
 
-            let (r_toned, g_toned, b_toned) = if has_curves {
-                let c = rraw_color::curves::apply_tone_curves_lut(
-                    glam::Vec3::new(r_toned, g_toned, b_toned),
-                    &curves_lut,
-                );
-                (c.x, c.y, c.z)
-            } else {
-                (r_toned, g_toned, b_toned)
-            };
+        let (r_lut, g_lut, b_lut) = if let Some(clut) = &grading.custom_clut {
+            let out = clut
+                .lut
+                .sample_tetrahedral(glam::Vec3::new(r_toned, g_toned, b_toned));
+            let w = clut.strength.clamp(0.0, 1.0);
+            (
+                r_toned * (1.0 - w) + out.x * w,
+                g_toned * (1.0 - w) + out.y * w,
+                b_toned * (1.0 - w) + out.z * w,
+            )
+        } else {
+            (r_toned, g_toned, b_toned)
+        };
 
-            let (r_lut, g_lut, b_lut) = if let Some(clut) = &grading.custom_clut {
-                let out = clut
-                    .lut
-                    .sample_tetrahedral(glam::Vec3::new(r_toned, g_toned, b_toned));
-                let w = clut.strength.clamp(0.0, 1.0);
-                (
-                    r_toned * (1.0 - w) + out.x * w,
-                    g_toned * (1.0 - w) + out.y * w,
-                    b_toned * (1.0 - w) + out.z * w,
+        let (u_norm, v_norm) = if is_identity_geom {
+            (
+                (ox as f32 + 0.5) / (preview_w.max(1) as f32),
+                (oy as f32 + 0.5) / (preview_h.max(1) as f32),
+            )
+        } else {
+            (
+                (orig_x / (preview_w.max(1) as f32)).clamp(0.0, 1.0),
+                (orig_y / (preview_h.max(1) as f32)).clamp(0.0, 1.0),
+            )
+        };
+        let (sem_ev, sem_contrast, sem_sat, sem_temp) =
+            if !grading.semantic_masks.is_empty() || !grading.local_masks.is_empty() {
+                eval_all_mask_adjustments_with_brush_grids(
+                    &base.semantic_masks,
+                    &grading.semantic_masks,
+                    &grading.local_masks,
+                    &brush_grids,
+                    u_norm,
+                    v_norm,
                 )
             } else {
-                (r_toned, g_toned, b_toned)
+                (0.0, 0.0, 0.0, 0.0)
             };
 
-            let u_norm = (orig_x / (preview_w.max(1) as f32)).clamp(0.0, 1.0);
-            let v_norm = (orig_y / (preview_h.max(1) as f32)).clamp(0.0, 1.0);
-            let (sem_ev, sem_contrast, sem_sat, sem_temp) =
-                if !grading.semantic_masks.is_empty() || !grading.local_masks.is_empty() {
-                    eval_all_mask_adjustments(
-                        &base.semantic_masks,
-                        &grading.semantic_masks,
-                        &grading.local_masks,
-                        u_norm,
-                        v_norm,
-                    )
-                } else {
-                    (0.0, 0.0, 0.0, 0.0)
-                };
+        let (r_sem, g_sem, b_sem) = if sem_ev.abs() > 1e-4 || sem_temp.abs() > 1e-3 {
+            let g_ev = 2.0_f32.powf(sem_ev);
+            let r_t = (1.0 + sem_temp * 0.004).max(0.1);
+            let b_t = (1.0 - sem_temp * 0.004).max(0.1);
+            (
+                (r_lut * g_ev * r_t).max(0.0),
+                (g_lut * g_ev).max(0.0),
+                (b_lut * g_ev * b_t).max(0.0),
+            )
+        } else {
+            (r_lut, g_lut, b_lut)
+        };
 
-            let (r_sem, g_sem, b_sem) = if sem_ev.abs() > 1e-4 || sem_temp.abs() > 1e-3 {
-                let g_ev = 2.0_f32.powf(sem_ev);
-                let r_t = (1.0 + sem_temp * 0.004).max(0.1);
-                let b_t = (1.0 - sem_temp * 0.004).max(0.1);
-                (
-                    (r_lut * g_ev * r_t).max(0.0),
-                    (g_lut * g_ev).max(0.0),
-                    (b_lut * g_ev * b_t).max(0.0),
-                )
+        let (r_drt, g_drt, b_drt) = match grading.color.display_transform {
+            DisplayTransform::AgX => (
+                apply_agx_edr(r_sem, 1.0),
+                apply_agx_edr(g_sem, 1.0),
+                apply_agx_edr(b_sem, 1.0),
+            ),
+            DisplayTransform::OpenDrt => (
+                apply_opendrt(r_sem, 1.0),
+                apply_opendrt(g_sem, 1.0),
+                apply_opendrt(b_sem, 1.0),
+            ),
+        };
+
+        let eff_factor = (base_factor * (1.0 + (sem_contrast / 100.0).clamp(-0.8, 2.0))).max(0.05);
+        let r_c = ((r_drt - 0.18) * eff_factor + 0.18).max(0.0);
+        let g_c = ((g_drt - 0.18) * eff_factor + 0.18).max(0.0);
+        let b_c = ((b_drt - 0.18) * eff_factor + 0.18).max(0.0);
+
+        let lum_c = 0.2126 * r_c + 0.7152 * g_c + 0.0722 * b_c;
+        let max_val = r_c.max(g_c).max(b_c);
+        let min_val = r_c.min(g_c).min(b_c);
+        let current_sat = if max_val > 1e-4 {
+            (max_val - min_val) / max_val
+        } else {
+            0.0
+        };
+        let vib_weight = (1.0 - current_sat).clamp(0.0, 1.0);
+        let eff_sat = ((1.0 + user_sat + (sem_sat / 100.0))
+            * (1.0 + (base_vibrance + user_vibrance) * vib_weight))
+            .max(0.0);
+
+        let r_s = (lum_c + (r_c - lum_c) * eff_sat).max(0.0);
+        let g_s = (lum_c + (g_c - lum_c) * eff_sat).max(0.0);
+        let b_s = (lum_c + (b_c - lum_c) * eff_sat).max(0.0);
+
+        let (r_s, g_s, b_s) = if has_creative_vignette {
+            let u_rel = (orig_x - cx) / cx.max(1.0);
+            let v_rel = (orig_y - cy) / cy.max(1.0);
+            let r_ellip = (u_rel * u_rel + v_rel * v_rel).sqrt();
+            let r_circ =
+                ((orig_x - cx).powi(2) + (orig_y - cy).powi(2)).sqrt() / cx.min(cy).max(1.0);
+            let r_rect = u_rel.abs().max(v_rel.abs());
+            let r_dist = if cv_round > 0.0 {
+                r_ellip * (1.0 - cv_round) + r_circ * cv_round
             } else {
-                (r_lut, g_lut, b_lut)
+                r_ellip * (1.0 + cv_round) + r_rect * (-cv_round)
             };
+            let t = ((r_dist - cv_mid) / (cv_feather.max(0.05) * 1.2)).clamp(0.0, 1.0);
+            let smooth_t = t * t * (3.0 - 2.0 * t);
+            let cv_mult = (1.0 + cv_amt * smooth_t).max(0.0);
+            (r_s * cv_mult, g_s * cv_mult, b_s * cv_mult)
+        } else {
+            (r_s, g_s, b_s)
+        };
 
-            let (r_drt, g_drt, b_drt) = match grading.color.display_transform {
-                DisplayTransform::AgX => (
-                    apply_agx_edr(r_sem, 1.0),
-                    apply_agx_edr(g_sem, 1.0),
-                    apply_agx_edr(b_sem, 1.0),
-                ),
-                DisplayTransform::OpenDrt => (
-                    apply_opendrt(r_sem, 1.0),
-                    apply_opendrt(g_sem, 1.0),
-                    apply_opendrt(b_sem, 1.0),
-                ),
-            };
+        let (r_post, g_post, b_post) = if grading.soft_proof.enabled {
+            let sp_res = rraw_color::evaluate_soft_proof(
+                glam::Vec3::new(r_s, g_s, b_s),
+                &grading.soft_proof,
+            );
+            (
+                sp_res.proofed_rgb.x,
+                sp_res.proofed_rgb.y,
+                sp_res.proofed_rgb.z,
+            )
+        } else {
+            (r_s.max(0.0), g_s.max(0.0), b_s.max(0.0))
+        };
 
-            let factor = (1.0 + (grading.tone.contrast / 100.0).clamp(-0.8, 2.0))
-                * (1.0 + (sem_contrast / 100.0).clamp(-0.8, 2.0));
-            let r_c = ((r_drt - 0.18) * factor + 0.18).max(0.0);
-            let g_c = ((g_drt - 0.18) * factor + 0.18).max(0.0);
-            let b_c = ((b_drt - 0.18) * factor + 0.18).max(0.0);
-
-            let lum_c = 0.2126 * r_c + 0.7152 * g_c + 0.0722 * b_c;
-            let max_val = r_c.max(g_c).max(b_c);
-            let min_val = r_c.min(g_c).min(b_c);
-            let current_sat = if max_val > 1e-4 {
-                (max_val - min_val) / max_val
+        let map_f32 = |x: f32| -> f32 {
+            let clamped = x.clamp(0.0, 1.0);
+            let toe = if clamped < 0.35 {
+                clamped.powf(1.08)
             } else {
-                0.0
+                clamped
             };
-            let base_vibrance = 0.10_f32;
-            let user_vibrance = grading.tone.vibrance / 100.0;
-            let user_sat = grading.tone.saturation / 100.0;
-            let vib_weight = (1.0 - current_sat).clamp(0.0, 1.0);
-            let eff_sat = ((1.0 + user_sat + (sem_sat / 100.0))
-                * (1.0 + (base_vibrance + user_vibrance) * vib_weight))
-                .max(0.0);
+            toe.powf(1.0 / 2.2)
+        };
 
-            let r_s = (lum_c + (r_c - lum_c) * eff_sat).max(0.0);
-            let g_s = (lum_c + (g_c - lum_c) * eff_sat).max(0.0);
-            let b_s = (lum_c + (b_c - lum_c) * eff_sat).max(0.0);
+        if grading.color.is_monochrome {
+            let fr = map_f32(r_post);
+            let fg = map_f32(g_post);
+            let fb = map_f32(b_post);
+            let lum_val = (fr * 54.0 + fg * 183.0 + fb * 19.0) / 256.0;
+            [lum_val, lum_val, lum_val]
+        } else {
+            [map_f32(r_post), map_f32(g_post), map_f32(b_post)]
+        }
+    };
 
-            let (r_s, g_s, b_s) = if has_creative_vignette {
-                let u_rel = (orig_x - cx) / cx.max(1.0);
-                let v_rel = (orig_y - cy) / cy.max(1.0);
-                let r_ellip = (u_rel * u_rel + v_rel * v_rel).sqrt();
-                let r_circ =
-                    ((orig_x - cx).powi(2) + (orig_y - cy).powi(2)).sqrt() / cx.min(cy).max(1.0);
-                let r_rect = u_rel.abs().max(v_rel.abs());
-                let r_dist = if cv_round > 0.0 {
-                    r_ellip * (1.0 - cv_round) + r_circ * cv_round
-                } else {
-                    r_ellip * (1.0 + cv_round) + r_rect * (-cv_round)
-                };
-                let t = ((r_dist - cv_mid) / (cv_feather.max(0.05) * 1.2)).clamp(0.0, 1.0);
-                let smooth_t = t * t * (3.0 - 2.0 * t);
-                let cv_mult = (1.0 + cv_amt * smooth_t).max(0.0);
-                (r_s * cv_mult, g_s * cv_mult, b_s * cv_mult)
-            } else {
-                (r_s, g_s, b_s)
-            };
-
-            let map_f32 = |x: f32| -> f32 {
-                let clamped = x.clamp(0.0, 1.0);
-                let toe = if clamped < 0.35 {
-                    clamped.powf(1.08)
-                } else {
-                    clamped
-                };
-                toe.powf(1.0 / 2.2)
-            };
-
-            let (f_r, f_g, f_b) = if grading.color.is_monochrome {
-                let lum_val = map_f32(0.2126 * r_s + 0.7152 * g_s + 0.0722 * b_s);
-                (lum_val, lum_val, lum_val)
-            } else {
-                (map_f32(r_s), map_f32(g_s), map_f32(b_s))
-            };
-
-            u8_bytes.push((f_r * 255.0).clamp(0.0, 255.0) as u8);
-            u8_bytes.push((f_g * 255.0).clamp(0.0, 255.0) as u8);
-            u8_bytes.push((f_b * 255.0).clamp(0.0, 255.0) as u8);
-
-            u16_samples.push((f_r * 65535.0).clamp(0.0, 65535.0).round() as u16);
-            u16_samples.push((f_g * 65535.0).clamp(0.0, 65535.0).round() as u16);
-            u16_samples.push((f_b * 65535.0).clamp(0.0, 65535.0).round() as u16);
+    match bit_depth {
+        Some(ExportBitDepth::Bits8) => {
+            let mut u8_bytes = vec![0_u8; out_w * out_h * 3];
+            u8_bytes
+                .par_chunks_exact_mut(out_w * 3)
+                .enumerate()
+                .for_each(|(oy, row_slice)| {
+                    for ox in 0..out_w {
+                        let [fr, fg, fb] = eval_export_pixel_f32(ox, oy);
+                        let base_idx = ox * 3;
+                        row_slice[base_idx] = (fr * 255.0 + 0.5).clamp(0.0, 255.0) as u8;
+                        row_slice[base_idx + 1] = (fg * 255.0 + 0.5).clamp(0.0, 255.0) as u8;
+                        row_slice[base_idx + 2] = (fb * 255.0 + 0.5).clamp(0.0, 255.0) as u8;
+                    }
+                });
+            (out_w, out_h, u8_bytes, Vec::new())
+        }
+        Some(ExportBitDepth::Bits16) => {
+            let mut u16_samples = vec![0_u16; out_w * out_h * 3];
+            u16_samples
+                .par_chunks_exact_mut(out_w * 3)
+                .enumerate()
+                .for_each(|(oy, row_slice)| {
+                    for ox in 0..out_w {
+                        let [fr, fg, fb] = eval_export_pixel_f32(ox, oy);
+                        let base_idx = ox * 3;
+                        row_slice[base_idx] = (fr * 65535.0).clamp(0.0, 65535.0).round() as u16;
+                        row_slice[base_idx + 1] = (fg * 65535.0).clamp(0.0, 65535.0).round() as u16;
+                        row_slice[base_idx + 2] = (fb * 65535.0).clamp(0.0, 65535.0).round() as u16;
+                    }
+                });
+            (out_w, out_h, Vec::new(), u16_samples)
+        }
+        None => {
+            let mut u8_bytes = vec![0_u8; out_w * out_h * 3];
+            let mut u16_samples = vec![0_u16; out_w * out_h * 3];
+            u8_bytes
+                .par_chunks_exact_mut(out_w * 3)
+                .zip(u16_samples.par_chunks_exact_mut(out_w * 3))
+                .enumerate()
+                .for_each(|(oy, (row_u8, row_u16))| {
+                    for ox in 0..out_w {
+                        let [fr, fg, fb] = eval_export_pixel_f32(ox, oy);
+                        let base_idx = ox * 3;
+                        row_u8[base_idx] = (fr * 255.0 + 0.5).clamp(0.0, 255.0) as u8;
+                        row_u8[base_idx + 1] = (fg * 255.0 + 0.5).clamp(0.0, 255.0) as u8;
+                        row_u8[base_idx + 2] = (fb * 255.0 + 0.5).clamp(0.0, 255.0) as u8;
+                        row_u16[base_idx] = (fr * 65535.0).clamp(0.0, 65535.0).round() as u16;
+                        row_u16[base_idx + 1] = (fg * 65535.0).clamp(0.0, 65535.0).round() as u16;
+                        row_u16[base_idx + 2] = (fb * 65535.0).clamp(0.0, 65535.0).round() as u16;
+                    }
+                });
+            (out_w, out_h, u8_bytes, u16_samples)
         }
     }
-
-    (out_w, out_h, u8_bytes, u16_samples)
 }
 
 /// Convenience helper evaluating preview and histogram directly from CFA.

@@ -418,13 +418,75 @@ pub fn prepare_timelapse_frame_gradings(
     }
 
     let mut measured_log_lumas = Vec::with_capacity(n);
-    for ((base, _), g) in frames.iter().zip(gradings.iter()) {
+    for (base, _) in frames {
         let flat_rgb: Vec<f32> = base
             .samples_rgb
             .iter()
             .flat_map(|px| [px[0], px[1], px[2]])
             .collect();
         let sensor_log_y = rraw_export::compute_frame_log_luminance(&flat_rgb);
+        measured_log_lumas.push(sensor_log_y);
+    }
+
+    prepare_timelapse_gradings_from_lumas(
+        &gradings,
+        &measured_log_lumas,
+        keyframe_ramping_enabled,
+        deflicker_config,
+    )
+}
+
+/// Computes per-frame timelapse grading states from pre-measured frame sensor log-luminances without
+/// retaining decoded full-resolution RGB buffers in memory ($O(1)$ frame memory footprint).
+#[must_use]
+pub fn prepare_timelapse_gradings_from_lumas(
+    initial_gradings: &[DarkroomGradingState],
+    sensor_log_lumas: &[f32],
+    keyframe_ramping_enabled: bool,
+    deflicker_config: &rraw_export::TimelapseDeflickerConfig,
+) -> (Vec<DarkroomGradingState>, Vec<f32>) {
+    let n = initial_gradings.len();
+    if n == 0 {
+        return (Vec::new(), Vec::new());
+    }
+
+    let mut gradings = initial_gradings.to_vec();
+
+    if keyframe_ramping_enabled && n >= 2 {
+        let g_first = &gradings[0];
+        let g_last = &gradings[n - 1];
+        let kfs = [
+            rraw_export::TimelapseKeyframe {
+                frame_index: 0,
+                exposure_ev: g_first.tone.exposure_ev,
+                kelvin: g_first.color.kelvin,
+                tint: g_first.color.tint,
+                contrast: g_first.tone.contrast,
+                saturation: g_first.tone.saturation,
+            },
+            rraw_export::TimelapseKeyframe {
+                frame_index: n - 1,
+                exposure_ev: g_last.tone.exposure_ev,
+                kelvin: g_last.color.kelvin,
+                tint: g_last.color.tint,
+                contrast: g_last.tone.contrast,
+                saturation: g_last.tone.saturation,
+            },
+        ];
+
+        let interpolated = rraw_export::interpolate_keyframes(n, &kfs);
+        for (g, kf) in gradings.iter_mut().zip(interpolated.iter()) {
+            g.tone.exposure_ev = kf.exposure_ev;
+            g.color.kelvin = kf.kelvin;
+            g.color.tint = kf.tint;
+            g.tone.contrast = kf.contrast;
+            g.tone.saturation = kf.saturation;
+        }
+    }
+
+    let mut measured_log_lumas = Vec::with_capacity(n);
+    for (idx, g) in gradings.iter().enumerate() {
+        let sensor_log_y = sensor_log_lumas.get(idx).copied().unwrap_or(0.0);
         measured_log_lumas.push(sensor_log_y + g.tone.exposure_ev);
     }
 

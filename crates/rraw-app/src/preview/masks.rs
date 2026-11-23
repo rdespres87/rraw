@@ -5,7 +5,7 @@
 use rraw_ai::{SemanticMaskSet, SemanticSegmenter};
 use rraw_coreml::AneSemanticSegmenter;
 
-use crate::state::{LocalMaskLayer, SemanticMaskLayer};
+use crate::state::{LocalMaskLayer, PrecomputedBrushGrid, SemanticMaskLayer};
 
 /// Pre-infers 4-class CoreML AI semantic segmentation probability maps.
 #[must_use]
@@ -98,6 +98,57 @@ pub fn eval_all_mask_adjustments(
             continue;
         }
         let w = mask.evaluate_weight(u, v);
+        if w > 1e-4 {
+            ev += w * mask.exposure_ev;
+            contrast += w * mask.contrast;
+            sat += w * mask.saturation;
+            temp += w * mask.temperature_shift;
+        }
+    }
+
+    (ev, contrast, sat, temp)
+}
+
+/// Evaluates accumulated local (semantic + geometric gradients + $O(1)$ precomputed brush grids)
+/// mask offsets `(ev, contrast, saturation, temp_shift)` at `(u, v)`.
+#[inline]
+#[must_use]
+pub fn eval_all_mask_adjustments_with_brush_grids(
+    masks_set: &SemanticMaskSet,
+    semantic_layers: &[SemanticMaskLayer],
+    local_masks: &[LocalMaskLayer],
+    brush_grids: &[Option<PrecomputedBrushGrid>],
+    u: f32,
+    v: f32,
+) -> (f32, f32, f32, f32) {
+    let mut ev = 0.0_f32;
+    let mut contrast = 0.0_f32;
+    let mut sat = 0.0_f32;
+    let mut temp = 0.0_f32;
+
+    for layer in semantic_layers {
+        if layer.is_neutral() {
+            continue;
+        }
+        let w = masks_set.sample_bilinear(layer.category, u, v, layer.invert, layer.feather)
+            * layer.opacity.clamp(0.0, 1.0);
+        if w > 1e-4 {
+            ev += w * layer.exposure_ev;
+            contrast += w * layer.contrast;
+            sat += w * layer.saturation;
+            temp += w * layer.temperature_shift;
+        }
+    }
+
+    for (idx, mask) in local_masks.iter().enumerate() {
+        if mask.is_neutral() {
+            continue;
+        }
+        let w = if let Some(Some(grid)) = brush_grids.get(idx) {
+            grid.sample(u, v)
+        } else {
+            mask.evaluate_weight(u, v)
+        };
         if w > 1e-4 {
             ev += w * mask.exposure_ev;
             contrast += w * mask.contrast;

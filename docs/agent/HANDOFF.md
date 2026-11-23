@@ -2,13 +2,25 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Production Release & Distribution**:
-  - The entire roadmap through Phase 21 (all tasks 21.1, 21.2, 21.3) is complete and verified with 357 passing tests and 0 clippy warnings.
-  - Final readiness for tagged production release `v0.1.0` and binary distribution.
+- **Phase 22 — Task 22.2 (Audit #4 Priority P1 — State Machine & Enum Hygiene)**:
+  - Replace independent boolean flags in `ExportBatchController` (`show_export_dialog`, `show_shortcuts_dialog`, `show_about_dialog`, `export_batch_selection`) and `ViewportController` (`is_crop_editing`, `horizon_tool_active`, `parallel_tool_phase`, `active_brush_mask_idx`) with mutually-exclusive typed enums.
+  - Eliminate duplicate state fields between `RrawApp` and `AppLayoutConfig`.
+  - Exclude ephemeral UI fields (`lens_search_query`, `defringe_preview_mask`, `optical_tab`) from `<photo>.rraw.json` sidecar serialization in `OpticsGradingParams`.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 22 — Task 22.1 Audit #4 Priority P0 Remediation (`rraw-app`) — COMPLETE**:
+  - **P0.1 Parallel Single-Buffer Export & Preview Parity**: Implemented `ExportRasterBuffer` (`U8` | `U16`) and Rayon-parallelized `render_export_image_with_depth`, avoiding dual 8-bit/16-bit buffer allocation and unifying pixel math with `render_preview_from_base_profiled`.
+  - **P0.2 Asynchronous O(1)-RAM Streaming Timelapse**: Implemented `prepare_timelapse_gradings_from_lumas` and `spawn_background_timelapse_export`, running timelapse assembly on a background worker thread in 2 streaming passes without retaining all decoded frames in RAM.
+  - **P0.3 O(1) AABB-Localized Brush Grid**: Implemented `PrecomputedBrushGrid` (512×512 AABB-localized bilinear lookup) and `eval_all_mask_adjustments_with_brush_grids`.
+  - **P0.4 Atomic Sidecar Persistence & `.rraw.json` Precedence**: Added `atomic_write_str` (`write -> flush -> sync_all -> rename`) for sidecar and layout persistence, and enforced `.rraw.json` rating precedence over `.xmp` in `load_photo_sidecars`.
+  - **Validation & Tests**: Dedicated integration test suite `crates/rraw-app/tests/p0_audit_remediation_tests.rs` (4 tests). 361 workspace tests passing across 80 suites, 0 clippy errors.
+
+---
+
+## Preceding Completed Milestone
 
 - **Phase 21 — Task 21.3 Production Hardening, Release Polish & macOS App Packaging (`rraw-app`, CI / Packaging) — COMPLETE**:
   - **Keyboard Navigation & View Shortcuts**: Implemented `Cmd+O` / `Cmd+Shift+O` (Open Image / Open Folder), `Cmd+E` (Export Dialog), `Cmd+1/2/3` (instant left panel tab switching between Files, Styles, and EXIF Metadata), and `Enter` to confirm export dialog. Restored right inspector panel 100% to Darkroom development without redundancy.

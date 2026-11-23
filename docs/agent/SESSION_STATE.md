@@ -4,11 +4,18 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 21 — Final Optimization, Latency Profiling & Production Hardening (ALL TASKS COMPLETE)
-- **Active Tasks**: All Phase 21 Tasks Complete (Task 21.1, 21.2, 21.3)
-- **Next Phase**: Production Release & Distribution
-- **Last Verified Baseline**: 357 tests passants across 79 test suites, 0 clippy warnings sous Rust 1.100.0 (`#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`).
-- **Current Milestone**: Phase 21 — Task 21.3 Production Hardening, Release Polish & macOS App Packaging **Complete**
+- **Active Phase**: Phase 22 — Deep Maturity Audit #4 Remediation (Chantier P0 Complete)
+- **Active Tasks**: Task 22.1 (P0 — Parallel Single-Buffer Export, Streaming O(1)-RAM Timelapse, Precomputed AABB Brush Grid & Atomic Sidecar Persistence) **Complete**
+- **Next Phase**: Task 22.2 (P1 — State Machine & Enum Hygiene, Duplicate Field Elimination, Ephemeral Sidecar Field Exclusion)
+- **Last Verified Baseline**: 361 tests passants across 80 test suites, 0 clippy errors sous Rust 1.100.0 (`#![deny(clippy::all)]` et règles strictes `unwrap_used = "deny"`, `expect_used = "deny"`).
+- **Current Milestone**: Phase 22 — Task 22.1 Audit #4 Priority P0 Remediation **Complete**
+  - **P0.1 Parallel Single-Buffer Export & Preview Parity**: Introduit `ExportRasterBuffer` (`U8(Vec<u8>)` | `U16(Vec<u16>)`) et `render_export_image_with_depth` parallélisé sur tous les cœurs CPU via Rayon (`par_chunks_exact_mut`), éliminant la double allocation systématique 8-bit + 16-bit (économisant jusqu'à 272 Mo par export 8-bit sur 45 MP) et restaurant la parité mathématique exacte avec la prévisualisation (plancher de contraste `.max(0.05)`, soft proofing et conversion monochrome).
+  - **P0.2 Asynchronous O(1)-RAM Streaming Timelapse**: Refactorisé l'export Timelapse (`spawn_background_timelapse_export` et `execute_timelapse_export`) en un pipeline streaming à 2 passes (`prepare_timelapse_gradings_from_lumas`) exécuté hors du thread UI : Passe 1 mesurant la luminance logarithmique par image avec libération immédiate de la mémoire ; Passe 2 décodant, rendant et écrivant image par image avec progression temps réel sans jamais accumuler la séquence entière en RAM (prévenant tout OOM).
+  - **P0.3 O(1) AABB-Localized Brush Grid (`PrecomputedBrushGrid`)**: Implémenté une grille 512×512 localisée sur la boîte englobante AABB `[min_u, min_v, max_u, max_v]` des traits de pinceau libre (`FreehandBrush`), remplaçant l'évaluation $\mathcal{O}(W \times H \times D)$ par un échantillonnage bilinéaire $\mathcal{O}(1)$ avec rejet AABB immédiat dans `eval_all_mask_adjustments_with_brush_grids`.
+  - **P0.4 Atomic Sidecar Persistence & `.rraw.json` Precedence**: Implémenté `atomic_write_str` (écriture dans un fichier temporaire adjacent `.tmp.<pid>.<seq>`, `flush()` + `sync_all()`, puis `std::fs::rename` atomique) pour `save_photo_sidecars` et `AppLayoutConfig::save()`, et aligné `load_photo_sidecars` sur le contrat `rraw-storage` où `.rraw.json` prévaut sur `.xmp`.
+  - Suite de tests TDD dédiée `crates/rraw-app/tests/p0_audit_remediation_tests.rs` (4 nouveaux tests).
+  - 361 tests passants across 80 suites, 0 clippy errors, Inquisitor APPROVED via Qwen 3.6 35B A3B (0 tokens cloud).
+- **Preceding Milestone**: Phase 21 — Task 21.3 Production Hardening, Release Polish & macOS App Packaging **Complete**
   - Ergonomie et raccourcis clavier unifiés dans `rraw-app` : `Cmd+O` / `Cmd+Shift+O` (Ouvrir photo / dossier), `Cmd+E` (Export / Timelapse), `Cmd+1/2/3` (Basculement instantané des onglets du panneau gauche : Fichiers, Styles & Préréglages, Métadonnées EXIF), `Entrée` (Validation et lancement d'export). Panneau droit 100% dédié au développement (Chambre Noire) sans aucune redondance.
   - Protection des raccourcis de notation par étoiles (`0..=5`) contre les modificateurs Command/Ctrl/Alt pour éliminer tout conflit avec les raccourcis système.
   - Script de packaging industriel `scripts/package_macos.sh` avec signature Hardened Runtime, entitlements Apple (`assets/macos/Entitlements.plist`), création de DMG compressé (UDZO) avec lien de glisser-déposer vers `/Applications`, empreintes cryptographiques SHA-256 et intégration de la notarisation Apple (`--notarize-profile`).

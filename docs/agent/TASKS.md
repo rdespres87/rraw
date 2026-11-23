@@ -266,6 +266,19 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Dedicated integration test suite `crates/rraw-app/tests/keyboard_navigation_tests.rs` verifying tab transitions, rating invariants, entitlements validity, Info.plist attributes, and packaging script attributes.
   - 357 workspace tests passing across 79 suites, 0 clippy warnings under `-D warnings`, Inquisitor APPROVED via Qwen 3.6 35B A3B.
 
+---
+
+## Phase 22 — Deep Maturity Audit #4 Remediation (P0 / P1 / P2)
+- [x] **Task 22.1 (`rraw-app`)**: Priority P0 — Parallel Single-Buffer Export, O(1)-RAM Streaming Timelapse, AABB Brush Grid & Atomic Sidecar Persistence
+  - Implemented `ExportRasterBuffer` (`U8(Vec<u8>)` | `U16(Vec<u16>)`) and Rayon-parallelized `render_export_image_with_depth`, allocating only the requested bit-depth buffer and guaranteeing mathematical parity with preview rendering.
+  - Refactored Timelapse sequence export (`spawn_background_timelapse_export`, `execute_timelapse_export`, `prepare_timelapse_gradings_from_lumas`) into an asynchronous 2-pass $O(1)$-RAM streaming pipeline emitting incremental progress events.
+  - Implemented `PrecomputedBrushGrid` (512x512 AABB-localized bilinear lookup grid) and `eval_all_mask_adjustments_with_brush_grids`, reducing per-pixel freehand brush evaluation from $O(D)$ to $O(1)$.
+  - Added `atomic_write_str` (temp sibling file + `flush` + `sync_all` + atomic `rename`) for sidecars and layout config, and enforced `.rraw.json` > `.xmp` rating precedence in `load_photo_sidecars`.
+  - Dedicated TDD integration suite `crates/rraw-app/tests/p0_audit_remediation_tests.rs` (4 tests). 361 workspace tests passing across 80 suites.
+- [ ] **Task 22.2 (`rraw-app`)**: Priority P1 — State Machine & Enum Hygiene, Duplicate Field Elimination & Ephemeral Sidecar Field Exclusion
+- [ ] **Task 22.3 (`rraw-app`, workspace)**: Priority P2 — Monolith File Decomposition, 100% Parametric i18n & Unused Cargo Dependency Cleanup
+
+
 
 
 

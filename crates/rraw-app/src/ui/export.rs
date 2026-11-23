@@ -279,13 +279,7 @@ impl RrawApp {
         };
 
         if mode == ExportTargetMode::TimelapseSequence {
-            // For timelapse, use existing synchronous call or background worker
-            let res = self.execute_timelapse_export();
-            let _ =
-                self.workers
-                    .export_sender
-                    .send((1.0, "Timelapse terminé".to_string(), Some(res)));
-            return Ok(());
+            return self.spawn_background_timelapse_export();
         }
 
         let photos_to_export: Vec<PathBuf> = match mode {
@@ -459,8 +453,12 @@ impl RrawApp {
                     None,
                 ));
 
-                let (out_w, out_h, u8_bytes, u16_samples) =
-                    render_export_image(&base, &grading, 1.0);
+                let effective_depth = match export_config.format {
+                    ExportFormatChoice::Jpeg | ExportFormatChoice::Avif => ExportBitDepth::Bits8,
+                    ExportFormatChoice::Png | ExportFormatChoice::Tiff => export_config.bit_depth,
+                };
+                let (out_w, out_h, raster_buf) =
+                    render_export_image_with_depth(&base, &grading, 1.0, effective_depth);
 
                 // Stage 3: Image compression & file writing (60% -> 98%)
                 let _ = tx.send((
@@ -474,8 +472,8 @@ impl RrawApp {
                     &item.target_path,
                     out_w,
                     out_h,
-                    &u8_bytes,
-                    &u16_samples,
+                    raster_buf.as_u8_slice().unwrap_or(&[]),
+                    raster_buf.as_u16_slice().unwrap_or(&[]),
                 );
 
                 match outcome {
@@ -562,8 +560,12 @@ impl RrawApp {
                 continue;
             };
 
-            let (out_w, out_h, u8_bytes, u16_samples) =
-                render_export_image(&base_preview, &grading, 1.0);
+            let effective_depth = match self.export.export_format {
+                ExportFormatChoice::Jpeg | ExportFormatChoice::Avif => ExportBitDepth::Bits8,
+                ExportFormatChoice::Png | ExportFormatChoice::Tiff => self.export.export_bit_depth,
+            };
+            let (out_w, out_h, raster_buf) =
+                render_export_image_with_depth(&base_preview, &grading, 1.0, effective_depth);
 
             let base_dest = self.export.export_custom_dir.clone().unwrap_or_else(|| {
                 photo_path
@@ -590,7 +592,13 @@ impl RrawApp {
             let suffix = &self.export.export_suffix;
             let target_path = final_dest.join(format!("{stem}{suffix}.{ext}"));
 
-            self.write_exported_image(&target_path, out_w, out_h, &u8_bytes, &u16_samples)?;
+            self.write_exported_image(
+                &target_path,
+                out_w,
+                out_h,
+                raster_buf.as_u8_slice().unwrap_or(&[]),
+                raster_buf.as_u16_slice().unwrap_or(&[]),
+            )?;
             last_exported_path = Some(target_path);
             count += 1;
         }
@@ -602,6 +610,238 @@ impl RrawApp {
         self.save_current_photo_sidecar();
 
         last_exported_path.ok_or_else(|| "Erreur lors de l'export".to_string())
+    }
+
+    /// Spawns a background streaming Timelapse export worker executing a 2-pass $O(1)$-RAM pipeline:
+    /// - Pass 1: Measures lightweight sensor log-luminance per frame (dropping each preview buffer immediately) and computes keyframe ramping & temporal deflicker offsets.
+    /// - Pass 2: Streams each frame one by one (`decode -> render_export_image_with_depth -> write -> drop`), emitting incremental progress updates over `export_sender`.
+    fn spawn_background_timelapse_export(&mut self) -> Result<(), String> {
+        let sequence_paths = self.timelapse_candidate_paths();
+        if sequence_paths.is_empty() {
+            return Err("Aucune photo disponible pour assembler le Timelapse.".to_string());
+        }
+
+        if let Some(loaded) = &self.session.loaded_photo {
+            self.library
+                .photo_gradings
+                .insert(loaded.path.clone(), self.session.grading.clone());
+        }
+        self.save_current_photo_sidecar();
+
+        struct TimelapseFrameSnapshot {
+            path: PathBuf,
+            cached_base: Option<BaseRgbPreview>,
+            cached_cfa: Option<rraw_core::SignedCfaBuffer>,
+            grading: DarkroomGradingState,
+        }
+
+        let mut snapshots = Vec::with_capacity(sequence_paths.len());
+        for path in &sequence_paths {
+            let is_loaded = self.session.loaded_photo.as_ref().map(|p| p.path.as_path())
+                == Some(path.as_path());
+            let (cached_base, cached_cfa, grading) = if is_loaded {
+                (
+                    self.session.base_preview.clone(),
+                    self.session.cached_cfa.clone(),
+                    self.session.grading.clone(),
+                )
+            } else if let Some(cached) = self.photo_cache.iter().find(|e| &e.path == path) {
+                let g = self
+                    .library
+                    .photo_gradings
+                    .get(path)
+                    .cloned()
+                    .unwrap_or_else(|| load_photo_sidecars(path).0.unwrap_or_default());
+                (
+                    Some(cached.base_preview.clone()),
+                    Some(cached.cfa.clone()),
+                    g,
+                )
+            } else {
+                let g = self
+                    .library
+                    .photo_gradings
+                    .get(path)
+                    .cloned()
+                    .unwrap_or_else(|| load_photo_sidecars(path).0.unwrap_or_default());
+                (None, None, g)
+            };
+            snapshots.push(TimelapseFrameSnapshot {
+                path: path.clone(),
+                cached_base,
+                cached_cfa,
+                grading,
+            });
+        }
+
+        let first_path = sequence_paths[0].clone();
+        let base_dest = self.export.export_custom_dir.clone().unwrap_or_else(|| {
+            first_path
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| PathBuf::from("."))
+        });
+        let final_dest = if self.export.export_use_subfolder
+            && !self.export.export_subfolder.trim().is_empty()
+        {
+            base_dest.join(self.export.export_subfolder.trim())
+        } else {
+            base_dest
+        };
+
+        let export_config = ExportWriteConfig {
+            format: self.export.export_format,
+            jpeg_quality: self.export.export_jpeg_quality,
+            bit_depth: self.export.export_bit_depth,
+            scale_mode: self.export.export_scale_mode,
+        };
+        let keyframe_ramping = self.export.timelapse_keyframe_ramping;
+        let deflicker_cfg = self.export.timelapse_deflicker;
+        let seq_prefix = self.export.timelapse_sequence_prefix.clone();
+        let fps = self.export.timelapse_fps;
+        let tx = self.workers.export_sender.clone();
+
+        std::thread::spawn(move || {
+            if let Err(e) = std::fs::create_dir_all(&final_dest) {
+                let msg = format!("Impossible de créer le dossier Timelapse: {e}");
+                let _ = tx.send((1.0, msg.clone(), Some(Err(msg))));
+                return;
+            }
+
+            let total = snapshots.len();
+            let mut valid_snapshots = Vec::with_capacity(total);
+            let mut initial_gradings = Vec::with_capacity(total);
+            let mut sensor_log_lumas = Vec::with_capacity(total);
+
+            // Pass 1: Measure sensor log-luminance per frame without retaining decoded buffers in RAM
+            for (idx, snap) in snapshots.into_iter().enumerate() {
+                let frac = 0.25 * ((idx + 1) as f32 / (total.max(1) as f32));
+                let _ = tx.send((
+                    frac,
+                    format!("Analyse deflicker ({}/{total})", idx + 1),
+                    None,
+                ));
+
+                let log_y_opt = if let Some(ref base) = snap.cached_base {
+                    let flat_rgb: Vec<f32> = base
+                        .samples_rgb
+                        .iter()
+                        .flat_map(|px| [px[0], px[1], px[2]])
+                        .collect();
+                    Some(rraw_export::compute_frame_log_luminance(&flat_rgb))
+                } else if let Some(payload) = decode_photo_file_payload(&snap.path, false, 0) {
+                    let flat_rgb: Vec<f32> = payload
+                        .base_preview
+                        .samples_rgb
+                        .iter()
+                        .flat_map(|px| [px[0], px[1], px[2]])
+                        .collect();
+                    Some(rraw_export::compute_frame_log_luminance(&flat_rgb))
+                } else {
+                    None
+                };
+
+                if let Some(log_y) = log_y_opt {
+                    sensor_log_lumas.push(log_y);
+                    initial_gradings.push(snap.grading.clone());
+                    valid_snapshots.push(snap);
+                }
+            }
+
+            if valid_snapshots.is_empty() {
+                let msg = "Impossible de décoder les images de la séquence Timelapse.".to_string();
+                let _ = tx.send((1.0, msg.clone(), Some(Err(msg))));
+                return;
+            }
+
+            let (smoothed_gradings, offsets_ev) = prepare_timelapse_gradings_from_lumas(
+                &initial_gradings,
+                &sensor_log_lumas,
+                keyframe_ramping,
+                &deflicker_cfg,
+            );
+
+            let ext = export_config.format.extension();
+            let effective_depth = match export_config.format {
+                ExportFormatChoice::Jpeg | ExportFormatChoice::Avif => ExportBitDepth::Bits8,
+                ExportFormatChoice::Png | ExportFormatChoice::Tiff => export_config.bit_depth,
+            };
+            let valid_total = valid_snapshots.len();
+            let mut last_path = None;
+
+            // Pass 2: Stream frame-by-frame (decode -> render -> write -> immediate drop)
+            for (idx, (snap, grading)) in valid_snapshots
+                .into_iter()
+                .zip(smoothed_gradings.iter())
+                .enumerate()
+            {
+                let frac = 0.25 + 0.73 * ((idx as f32 + 0.5) / (valid_total.max(1) as f32));
+                let _ = tx.send((
+                    frac,
+                    format!("Rendu Timelapse ({}/{valid_total})", idx + 1),
+                    None,
+                ));
+
+                let base = match (snap.cached_base, snap.cached_cfa) {
+                    (Some(b), Some(cfa)) => {
+                        Self::build_export_base_static(export_config.scale_mode, &cfa, &b)
+                    }
+                    (Some(b), None) => b,
+                    (None, _) => {
+                        let Some(payload) = decode_photo_file_payload(&snap.path, false, 0) else {
+                            continue;
+                        };
+                        Self::build_export_base_static(
+                            export_config.scale_mode,
+                            &payload.cfa,
+                            &payload.base_preview,
+                        )
+                    }
+                };
+
+                let (out_w, out_h, raster_buf) =
+                    render_export_image_with_depth(&base, grading, 1.0, effective_depth);
+                drop(base);
+
+                let seq_filename = rraw_export::format_sequence_filename(&seq_prefix, idx + 1, ext);
+                let target_path = final_dest.join(seq_filename);
+
+                if let Err(e) = Self::write_exported_image_static(
+                    export_config,
+                    &target_path,
+                    out_w,
+                    out_h,
+                    raster_buf.as_u8_slice().unwrap_or(&[]),
+                    raster_buf.as_u16_slice().unwrap_or(&[]),
+                ) {
+                    let _ = tx.send((1.0, format!("Erreur: {e}"), Some(Err(e))));
+                    return;
+                }
+                last_path = Some(target_path);
+            }
+
+            let manifest_res = rraw_export::write_timelapse_manifest(
+                &final_dest,
+                &seq_prefix,
+                ext,
+                fps,
+                valid_total,
+                &offsets_ev,
+            )
+            .map_err(|e| format!("Erreur lors de l'écriture du manifeste Timelapse: {e}"));
+
+            match manifest_res {
+                Ok(manifest_path) => {
+                    let out_path = last_path.unwrap_or(manifest_path);
+                    let _ = tx.send((1.0, "Timelapse terminé".to_string(), Some(Ok(out_path))));
+                }
+                Err(e) => {
+                    let _ = tx.send((1.0, format!("Erreur: {e}"), Some(Err(e))));
+                }
+            }
+        });
+
+        Ok(())
     }
 
     fn execute_timelapse_export(&mut self) -> Result<PathBuf, String> {
@@ -617,31 +857,38 @@ impl RrawApp {
                 .insert(loaded.path.clone(), self.session.grading.clone());
         }
 
-        let mut decoded_frames: Vec<(PathBuf, BaseRgbPreview, DarkroomGradingState)> =
-            Vec::with_capacity(sequence_paths.len());
+        // Pass 1: Measure sensor log-luminance per frame without accumulating full-res frames in RAM
+        let mut valid_paths = Vec::with_capacity(sequence_paths.len());
+        let mut initial_gradings = Vec::with_capacity(sequence_paths.len());
+        let mut sensor_log_lumas = Vec::with_capacity(sequence_paths.len());
 
         for path in &sequence_paths {
             if let Some((base, grading)) = self.resolve_photo_preview_and_grading(path) {
-                decoded_frames.push((path.clone(), base, grading));
+                let flat_rgb: Vec<f32> = base
+                    .samples_rgb
+                    .iter()
+                    .flat_map(|px| [px[0], px[1], px[2]])
+                    .collect();
+                let log_y = rraw_export::compute_frame_log_luminance(&flat_rgb);
+                drop(base);
+                valid_paths.push(path.clone());
+                initial_gradings.push(grading);
+                sensor_log_lumas.push(log_y);
             }
         }
 
-        if decoded_frames.is_empty() {
+        if valid_paths.is_empty() {
             return Err("Impossible de décoder les images de la séquence Timelapse.".to_string());
         }
 
-        let frame_refs: Vec<(&BaseRgbPreview, DarkroomGradingState)> = decoded_frames
-            .iter()
-            .map(|(_, b, g)| (b, g.clone()))
-            .collect();
-
-        let (smoothed_gradings, offsets_ev) = prepare_timelapse_frame_gradings(
-            &frame_refs,
+        let (smoothed_gradings, offsets_ev) = prepare_timelapse_gradings_from_lumas(
+            &initial_gradings,
+            &sensor_log_lumas,
             self.export.timelapse_keyframe_ramping,
             &self.export.timelapse_deflicker,
         );
 
-        let first_path = &decoded_frames[0].0;
+        let first_path = &valid_paths[0];
         let base_dest = self.export.export_custom_dir.clone().unwrap_or_else(|| {
             first_path
                 .parent()
@@ -661,21 +908,34 @@ impl RrawApp {
             .map_err(|e| format!("Impossible de créer le dossier Timelapse: {e}"))?;
 
         let ext = self.export.export_format.extension();
+        let effective_depth = match self.export.export_format {
+            ExportFormatChoice::Jpeg | ExportFormatChoice::Avif => ExportBitDepth::Bits8,
+            ExportFormatChoice::Png | ExportFormatChoice::Tiff => self.export.export_bit_depth,
+        };
         let mut last_path = None;
 
-        for (idx, ((_, base, _), grading)) in decoded_frames
-            .iter()
-            .zip(smoothed_gradings.iter())
-            .enumerate()
-        {
-            let (out_w, out_h, u8_bytes, u16_samples) = render_export_image(base, grading, 1.0);
+        // Pass 2: Stream frame-by-frame (decode -> render -> write -> immediate drop)
+        for (idx, (path, grading)) in valid_paths.iter().zip(smoothed_gradings.iter()).enumerate() {
+            let Some((base, _)) = self.resolve_photo_preview_and_grading(path) else {
+                continue;
+            };
+            let (out_w, out_h, raster_buf) =
+                render_export_image_with_depth(&base, grading, 1.0, effective_depth);
+            drop(base);
+
             let seq_filename = rraw_export::format_sequence_filename(
                 &self.export.timelapse_sequence_prefix,
                 idx + 1,
                 ext,
             );
             let target_path = final_dest.join(seq_filename);
-            self.write_exported_image(&target_path, out_w, out_h, &u8_bytes, &u16_samples)?;
+            self.write_exported_image(
+                &target_path,
+                out_w,
+                out_h,
+                raster_buf.as_u8_slice().unwrap_or(&[]),
+                raster_buf.as_u16_slice().unwrap_or(&[]),
+            )?;
             last_path = Some(target_path);
         }
 
@@ -684,7 +944,7 @@ impl RrawApp {
             &self.export.timelapse_sequence_prefix,
             ext,
             self.export.timelapse_fps,
-            decoded_frames.len(),
+            valid_paths.len(),
             &offsets_ev,
         )
         .map_err(|e| format!("Erreur lors de l'écriture du manifeste Timelapse: {e}"))?;
