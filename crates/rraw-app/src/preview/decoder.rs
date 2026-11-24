@@ -313,7 +313,8 @@ pub fn decode_photo_file_payload_profiled(
                 num_px,
             );
             let base =
-                BaseRgbPreview::from_rgb_image(&rgb, 1600).with_exif_orientation(header_orient);
+                BaseRgbPreview::from_rgb_image(&rgb, crate::preview::PREVIEW_PROXY_MAX_WIDTH)
+                    .with_exif_orientation(header_orient);
             t_demosaic.finish_and_record(&mut timing);
             let dummy_cfa = SignedCfaBuffer::default();
 

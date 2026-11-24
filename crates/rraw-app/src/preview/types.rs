@@ -147,6 +147,20 @@ pub fn compute_cam_to_srgb_matrix(cm: Option<&[f32; 9]>, wb: &[f32; 3]) -> [f32;
     [1.45, -0.35, -0.10, -0.15, 1.35, -0.20, -0.05, -0.30, 1.35]
 }
 
+/// Maximum bounding width (in pixels) for interactive sub-sampled CFA base previews.
+/// Sensors wider than this threshold use fast 2x2 Bayer quad sub-sampling during interactive
+/// viewing so full-resolution CPU demosaicing is strictly reserved for explicit full-res export.
+pub const PREVIEW_PROXY_MAX_WIDTH: usize = 1600;
+
+static FULL_RES_DEMOSAIC_INVOCATIONS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Returns the cumulative count of full-resolution CPU CFA demosaicing invocations.
+#[must_use]
+pub fn full_res_demosaic_count() -> u64 {
+    FULL_RES_DEMOSAIC_INVOCATIONS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Fast pre-demosaiced linear camera RGB buffer cached in RAM.
 #[derive(Debug, Clone)]
 pub struct BaseRgbPreview {
@@ -181,7 +195,19 @@ impl BaseRgbPreview {
         as_shot_wb: [f32; 3],
         color_matrix: Option<&[f32; 9]>,
     ) -> Self {
-        Self::from_cfa_with_color_and_target_width(cfa, as_shot_wb, color_matrix, 1600)
+        Self::from_cfa_with_color_and_target_width(
+            cfa,
+            as_shot_wb,
+            color_matrix,
+            PREVIEW_PROXY_MAX_WIDTH,
+        )
+    }
+
+    /// Returns `true` when this preview represents a sub-sampled interactive proxy for `cfa`
+    /// rather than a 1:1 full-resolution CPU demosaic.
+    #[must_use]
+    pub fn is_interactive_proxy_for(&self, cfa: &SignedCfaBuffer) -> bool {
+        cfa.width() > PREVIEW_PROXY_MAX_WIDTH && self.width <= PREVIEW_PROXY_MAX_WIDTH
     }
 
     /// Builds a base preview scaled to a target bounding width (e.g. 1200 for preview, 140 for thumbnail).
@@ -217,6 +243,7 @@ impl BaseRgbPreview {
 
         if target_width >= width {
             // 1:1 Full-Resolution CFA Edge-Aware Adaptive Demosaicing
+            FULL_RES_DEMOSAIC_INVOCATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let preview_w = width;
             let preview_h = height;
             let samples_rgb =

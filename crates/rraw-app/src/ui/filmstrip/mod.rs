@@ -17,10 +17,79 @@ use crate::state::LeftPanelTab;
 
 use self::context_menu::{CardContextActions, ContextMenuParams};
 
-/// Shared per-frame strip context passed to each card renderer.
+/// Fixed logical width of a single filmstrip thumbnail card in points.
+pub const FILMSTRIP_CARD_WIDTH: f32 = 120.0;
+/// Fixed logical height of a single filmstrip thumbnail card in points.
+pub const FILMSTRIP_CARD_HEIGHT: f32 = 104.0;
+/// Horizontal gap between consecutive filmstrip cards in points.
+pub const FILMSTRIP_CARD_SPACING: f32 = 8.0;
+/// Horizontal pitch (`width + spacing`) between consecutive card origins in points.
+pub const FILMSTRIP_CARD_STRIDE: f32 = FILMSTRIP_CARD_WIDTH + FILMSTRIP_CARD_SPACING;
+/// Number of extra cards rendered on each side of the viewport for smooth scrolling.
+pub const FILMSTRIP_OVERSCAN_CARDS: usize = 2;
+
+/// Returns the total horizontal content width occupied by `total_cards` filmstrip cards.
+#[must_use]
+pub fn filmstrip_total_width(total_cards: usize, card_width: f32, card_spacing: f32) -> f32 {
+    if total_cards == 0 || !card_width.is_finite() || !card_spacing.is_finite() {
+        return 0.0;
+    }
+    let w = card_width.max(0.0);
+    let s = card_spacing.max(0.0);
+    (total_cards as f32) * w + (total_cards.saturating_sub(1) as f32) * s
+}
+
+/// Returns the horizontal origin offset of card `index` inside the filmstrip content space.
+#[must_use]
+pub fn filmstrip_card_x_offset(index: usize, card_stride: f32) -> f32 {
+    if !card_stride.is_finite() || card_stride <= 0.0 {
+        return 0.0;
+    }
+    (index as f32) * card_stride
+}
+
+/// Computes the half-open `[start..end)` range of card indices visible inside
+/// `[viewport_min_x, viewport_max_x]`, expanded by `overscan` cards on each side.
+#[must_use]
+pub fn visible_filmstrip_range(
+    total_cards: usize,
+    viewport_min_x: f32,
+    viewport_max_x: f32,
+    card_stride: f32,
+    overscan: usize,
+) -> std::ops::Range<usize> {
+    if total_cards == 0
+        || !card_stride.is_finite()
+        || card_stride <= 0.0
+        || !viewport_min_x.is_finite()
+        || !viewport_max_x.is_finite()
+        || viewport_max_x <= viewport_min_x
+        || viewport_max_x <= 0.0
+    {
+        return 0..0;
+    }
+
+    let clamped_min = viewport_min_x.max(0.0);
+    let clamped_max = viewport_max_x.max(0.0);
+    let first_visible = (clamped_min / card_stride).floor() as usize;
+    if first_visible >= total_cards {
+        return 0..0;
+    }
+
+    let last_exclusive = ((clamped_max / card_stride).ceil() as usize).min(total_cards);
+    if last_exclusive <= first_visible {
+        return 0..0;
+    }
+
+    let start = first_visible.saturating_sub(overscan);
+    let end = last_exclusive.saturating_add(overscan).min(total_cards);
+    start..end
+}
+
+/// Shared per-frame strip context passed to each visible card renderer.
 struct FilmstripStripContext<'a> {
     lang: Language,
-    entries: &'a [PathBuf],
+    filtered_indices: &'a [usize],
     active_path: Option<&'a Path>,
     has_clipboard: bool,
     clipboard_summary: Option<&'a str>,
@@ -54,10 +123,11 @@ impl RrawApp {
                     .auto_shrink([false, false])
                     .max_height(134.0)
                     .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
-                    .show(ui, |ui| {
+                    .show_viewport(ui, |ui, viewport| {
                         ui.vertical(|ui| {
                             ui.horizontal(|ui| {
-                                self.render_filmstrip_cards(ui, lang);
+                                ui.spacing_mut().item_spacing.x = FILMSTRIP_CARD_SPACING;
+                                self.render_filmstrip_cards(ui, viewport, lang);
                             });
                             // Dedicated vertical padding so the scrollbar track sits below cards
                             ui.add_space(14.0);
@@ -66,34 +136,86 @@ impl RrawApp {
             });
     }
 
-    fn render_filmstrip_cards(&mut self, ui: &mut egui::Ui, lang: Language) {
+    fn render_filmstrip_cards(&mut self, ui: &mut egui::Ui, viewport: egui::Rect, lang: Language) {
         let active_path = self
             .session
             .loaded_photo
             .as_ref()
             .map(|p| p.path.clone())
             .or_else(|| self.layout_config.last_open_photo.clone());
-        let entries: Vec<PathBuf> = self
+        let filtered_indices: Vec<usize> = self
             .library
             .directory_entries
             .iter()
-            .filter(|p| self.matches_active_filter(p))
-            .cloned()
+            .enumerate()
+            .filter_map(|(idx, p)| self.matches_active_filter(p).then_some(idx))
             .collect();
+        let total_cards = filtered_indices.len();
+        let strip_origin = ui.cursor().min;
+
+        if self.library.scroll_filmstrip_to_active {
+            if let Some(active) = active_path.as_deref() {
+                if let Some(active_pos) = filtered_indices.iter().position(|&dir_idx| {
+                    self.library.directory_entries[dir_idx].as_path() == active
+                }) {
+                    let target_x =
+                        strip_origin.x + filmstrip_card_x_offset(active_pos, FILMSTRIP_CARD_STRIDE);
+                    let target_rect = egui::Rect::from_min_size(
+                        egui::pos2(target_x, strip_origin.y),
+                        egui::vec2(FILMSTRIP_CARD_WIDTH, FILMSTRIP_CARD_HEIGHT),
+                    );
+                    ui.scroll_to_rect(target_rect, None);
+                }
+            }
+            self.library.scroll_filmstrip_to_active = false;
+        }
+
+        let range = visible_filmstrip_range(
+            total_cards,
+            viewport.min.x,
+            viewport.max.x,
+            FILMSTRIP_CARD_STRIDE,
+            FILMSTRIP_OVERSCAN_CARDS,
+        );
+
+        if total_cards == 0 {
+            return;
+        }
+        if range.is_empty() {
+            let total_w =
+                filmstrip_total_width(total_cards, FILMSTRIP_CARD_WIDTH, FILMSTRIP_CARD_SPACING);
+            ui.allocate_space(egui::vec2(total_w, FILMSTRIP_CARD_HEIGHT));
+            return;
+        }
+
+        if range.start > 0 {
+            let leading_w =
+                ((range.start as f32) * FILMSTRIP_CARD_STRIDE - FILMSTRIP_CARD_SPACING).max(0.0);
+            ui.allocate_space(egui::vec2(leading_w, FILMSTRIP_CARD_HEIGHT));
+        }
+
         let has_clipboard = self.library.recipe_clipboard.is_some();
         let clipboard_summary = self.library.recipe_clipboard.as_ref().map(|c| c.summary());
         let mut actions = FilmstripFrameActions::default();
 
         let strip_ctx = FilmstripStripContext {
             lang,
-            entries: &entries,
+            filtered_indices: &filtered_indices,
             active_path: active_path.as_deref(),
             has_clipboard,
             clipboard_summary: clipboard_summary.as_deref(),
         };
 
-        for (entry_idx, entry) in entries.iter().enumerate() {
-            self.render_single_filmstrip_card(ui, &strip_ctx, entry_idx, entry, &mut actions);
+        for visible_pos in range.clone() {
+            let entry = self.library.directory_entries[filtered_indices[visible_pos]].clone();
+            self.render_single_filmstrip_card(ui, &strip_ctx, visible_pos, &entry, &mut actions);
+        }
+
+        if range.end < total_cards {
+            let remaining = total_cards - range.end;
+            let trailing_w =
+                ((remaining as f32) * FILMSTRIP_CARD_STRIDE - FILMSTRIP_CARD_SPACING).max(0.0);
+            ui.allocate_space(egui::vec2(trailing_w, FILMSTRIP_CARD_HEIGHT));
         }
 
         self.apply_filmstrip_actions(ui, actions);
@@ -121,12 +243,10 @@ impl RrawApp {
             .unwrap_or("RAW")
             .to_uppercase();
 
-        let (rect, response) =
-            ui.allocate_exact_size(egui::vec2(120.0, 104.0), egui::Sense::click());
-        if is_selected && self.library.scroll_filmstrip_to_active {
-            response.scroll_to_me(None);
-            self.library.scroll_filmstrip_to_active = false;
-        }
+        let (rect, response) = ui.allocate_exact_size(
+            egui::vec2(FILMSTRIP_CARD_WIDTH, FILMSTRIP_CARD_HEIGHT),
+            egui::Sense::click(),
+        );
 
         let menu_params = ContextMenuParams {
             entry,
@@ -171,8 +291,15 @@ impl RrawApp {
             if ui.input(|i| i.modifiers.shift) {
                 let anchor = self.library.last_selected_index.unwrap_or(0);
                 let (min_i, max_i) = (anchor.min(entry_idx), anchor.max(entry_idx));
-                for p in strip.entries.iter().skip(min_i).take(max_i - min_i + 1) {
-                    self.library.selected_photos.insert(p.clone());
+                for &dir_idx in strip
+                    .filtered_indices
+                    .iter()
+                    .skip(min_i)
+                    .take(max_i - min_i + 1)
+                {
+                    if let Some(p) = self.library.directory_entries.get(dir_idx) {
+                        self.library.selected_photos.insert(p.clone());
+                    }
                 }
                 actions.file_to_open = Some(entry.to_path_buf());
             } else if ui.input(|i| i.modifiers.command || i.modifiers.ctrl) {
