@@ -21,7 +21,7 @@ pub mod language;
 pub use catalog::Catalog;
 pub use engine::I18nEngine;
 pub use exif_map::{exif_tag_to_key, exif_val_to_key, translate_exif_tag, translate_exif_val};
-pub use key::{Key, ALL_KEYS};
+pub use key::{Key, ParseKeyError, ALL_KEYS};
 pub use language::Language;
 
 /// Global helper to translate a typed `Key` for a given language.
