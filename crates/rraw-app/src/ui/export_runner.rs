@@ -323,7 +323,7 @@ impl RrawApp {
                 if let Some(loaded) = &self.session.loaded_photo {
                     vec![loaded.path.clone()]
                 } else {
-                    return Err("Aucune photo chargée à exporter.".to_string());
+                    return Err("No photo loaded to export.".to_string());
                 }
             }
         };
@@ -399,7 +399,7 @@ impl RrawApp {
         }
 
         if items.is_empty() {
-            return Err("Aucune photo n'a pu être préparée pour l'export.".to_string());
+            return Err("No photos could be prepared for export.".to_string());
         }
 
         self.save_current_photo_sidecar();
@@ -412,12 +412,18 @@ impl RrawApp {
             hdr_gain_map: self.export.config.hdr_gain_map,
         };
         let tx = self.workers.export_sender.clone();
+        let cancel = self.workers.reset_export_cancel();
 
         std::thread::spawn(move || {
             let total = items.len();
             let mut last_path = None;
 
             for (idx, item) in items.into_iter().enumerate() {
+                if cancel.load(std::sync::atomic::Ordering::Acquire) {
+                    let msg = "Export cancelled by user.".to_string();
+                    let _ = tx.send((1.0, "Export cancelled".to_string(), Some(Err(msg))));
+                    return;
+                }
                 let base_frac = (idx as f32) / (total as f32).max(1.0);
                 let step_frac = 1.0 / (total as f32).max(1.0);
                 let fname = item
@@ -429,7 +435,7 @@ impl RrawApp {
                 // Stage 1: Preparation & decoding (0% -> 25%)
                 let _ = tx.send((
                     base_frac + step_frac * 0.05,
-                    format!("Décodage {fname} ({}/{total})", idx + 1),
+                    format!("Decoding {fname} ({}/{total})", idx + 1),
                     None,
                 ));
 
@@ -462,7 +468,7 @@ impl RrawApp {
                 // Stage 2: Color grading, tone curves & geometry rendering (25% -> 60%)
                 let _ = tx.send((
                     base_frac + step_frac * 0.25,
-                    format!("Rendu {fname} ({}/{total})", idx + 1),
+                    format!("Rendering {fname} ({}/{total})", idx + 1),
                     None,
                 ));
 
@@ -476,7 +482,7 @@ impl RrawApp {
                 // Stage 3: Image compression & file writing (60% -> 98%)
                 let _ = tx.send((
                     base_frac + step_frac * 0.60,
-                    format!("Encodage {fname} ({}/{total})", idx + 1),
+                    format!("Encoding {fname} ({}/{total})", idx + 1),
                     None,
                 ));
 
@@ -517,13 +523,20 @@ impl RrawApp {
         Ok(())
     }
 
+    /// Requests cooperative cancellation of the currently running background export or timelapse job.
+    pub fn cancel_active_export(&mut self) {
+        self.workers.cancel_export();
+        self.export.stats.progress_label =
+            crate::i18n::tc(self.lang(), "Export.CancellingStatus").to_owned();
+    }
+
     /// Spawns a background streaming Timelapse export worker executing a 2-pass $O(1)$-RAM pipeline:
     /// - Pass 1: Measures lightweight sensor log-luminance per frame (dropping each preview buffer immediately) and computes keyframe ramping & temporal deflicker offsets.
     /// - Pass 2: Streams each frame one by one (`decode -> render_export_image_with_depth -> write -> drop`), emitting incremental progress updates over `export_sender`.
     fn spawn_background_timelapse_export(&mut self) -> Result<(), String> {
         let sequence_paths = self.timelapse_candidate_paths();
         if sequence_paths.is_empty() {
-            return Err("Aucune photo disponible pour assembler le Timelapse.".to_string());
+            return Err("No photos available to assemble the Timelapse.".to_string());
         }
 
         if let Some(loaded) = &self.session.loaded_photo {
@@ -606,6 +619,7 @@ impl RrawApp {
         let seq_prefix = self.export.config.timelapse.sequence_prefix.clone();
         let fps = self.export.config.timelapse.fps;
         let tx = self.workers.export_sender.clone();
+        let cancel = self.workers.reset_export_cancel();
 
         std::thread::spawn(move || {
             if let Err(e) = std::fs::create_dir_all(&final_dest) {
@@ -621,10 +635,15 @@ impl RrawApp {
 
             // Pass 1: Measure sensor log-luminance per frame without retaining decoded buffers in RAM
             for (idx, snap) in snapshots.into_iter().enumerate() {
+                if cancel.load(std::sync::atomic::Ordering::Acquire) {
+                    let msg = "Timelapse export cancelled by user.".to_string();
+                    let _ = tx.send((1.0, "Export cancelled".to_string(), Some(Err(msg))));
+                    return;
+                }
                 let frac = 0.25 * ((idx + 1) as f32 / (total.max(1) as f32));
                 let _ = tx.send((
                     frac,
-                    format!("Analyse deflicker ({}/{total})", idx + 1),
+                    format!("Deflicker analysis ({}/{total})", idx + 1),
                     None,
                 ));
 
@@ -681,10 +700,15 @@ impl RrawApp {
                 .zip(smoothed_gradings.iter())
                 .enumerate()
             {
+                if cancel.load(std::sync::atomic::Ordering::Acquire) {
+                    let msg = "Timelapse export cancelled by user.".to_string();
+                    let _ = tx.send((1.0, "Export cancelled".to_string(), Some(Err(msg))));
+                    return;
+                }
                 let frac = 0.25 + 0.73 * ((idx as f32 + 0.5) / (valid_total.max(1) as f32));
                 let _ = tx.send((
                     frac,
-                    format!("Rendu Timelapse ({}/{valid_total})", idx + 1),
+                    format!("Rendering Timelapse ({}/{valid_total})", idx + 1),
                     None,
                 ));
 

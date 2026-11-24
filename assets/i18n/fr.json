@@ -613,6 +613,8 @@
   "TopBarZoomFit": "Ajuster",
   "TopBarZoomFitted": "Ajusté",
   "Undo.Status": "↶ Action annulée (Undo)",
+  "Export.CancelButton": "Annuler",
+  "Export.CancellingStatus": "Annulation de l'export...",
   "Viewport.DecodingStatus": "Décodage du fichier RAW en arrière-plan...",
   "Viewport.DefaultMaskName": "Masque",
   "Viewport.EmptyStatus": "Aucune image RAW chargée.\nCliquez sur « Ouvrir image... » ou choisissez un fichier dans l'explorateur.",

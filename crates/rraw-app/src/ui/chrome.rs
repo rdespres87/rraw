@@ -583,6 +583,12 @@ impl RrawApp {
                                 .desired_width(120.0)
                                 .animate(true),
                         );
+                        if ui
+                            .small_button(crate::i18n::tc(self.lang(), "Export.CancelButton"))
+                            .clicked()
+                        {
+                            self.cancel_active_export();
+                        }
                         ui.label(egui::RichText::new("·").weak());
                     } else if self.workers.is_decoding {
                         ui.spinner();

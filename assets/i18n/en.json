@@ -613,6 +613,8 @@
   "TopBarZoomFit": "Fit",
   "TopBarZoomFitted": "Fit",
   "Undo.Status": "↶ Undone grading change",
+  "Export.CancelButton": "Cancel",
+  "Export.CancellingStatus": "Cancelling export...",
   "Viewport.DecodingStatus": "Decoding RAW file in background...",
   "Viewport.DefaultMaskName": "Mask",
   "Viewport.EmptyStatus": "No RAW image loaded.\nClick \"Open image...\" or select a file in the explorer.",

@@ -5,6 +5,7 @@ use crate::preview::types::BackgroundDecodePayload;
 use crate::preview::{DecodeCoordinator, DecodeRequest, LruThumbnailCache};
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
@@ -37,6 +38,8 @@ pub struct BackgroundWorkers {
     pub export_sender: Sender<ExportProgressMessage>,
     /// Channel receiver for reading background export progress and results on UI thread.
     pub export_receiver: Receiver<ExportProgressMessage>,
+    /// Cooperative cancellation flag shared with active background export/timelapse workers.
+    pub export_cancel: Arc<AtomicBool>,
     /// Channel sender for background DAM session indexing updates.
     pub dam_index_sender: Sender<(PathBuf, u8)>,
     /// Channel receiver for background DAM session indexing updates.
@@ -104,6 +107,7 @@ impl BackgroundWorkers {
             thumbnail_textures: LruThumbnailCache::default(),
             export_sender,
             export_receiver,
+            export_cancel: Arc::new(AtomicBool::new(false)),
             dam_index_sender,
             dam_index_receiver,
         }
@@ -133,9 +137,29 @@ impl BackgroundWorkers {
             thumbnail_textures: LruThumbnailCache::default(),
             export_sender,
             export_receiver,
+            export_cancel: Arc::new(AtomicBool::new(false)),
             dam_index_sender,
             dam_index_receiver,
         }
+    }
+
+    /// Resets the cooperative export cancellation flag to `false` and returns a shared handle
+    /// for a newly spawned background export or timelapse worker.
+    #[must_use]
+    pub fn reset_export_cancel(&self) -> Arc<AtomicBool> {
+        self.export_cancel.store(false, Ordering::Release);
+        Arc::clone(&self.export_cancel)
+    }
+
+    /// Signals any active background export or timelapse worker to cancel cooperatively.
+    pub fn cancel_export(&self) {
+        self.export_cancel.store(true, Ordering::Release);
+    }
+
+    /// Returns `true` if cancellation has been requested for the active export worker.
+    #[must_use]
+    pub fn is_export_cancelled(&self) -> bool {
+        self.export_cancel.load(Ordering::Acquire)
     }
 
     /// Dispatches a thumbnail generation request to background worker pool if not already loaded or pending.

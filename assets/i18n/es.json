@@ -613,6 +613,8 @@
   "TopBarZoomFit": "Ajustar",
   "TopBarZoomFitted": "Ajustado",
   "Undo.Status": "↶ Acción deshecha (Undo)",
+  "Export.CancelButton": "Cancelar",
+  "Export.CancellingStatus": "Cancelando exportación...",
   "Viewport.DecodingStatus": "Decodificando archivo RAW en segundo plano...",
   "Viewport.DefaultMaskName": "Máscara",
   "Viewport.EmptyStatus": "Ninguna imagen RAW cargada.\nHaga clic en « Abrir imagen... » o elija un archivo en el explorador.",

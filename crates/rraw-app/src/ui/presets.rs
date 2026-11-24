@@ -85,8 +85,8 @@ impl RrawApp {
                         .add_filter("Cube 3D LUT (*.cube)", &["cube"])
                         .pick_file()
                     {
-                        if let Ok(content) = std::fs::read_to_string(&path) {
-                            if let Ok(lut) = rraw_color::ColorLut3d::from_cube_str(&content) {
+                        match load_cube_lut_from_path(&path) {
+                            Ok(lut) => {
                                 self.record_undo_snapshot();
                                 let name = path
                                     .file_stem()
@@ -104,6 +104,9 @@ impl RrawApp {
                                 self.session.needs_preview_update = true;
                                 self.save_current_photo_sidecar();
                                 ui.ctx().request_repaint();
+                            }
+                            Err(err) => {
+                                self.status_message = format!("LUT import failed: {err}");
                             }
                         }
                     }
@@ -160,4 +163,50 @@ impl RrawApp {
             }
         });
     }
+}
+
+/// Maximum allowed file size for imported `.cube` 3D LUT files (16 MiB).
+pub const MAX_CUBE_LUT_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Loads and parses a `.cube` 3D LUT file with the default [`MAX_CUBE_LUT_BYTES`] size bound.
+pub fn load_cube_lut_from_path(path: &std::path::Path) -> Result<rraw_color::ColorLut3d, String> {
+    load_cube_lut_from_path_with_limit(path, MAX_CUBE_LUT_BYTES)
+}
+
+/// Loads and parses a `.cube` 3D LUT file while enforcing an explicit upper bound on file size.
+pub fn load_cube_lut_from_path_with_limit(
+    path: &std::path::Path,
+    max_bytes: u64,
+) -> Result<rraw_color::ColorLut3d, String> {
+    use std::io::Read as _;
+
+    let meta = std::fs::metadata(path)
+        .map_err(|e| format!("Failed to read metadata for '{}': {e}", path.display()))?;
+
+    if meta.len() > max_bytes {
+        return Err(format!(
+            "LUT file exceeds maximum allowed size ({max_bytes} bytes)"
+        ));
+    }
+
+    let file = std::fs::File::open(path)
+        .map_err(|e| format!("Failed to open '{}': {e}", path.display()))?;
+
+    let mut buf = Vec::new();
+    let mut reader = std::io::BufReader::new(file).take(max_bytes.saturating_add(1));
+    reader
+        .read_to_end(&mut buf)
+        .map_err(|e| format!("Failed to read '{}': {e}", path.display()))?;
+
+    if buf.len() as u64 > max_bytes {
+        return Err(format!(
+            "LUT file exceeds maximum allowed size ({max_bytes} bytes)"
+        ));
+    }
+
+    let content = String::from_utf8(buf)
+        .map_err(|_| format!("LUT file '{}' is not valid UTF-8", path.display()))?;
+
+    rraw_color::ColorLut3d::from_cube_str(&content)
+        .map_err(|e| format!("Failed to parse LUT from '{}': {e}", path.display()))
 }
