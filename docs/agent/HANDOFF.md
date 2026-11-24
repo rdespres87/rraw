@@ -2,14 +2,28 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Post-Release v0.1.1 Roadmap & Features**:
-  - `v0.1.1` is published and live on GitHub Actions & Releases (pointing immutably to `ae12e81`).
-  - Next version (`v0.1.2`) will automatically utilize `RELEASE_NOTES.md` when tagged and pushed.
-  - Ready for subsequent Phase roadmap tasks or feature developments.
+- **Post-Remediation Release (`v0.1.2`) or Phase 27 Feature Roadmap**:
+  - All 6 phases of Maturity Audit #7 Remediation + 2 targeted UX bug fixes are complete, audited (`APPROVED` by local Inquisitor `qwen/qwen3.6-35b-a3b`), and committed locally on `main` (8 atomic commits ahead of `origin/main`, kept local per user Gate B choices).
+  - Baseline verified: **417 tests passing across 92 suites**, 0 clippy warnings, **86.33% line coverage** across the 5 core DSP/GPU crates (`cargo-llvm-cov` CI gate `>= 85%`).
+  - Ready to push `main` and cut `v0.1.2` when requested by the user, or start Phase 27 feature work.
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 26 — Maturity Audit #7 Remediation (Phases 1–6 + 2 UX Fixes) — COMPLETE**:
+  - `cd3c770` — Phase 1: i18n JSON integrity & zero hardcoded language branches (620 keys across `en`/`fr`/`es`).
+  - `a7800ac` — Phase 2: Split monolithic UI & decoder functions into modular submodules (+7 tests).
+  - `0ce4084` — Phase 3: Parameter Objects (`RawSensorFrame`, `PipelineDispatchContext`, `SemanticMaskPass`, `ViewportToolContext`, `MaskUiContext`).
+  - `9a19398` — Fix: Crop overlay drag responsiveness (`notify_grading_edited_deferred_preview`, `hit_test_crop_handle`).
+  - `ad0b57c` — Phase 4: De-bloated `PreparedGradingFrame`, `ExportBatchController`, and `DarkroomGradingState`.
+  - `4a7ca08` — Fix: Right inspector Masks panel horizontal overflow (`ui/sections/masks.rs`).
+  - `a582385` — Phase 5: Filmstrip `show_viewport` virtualization (10,000+ entries) & full-res demosaic invalidation telemetry (+4 tests).
+  - `d69beed` — Phase 6: `cargo-llvm-cov` CI gate (`>= 85%`, verified 86.33%) & headless WGPU ColorChecker visual regression ($\Delta E_{00} < 0.5$, +3 tests).
+
+---
+
+## Preceding Milestone
 
 - **Release v0.1.1 Published & Release Notes Automation Prepared — COMPLETE**:
   - `v0.1.1` successfully built, packaged, and published via GitHub Actions on Apple Silicon (`macos-latest`).

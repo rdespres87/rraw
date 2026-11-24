@@ -347,6 +347,18 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
   - Added high-resolution Darkroom UI screenshot to `assets/screenshots/darkroom_ui.jpg`.
   - Updated `README.md` showcasing the 120 Hz Metal EDR interface with real-time histogram, tone curves, and filmstrip.
 
+---
+
+## Phase 26 — Maturity Audit #7 Remediation (Phases 1–6)
+- [x] **Phase 1 (`cd3c770`, `rraw-app`)**: i18n Integrity & Multilingual Scalability — eliminated all 57 hardcoded language branches; unified 620 dynamic keys across `assets/i18n/{en,fr,es}.json` via `tc(lang, key)`.
+- [x] **Phase 2 (`a7800ac`, `rraw-app`, `rraw-decode`)**: Split Monolithic Functions — modularized `render_filmstrip_panel`, `render_central_viewport`, `PureRustRawDecoder::decode_file`, and `render_export_dialog` (+7 unit tests).
+- [x] **Phase 3 (`0ce4084`, `rraw-gpu`, `rraw-app`)**: Parameter Objects — introduced `RawSensorFrame`, `PipelineDispatchContext`, `SemanticMaskPass`, `ViewportToolContext`, and `MaskUiContext`; removed `#[allow(clippy::too_many_arguments)]`.
+- [x] **Bug Fix (`9a19398`, `rraw-app`)**: Crop Overlay Drag Responsiveness — deferred preview rebuild during drag (`notify_grading_edited_deferred_preview`) and extracted `hit_test_crop_handle` using `press_origin()`.
+- [x] **Phase 4 (`ad0b57c`, `rraw-app`)**: De-bloat God Structs — decomposed `PreparedGradingFrame`, `ExportBatchController`, and `DarkroomGradingState` while preserving flat `SidecarRecipe` JSON schema.
+- [x] **Bug Fix (`4a7ca08`, `rraw-app`)**: Right Inspector Masks Panel Overflow — fixed horizontal clipping in fixed 360px right inspector (`ui/sections/masks.rs`).
+- [x] **Phase 5 (`a582385`, `rraw-app`)**: Performance & Filmstrip Virtualization — migrated filmstrip to `ScrollArea::show_viewport` with exact spacers and `filtered_indices: Vec<usize>` (10,000+ entries) and added `FULL_RES_DEMOSAIC_INVOCATIONS` telemetry (+4 tests).
+- [x] **Phase 6 (`d69beed`, `rraw-color`, `rraw-gpu`, CI, `README.md`)**: `cargo-llvm-cov` CI gate (`>= 85%` lines on 5 core crates, verified **86.33%**) and headless WGPU 24-patch ColorChecker visual regression test suite ($\Delta E_{00} < 0.5$, **417 workspace tests passing across 92 suites**).
+
 
 
 

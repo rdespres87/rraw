@@ -4,11 +4,21 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 25 — Pre-Release Hardening, Performance Benchmarks & Packaging **Complete**
-- **Active Tasks**: Release `v0.1.1` Published on GitHub Releases
-- **Next Phase**: Post-Release Feature Roadmap (Phase 26 / Next Milestone)
-- **Last Verified Baseline**: 397 tests passing across 89 test suites, 0 clippy errors and 0 warnings under Rust 1.100.0 (`#![deny(clippy::all)]` and strict `unwrap_used = "deny"`, `expect_used = "deny"`).
-- **Current Milestone**: Release `v0.1.1` Published & Release Notes Automation Set
+- **Active Phase**: Phase 26 — Maturity Audit #7 Remediation (Phases 1–6) **Complete**
+- **Active Tasks**: All 6 remediation phases + 2 targeted UX bug fixes completed and committed locally (8 atomic commits ahead of `origin/main`, kept local per user Gate B choices)
+- **Next Phase**: Push & Tag `v0.1.2` Release (when user approves remote push) or Phase 27 Feature Roadmap
+- **Last Verified Baseline**: **417 tests passing across 92 test suites** (9.28s), 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **86.33% line coverage** across the 5 core DSP/GPU crates (`rraw-core`, `rraw-color`, `rraw-optics`, `rraw-decode`, `rraw-gpu`) via `cargo-llvm-cov` (CI gate `>= 85%`).
+- **Current Milestone**: Phase 26 — Maturity Audit #7 Remediation (Phases 1–6) **Complete**
+  - **Phase 1 (`cd3c770`) — i18n Integrity & Multilingual Scalability**: Eliminated all 57 hardcoded `Language::Fr` / `is_spanish()` branches across `rraw-app`; unified dynamic JSON keys across `assets/i18n/{en,fr,es}.json` (620 keys each) with `crate::i18n::tc(lang, key)`. Added `phase1_i18n_extensibility_tests.rs`.
+  - **Phase 2 (`a7800ac`) — Split Monolithic Functions (UI & Decoder)**: Decomposed `render_filmstrip_panel`, `render_central_viewport`, `PureRustRawDecoder::decode_file`, and `render_export_dialog` into focused submodules (+7 unit tests).
+  - **Phase 3 (`0ce4084`) — Parameter Objects**: Introduced `RawSensorFrame<'a>`, `PipelineDispatchContext<'a>`, `SemanticMaskPass<'a>`, `ViewportToolContext<'a>`, and `MaskUiContext<'a>`; removed `#[allow(clippy::too_many_arguments)]`.
+  - **Dedicated Fix (`9a19398`) — Crop Overlay Drag Responsiveness**: Added `notify_grading_edited_deferred_preview` on `PhotoSession`/`RrawApp` and extracted `hit_test_crop_handle` using `press_origin()` on `drag_started()`.
+  - **Phase 4 (`ad0b57c`) — De-bloat God Structs**: Split `PreparedGradingFrame` (33→5 fields), `ExportBatchController` (23→6 fields), and `DarkroomGradingState` (16→12 fields via `MaskGradingState`), preserving flat `SidecarRecipe` JSON compatibility.
+  - **Dedicated Fix (`4a7ca08`) — Right Inspector Masks Panel Overflow**: Resolved horizontal clipping in the fixed 360px right inspector (`crates/rraw-app/src/ui/sections/masks.rs`).
+  - **Phase 5 (`a582385`) — Performance & Filmstrip Virtualization**: Migrated filmstrip to `egui::ScrollArea::show_viewport` with exact spacers and `filtered_indices: Vec<usize>` (10,000+ photo readiness), added `PREVIEW_PROXY_MAX_WIDTH` and `FULL_RES_DEMOSAIC_INVOCATIONS` telemetry verifying zero full-res demosaic triggers during interactive grading/pan/zoom/crop. Added `phase5_performance_virtualization_tests.rs` (+4 tests).
+  - **Phase 6 (`d69beed`) — Coverage Gate & Headless WGPU Visual Regression**: Added `coverage-core` CI job (`cargo-llvm-cov --fail-under-lines 85`, LCOV artifact upload) in `.github/workflows/ci.yml`, `delta_e_00_acescg` in `rraw-color`, and headless WGPU 24-patch ColorChecker visual regression suite (`crates/rraw-gpu/tests/visual_regression_colorchecker_tests.rs`, Stages 1–6 & Stage 7 AgX DRT SDR/EDR $\Delta E_{00} < 0.5$ + drift sensitivity oracle, +3 tests).
+  - **Audit & Validation**: Every commit independently audited by local Inquisitor `qwen/qwen3.6-35b-a3b` (**0 cloud tokens**) → `APPROVED`.
+- **Preceding Milestone**: Release `v0.1.1` Published & Release Notes Automation Set
   - `v0.1.1` successfully built and published via GitHub Actions.
   - Tag `v0.1.1` locked immutably to `ae12e81` in sync with `origin`.
   - Configured automated release notes via `RELEASE_NOTES.md` and `body_path: RELEASE_NOTES.md` in `.github/workflows/release.yml` on `main` for upcoming releases.
