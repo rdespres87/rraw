@@ -67,14 +67,7 @@ pub fn render_local_mask_hud(
     mask_name: &str,
     cur_lang: Language,
 ) {
-    let is_es = cur_lang.is_spanish();
-    let hud_text = if cur_lang == Language::Fr {
-        format!("🎭 Incrustation : {mask_name} (Touche O ou 👁 pour masquer)")
-    } else if is_es {
-        format!("🎭 Superposición : {mask_name} (Tecla O o 👁 para ocultar)")
-    } else {
-        format!("🎭 Mask Overlay : {mask_name} (Press O or 👁 to hide)")
-    };
+    let hud_text = crate::i18n::tc(cur_lang, "Hud.LocalMaskOverlay").replace("{name}", mask_name);
     let hud_pos = Pos2::new(available_rect.left() + 18.0, available_rect.top() + 48.0);
     let galley = painter.layout_no_wrap(
         hud_text,
@@ -99,60 +92,31 @@ pub fn render_brush_hud(
     zoom_level: f32,
     cur_lang: Language,
 ) {
-    let is_es = cur_lang.is_spanish();
     let (mode_str, badge_color) = if let LocalMaskKind::FreehandBrush {
         erase_mode: true, ..
     } = mask.kind
     {
-        let label = if cur_lang == Language::Fr {
-            "Gomme 🧹"
-        } else if is_es {
-            "Borrador 🧹"
-        } else {
-            "Erase 🧹"
-        };
-        (label, Color32::from_rgba_unmultiplied(160, 40, 40, 230))
+        (
+            crate::i18n::tc(cur_lang, "Hud.Brush.Erase"),
+            Color32::from_rgba_unmultiplied(160, 40, 40, 230),
+        )
     } else {
-        let label = if cur_lang == Language::Fr {
-            "Peindre 🖌️"
-        } else if is_es {
-            "Pintar 🖌️"
-        } else {
-            "Paint 🖌️"
-        };
-        (label, Color32::from_rgba_unmultiplied(30, 90, 160, 230))
+        (
+            crate::i18n::tc(cur_lang, "Hud.Brush.Paint"),
+            Color32::from_rgba_unmultiplied(30, 90, 160, 230),
+        )
     };
     let top_y = if has_mask_overlay { 82.0 } else { 48.0 };
     let zoom_str = if zoom_level > 0.0 {
-        if cur_lang == Language::Fr {
-            format!(" | Zoom {:.0}% (Espace pour glisser)", zoom_level * 100.0)
-        } else if is_es {
-            format!(
-                " | Zoom {:.0}% (Espacio para desplazar)",
-                zoom_level * 100.0
-            )
-        } else {
-            format!(" | Zoom {:.0}% (Space to pan)", zoom_level * 100.0)
-        }
+        crate::i18n::tc(cur_lang, "Hud.Brush.ZoomSuffix")
+            .replace("{pct}", &format!("{:.0}", zoom_level * 100.0))
     } else {
         String::new()
     };
-    let hud_text = if cur_lang == Language::Fr {
-        format!(
-            "🖌️ Pinceau : {} [{}]{} (Glisser pour peindre, [ / ] taille, Échap pour quitter)",
-            mask.name, mode_str, zoom_str
-        )
-    } else if is_es {
-        format!(
-            "🖌️ Pincel : {} [{}]{} (Arrastrar para pintar, [ / ] tamaño, Esc para salir)",
-            mask.name, mode_str, zoom_str
-        )
-    } else {
-        format!(
-            "🖌️ Brush : {} [{}]{} (Drag to paint, [ / ] size, Esc to exit)",
-            mask.name, mode_str, zoom_str
-        )
-    };
+    let hud_text = crate::i18n::tc(cur_lang, "Hud.Brush.Banner")
+        .replace("{name}", &mask.name)
+        .replace("{mode}", mode_str)
+        .replace("{zoom}", &zoom_str);
     let hud_pos = Pos2::new(available_rect.left() + 18.0, available_rect.top() + top_y);
     let galley = painter.layout_no_wrap(
         hud_text,

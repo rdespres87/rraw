@@ -48,14 +48,7 @@ impl RrawApp {
                         self.session.needs_preview_update = true;
                     }
                     let cur_lang = self.lang();
-                    let is_es = cur_lang.is_spanish();
-                    let blacks_short = if cur_lang == crate::i18n::Language::Fr {
-                        "Noirs"
-                    } else if is_es {
-                        "Negros"
-                    } else {
-                        "Blacks"
-                    };
+                    let blacks_short = crate::i18n::tc(cur_lang, "Histogram.Blacks");
                     let sh_on = self.viewport.clipping_overlay.shadows;
                     let sh_text = egui::RichText::new(format!(
                         "{blacks_short} {}",
@@ -143,15 +136,10 @@ impl RrawApp {
 
             // Zone labels at the bottom of the card
             let cur_lang = self.lang();
-            let is_es = cur_lang.is_spanish();
-            let (lbl_blacks, lbl_shadows, lbl_exposure, lbl_highlights) =
-                if cur_lang == crate::i18n::Language::Fr {
-                    ("Noirs", "Ombres", "Exposition", "Hautes Lum.")
-                } else if is_es {
-                    ("Negros", "Sombras", "Exposición", "Altas Luces")
-                } else {
-                    ("Blacks", "Shadows", "Exposure", "Highlights")
-                };
+            let lbl_blacks = crate::i18n::tc(cur_lang, "Histogram.Blacks");
+            let lbl_shadows = crate::i18n::tc(cur_lang, "Histogram.Shadows");
+            let lbl_exposure = crate::i18n::tc(cur_lang, "Histogram.Exposure");
+            let lbl_highlights = crate::i18n::tc(cur_lang, "Histogram.Highlights");
             let label_col = Color32::from_rgb(85, 90, 105);
             let label_font = egui::FontId::proportional(8.5);
             painter.text(
@@ -195,13 +183,9 @@ impl RrawApp {
                         ],
                         egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 120)),
                     );
-                    let tip = if cur_lang == crate::i18n::Language::Fr {
-                        format!("Niveau: {} | Pixels: {}", bin_idx, lum_v)
-                    } else if is_es {
-                        format!("Nivel: {} | Píxeles: {}", bin_idx, lum_v)
-                    } else {
-                        format!("Level: {} | Pixels: {}", bin_idx, lum_v)
-                    };
+                    let tip = crate::i18n::tc(cur_lang, "Histogram.HoverTooltip")
+                        .replace("{bin}", &bin_idx.to_string())
+                        .replace("{count}", &lum_v.to_string());
                     painter.text(
                         egui::pos2(
                             pos.x.clamp(rect.left() + 45.0, rect.right() - 45.0),

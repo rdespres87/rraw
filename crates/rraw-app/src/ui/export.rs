@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use egui::Color32;
 
 use crate::app::RrawApp;
-use crate::i18n::{Key, Language};
+use crate::i18n::Key;
 use crate::state::*;
 
 /// Configuration parameters for single image encoding and disk serialization.
@@ -28,24 +28,11 @@ impl RrawApp {
         let frame_count = tl_paths.len();
         let dur_s = self.export.timelapse_fps.duration_seconds(frame_count);
 
-        let seq_text = if lang == Language::Fr {
-            format!("🎞️ Séquence : {} images", frame_count)
-        } else {
-            format!("🎞️ Sequence: {} frames", frame_count)
-        };
-        let dur_text = if lang == Language::Fr {
-            format!(
-                "Durée : {:.2} s @ {} fps",
-                dur_s,
-                self.export.timelapse_fps.fps()
-            )
-        } else {
-            format!(
-                "Duration: {:.2} s @ {} fps",
-                dur_s,
-                self.export.timelapse_fps.fps()
-            )
-        };
+        let seq_text = crate::i18n::tc(lang, "Export.TimelapseSequence")
+            .replace("{count}", &frame_count.to_string());
+        let dur_text = crate::i18n::tc(lang, "Export.TimelapseDuration")
+            .replace("{dur}", &format!("{dur_s:.2}"))
+            .replace("{fps}", &self.export.timelapse_fps.fps().to_string());
         ui.horizontal_wrapped(|ui| {
             ui.label(
                 egui::RichText::new(seq_text)
@@ -85,11 +72,8 @@ impl RrawApp {
                 let mut rad = self.export.timelapse_deflicker.window_radius as u32;
                 if ui
                     .add(
-                        egui::Slider::new(&mut rad, 1..=15).suffix(if lang == Language::Fr {
-                            " images"
-                        } else {
-                            " frames"
-                        }),
+                        egui::Slider::new(&mut rad, 1..=15)
+                            .suffix(crate::i18n::tc(lang, "Export.TimelapseFramesSuffix")),
                     )
                     .changed()
                 {
@@ -699,11 +683,8 @@ impl RrawApp {
         if trigger_export {
             self.export.is_exporting = true;
             self.export.export_progress = 0.05;
-            self.export.export_progress_label = if lang == Language::Fr {
-                "Préparation de l'export...".to_string()
-            } else {
-                "Preparing export...".to_string()
-            };
+            self.export.export_progress_label =
+                crate::i18n::tc(lang, "Export.PreparingStatus").to_string();
             self.export.export_status = None;
             // Close the export modal immediately while progress is tracked in the status bar
             self.export

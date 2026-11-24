@@ -3,7 +3,7 @@
 //! Right-hand darkroom development inspector panel and collapsible sections.
 
 use crate::app::RrawApp;
-use crate::i18n::{Key, Language};
+use crate::i18n::Key;
 use crate::state::*;
 use crate::ui::sections;
 
@@ -377,13 +377,10 @@ impl RrawApp {
                                     .color(egui::Color32::from_rgb(100, 190, 255))
                                     .size(9.0),
                             )
-                            .on_hover_text(
-                                if cur_lang == Language::Fr {
-                                    "Ce module contient des réglages actifs personnalisés"
-                                } else {
-                                    "This module contains active custom adjustments"
-                                },
-                            );
+                            .on_hover_text(crate::i18n::tc(
+                                cur_lang,
+                                "Inspector.ActiveModuleTooltip",
+                            ));
                         }
                         ui.label(header_title);
 

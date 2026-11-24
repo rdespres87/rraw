@@ -5,7 +5,7 @@
 use egui::{Color32, RichText};
 
 use crate::app::RrawApp;
-use crate::i18n::{Key, Language};
+use crate::i18n::{tc, Key};
 
 impl RrawApp {
     /// Renders the modal shortcuts reference window.
@@ -38,154 +38,118 @@ impl RrawApp {
                 );
                 ui.add_space(8.0);
 
-                egui::ScrollArea::vertical().max_height(480.0).show(ui, |ui| {
-                    let is_es = lang.is_spanish();
-                    let (sec_view, sec_nav, sec_batch, sec_files, sec_brush) = if lang == Language::Fr {
-                        (
-                            &[
-                                ("Y", "Activer / désactiver la comparaison Avant | Après (séparateur déplaçable)"),
-                                ("D, P, \\", "Maintenir pour afficher l'image d'origine sans retouche (Before)"),
-                                ("J", "Basculer l'alerte d'écrêtage (Bleu = ombres bouchées, Rouge = hautes lumières)"),
-                                ("I", "Afficher / masquer le HUD sur l'image (paramètres de prise de vue & note)"),
-                                ("F9", "Afficher / masquer le bandeau inférieur de pellicule (Filmstrip)"),
-                                ("O", "Afficher / masquer l'incrustation colorée des masques locaux"),
-                                ("Cmd + 1 / 2 / 3", "Panneau gauche : basculer entre Fichiers / Styles / EXIF"),
-                                ("Double-clic", "Basculer entre vue ajustée (Fit) et vue 1:1 (100%)"),
-                                ("Molette", "Zoomer / dézoomer centré sur la position du curseur"),
-                                ("Espace + Glisser", "Déplacer l'image (panoramique) en mode zoom"),
-                            ][..],
-                            &[
-                                ("◀ / ▶", "Photo précédente / suivante dans le dossier"),
-                                ("PageUp / PageDown", "Saut rapide de photos"),
-                                ("Home / End", "Première / dernière photo du dossier"),
-                                ("0 à 5", "Attribuer une note de 0 à 5 étoiles (0 pour effacer)"),
-                                ("Cmd + A", "Sélectionner / cocher toutes les photos pour l'export par lot"),
-                                ("Cmd + D", "Tout désélectionner / décocher le lot d'export"),
-                                ("Espace", "Ajouter ou retirer la photo active du lot d'export"),
-                            ][..],
-                            &[
-                                ("Cmd + Z", "Annuler la dernière modification de développement (Undo)"),
-                                ("Cmd + Y", "Rétablir la modification annulée (Redo)"),
-                                ("Cmd + C", "Copier le rendu colorimétrique & tonal de la photo"),
-                                ("Cmd + V", "Coller le rendu sur la photo active ou la sélection multiple"),
-                                ("Clic droit", "Menu contextuel sur vignette (Copier / Coller / Cocher)"),
-                            ][..],
-                            &[
-                                ("Cmd + O", "Ouvrir une photo RAW / TIFF"),
-                                ("Cmd + Shift + O", "Ouvrir un dossier de photos"),
-                                ("Cmd + E", "Ouvrir la boîte de dialogue d'exportation (JPEG / TIFF / HDR)"),
-                                ("Entrée", "Lancer l'exportation (dans la boîte d'export)"),
-                                ("Échap", "Désactiver l'outil actif (pinceau, recadrage) ou fermer"),
-                                ("F1", "Ouvrir / fermer ce guide des raccourcis clavier"),
-                            ][..],
-                            &[
-                                ("[ / ]", "Diminuer / augmenter le rayon du pinceau"),
-                                ("Alt + Molette", "Ajuster rapidement le rayon du pinceau"),
-                                ("Clic gauche", "Peindre un trait de masque sur l'image"),
-                                ("Clic droit", "Gommer / effacer des portions du masque"),
-                            ][..],
-                        )
-                    } else if is_es {
-                        (
-                            &[
-                                ("Y", "Activar / desactivar la vista dividida Antes | Después"),
-                                ("D, P, \\", "Mantener para ver la foto original sin retoques (Before)"),
-                                ("J", "Alternar advertencia de recorte (Azul = sombras, Rojo = altas luces)"),
-                                ("I", "Mostrar / ocultar HUD en imagen (parámetros de disparo y nota)"),
-                                ("F9", "Mostrar / ocultar tira de película inferior (Filmstrip)"),
-                                ("O", "Mostrar / ocultar superposición de color de máscaras locales"),
-                                ("Cmd + 1 / 2 / 3", "Panel izquierdo: alternar entre Archivos / Estilos / EXIF"),
-                                ("Doble clic", "Alternar entre vista ajustada (Fit) y vista 1:1 (100%)"),
-                                ("Rueda", "Zoom centrado en la posición del cursor"),
-                                ("Espacio + Arrastre", "Mover la imagen (panorámica) en modo zoom"),
-                            ][..],
-                            &[
-                                ("◀ / ▶", "Foto anterior / siguiente en la carpeta"),
-                                ("PageUp / PageDown", "Salto rápido de fotos"),
-                                ("Inicio / Fin", "Primera / última foto de la carpeta"),
-                                ("0 a 5", "Asignar calificación de 0 a 5 estrellas (0 para borrar)"),
-                                ("Cmd + A", "Seleccionar / marcar todas las fotos para exportación por lote"),
-                                ("Cmd + D", "Deseleccionar todas las fotos del lote de exportación"),
-                                ("Espacio", "Añadir o quitar la foto activa del lote de exportación"),
-                            ][..],
-                            &[
-                                ("Cmd + Z", "Deshacer el último ajuste de revelado (Undo)"),
-                                ("Cmd + Y", "Rehacer el ajuste deshecho (Redo)"),
-                                ("Cmd + C", "Copiar ajustes de color y tono de la foto"),
-                                ("Cmd + V", "Pegar ajustes en la foto activa o selección"),
-                                ("Clic derecho", "Menú contextual en miniatura (Copiar / Pegar / Marcar)"),
-                            ][..],
-                            &[
-                                ("Cmd + O", "Abrir una foto RAW / TIFF"),
-                                ("Cmd + Shift + O", "Abrir carpeta de fotos"),
-                                ("Cmd + E", "Abrir el cuadro de diálogo de exportación (JPEG / TIFF / HDR)"),
-                                ("Intro", "Iniciar la exportación (en el cuadro de diálogo)"),
-                                ("Escape", "Desactivar herramienta activa (pincel, recorte) o cerrar"),
-                                ("F1", "Abrir / cerrar esta guía de atajos de teclado"),
-                            ][..],
-                            &[
-                                ("[ / ]", "Reducir / aumentar el radio del pincel"),
-                                ("Alt + Rueda", "Ajustar rápidamente el radio del pincel"),
-                                ("Clic izquierdo", "Pintar un trazo de máscara en la imagen"),
-                                ("Clic derecho", "Borrar porciones de la máscara"),
-                            ][..],
-                        )
-                    } else {
-                        (
-                            &[
-                                ("Y", "Toggle Before | After split comparison (movable divider)"),
-                                ("D, P, \\", "Hold to preview untouched camera original (Before)"),
-                                ("J", "Toggle clipping warning (Blue = crushed shadows, Red = blown highlights)"),
-                                ("I", "Toggle on-canvas HUD (shooting parameters & rating)"),
-                                ("F9", "Show / hide bottom thumbnail filmstrip"),
-                                ("O", "Toggle colored local mask overlay"),
-                                ("Cmd + 1 / 2 / 3", "Left panel: switch between Files / Styles / EXIF"),
-                                ("Double-click", "Toggle between Fit view and 1:1 (100%) zoom"),
-                                ("Scroll wheel", "Zoom in / out centered on cursor position"),
-                                ("Space + Drag", "Pan zoomed image across viewport"),
-                            ][..],
-                            &[
-                                ("◀ / ▶", "Previous / next photo in active folder"),
-                                ("PageUp / PageDown", "Fast photo paging jump"),
-                                ("0 to 5", "Assign 0 to 5 star rating (0 to clear)"),
-                                ("Cmd + A", "Select / check all photos for batch export"),
-                                ("Cmd + D", "Deselect / uncheck all photos from export"),
-                                ("Space", "Toggle current photo in batch export selection"),
-                            ][..],
-                            &[
-                                ("Cmd + Z", "Undo last darkroom grading modification"),
-                                ("Cmd + Y", "Redo previously undone grading modification"),
-                                ("Cmd + C", "Copy color & tone grading recipe from active photo"),
-                                ("Cmd + V", "Paste recipe onto active photo or multi-selection"),
-                                ("Right click", "Thumbnail context menu (Copy / Paste / Export)"),
-                            ][..],
-                            &[
-                                ("Cmd + O", "Open a RAW or TIFF photo"),
-                                ("Cmd + Shift + O", "Open a photo folder"),
-                                ("Cmd + E", "Open photo export dialog (JPEG / TIFF / HDR)"),
-                                ("Enter", "Start export (in export dialog)"),
-                                ("Esc", "Cancel active tool (brush, crop) or close dialog"),
-                                ("F1", "Open / close this keyboard shortcuts guide"),
-                            ][..],
-                            &[
-                                ("[ / ]", "Decrease / increase brush radius"),
-                                ("Alt + Scroll", "Quickly adjust brush radius"),
-                                ("Left click", "Paint mask stroke onto image"),
-                                ("Right click", "Erase mask strokes from image"),
-                            ][..],
-                        )
-                    };
+                egui::ScrollArea::vertical()
+                    .max_height(480.0)
+                    .show(ui, |ui| {
+                        let sec_view = [
+                            ("Y", tc(lang, "Shortcuts.View.SplitCompare")),
+                            ("D, P, \\", tc(lang, "Shortcuts.View.HoldOriginal")),
+                            ("J", tc(lang, "Shortcuts.View.Clipping")),
+                            ("I", tc(lang, "Shortcuts.View.Hud")),
+                            ("F9", tc(lang, "Shortcuts.View.Filmstrip")),
+                            ("O", tc(lang, "Shortcuts.View.MaskOverlay")),
+                            ("Cmd + 1 / 2 / 3", tc(lang, "Shortcuts.View.LeftPanelTabs")),
+                            (
+                                tc(lang, "Shortcuts.Key.DoubleClick"),
+                                tc(lang, "Shortcuts.View.FitZoom"),
+                            ),
+                            (
+                                tc(lang, "Shortcuts.Key.ScrollWheel"),
+                                tc(lang, "Shortcuts.View.WheelZoom"),
+                            ),
+                            (
+                                tc(lang, "Shortcuts.Key.SpaceDrag"),
+                                tc(lang, "Shortcuts.View.Pan"),
+                            ),
+                        ];
+                        let sec_nav = [
+                            ("◀ / ▶", tc(lang, "Shortcuts.Nav.PrevNext")),
+                            ("PageUp / PageDown", tc(lang, "Shortcuts.Nav.Page")),
+                            (
+                                tc(lang, "Shortcuts.Key.HomeEnd"),
+                                tc(lang, "Shortcuts.Nav.HomeEnd"),
+                            ),
+                            (
+                                tc(lang, "Shortcuts.Key.RatingRange"),
+                                tc(lang, "Shortcuts.Nav.Rate"),
+                            ),
+                            ("Cmd + A", tc(lang, "Shortcuts.Nav.SelectAll")),
+                            ("Cmd + D", tc(lang, "Shortcuts.Nav.DeselectAll")),
+                            (
+                                tc(lang, "Shortcuts.Key.Space"),
+                                tc(lang, "Shortcuts.Nav.ToggleBatch"),
+                            ),
+                        ];
+                        let sec_batch = [
+                            ("Cmd + Z", tc(lang, "Shortcuts.Batch.Undo")),
+                            ("Cmd + Y", tc(lang, "Shortcuts.Batch.Redo")),
+                            ("Cmd + C", tc(lang, "Shortcuts.Batch.Copy")),
+                            ("Cmd + V", tc(lang, "Shortcuts.Batch.Paste")),
+                            (
+                                tc(lang, "Shortcuts.Key.RightClick"),
+                                tc(lang, "Shortcuts.Batch.ContextMenu"),
+                            ),
+                        ];
+                        let sec_files = [
+                            ("Cmd + O", tc(lang, "Shortcuts.Files.OpenImage")),
+                            ("Cmd + Shift + O", tc(lang, "Shortcuts.Files.OpenFolder")),
+                            ("Cmd + E", tc(lang, "Shortcuts.Files.Export")),
+                            (
+                                tc(lang, "Shortcuts.Key.Enter"),
+                                tc(lang, "Shortcuts.Files.StartExport"),
+                            ),
+                            (
+                                tc(lang, "Shortcuts.Key.Esc"),
+                                tc(lang, "Shortcuts.Files.Escape"),
+                            ),
+                            ("F1", tc(lang, "Shortcuts.Files.Help")),
+                        ];
+                        let sec_brush = [
+                            ("[ / ]", tc(lang, "Shortcuts.Brush.Radius")),
+                            (
+                                tc(lang, "Shortcuts.Key.AltScroll"),
+                                tc(lang, "Shortcuts.Brush.AltScroll"),
+                            ),
+                            (
+                                tc(lang, "Shortcuts.Key.LeftClick"),
+                                tc(lang, "Shortcuts.Brush.Paint"),
+                            ),
+                            (
+                                tc(lang, "Shortcuts.Key.RightClick"),
+                                tc(lang, "Shortcuts.Brush.Erase"),
+                            ),
+                        ];
 
-                    render_section(ui, "sec_view", self.t(Key::ShortcutsSectionView), sec_view);
-                    ui.add_space(10.0);
-                    render_section(ui, "sec_nav", self.t(Key::ShortcutsSectionNav), sec_nav);
-                    ui.add_space(10.0);
-                    render_section(ui, "sec_batch", self.t(Key::ShortcutsSectionBatch), sec_batch);
-                    ui.add_space(10.0);
-                    render_section(ui, "sec_files", self.t(Key::ShortcutsSectionFiles), sec_files);
-                    ui.add_space(10.0);
-                    render_section(ui, "sec_brush", self.t(Key::ShortcutsSectionBrush), sec_brush);
-                });
+                        render_section(
+                            ui,
+                            "sec_view",
+                            self.t(Key::ShortcutsSectionView),
+                            &sec_view,
+                        );
+                        ui.add_space(10.0);
+                        render_section(ui, "sec_nav", self.t(Key::ShortcutsSectionNav), &sec_nav);
+                        ui.add_space(10.0);
+                        render_section(
+                            ui,
+                            "sec_batch",
+                            self.t(Key::ShortcutsSectionBatch),
+                            &sec_batch,
+                        );
+                        ui.add_space(10.0);
+                        render_section(
+                            ui,
+                            "sec_files",
+                            self.t(Key::ShortcutsSectionFiles),
+                            &sec_files,
+                        );
+                        ui.add_space(10.0);
+                        render_section(
+                            ui,
+                            "sec_brush",
+                            self.t(Key::ShortcutsSectionBrush),
+                            &sec_brush,
+                        );
+                    });
 
                 ui.add_space(12.0);
                 ui.separator();

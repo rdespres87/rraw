@@ -5,7 +5,7 @@
 use egui::Color32;
 
 use crate::app::RrawApp;
-use crate::i18n::{I18nEngine, Key, Language};
+use crate::i18n::{I18nEngine, Key};
 use crate::state::*;
 
 impl RrawApp {
@@ -348,20 +348,8 @@ impl RrawApp {
 
                     let can_undo = self.session.can_undo();
                     let can_redo = self.session.can_redo();
-                    let (undo_tip, redo_tip) = match self.lang() {
-                        Language::Fr => (
-                            "Annuler la dernière modification (Cmd+Z)",
-                            "Rétablir la modification annulée (Cmd+Y)",
-                        ),
-                        lang if lang.is_spanish() => (
-                            "Deshacer el último ajuste (Cmd+Z)",
-                            "Rehacer el ajuste deshecho (Cmd+Y)",
-                        ),
-                        _ => (
-                            "Undo last grading change (Cmd+Z)",
-                            "Redo grading change (Cmd+Y)",
-                        ),
-                    };
+                    let undo_tip = crate::i18n::tc(self.lang(), "TopBar.UndoTooltip");
+                    let redo_tip = crate::i18n::tc(self.lang(), "TopBar.RedoTooltip");
                     if ui
                         .add_enabled(can_undo, egui::Button::new("↶"))
                         .on_hover_text(undo_tip)

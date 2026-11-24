@@ -5,7 +5,7 @@
 use rraw_color::DisplayTransform;
 use serde::{Deserialize, Serialize};
 
-use crate::i18n::{I18nEngine, Language};
+use crate::i18n::Language;
 use crate::state::DarkroomGradingState;
 
 /// Photographic development presets for 1-click styling.
@@ -115,42 +115,7 @@ impl GradingPreset {
 
     #[must_use]
     pub fn name_lang(self, lang: Language) -> &'static str {
-        if let Some(custom_val) = I18nEngine::global().translate_custom(lang, self.name_i18n_key())
-        {
-            return custom_val;
-        }
-        let is_es = lang.is_spanish();
-        match (self, lang) {
-            (Self::AsShot, Language::Fr) => "À la prise de vue (D'origine)",
-            (Self::AsShot, _) if is_es => "Al disparar (Original)",
-            (Self::AsShot, _) => "As Shot (Camera Original)",
-            (Self::DaylightPunch, _) => "Daylight Punch (+0.3 EV, 5600K)",
-            (Self::PortraitSoft, _) => "Portrait Soft (+0.6 EV, 5200K)",
-            (Self::CinematicAgX, _) => "Cinematic AgX (+0.2 EV, 6000K)",
-            (Self::MonochromeFineArt, _) => "B&W Fine Art (Monochrome)",
-            (Self::LandscapeVivid, _) => "Landscape Vivid (+0.35 EV, 5400K)",
-            (Self::GoldenHourWarmth, _) => "Golden Hour Warmth (+0.5 EV, 6300K)",
-            (Self::MoodyMatte, _) => "Moody Matte (-0.25 EV, 5100K)",
-            (Self::HighKeyAiry, _) => "High-Key Airy (+0.9 EV, 5300K)",
-            (Self::StreetContrastBW, _) => "Street Contrast B&W (Monochrome)",
-            (Self::VintageFilm, _) => "Vintage Film (+0.15 EV, 5800K)",
-            (Self::NightAstro, _) => "Night & Astro (+0.75 EV, 4200K)",
-            (Self::FujiClassicChrome, _) => "Fujifilm Classic Chrome",
-            (Self::KodakPortra400, _) => "Kodak Portra 400",
-            (Self::FujiVelvia50, _) => "Fujifilm Velvia 50",
-            (Self::KodakTriX400, Language::Fr) => "Kodak Tri-X 400 (N&B)",
-            (Self::KodakTriX400, _) if is_es => "Kodak Tri-X 400 (B&N)",
-            (Self::KodakTriX400, _) => "Kodak Tri-X 400 (B&W)",
-            (Self::IlfordHp5, Language::Fr) => "Ilford HP5 Plus (N&B)",
-            (Self::IlfordHp5, _) if is_es => "Ilford HP5 Plus (B&N)",
-            (Self::IlfordHp5, _) => "Ilford HP5 Plus (B&W)",
-            (Self::SepiaVintage, Language::Fr) => "Sépia Vintage (Virage chaud)",
-            (Self::SepiaVintage, _) if is_es => "Sepia Vintage (Virado cálido)",
-            (Self::SepiaVintage, _) => "Sepia Vintage (Warm Toning)",
-            (Self::Custom, Language::Fr) => "Personnalisé",
-            (Self::Custom, _) if is_es => "Personalizado",
-            (Self::Custom, _) => "Custom",
-        }
+        crate::i18n::tc(lang, self.name_i18n_key())
     }
 
     #[must_use]
@@ -160,131 +125,7 @@ impl GradingPreset {
 
     #[must_use]
     pub fn description_lang(self, lang: Language) -> &'static str {
-        if let Some(custom_val) =
-            I18nEngine::global().translate_custom(lang, self.description_i18n_key())
-        {
-            return custom_val;
-        }
-        let is_es = lang.is_spanish();
-        if lang == Language::Fr {
-            match self {
-                Self::AsShot => "Réglages d'origine du boîtier sans retouche",
-                Self::DaylightPunch => "Contraste dynamique & ombres relevées pour plein jour",
-                Self::PortraitSoft => "Teinte douce, tons chair chauds et contraste atténué",
-                Self::CinematicAgX => {
-                    "Rendu cinéma argentique avec compression douce des hautes lumières"
-                }
-                Self::MonochromeFineArt => "Noir & blanc artistique profond et modelé fin",
-                Self::LandscapeVivid => "Couleurs riches, ombres débouchées et netteté paysagère",
-                Self::GoldenHourWarmth => {
-                    "Lumière dorée du coucher de soleil (6300K) et ombres chaudes"
-                }
-                Self::MoodyMatte => {
-                    "Ambiance cinématographique feutrée, noirs légèrement décollés"
-                }
-                Self::HighKeyAiry => {
-                    "Tonalité lumineuse, surexposition maîtrisée et teintes éthérées"
-                }
-                Self::StreetContrastBW => "Noir & blanc urbain percutant, micro-contraste élevé",
-                Self::VintageFilm => "Grain et patine argentique vintage, vignetage marqué",
-                Self::NightAstro => {
-                    "Ciel nocturne clarifié (4200K), débruitage ondelettes renforcé"
-                }
-                Self::FujiClassicChrome => {
-                    "Rendu documentaire feutré, ombres denses, saturation atténuée et bleus cyan"
-                }
-                Self::KodakPortra400 => {
-                    "Couleurs pastel, tons chair flatteurs, ombres décollées et hautes lumières soyeuses"
-                }
-                Self::FujiVelvia50 => {
-                    "Diapositive mythique à saturation éclatante, noirs d'encre et ciels profonds"
-                }
-                Self::KodakTriX400 => {
-                    "Noir & blanc photojournalisme classique, contraste affirmé et noirs profonds"
-                }
-                Self::IlfordHp5 => {
-                    "Noir & blanc argentique à grande latitude, modelé doux et dégradés subtils"
-                }
-                Self::SepiaVintage => {
-                    "Virage au sulfure d'époque : ombres chaudes brun-chocolat & hautes lumières ambrées"
-                }
-                Self::Custom => "Réglages personnalisés par l'utilisateur",
-            }
-        } else if is_es {
-            match self {
-                Self::AsShot => "Ajustes originales de la cámara sin edición",
-                Self::DaylightPunch => "Contraste dinámico y sombras realzadas para luz diurna",
-                Self::PortraitSoft => "Tono suave, tonos de piel cálidos y contraste atenuado",
-                Self::CinematicAgX => {
-                    "Rendimiento cinematográfico analógico con compresión suave de altas luces"
-                }
-                Self::MonochromeFineArt => "Blanco y negro artístico profundo y modelado fino",
-                Self::LandscapeVivid => "Colores ricos, sombras abiertas y nitidez para paisajes",
-                Self::GoldenHourWarmth => "Luz dorada del atardecer (6300K) y sombras cálidas",
-                Self::MoodyMatte => "Ambiente cinematográfico mate, negros ligeramente elevados",
-                Self::HighKeyAiry => {
-                    "Tonalidad luminosa, sobreexposición controlada y tonos etéreos"
-                }
-                Self::StreetContrastBW => "Blanco y negro urbano contundente, alto microcontraste",
-                Self::VintageFilm => "Grano y pátina analógica vintage, viñeteado pronunciado",
-                Self::NightAstro => {
-                    "Cielo nocturno clarificado (4200K), reducción de ruido por ondículas"
-                }
-                Self::FujiClassicChrome => {
-                    "Rendimiento documental suave, sombras densas, saturación atenuada"
-                }
-                Self::KodakPortra400 => {
-                    "Colores pastel, tonos de piel favorecedores, sombras abiertas"
-                }
-                Self::FujiVelvia50 => {
-                    "Diapositiva mítica de saturación viva, negros profundos y cielos intensos"
-                }
-                Self::KodakTriX400 => "Blanco y negro clásico de fotoperiodismo, contraste firme",
-                Self::IlfordHp5 => "Blanco y negro analógico de gran latitud, gradaciones sutiles",
-                Self::SepiaVintage => {
-                    "Virado clásico al sulfuro: sombras cálidas marrón chocolate y luces ámbar"
-                }
-                Self::Custom => "Ajustes personalizados por el usuario",
-            }
-        } else {
-            match self {
-                Self::AsShot => "Original camera settings without adjustments",
-                Self::DaylightPunch => "Dynamic contrast & boosted shadows for bright daylight",
-                Self::PortraitSoft => "Soft tint, flattering skin tones and gentle contrast",
-                Self::CinematicAgX => "Film cinematic look with smooth highlight compression",
-                Self::MonochromeFineArt => {
-                    "Deep fine-art black & white with subtle midtone tonality"
-                }
-                Self::LandscapeVivid => "Rich vibrant colors, opened shadows and landscape clarity",
-                Self::GoldenHourWarmth => "Sunset golden hour light (6300K) and warm shadows",
-                Self::MoodyMatte => "Subdued moody cinema atmosphere with lifted matte blacks",
-                Self::HighKeyAiry => {
-                    "Bright airy tonality, controlled exposure and ethereal highlights"
-                }
-                Self::StreetContrastBW => "Punchy urban street B&W with high micro-contrast",
-                Self::VintageFilm => "Vintage analog film look with warm patina and vignetting",
-                Self::NightAstro => "Clarified night sky (4200K) with enhanced wavelet denoise",
-                Self::FujiClassicChrome => {
-                    "Documentary editorial look, dense shadows and muted tones with cyan blues"
-                }
-                Self::KodakPortra400 => {
-                    "Pastel colors, flattering skin tones, lifted shadows and smooth highlights"
-                }
-                Self::FujiVelvia50 => {
-                    "Legendary slide film with vivid saturation, ink blacks and deep skies"
-                }
-                Self::KodakTriX400 => {
-                    "Classic photojournalism B&W with assertive contrast and deep blacks"
-                }
-                Self::IlfordHp5 => {
-                    "Wide latitude analog B&W with soft tonality and subtle gradients"
-                }
-                Self::SepiaVintage => {
-                    "Antique sulfide toning: warm chocolate shadows & amber highlights"
-                }
-                Self::Custom => "Custom user adjustments",
-            }
-        }
+        crate::i18n::tc(lang, self.description_i18n_key())
     }
 
     #[must_use]

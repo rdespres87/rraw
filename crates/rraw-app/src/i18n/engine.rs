@@ -147,6 +147,7 @@ impl I18nEngine {
         };
         if let Some(cat) = guard.get(&lang) {
             cat.get_custom(custom_key)
+                .or_else(|| self.default_en.get_custom(custom_key))
         } else {
             match lang {
                 Language::Fr => self.default_fr.get_custom(custom_key),

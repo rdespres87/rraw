@@ -425,11 +425,7 @@ impl RrawApp {
             return false;
         }
         self.save_current_photo_sidecar();
-        self.status_message = match self.lang() {
-            Language::Fr => "↶ Action annulée (Undo)".to_string(),
-            lang if lang.is_spanish() => "↶ Acción deshecha (Undo)".to_string(),
-            _ => "↶ Undone grading change".to_string(),
-        };
+        self.status_message = crate::i18n::tc(self.lang(), "Undo.Status").to_string();
         true
     }
 
@@ -439,11 +435,7 @@ impl RrawApp {
             return false;
         }
         self.save_current_photo_sidecar();
-        self.status_message = match self.lang() {
-            Language::Fr => "↷ Action rétablie (Redo)".to_string(),
-            lang if lang.is_spanish() => "↷ Acción rehecha (Redo)".to_string(),
-            _ => "↷ Redone grading change".to_string(),
-        };
+        self.status_message = crate::i18n::tc(self.lang(), "Redo.Status").to_string();
         true
     }
 
@@ -1325,20 +1317,15 @@ impl eframe::App for RrawApp {
                             }
                             crate::state::ExportTargetMode::BatchSelection => {
                                 let count = self.library.selected_photos.len().max(1);
-                                if self.lang() == crate::i18n::Language::Fr {
-                                    format!("✅ Export par lot réussi ({count} fichier(s))")
-                                } else {
-                                    format!("✅ Batch export successful ({count} file(s))")
-                                }
+                                crate::i18n::tc(self.lang(), "Export.BatchSuccess")
+                                    .replace("{count}", &count.to_string())
                             }
                             crate::state::ExportTargetMode::TimelapseSequence => {
                                 let frames = self.timelapse_candidate_paths().len();
                                 let fps = self.export.timelapse_fps.fps();
-                                if self.lang() == crate::i18n::Language::Fr {
-                                    format!("✅ Séquence Timelapse exportée ({frames} images @ {fps} fps + manifeste JSON)")
-                                } else {
-                                    format!("✅ Timelapse sequence exported ({frames} frames @ {fps} fps + JSON manifest)")
-                                }
+                                crate::i18n::tc(self.lang(), "Export.TimelapseSuccess")
+                                    .replace("{frames}", &frames.to_string())
+                                    .replace("{fps}", &fps.to_string())
                             }
                         };
                         self.status_message = status_txt.clone();

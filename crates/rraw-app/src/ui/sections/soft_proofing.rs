@@ -106,27 +106,17 @@ pub fn render(
         sp_changed = true;
     }
 
-    let is_es = cur_lang.is_spanish();
     let short_prof = crate::i18n::soft_proof_profile_short_label_lang(soft_proof.profile, cur_lang);
     let status_text = if out_of_gamut_count > 0 {
-        let msg = if cur_lang == Language::Fr {
-            format!("⚠️ {out_of_gamut_count} pixels hors-gamut ({short_prof})")
-        } else if is_es {
-            format!("⚠️ {out_of_gamut_count} píxeles fuera de gama ({short_prof})")
-        } else {
-            format!("⚠️ {out_of_gamut_count} out-of-gamut pixels ({short_prof})")
-        };
+        let msg = crate::i18n::tc(cur_lang, "SoftProof.OutOfGamutPixels")
+            .replace("{count}", &out_of_gamut_count.to_string())
+            .replace("{profile}", short_prof);
         egui::RichText::new(msg)
             .small()
             .color(Color32::from_rgb(255, 130, 220))
     } else {
-        let msg = if cur_lang == Language::Fr {
-            format!("✓ 100% dans le gamut ({short_prof})")
-        } else if is_es {
-            format!("✓ 100% dentro de la gama ({short_prof})")
-        } else {
-            format!("✓ 100% in gamut ({short_prof})")
-        };
+        let msg =
+            crate::i18n::tc(cur_lang, "SoftProof.InGamutStatus").replace("{profile}", short_prof);
         egui::RichText::new(msg)
             .small()
             .color(Color32::from_rgb(110, 220, 145))
