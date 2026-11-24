@@ -1,31 +1,27 @@
-# Rraw v0.1.1 — macOS Desktop Release & Clean Storage Architecture
+# Rraw v0.1.2
 
-We are thrilled to announce the **v0.1.1** release of **Rraw**, a high-performance RAW photo darkroom developed in 100% pure, safe Rust for macOS Apple Silicon.
+## Highlights
 
----
+- **i18n Integrity & Multilingual Scalability** — Eliminated all 57 hardcoded language checks; unified 620 dynamic JSON translation keys across `en`/`fr`/`es`.
+- **Performance & Virtualization** — Virtualized horizontal filmstrip (`ScrollArea::show_viewport`) supporting 10,000+ photos with constant-time layout, plus a 1600 px interactive preview proxy guarding full-res demosaicing.
+- **UI & Viewport UX Fixes** — Deferred preview rebuild during crop-box drag for smooth 120 Hz interaction; fixed horizontal overflow in the 360 px right-inspector Masks panel.
+- **Architecture & Maintainability** — Decomposed monolithic UI/decoder functions, introduced typed parameter objects (zero `clippy::too_many_arguments`), and de-bloated `PreparedGradingFrame`, `ExportBatchController`, and `DarkroomGradingState`.
+- **Colorimetric Regression & CI Coverage** — Added headless WGPU 24-patch ColorChecker visual regression suite (ΔE₀₀ < 0.5 across Stages 1–7, SDR & EDR) and a `cargo-llvm-cov` CI gate (≥ 85 % line coverage on core DSP/GPU crates; currently 86.33 %, 417 tests passing).
 
-### 🚀 Highlights & New Features
+## Installation
 
-- **Automated macOS Application Packaging (`.dmg`)**:
-  - Native Drag-and-Drop installer with `/Applications` symlink.
-  - Codesigned application bundle (`Rraw.app`) with HiDPI icon and bundled i18n catalogs.
-  - SHA-256 cryptographic checksums for verified downloads.
-- **Clean Finder Architecture (`.rraw/`)**:
-  - Relocated non-destructive recipe sidecars to `<folder>/.rraw/<photo>.rraw.json` alongside `.rraw/cache.db`.
-  - Zero clutter in the Finder: RAW folders remain pristine and contain only your original photo files.
-  - Purged legacy XMP sidecars in favor of fast, native JSON recipes.
-- **Instant Star Ratings**:
-  - Cached photo ratings now load synchronously upon folder opening (< 0.1 ms), displaying all ratings at Frame 0 in the filmstrip without requiring manual selection.
+| File | Description |
+|------|-------------|
+| `Rraw-v0.1.2.dmg` | macOS installer (Apple Silicon) |
+| `Rraw-v0.1.2.dmg.sha256` | SHA-256 checksum for integrity verification |
 
----
+**Requirements:** macOS 14 (Sonoma) or 15 (Sequoia) on Apple Silicon.
 
-### 📦 Installation
+```bash
+# Verify download integrity
+shasum -a 256 -c Rraw-v0.1.2.dmg.sha256
+```
 
-1. Download **`Rraw-v0.1.1.dmg`** below.
-2. Open the disk image and drag **Rraw.app** into your **Applications** folder.
-3. *(Optional)* Verify integrity:
-   ```bash
-   shasum -a 256 -c Rraw-v0.1.1.dmg.sha256
-   ```
+## Upgrade Notes
 
-*Requires macOS 14 (Sonoma) or macOS 15 (Sequoia) on Apple Silicon (M1/M2/M3/M4).*
+No migration steps required. Existing user profiles and grading presets are fully compatible.
