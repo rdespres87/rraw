@@ -117,11 +117,32 @@ impl PhotoSession {
     /// only the initial pre-drag snapshot is pushed onto `undo_stack`, and `sidecar_dirty` is set
     /// without blocking the UI thread on disk `fsync`.
     pub fn notify_grading_edited(&mut self, pre_edit: DarkroomGradingState, pointer_down: bool) {
+        if self.record_grading_edit_without_preview(pre_edit, pointer_down) {
+            self.needs_preview_update = true;
+        }
+    }
+
+    /// Notifies the session that overlay-only geometry parameters (such as the interactive crop box)
+    /// were edited, coalescing Undo snapshots and marking sidecars dirty without forcing a full
+    /// preview texture recomputation on every drag frame.
+    pub fn notify_grading_edited_deferred_preview(
+        &mut self,
+        pre_edit: DarkroomGradingState,
+        pointer_down: bool,
+    ) {
+        let _ = self.record_grading_edit_without_preview(pre_edit, pointer_down);
+    }
+
+    fn record_grading_edit_without_preview(
+        &mut self,
+        pre_edit: DarkroomGradingState,
+        pointer_down: bool,
+    ) -> bool {
         if pre_edit == self.grading {
             if !pointer_down {
                 self.is_continuous_drag_active = false;
             }
-            return;
+            return false;
         }
 
         if pointer_down {
@@ -135,7 +156,7 @@ impl PhotoSession {
         }
 
         self.sidecar_dirty = true;
-        self.needs_preview_update = true;
+        true
     }
 
     /// Returns true if at least one Undo snapshot is available.
@@ -208,5 +229,38 @@ impl PhotoSession {
         self.current_preset = GradingPreset::AsShot;
         self.sidecar_dirty = true;
         self.mark_dirty();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_deferred_preview_edit_preserves_undo_without_forcing_preview_rerender() {
+        let mut session = PhotoSession {
+            needs_preview_update: false,
+            ..Default::default()
+        };
+
+        let initial = session.grading.clone();
+        session.grading.geometry.crop_left = 0.1;
+        session.notify_grading_edited_deferred_preview(initial.clone(), true);
+
+        assert!(!session.needs_preview_update);
+        assert!(session.sidecar_dirty);
+        assert_eq!(session.undo_len(), 1);
+
+        // Second continuous drag frame coalesces into the same Undo snapshot and still skips preview rerender
+        let mid_drag = session.grading.clone();
+        session.grading.geometry.crop_left = 0.25;
+        session.notify_grading_edited_deferred_preview(mid_drag, true);
+
+        assert!(!session.needs_preview_update);
+        assert_eq!(session.undo_len(), 1);
+
+        // Undo restores the initial pre-drag crop rectangle
+        assert!(session.undo());
+        assert_eq!(session.grading, initial);
     }
 }

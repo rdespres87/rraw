@@ -397,6 +397,22 @@ impl RrawApp {
     /// coalescing continuous drag frames into a single Undo snapshot and deferring disk `fsync` until pointer release.
     pub fn notify_grading_edited(&mut self, pre_edit: DarkroomGradingState, pointer_down: bool) {
         self.session.notify_grading_edited(pre_edit, pointer_down);
+        self.sync_active_photo_grading_cache();
+    }
+
+    /// Notifies the session of an overlay-only edit (e.g. interactive crop box dragging),
+    /// recording Undo/sidecar state without forcing a preview texture rebuild on every frame.
+    pub fn notify_grading_edited_deferred_preview(
+        &mut self,
+        pre_edit: DarkroomGradingState,
+        pointer_down: bool,
+    ) {
+        self.session
+            .notify_grading_edited_deferred_preview(pre_edit, pointer_down);
+        self.sync_active_photo_grading_cache();
+    }
+
+    fn sync_active_photo_grading_cache(&mut self) {
         if let Some(photo) = &self.session.loaded_photo {
             self.library
                 .photo_gradings

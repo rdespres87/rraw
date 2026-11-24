@@ -313,7 +313,11 @@ impl RrawApp {
         }
 
         if self.session.grading != pre_viewport_grading {
-            self.notify_grading_edited(pre_viewport_grading, pointer_down);
+            if self.viewport.is_crop_editing {
+                self.notify_grading_edited_deferred_preview(pre_viewport_grading, pointer_down);
+            } else {
+                self.notify_grading_edited(pre_viewport_grading, pointer_down);
+            }
             ui.ctx().request_repaint();
         }
 

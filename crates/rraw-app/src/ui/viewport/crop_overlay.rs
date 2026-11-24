@@ -23,6 +23,41 @@ pub struct CropToolState<'a> {
     pub crop_drag_handle: &'a mut CropDragHandle,
 }
 
+/// Hit-tests `pos` against the crop rectangle corners, edges, and interior within `margin` pixels.
+#[must_use]
+pub fn hit_test_crop_handle(pos: Pos2, crop_screen_rect: Rect, margin: f32) -> CropDragHandle {
+    let near_left = (pos.x - crop_screen_rect.min.x).abs() < margin;
+    let near_right = (pos.x - crop_screen_rect.max.x).abs() < margin;
+    let near_top = (pos.y - crop_screen_rect.min.y).abs() < margin;
+    let near_bottom = (pos.y - crop_screen_rect.max.y).abs() < margin;
+    let in_x_range =
+        pos.x >= crop_screen_rect.min.x - margin && pos.x <= crop_screen_rect.max.x + margin;
+    let in_y_range =
+        pos.y >= crop_screen_rect.min.y - margin && pos.y <= crop_screen_rect.max.y + margin;
+
+    if near_top && near_left {
+        CropDragHandle::TopLeft
+    } else if near_top && near_right {
+        CropDragHandle::TopRight
+    } else if near_bottom && near_left {
+        CropDragHandle::BottomLeft
+    } else if near_bottom && near_right {
+        CropDragHandle::BottomRight
+    } else if near_top && in_x_range {
+        CropDragHandle::Top
+    } else if near_bottom && in_x_range {
+        CropDragHandle::Bottom
+    } else if near_left && in_y_range {
+        CropDragHandle::Left
+    } else if near_right && in_y_range {
+        CropDragHandle::Right
+    } else if crop_screen_rect.contains(pos) {
+        CropDragHandle::Center
+    } else {
+        CropDragHandle::None
+    }
+}
+
 /// Renders the crop box overlay, handles mouse dragging, resizing and floating validation pill.
 #[allow(clippy::too_many_lines)]
 pub fn handle_crop_overlay(
@@ -249,54 +284,42 @@ pub fn handle_crop_overlay(
 
     // 5. Mouse Hit-Testing & Interactive Resizing
     let margin = 14.0;
-    let pointer_pos = ui.input(|i| i.pointer.hover_pos().or_else(|| i.pointer.interact_pos()));
+    let (pointer_pos, press_origin) = ui.input(|i| {
+        (
+            i.pointer.hover_pos().or_else(|| i.pointer.interact_pos()),
+            i.pointer.press_origin(),
+        )
+    });
 
-    if let Some(pos) = pointer_pos {
-        let near_left = (pos.x - crop_screen_rect.min.x).abs() < margin;
-        let near_right = (pos.x - crop_screen_rect.max.x).abs() < margin;
-        let near_top = (pos.y - crop_screen_rect.min.y).abs() < margin;
-        let near_bottom = (pos.y - crop_screen_rect.max.y).abs() < margin;
-        let in_x_range =
-            pos.x >= crop_screen_rect.min.x - margin && pos.x <= crop_screen_rect.max.x + margin;
-        let in_y_range =
-            pos.y >= crop_screen_rect.min.y - margin && pos.y <= crop_screen_rect.max.y + margin;
+    let active_or_hovered = if *crop_drag_handle != CropDragHandle::None {
+        *crop_drag_handle
+    } else if let Some(pos) = pointer_pos {
+        hit_test_crop_handle(pos, crop_screen_rect, margin)
+    } else {
+        CropDragHandle::None
+    };
 
-        let hovered_handle = if near_top && near_left {
-            CropDragHandle::TopLeft
-        } else if near_top && near_right {
-            CropDragHandle::TopRight
-        } else if near_bottom && near_left {
-            CropDragHandle::BottomLeft
-        } else if near_bottom && near_right {
-            CropDragHandle::BottomRight
-        } else if near_top && in_x_range {
-            CropDragHandle::Top
-        } else if near_bottom && in_x_range {
-            CropDragHandle::Bottom
-        } else if near_left && in_y_range {
-            CropDragHandle::Left
-        } else if near_right && in_y_range {
-            CropDragHandle::Right
-        } else if crop_screen_rect.contains(pos) {
-            CropDragHandle::Center
-        } else {
-            CropDragHandle::None
-        };
-
-        let cursor = match hovered_handle {
-            CropDragHandle::TopLeft | CropDragHandle::BottomRight => egui::CursorIcon::ResizeNwSe,
-            CropDragHandle::TopRight | CropDragHandle::BottomLeft => egui::CursorIcon::ResizeNeSw,
-            CropDragHandle::Top | CropDragHandle::Bottom => egui::CursorIcon::ResizeVertical,
-            CropDragHandle::Left | CropDragHandle::Right => egui::CursorIcon::ResizeHorizontal,
-            CropDragHandle::Center => egui::CursorIcon::Grab,
-            CropDragHandle::None => egui::CursorIcon::Default,
-        };
-        if hovered_handle != CropDragHandle::None {
-            ui.ctx().set_cursor_icon(cursor);
+    let cursor = match active_or_hovered {
+        CropDragHandle::TopLeft | CropDragHandle::BottomRight => egui::CursorIcon::ResizeNwSe,
+        CropDragHandle::TopRight | CropDragHandle::BottomLeft => egui::CursorIcon::ResizeNeSw,
+        CropDragHandle::Top | CropDragHandle::Bottom => egui::CursorIcon::ResizeVertical,
+        CropDragHandle::Left | CropDragHandle::Right => egui::CursorIcon::ResizeHorizontal,
+        CropDragHandle::Center => {
+            if *crop_drag_handle == CropDragHandle::Center {
+                egui::CursorIcon::Grabbing
+            } else {
+                egui::CursorIcon::Grab
+            }
         }
+        CropDragHandle::None => egui::CursorIcon::Default,
+    };
+    if active_or_hovered != CropDragHandle::None {
+        ui.ctx().set_cursor_icon(cursor);
+    }
 
-        if resp.drag_started() {
-            *crop_drag_handle = hovered_handle;
+    if resp.drag_started() {
+        if let Some(origin) = press_origin.or(pointer_pos) {
+            *crop_drag_handle = hit_test_crop_handle(origin, crop_screen_rect, margin);
         }
     }
 
@@ -504,4 +527,40 @@ pub fn handle_crop_overlay(
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hit_test_crop_handle_corners_edges_center_and_outside() {
+        let rect = Rect::from_min_max(Pos2::new(100.0, 100.0), Pos2::new(300.0, 250.0));
+        let m = 14.0;
+
+        assert_eq!(
+            hit_test_crop_handle(Pos2::new(105.0, 105.0), rect, m),
+            CropDragHandle::TopLeft
+        );
+        assert_eq!(
+            hit_test_crop_handle(Pos2::new(296.0, 246.0), rect, m),
+            CropDragHandle::BottomRight
+        );
+        assert_eq!(
+            hit_test_crop_handle(Pos2::new(200.0, 102.0), rect, m),
+            CropDragHandle::Top
+        );
+        assert_eq!(
+            hit_test_crop_handle(Pos2::new(298.0, 175.0), rect, m),
+            CropDragHandle::Right
+        );
+        assert_eq!(
+            hit_test_crop_handle(Pos2::new(200.0, 175.0), rect, m),
+            CropDragHandle::Center
+        );
+        assert_eq!(
+            hit_test_crop_handle(Pos2::new(20.0, 20.0), rect, m),
+            CropDragHandle::None
+        );
+    }
 }
