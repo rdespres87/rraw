@@ -57,6 +57,8 @@ rraw-export = { path = "crates/rraw-export" }
 rraw-macos-edr = { path = "crates/rraw-macos-edr" }
 rraw-coreml = { path = "crates/rraw-coreml" }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff", "avif"] }
+zune-core = "0.5"
+zune-jpegxl = "0.5"
 
 [profile.dev.package.rawler]
 opt-level = 3

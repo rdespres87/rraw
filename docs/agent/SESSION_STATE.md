@@ -4,11 +4,17 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 27 — Maturity Audit #8 Remediation & Horizontal Keystone (`v0.2.0`) **Complete**
-- **Active Tasks**: All 6 phases completed, locally audited (`APPROVED` by `qwen/qwen3.6-35b-a3b`, 0 cloud tokens), and committed locally on `main` (ahead of `origin/main` at `bec80c5` / `v0.1.2`)
-- **Next Phase**: Push `main` & cut `v0.2.0` Release (when user approves remote push) or Phase 28 Roadmap
-- **Last Verified Baseline**: **449 tests passing across 95 test suites** (10.37s), 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 remaining `#[allow(clippy::too_many_lines)]` or `#[allow(clippy::should_implement_trait)]`**, **86.42% line coverage** across all 5 core DSP/GPU crates on bare-metal Apple Silicon Metal (**82.72%** across the 4 deterministic CPU core crates in headless CI `>= 82%`).
-- **Current Milestone**: Phase 27 — Maturity Audit #8 Remediation & Horizontal Keystone (`v0.2.0`) **Complete**
+- **Active Phase**: Phase 28 — Maturity Audit #9 Remediation (`v0.2.0 → v0.3.0-dev`) **Complete**
+- **Active Tasks**: All 5 remediation milestones completed, locally audited (`APPROVED` by `qwen/qwen3.6-35b-a3b`, 0 cloud tokens), and committed locally on `main` (ahead of `origin/main` at `8e3f967` / `v0.2.0`).
+- **Next Phase**: Push `main` & cut `v0.3.0` Release when requested by the user, or start next roadmap milestone.
+- **Last Verified Baseline**: **460 tests passing across 95 test suites**, 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **100% of `src/` files strictly under 1,000 lines**, **89.16% deterministic 4-crate CPU line coverage** (CI gate raised to `>= 85%`).
+- **Current Milestone**: Phase 28 — Maturity Audit #9 Remediation (`v0.3.0-dev`) **Complete**
+  - **Coverage Gate >= 85% (`84586e6`)**: Added deterministic unit tests for `rraw-decode` (`opcodes`, `makernotes`, `exif`) and `rraw-optics` (`lensfun`), raising 4-crate CPU `cargo llvm-cov` line coverage from `82.72%` → `89.16%` and raising CI `coverage-core` gate from `82%` → `85%`.
+  - **GPU Fast-Path for Advanced Masks & Overlay (`ce51de7`)**: Extended `GeometricMask` and `stage6_masks.wgsl` with `temperature_shift`, `invert`, and smoothstep `feather` parity; lifted CPU fallbacks for local/semantic masks and red mask overlays in `gpu_backend.rs` (only `FreehandBrush` falls back to CPU), verified live Metal GPU vs CPU parity ($\Delta E_{00} < 1.0$).
+  - **100% `src/` Files Under 1,000 Lines (`b6029ca`)**: Split `app.rs` (1,443 → 874 L) into `app_library.rs` (581 L) and `preview/pipeline.rs` (1,311 → 920 L) into `preview/render.rs` (404 L) with zero behavioral changes.
+  - **Purged Legacy `Language::Fr` Wrappers (`7da86e1`)**: Removed all 9 legacy `Language::Fr` label wrappers from `state.rs`, `presets.rs`, and `mask_layers.rs`; made `GradingRecipeClipboard::summary` language-aware across all UI callers.
+  - **Pure-Rust JPEG XL Export & Docs Sync**: Added pure-Rust `zune-jpegxl` 16-bit lossless modular `.jxl` encoder (`crates/rraw-export/src/jxl.rs`) for `ExportFormat::JpegXl10` / `JpegXl16` (`#![forbid(unsafe_code)]`, 0xFF 0x0A codestream validation), and synchronized `README.md` and `docs/agent/*`.
+- **Preceding Milestone**: Phase 27 — Maturity Audit #8 Remediation & Horizontal Keystone (`v0.2.0`, `8e3f967`, tagged & pushed) **Complete**
   - **Phase 1 (`ae2f62b`) — Cooperative Export Cancellation & Bounded `.cube` LUT I/O**: Added `Arc<AtomicBool>` export cancellation in `workers.rs` / `export_runner.rs` / `ui/export/mod.rs` (localized `en`/`fr`/`es`), 16 MiB TOCTOU-safe `.cube` LUT loader guard, and purged all residual French strings in `export_runner.rs` (+4 tests).
   - **Phase 2 (`43aab04`) — Zero Remaining `too_many_lines` Allows**: Decomposed `masks.rs`, `crop_overlay.rs`, and `perspective_tools.rs`, fixed `active_local_overlay` stale-index bug on mask removal, and added zero-dimension guards (+7 unit tests).
   - **Phase 3 (`6236a71`) — Declarative `define_i18n_keys!` Macro & `rraw-macos-edr` Contract Tests**: Reduced `i18n/key.rs` from 1,907 → 581 lines with `core::str::FromStr` + `ParseKeyError` (eliminating `#[allow(clippy::should_implement_trait)]`) and added 9 `rraw-macos-edr` integration contract tests (`edr_contract_tests.rs`).

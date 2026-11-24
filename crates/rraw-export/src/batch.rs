@@ -273,10 +273,16 @@ impl BatchExportQueue {
                 w.flush()?;
                 Ok(())
             }
-            _ => Err(ExportError::UnsupportedFormat(format!(
-                "{:?} is not supported for batch raster export",
-                job.format
-            ))),
+            ExportFormat::JpegXl10 | ExportFormat::JpegXl16 => {
+                use std::io::Write;
+                let jxl_bytes =
+                    crate::jxl::encode_jxl_rgb16(&job.rgb_linear, job.width, job.height, 4)?;
+                let file = File::create(&job.output_path)?;
+                let mut w = BufWriter::new(file);
+                w.write_all(&jxl_bytes)?;
+                w.flush()?;
+                Ok(())
+            }
         }
     }
 }

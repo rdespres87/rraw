@@ -2,16 +2,27 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Push `main` & Cut `v0.2.0` Release (or Start Phase 28 Roadmap)**:
-  - All 6 phases of **Phase 27 — Maturity Audit #8 Remediation & Horizontal Keystone (`v0.2.0`)** are complete, audited (`APPROVED` by local Inquisitor `qwen/qwen3.6-35b-a3b`, 0 cloud tokens), and committed locally on `main` (ahead of `origin/main` at `bec80c5` / `v0.1.2`).
-  - Baseline verified: **449 tests passing across 95 suites**, 0 clippy warnings, 0 remaining `too_many_lines` / `should_implement_trait` Clippy allows, **86.42%** bare-metal 5-crate line coverage (**82.72%** deterministic 4-crate CPU coverage enforced at `>= 82%` in `.github/workflows/ci.yml`).
-  - Ready to push `main` and bump/tag `v0.2.0` when requested by the user, or start Phase 28 features (e.g., native JPEG XL encoding or real `.mlmodelc` CoreML model weights).
+- **Push `main` & Cut `v0.3.0` Release (or Run Maturity Audit #10)**:
+  - All 5 milestones of **Phase 28 — Maturity Audit #9 Remediation** are complete, audited (`APPROVED` by local Inquisitor `qwen/qwen3.6-35b-a3b`, 0 cloud tokens), and committed locally on `main` (ahead of `origin/main` at `8e3f967` / `v0.2.0`).
+  - Baseline verified: **460 tests passing across 95 suites**, 0 clippy warnings, 0 `#[allow(clippy::...)]`, 100% of `src/` files `< 1,000` lines, **89.16%** deterministic 4-crate CPU line coverage (`>= 85%` CI gate).
+  - Ready to push `main`, run Maturity Audit #10, or prepare `v0.3.0` release notes/tag when requested by the user.
 
 ---
 
 ## Last Completed Milestone
 
-- **Phase 27 — Maturity Audit #8 Remediation & Horizontal Keystone (`v0.2.0`) — COMPLETE**:
+- **Phase 28 — Maturity Audit #9 Remediation (`v0.3.0-dev`) — COMPLETE**:
+  - `84586e6` — Deterministic unit tests for `rraw-decode` (`opcodes`, `makernotes`, `exif`) & `rraw-optics` (`lensfun`); 4-crate CPU coverage `82.72% → 89.16%`; CI gate raised `82% → 85%`.
+  - `ce51de7` — Stage 6 WGSL shader & `GpuPreviewEngine` parity for `temperature_shift`, `invert`, smoothstep `feather`, post-DRT mask `contrast`/`saturation`, and red mask overlays ($\Delta E_{00} < 1.0$).
+  - `b6029ca` — Split `app.rs` (`1,443 → 874 L`) into `app_library.rs` and `preview/pipeline.rs` (`1,311 → 920 L`) into `preview/render.rs` (100% of `src/` files `< 1,000` L).
+  - `7da86e1` — Removed all 9 legacy `Language::Fr` label wrappers and made `GradingRecipeClipboard::summary` language-aware.
+  - Pure-Rust JPEG XL export (`zune-jpegxl` 16-bit lossless modular `.jxl` encoder in `rraw-export/src/jxl.rs`) + `README.md` and `docs/agent/*` sync.
+
+---
+
+## Preceding Milestone
+
+- **Phase 27 — Maturity Audit #8 Remediation & Horizontal Keystone (`v0.2.0`, `8e3f967`) — COMPLETE**:
   - `ae2f62b` — Phase 1: Cooperative export cancellation (`Arc<AtomicBool>`), 16 MiB TOCTOU-safe `.cube` LUT I/O guard, zero residual French strings in `export_runner.rs` (+4 tests).
   - `43aab04` — Phase 2: Eliminated all 3 remaining `#[allow(clippy::too_many_lines)]` (`masks.rs`, `crop_overlay.rs`, `perspective_tools.rs`), fixed `active_local_overlay` stale-index bug (+7 tests).
   - `6236a71` — Phase 3: Declarative `define_i18n_keys!` macro in `i18n/key.rs` (1,907 → 581 lines, `core::str::FromStr`), +9 `rraw-macos-edr` contract tests (`edr_contract_tests.rs`).
