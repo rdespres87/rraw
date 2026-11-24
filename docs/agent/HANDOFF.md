@@ -2,14 +2,26 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Post-Remediation Release (`v0.1.2`) or Phase 27 Feature Roadmap**:
-  - All 6 phases of Maturity Audit #7 Remediation + 2 targeted UX bug fixes are complete, audited (`APPROVED` by local Inquisitor `qwen/qwen3.6-35b-a3b`), and committed locally on `main` (8 atomic commits ahead of `origin/main`, kept local per user Gate B choices).
-  - Baseline verified: **417 tests passing across 92 suites**, 0 clippy warnings, **86.33% line coverage** across the 5 core DSP/GPU crates (`cargo-llvm-cov` CI gate `>= 85%`).
-  - Ready to push `main` and cut `v0.1.2` when requested by the user, or start Phase 27 feature work.
+- **Push `main` & Cut `v0.2.0` Release (or Start Phase 28 Roadmap)**:
+  - All 6 phases of **Phase 27 — Maturity Audit #8 Remediation & Horizontal Keystone (`v0.2.0`)** are complete, audited (`APPROVED` by local Inquisitor `qwen/qwen3.6-35b-a3b`, 0 cloud tokens), and committed locally on `main` (ahead of `origin/main` at `bec80c5` / `v0.1.2`).
+  - Baseline verified: **449 tests passing across 95 suites**, 0 clippy warnings, 0 remaining `too_many_lines` / `should_implement_trait` Clippy allows, **86.42%** bare-metal 5-crate line coverage (**82.72%** deterministic 4-crate CPU coverage enforced at `>= 82%` in `.github/workflows/ci.yml`).
+  - Ready to push `main` and bump/tag `v0.2.0` when requested by the user, or start Phase 28 features (e.g., native JPEG XL encoding or real `.mlmodelc` CoreML model weights).
 
 ---
 
 ## Last Completed Milestone
+
+- **Phase 27 — Maturity Audit #8 Remediation & Horizontal Keystone (`v0.2.0`) — COMPLETE**:
+  - `ae2f62b` — Phase 1: Cooperative export cancellation (`Arc<AtomicBool>`), 16 MiB TOCTOU-safe `.cube` LUT I/O guard, zero residual French strings in `export_runner.rs` (+4 tests).
+  - `43aab04` — Phase 2: Eliminated all 3 remaining `#[allow(clippy::too_many_lines)]` (`masks.rs`, `crop_overlay.rs`, `perspective_tools.rs`), fixed `active_local_overlay` stale-index bug (+7 tests).
+  - `6236a71` — Phase 3: Declarative `define_i18n_keys!` macro in `i18n/key.rs` (1,907 → 581 lines, `core::str::FromStr`), +9 `rraw-macos-edr` contract tests (`edr_contract_tests.rs`).
+  - `0113987` — Phase 4: Live WGPU interactive preview backend (`GpuPreviewEngine`, Stages 5→7) with automatic CPU/Rayon fallback, pre-Stage-5 linear evaluation, canonical `agx_drt` shader parity ($\Delta E_{00} < 1.0$), clickable `⚡ GPU` / `⚙ CPU` badge with fallback tooltip (+5 tests).
+  - `f6cc61d` — Phase 5: Horizontal Keystone auto-detection in `perspective_tools.rs` (`|dx| > |dy|` → `keystone_horizontal` + `rotation_degrees`, preserving `keystone_vertical`, +6 tests).
+  - Phase 6: CI `coverage-core` fix for GPU-less `macos-latest` VMs (`>= 82%` on 4 CPU core crates) + agent docs & `README.md` sync.
+
+---
+
+## Preceding Milestone
 
 - **Phase 26 — Maturity Audit #7 Remediation (Phases 1–6 + 2 UX Fixes) — COMPLETE**:
   - `cd3c770` — Phase 1: i18n JSON integrity & zero hardcoded language branches (620 keys across `en`/`fr`/`es`).

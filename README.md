@@ -35,7 +35,8 @@
 - **Modern Tone Mapping**: `AgX` and `OpenDRT` transforms parameterizing highlight rolloff based on real-time display capabilities.
 - **Native Liquid Retina XDR / Pro Display XDR (up to 1600 nits)**: Direct zero-copy composition on `CAMetalLayer` in `extendedLinearDisplayP3` (`Rgba16Float`), rendering true specular highlights without premature SDR tone compression.
 - **Color Management & Soft Proofing (ICC)**: Real-time display and print profile simulation (*sRGB IEC61966-2.1*, *Apple Display P3*, *Adobe RGB 1998*, *Fine Art Matte Cotton Paper*, *Glossy Baryta Photo Paper*) with *Perceptual* and *Relative Colorimetric* rendering intents, paper white & black ink (`Dmin`/`Dmax`) reflectance simulation, and high-contrast magenta/cyan out-of-gamut warning zebras.
-- **Real-Time GPU Diagnostic Scopes**: Workgroup-reduced GPU histogram, RGB parade, out-of-gamut pixel counter, and real-time clipping zebra overlays (SDR clipping $> 1.0$ and live EDR headroom clipping $> H_{\text{active}}$).
+- **Real-Time WGPU Preview & Diagnostic Scopes**: Live interactive WGPU/Metal preview backend (Stages 5–7) with automatic CPU/Rayon fallback, clickable `⚡ GPU` / `⚙ CPU` status bar toggle with adapter/fallback diagnostics, workgroup-reduced GPU histogram, RGB parade, out-of-gamut pixel counter, and real-time clipping zebra overlays (SDR clipping $> 1.0$ and live EDR headroom clipping $> H_{\text{active}}$).
+- **Interactive Perspective & Geometry Tools**: Horizon leveling tool and auto-detecting 2-parallel-lines perspective tool (vertical `Keystone V` and horizontal `Keystone H` + rotation).
 
 ### 5. Local Adjustments, Parametric & CoreML AI Semantic Masking
 - **Geometric Masks**: Normalized $[0, 1]^2$ linear and radial gradients computed post-warp.
@@ -181,7 +182,13 @@ cargo test --workspace
 # Run headless WGPU ColorChecker visual regression benchmark (CIEDE2000 Delta E 00 < 0.5)
 cargo test -p rraw-gpu --test visual_regression_colorchecker_tests
 
-# Measure core DSP & GPU crate line coverage (enforces >= 85% threshold in CI)
+# Measure deterministic core CPU DSP crate line coverage (enforces >= 82% threshold in CI)
+cargo llvm-cov \
+  --package rraw-core --package rraw-color --package rraw-optics \
+  --package rraw-decode \
+  --fail-under-lines 82 --summary-only
+
+# Measure full 5-crate DSP & GPU line coverage on bare-metal Apple Silicon Metal (>= 85%)
 cargo llvm-cov \
   --package rraw-core --package rraw-color --package rraw-optics \
   --package rraw-decode --package rraw-gpu \

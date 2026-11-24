@@ -359,6 +359,17 @@ Legend: `[ ]` Not started | `[/]` In progress | `[x]` Done & verified (post-Gate
 - [x] **Phase 5 (`a582385`, `rraw-app`)**: Performance & Filmstrip Virtualization — migrated filmstrip to `ScrollArea::show_viewport` with exact spacers and `filtered_indices: Vec<usize>` (10,000+ entries) and added `FULL_RES_DEMOSAIC_INVOCATIONS` telemetry (+4 tests).
 - [x] **Phase 6 (`d69beed`, `rraw-color`, `rraw-gpu`, CI, `README.md`)**: `cargo-llvm-cov` CI gate (`>= 85%` lines on 5 core crates, verified **86.33%**) and headless WGPU 24-patch ColorChecker visual regression test suite ($\Delta E_{00} < 0.5$, **417 workspace tests passing across 92 suites**).
 
+---
+
+## Phase 27 — Maturity Audit #8 Remediation (`v0.2.0`)
+- [x] **Phase 1 (`ae2f62b`, `rraw-app`, `assets/i18n`)**: Cooperative Export Cancellation (`Arc<AtomicBool>`), 16 MiB TOCTOU-safe `.cube` LUT I/O guard, and zero residual French strings in `export_runner.rs` (**421 tests / 93 suites**).
+- [x] **Phase 2 (`43aab04`, `rraw-app`)**: Eliminated all 3 remaining `#[allow(clippy::too_many_lines)]` (`masks.rs`, `crop_overlay.rs`, `perspective_tools.rs`), fixed `active_local_overlay` index shift on mask removal, added zero-dimension guards (+7 unit tests, **428 tests / 93 suites**).
+- [x] **Phase 3 (`6236a71`, `rraw-app`, `rraw-macos-edr`)**: Declarative `define_i18n_keys!` macro in `i18n/key.rs` (1,907 → 581 lines, implementing `core::str::FromStr`, removing `#[allow(clippy::should_implement_trait)]`) + 9 `rraw-macos-edr` contract tests (**438 tests / 94 suites**).
+- [x] **Phase 4 (`0113987`, `rraw-app`, `rraw-gpu`)**: Live WGPU interactive preview backend (`GpuPreviewEngine`, Stages 5–7) with automatic CPU/Rayon fallback, pre-Stage-5 optics/SmartLighting linear evaluation, canonical `agx_drt` shader parity ($\Delta E_{00} < 1.0$), clickable `⚡ GPU` / `⚙ CPU` status badge with fallback tooltip (**443 tests / 95 suites**).
+- [x] **Phase 5 (`f6cc61d`, `rraw-app`)**: **Horizontal Keystone Auto-Detection (2-Parallel-Lines Tool)** — auto-detect horizontal (`|dx| > |dy|`) vs vertical orientation in `perspective_tools.rs` (`ParallelCorrectionAxis`, `ParallelLinesCorrection`), updating `geometry.keystone_horizontal` + `rotation_degrees` while preserving `keystone_vertical`, updating status banner (`Keystone H` / `Keystone V`), +6 unit tests (**449 tests / 95 suites**).
+- [x] **Phase 6 (`docs`, `README.md`, `.github/workflows/ci.yml`)**: Agent docs sync (`SESSION_STATE.md`, `TASKS.md`, `HANDOFF.md`), `README.md` sync, CI `coverage-core` fix for GPU-less `macos-latest` VMs (`>= 82%` on 4 CPU core crates, verified **82.72%**; full 5-crate bare-metal Metal coverage verified **86.42%**), and full `v0.2.0` CI validation.
+
+
 
 
 
