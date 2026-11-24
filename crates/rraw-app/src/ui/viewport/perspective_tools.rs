@@ -69,9 +69,25 @@ fn draw_parallel_line_overlay(
     }
 }
 
-/// Computes `(keystone_vertical, rotation_degrees)` from two drawn perspective lines.
-#[must_use]
-fn compute_parallel_lines_correction(line1: (Pos2, Pos2), line2: (Pos2, Pos2)) -> (f32, f32) {
+/// Dominant orientation detected from two user-drawn perspective lines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParallelCorrectionAxis {
+    Vertical,
+    Horizontal,
+}
+
+/// Perspective correction computed from two drawn reference lines.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ParallelLinesCorrection {
+    pub axis: ParallelCorrectionAxis,
+    pub keystone: f32,
+    pub rotation_degrees: f32,
+}
+
+fn compute_vertical_correction(
+    line1: (Pos2, Pos2),
+    line2: (Pos2, Pos2),
+) -> ParallelLinesCorrection {
     let (l1_a, l1_b) = line1;
     let (l2_a, l2_b) = line2;
     let (a1, b1) = if l1_b.y < l1_a.y {
@@ -87,7 +103,6 @@ fn compute_parallel_lines_correction(line1: (Pos2, Pos2), line2: (Pos2, Pos2)) -
 
     let slope1 = (b1.x - a1.x) / (a1.y - b1.y).max(1.0);
     let slope2 = (b2.x - a2.x) / (a2.y - b2.y).max(1.0);
-
     let (left_slope, right_slope) = if a1.x < a2.x {
         (slope1, slope2)
     } else {
@@ -96,10 +111,61 @@ fn compute_parallel_lines_correction(line1: (Pos2, Pos2), line2: (Pos2, Pos2)) -
 
     let convergence = right_slope - left_slope;
     let avg_tilt = (slope1 + slope2) * 0.5;
+    ParallelLinesCorrection {
+        axis: ParallelCorrectionAxis::Vertical,
+        keystone: (-convergence * 65.0).clamp(-50.0, 50.0),
+        rotation_degrees: (-avg_tilt * 57.29578).clamp(-45.0, 45.0),
+    }
+}
 
-    let keystone = (-convergence * 65.0).clamp(-50.0, 50.0);
-    let rotation = (-avg_tilt * 57.29578).clamp(-45.0, 45.0);
-    (keystone, rotation)
+fn compute_horizontal_correction(
+    line1: (Pos2, Pos2),
+    line2: (Pos2, Pos2),
+) -> ParallelLinesCorrection {
+    let (l1_a, l1_b) = line1;
+    let (l2_a, l2_b) = line2;
+    let (a1, b1) = if l1_a.x <= l1_b.x {
+        (l1_a, l1_b)
+    } else {
+        (l1_b, l1_a)
+    };
+    let (a2, b2) = if l2_a.x <= l2_b.x {
+        (l2_a, l2_b)
+    } else {
+        (l2_b, l2_a)
+    };
+
+    let slope1 = (b1.y - a1.y) / (b1.x - a1.x).max(1.0);
+    let slope2 = (b2.y - a2.y) / (b2.x - a2.x).max(1.0);
+    let (top_slope, bottom_slope) = if a1.y < a2.y {
+        (slope1, slope2)
+    } else {
+        (slope2, slope1)
+    };
+
+    let convergence = bottom_slope - top_slope;
+    let avg_tilt = (slope1 + slope2) * 0.5;
+    ParallelLinesCorrection {
+        axis: ParallelCorrectionAxis::Horizontal,
+        keystone: (convergence * 65.0).clamp(-50.0, 50.0),
+        rotation_degrees: (-avg_tilt.atan().to_degrees()).clamp(-45.0, 45.0),
+    }
+}
+
+/// Computes perspective keystone (auto-detected vertical or horizontal) and rotation
+/// from two user-drawn reference lines.
+#[must_use]
+pub fn compute_parallel_lines_correction(
+    line1: (Pos2, Pos2),
+    line2: (Pos2, Pos2),
+) -> ParallelLinesCorrection {
+    let total_dx = (line1.1.x - line1.0.x).abs() + (line2.1.x - line2.0.x).abs();
+    let total_dy = (line1.1.y - line1.0.y).abs() + (line2.1.y - line2.0.y).abs();
+    if total_dx > total_dy {
+        compute_horizontal_correction(line1, line2)
+    } else {
+        compute_vertical_correction(line1, line2)
+    }
 }
 
 fn apply_parallel_drag_release(
@@ -123,17 +189,26 @@ fn apply_parallel_drag_release(
         ParallelToolPhase::WaitingLine2 | ParallelToolPhase::DrawingLine2 => {
             *tool_state.line2 = Some((p1, p2));
             if let Some(l1) = *tool_state.line1 {
-                let (keystone, rotation) = compute_parallel_lines_correction(l1, (p1, p2));
-                geometry.keystone_vertical = keystone;
-                geometry.rotation_degrees = rotation;
+                let correction = compute_parallel_lines_correction(l1, (p1, p2));
+                let axis_label = match correction.axis {
+                    ParallelCorrectionAxis::Vertical => {
+                        geometry.keystone_vertical = correction.keystone;
+                        "Keystone V"
+                    }
+                    ParallelCorrectionAxis::Horizontal => {
+                        geometry.keystone_horizontal = correction.keystone;
+                        "Keystone H"
+                    }
+                };
+                geometry.rotation_degrees = correction.rotation_degrees;
                 out.mark_custom_preset = true;
                 out.needs_preview_update = true;
                 out.save_sidecar = true;
                 *tool_state.status_message = format!(
-                    "{} : Keystone V {:.1}, Rotation {:.1}°",
+                    "{} : {axis_label} {:.1}, Rotation {:.1}°",
                     Key::GeometryAdjustedStatus.translate(cur_lang),
-                    keystone,
-                    rotation
+                    correction.keystone,
+                    correction.rotation_degrees
                 );
             }
             *tool_state.phase = ParallelToolPhase::Inactive;
@@ -264,26 +339,112 @@ mod tests {
     fn test_parallel_lines_vertical_yields_zero_correction() {
         let l1 = (Pos2::new(100.0, 300.0), Pos2::new(100.0, 100.0));
         let l2 = (Pos2::new(300.0, 300.0), Pos2::new(300.0, 100.0));
-        let (keystone, rotation) = compute_parallel_lines_correction(l1, l2);
-        assert!(keystone.abs() < 1e-4);
-        assert!(rotation.abs() < 1e-4);
+        let c = compute_parallel_lines_correction(l1, l2);
+        assert_eq!(c.axis, ParallelCorrectionAxis::Vertical);
+        assert!(c.keystone.abs() < 1e-4);
+        assert!(c.rotation_degrees.abs() < 1e-4);
     }
 
     #[test]
     fn test_parallel_lines_converging_upward_yields_positive_keystone() {
         let l1 = (Pos2::new(100.0, 300.0), Pos2::new(140.0, 100.0));
         let l2 = (Pos2::new(300.0, 300.0), Pos2::new(260.0, 100.0));
-        let (keystone, rotation) = compute_parallel_lines_correction(l1, l2);
-        assert!(keystone > 0.0 && keystone <= 50.0);
-        assert!(rotation.abs() < 1e-4);
+        let c = compute_parallel_lines_correction(l1, l2);
+        assert_eq!(c.axis, ParallelCorrectionAxis::Vertical);
+        assert!(c.keystone > 0.0 && c.keystone <= 50.0);
+        assert!(c.rotation_degrees.abs() < 1e-4);
     }
 
     #[test]
     fn test_parallel_lines_tilted_yields_clamped_rotation() {
         let l1 = (Pos2::new(100.0, 300.0), Pos2::new(140.0, 100.0));
         let l2 = (Pos2::new(300.0, 300.0), Pos2::new(340.0, 100.0));
-        let (keystone, rotation) = compute_parallel_lines_correction(l1, l2);
-        assert!(keystone.abs() < 1e-4);
-        assert!((-45.0..0.0).contains(&rotation));
+        let c = compute_parallel_lines_correction(l1, l2);
+        assert_eq!(c.axis, ParallelCorrectionAxis::Vertical);
+        assert!(c.keystone.abs() < 1e-4);
+        assert!((-45.0..0.0).contains(&c.rotation_degrees));
+    }
+
+    #[test]
+    fn test_parallel_lines_horizontal_yields_zero_correction() {
+        let l1 = (Pos2::new(100.0, 100.0), Pos2::new(400.0, 100.0));
+        let l2 = (Pos2::new(100.0, 300.0), Pos2::new(400.0, 300.0));
+        let c = compute_parallel_lines_correction(l1, l2);
+        assert_eq!(c.axis, ParallelCorrectionAxis::Horizontal);
+        assert!(c.keystone.abs() < 1e-4);
+        assert!(c.rotation_degrees.abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_parallel_lines_horizontal_converging_right_yields_negative_keystone() {
+        let l1 = (Pos2::new(100.0, 100.0), Pos2::new(400.0, 145.0));
+        let l2 = (Pos2::new(100.0, 300.0), Pos2::new(400.0, 255.0));
+        let c = compute_parallel_lines_correction(l1, l2);
+        assert_eq!(c.axis, ParallelCorrectionAxis::Horizontal);
+        assert!((-50.0..0.0).contains(&c.keystone));
+        assert!(c.rotation_degrees.abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_parallel_lines_horizontal_converging_left_yields_positive_keystone() {
+        let l1 = (Pos2::new(400.0, 100.0), Pos2::new(100.0, 145.0));
+        let l2 = (Pos2::new(400.0, 300.0), Pos2::new(100.0, 255.0));
+        let c = compute_parallel_lines_correction(l1, l2);
+        assert_eq!(c.axis, ParallelCorrectionAxis::Horizontal);
+        assert!((0.0..=50.0).contains(&c.keystone));
+        assert!(c.rotation_degrees.abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_parallel_lines_horizontal_tilted_yields_rotation_only() {
+        let l1 = (Pos2::new(100.0, 100.0), Pos2::new(400.0, 160.0));
+        let l2 = (Pos2::new(100.0, 300.0), Pos2::new(400.0, 360.0));
+        let c = compute_parallel_lines_correction(l1, l2);
+        assert_eq!(c.axis, ParallelCorrectionAxis::Horizontal);
+        assert!(c.keystone.abs() < 1e-4);
+        assert!((-45.0..0.0).contains(&c.rotation_degrees));
+    }
+
+    #[test]
+    fn test_parallel_lines_horizontal_extreme_convergence_clamps_to_bounds() {
+        let l1 = (Pos2::new(100.0, 100.0), Pos2::new(200.0, 190.0));
+        let l2 = (Pos2::new(100.0, 300.0), Pos2::new(200.0, 210.0));
+        let c = compute_parallel_lines_correction(l1, l2);
+        assert_eq!(c.axis, ParallelCorrectionAxis::Horizontal);
+        assert_eq!(c.keystone, -50.0);
+    }
+
+    #[test]
+    fn test_apply_parallel_drag_release_horizontal_preserves_vertical_keystone() {
+        let mut phase = ParallelToolPhase::WaitingLine2;
+        let mut line1 = Some((Pos2::new(100.0, 100.0), Pos2::new(400.0, 145.0)));
+        let mut line2 = None;
+        let mut drag_start = None;
+        let mut status_message = String::new();
+        let mut tool_state = ParallelLinesToolState {
+            phase: &mut phase,
+            line1: &mut line1,
+            line2: &mut line2,
+            drag_start: &mut drag_start,
+            status_message: &mut status_message,
+        };
+        let mut geometry = GeometryGradingParams {
+            keystone_vertical: 12.5,
+            ..GeometryGradingParams::default()
+        };
+
+        let out = apply_parallel_drag_release(
+            Pos2::new(100.0, 300.0),
+            Pos2::new(400.0, 255.0),
+            &mut tool_state,
+            &mut geometry,
+            Language::En,
+        );
+
+        assert!(out.mark_custom_preset && out.needs_preview_update && out.save_sidecar);
+        assert_eq!(geometry.keystone_vertical, 12.5);
+        assert!(geometry.keystone_horizontal < 0.0);
+        assert!(status_message.contains("Keystone H"));
+        assert_eq!(phase, ParallelToolPhase::Inactive);
     }
 }
