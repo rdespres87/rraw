@@ -8,9 +8,11 @@ use rraw_core::{CfaPattern, ColorLabel, CoreError, PhotoMetadata, PickStatus, Si
 use thiserror::Error;
 
 pub mod cfa;
+pub mod exif;
 pub mod makernotes;
 pub mod noise_profile;
 pub mod opcodes;
+pub mod sensor;
 pub mod synthetic;
 
 pub use cfa::*;
@@ -65,53 +67,14 @@ impl RawDecoder for PureRustRawDecoder {
             DecodeError::Io(format!("failed to decode RAW file {}: {e}", path.display()))
         })?;
 
-        let raw_samples = match &raw_image.data {
-            rawler::RawImageData::Integer(samples) => samples.as_slice(),
-            rawler::RawImageData::Float(_) => {
-                return Err(DecodeError::UnsupportedFormat(
-                    "floating point raw image format not yet supported".to_string(),
-                ));
-            }
-        };
-
         let cfa_pattern = resolve_cfa_pattern_from_rawler(&raw_image.camera.cfa);
-
-        // Crop optical black / sensor margins preserving CFA pattern phase
-        let (width, height, cropped_samples_storage) =
-            if let Some(crop) = raw_image.crop_area.or(raw_image.active_area) {
-                let (crop_x, crop_y, crop_w, crop_h) = align_crop_to_cfa_phase(
-                    &cfa_pattern,
-                    crop.x(),
-                    crop.y(),
-                    crop.width(),
-                    crop.height(),
-                    raw_image.width,
-                    raw_image.height,
-                );
-                if crop_x + crop_w <= raw_image.width
-                    && crop_y + crop_h <= raw_image.height
-                    && crop_w > 0
-                    && crop_h > 0
-                {
-                    let mut cropped = Vec::with_capacity(crop_w * crop_h);
-                    for row in crop_y..(crop_y + crop_h) {
-                        let start = row * raw_image.width + crop_x;
-                        let end = start + crop_w;
-                        cropped.extend_from_slice(&raw_samples[start..end]);
-                    }
-                    (crop_w, crop_h, Some(cropped))
-                } else {
-                    (raw_image.width, raw_image.height, None)
-                }
-            } else {
-                (raw_image.width, raw_image.height, None)
-            };
-        let raw_samples = cropped_samples_storage.as_deref().unwrap_or(raw_samples);
+        let (width, height, raw_samples) =
+            sensor::extract_cropped_samples(&raw_image, &cfa_pattern)?;
 
         let black_levels = raw_image.blacklevel.as_bayer_array();
         let white_levels = raw_image.whitelevel.as_bayer_array();
 
-        let mut dummy_meta = PhotoMetadata {
+        let mut metadata = PhotoMetadata {
             camera_make: raw_image.clean_make.clone(),
             camera_model: raw_image.clean_model.clone(),
             lens_model: None,
@@ -136,46 +99,21 @@ impl RawDecoder for PureRustRawDecoder {
             keywords: Vec::new(),
         };
 
-        // Extract color matrix and white balance coefficients
-        let mut wb_coeffs = raw_image.wb_coeffs;
-        if !wb_coeffs[0].is_finite() || wb_coeffs[0] <= 0.0 {
-            wb_coeffs[0] = 2.0;
-        }
-        if !wb_coeffs[1].is_finite() || wb_coeffs[1] <= 0.0 {
-            wb_coeffs[1] = 1.0;
-        }
-        if !wb_coeffs[2].is_finite() || wb_coeffs[2] <= 0.0 {
-            wb_coeffs[2] = 1.5;
-        }
-
-        let color_matrix = raw_image
-            .color_matrix_find_first([
-                rawler::imgop::xyz::Illuminant::D65,
-                rawler::imgop::xyz::Illuminant::D50,
-                rawler::imgop::xyz::Illuminant::A,
-            ])
-            .and_then(|(_, mat)| {
-                if mat.len() >= 9 {
-                    let mut arr = [0.0_f32; 9];
-                    arr.copy_from_slice(&mat[0..9]);
-                    Some(arr)
-                } else {
-                    None
-                }
-            });
+        let wb_coeffs = sensor::sanitize_wb_coeffs(raw_image.wb_coeffs);
+        let color_matrix = sensor::extract_color_matrix(&raw_image);
 
         let mut exif_tags = Vec::with_capacity(64);
-        exif_tags.push(("Camera Make".to_string(), dummy_meta.camera_make.clone()));
-        exif_tags.push(("Camera Model".to_string(), dummy_meta.camera_model.clone()));
+        exif_tags.push(("Camera Make".to_owned(), metadata.camera_make.clone()));
+        exif_tags.push(("Camera Model".to_owned(), metadata.camera_model.clone()));
         exif_tags.push((
-            "Dimensions".to_string(),
+            "Dimensions".to_owned(),
             format!(
                 "{width} x {height} ({:.1} MP)",
                 (width * height) as f32 / 1_000_000.0
             ),
         ));
         exif_tags.push((
-            "As-Shot WB Multipliers".to_string(),
+            "As-Shot WB Multipliers".to_owned(),
             format!(
                 "R={:.3}, G={:.3}, B={:.3}",
                 wb_coeffs[0], wb_coeffs[1], wb_coeffs[2]
@@ -187,337 +125,21 @@ impl RawDecoder for PureRustRawDecoder {
             _ => 1,
         };
 
-        // Read complete EXIF tags using rawler's IFD parser
-        if let Ok(rawsource) = rawler::rawsource::RawSource::new(path) {
-            // Extract binary DNG opcodes (WarpRectilinear, GainMap, FixVignetteRadial)
-            let dng_opcodes = opcodes::extract_dng_opcodes(&rawsource);
-            for op in &dng_opcodes {
-                match op {
-                    opcodes::DngOpcode::WarpRectilinear {
-                        planes,
-                        coefficients,
-                        ..
-                    } => {
-                        dummy_meta.dng_warp_rectilinear = Some(rraw_core::DngWarpRectilinearData {
-                            planes: *planes,
-                            coefficients: coefficients.clone(),
-                        });
-                        exif_tags.push((
-                            "DNG Lens Opcode".to_string(),
-                            format!(
-                                "WarpRectilinear ({} planes, {} coeffs)",
-                                planes,
-                                coefficients.len()
-                            ),
-                        ));
-                    }
-                    opcodes::DngOpcode::GainMap { .. }
-                    | opcodes::DngOpcode::FixVignetteRadial { .. } => {
-                        dummy_meta.vignette_handled_by_gainmap = true;
-                    }
-                    _ => {}
-                }
-            }
-
-            if let Ok(decoder) = rawler::get_decoder(&rawsource) {
-                if let Ok(rmeta) =
-                    decoder.raw_metadata(&rawsource, &rawler::decoders::RawDecodeParams::default())
-                {
-                    let exif = &rmeta.exif;
-
-                    if let Some(eo) = exif.orientation {
-                        if (1..=8).contains(&eo) && orientation == 1 {
-                            orientation = eo;
-                        }
-                    }
-
-                    if let Some(focal) = &exif.focal_length {
-                        if focal.d != 0 {
-                            let fl = focal.n as f32 / focal.d as f32;
-                            dummy_meta.focal_length_mm = Some(fl);
-                            exif_tags.push(("Focal Length".to_string(), format!("{fl:.1} mm")));
-                        }
-                    }
-
-                    if let Some(fnum) = &exif.fnumber {
-                        if fnum.d != 0 {
-                            let fn_val = fnum.n as f32 / fnum.d as f32;
-                            dummy_meta.aperture_f_number = Some(fn_val);
-                            exif_tags.push(("Aperture".to_string(), format!("f/{fn_val:.1}")));
-                        }
-                    }
-
-                    if let Some(exp_time) = &exif.exposure_time {
-                        if exp_time.n != 0 && exp_time.d != 0 {
-                            if exp_time.n >= exp_time.d {
-                                exif_tags.push((
-                                    "Shutter Speed".to_string(),
-                                    format!("{:.1} s", exp_time.n as f32 / exp_time.d as f32),
-                                ));
-                            } else {
-                                exif_tags.push((
-                                    "Shutter Speed".to_string(),
-                                    format!("{}/{} s", exp_time.n, exp_time.d),
-                                ));
-                            }
-                        }
-                    }
-
-                    if let Some(iso) = exif.iso_speed_ratings.or(exif.iso_speed.map(|v| v as u16)) {
-                        dummy_meta.iso = Some(iso as u32);
-                        exif_tags.push(("ISO Sensitivity".to_string(), format!("{iso}")));
-                    }
-
-                    if let Some(lens) = &exif.lens_model {
-                        let clean = makernotes::sanitize_lens_name(lens);
-                        dummy_meta.lens_model = Some(clean.clone());
-                        exif_tags.push(("Lens Model".to_string(), clean));
-                    } else if let Some(lens_desc) = &rmeta.lens {
-                        let clean = makernotes::sanitize_lens_name(&lens_desc.lens_name);
-                        dummy_meta.lens_model = Some(clean.clone());
-                        exif_tags.push(("Lens Model".to_string(), clean));
-                    } else if let Some(lens_name) = makernotes::resolve_universal_lens(
-                        &rawsource,
-                        &dummy_meta.camera_make,
-                        &dummy_meta.camera_model,
-                        dummy_meta.focal_length_mm,
-                        dummy_meta.aperture_f_number,
-                    ) {
-                        dummy_meta.lens_model = Some(lens_name.clone());
-                        exif_tags.push(("Lens Model".to_string(), lens_name));
-                    }
-
-                    if let Some(make) = &exif.lens_make {
-                        exif_tags.push(("Lens Make".to_string(), make.clone()));
-                    }
-
-                    if let Some(bias) = &exif.exposure_bias {
-                        if bias.d != 0 {
-                            let b_val = bias.n as f32 / bias.d as f32;
-                            exif_tags
-                                .push(("Exposure Bias".to_string(), format!("{b_val:+.1} EV")));
-                        }
-                    }
-
-                    if let Some(dt) = &exif.date_time_original {
-                        exif_tags.push(("Date/Time Original".to_string(), dt.clone()));
-                    }
-
-                    if let Some(prog) = exif.exposure_program {
-                        let prog_str = match prog {
-                            1 => "Manual",
-                            2 => "Program AE",
-                            3 => "Aperture Priority",
-                            4 => "Shutter Priority",
-                            5 => "Creative",
-                            6 => "Action",
-                            7 => "Portrait",
-                            8 => "Landscape",
-                            _ => "Normal",
-                        };
-                        exif_tags.push(("Exposure Program".to_string(), prog_str.to_string()));
-                    }
-
-                    if let Some(meter) = exif.metering_mode {
-                        let meter_str = match meter {
-                            1 => "Average",
-                            2 => "Center-Weighted Average",
-                            3 => "Spot",
-                            4 => "Multi-Spot",
-                            5 => "Multi-Segment",
-                            6 => "Partial",
-                            _ => "Other",
-                        };
-                        exif_tags.push(("Metering Mode".to_string(), meter_str.to_string()));
-                    }
-
-                    if let Some(wb_mode) = exif.white_balance {
-                        let wb_str = if wb_mode == 0 { "Auto" } else { "Manual" };
-                        exif_tags.push(("White Balance Mode".to_string(), wb_str.to_string()));
-                    }
-
-                    if let Some(flash_val) = exif.flash {
-                        let flash_str = if flash_val & 1 == 0 {
-                            "Did not fire"
-                        } else {
-                            "Fired"
-                        };
-                        exif_tags.push(("Flash".to_string(), flash_str.to_string()));
-                    }
-
-                    if let Some(artist) = &exif.artist {
-                        if !artist.is_empty() {
-                            exif_tags.push(("Artist".to_string(), artist.clone()));
-                        }
-                    }
-
-                    if let Some(copy) = &exif.copyright {
-                        if !copy.is_empty() {
-                            exif_tags.push(("Copyright".to_string(), copy.clone()));
-                        }
-                    }
-
-                    if let Some(sn) = &exif.serial_number {
-                        if !sn.is_empty() {
-                            exif_tags.push(("Camera Serial Number".to_string(), sn.clone()));
-                        }
-                    }
-
-                    if let Some(lsn) = &exif.lens_serial_number {
-                        if !lsn.is_empty() {
-                            exif_tags.push(("Lens Serial Number".to_string(), lsn.clone()));
-                        }
-                    }
-
-                    if let Some(owner) = &exif.owner_name {
-                        if !owner.is_empty() {
-                            exif_tags.push(("Camera Owner".to_string(), owner.clone()));
-                        }
-                    }
-
-                    if let Some(cs) = exif.color_space {
-                        let cs_str = match cs {
-                            1 => "sRGB",
-                            2 => "Adobe RGB",
-                            65535 => "Uncalibrated",
-                            _ => "Custom / Other",
-                        };
-                        exif_tags.push(("Color Space".to_string(), cs_str.to_string()));
-                    }
-
-                    if let Some(em) = exif.exposure_mode {
-                        let em_str = match em {
-                            0 => "Auto",
-                            1 => "Manual",
-                            2 => "Auto Bracket",
-                            _ => "Other",
-                        };
-                        exif_tags.push(("Exposure Mode".to_string(), em_str.to_string()));
-                    }
-
-                    if let Some(sct) = exif.scene_capture_type {
-                        let sct_str = match sct {
-                            0 => "Standard",
-                            1 => "Landscape",
-                            2 => "Portrait",
-                            3 => "Night Scene",
-                            _ => "Other",
-                        };
-                        exif_tags.push(("Scene Capture Type".to_string(), sct_str.to_string()));
-                    }
-
-                    if let Some(ls) = exif.light_source {
-                        let ls_str = match ls {
-                            1 => "Daylight",
-                            2 => "Fluorescent",
-                            3 => "Tungsten (Incandescent)",
-                            4 => "Flash",
-                            9 => "Fine Weather",
-                            10 => "Cloudy Weather",
-                            11 => "Shade",
-                            17 => "Standard Light A",
-                            18 => "Standard Light B",
-                            19 => "Standard Light C",
-                            20 => "D55",
-                            21 => "D65",
-                            22 => "D75",
-                            23 => "D50",
-                            _ => "Unknown",
-                        };
-                        exif_tags.push(("Light Source".to_string(), ls_str.to_string()));
-                    }
-
-                    if let Some(cd) = &exif.create_date {
-                        if !cd.is_empty() {
-                            exif_tags.push(("Create Date".to_string(), cd.clone()));
-                        }
-                    }
-
-                    if let Some(md) = &exif.modify_date {
-                        if !md.is_empty() {
-                            exif_tags.push(("Modify Date".to_string(), md.clone()));
-                        }
-                    }
-
-                    if let Some(off) = exif
-                        .offset_time_original
-                        .as_ref()
-                        .or(exif.offset_time.as_ref())
-                    {
-                        if !off.is_empty() {
-                            exif_tags.push(("Timezone Offset".to_string(), off.clone()));
-                        }
-                    }
-
-                    if let Some(num) = exif.image_number {
-                        exif_tags.push(("Image Number".to_string(), num.to_string()));
-                    }
-
-                    if let Some(cmt) = &exif.user_comment {
-                        if !cmt.is_empty() {
-                            exif_tags.push(("User Comment".to_string(), cmt.clone()));
-                        }
-                    }
-
-                    if let Some(ma) = &exif.max_aperture_value {
-                        if ma.d != 0 {
-                            let ma_val = 2.0f32.powf(ma.n as f32 / ma.d as f32 / 2.0);
-                            exif_tags.push(("Max Aperture".to_string(), format!("f/{ma_val:.1}")));
-                        }
-                    }
-
-                    if let Some(gps) = &exif.gps {
-                        if let (Some(lat), Some(lat_ref)) =
-                            (&gps.gps_latitude, &gps.gps_latitude_ref)
-                        {
-                            if lat[0].d != 0 && lat[1].d != 0 && lat[2].d != 0 {
-                                let deg = lat[0].n as f64 / lat[0].d as f64;
-                                let min = lat[1].n as f64 / lat[1].d as f64;
-                                let sec = lat[2].n as f64 / lat[2].d as f64;
-                                exif_tags.push((
-                                    "GPS Latitude".to_string(),
-                                    format!("{deg:.0}° {min:.0}' {sec:.2}\" {lat_ref}"),
-                                ));
-                            }
-                        }
-                        if let (Some(lon), Some(lon_ref)) =
-                            (&gps.gps_longitude, &gps.gps_longitude_ref)
-                        {
-                            if lon[0].d != 0 && lon[1].d != 0 && lon[2].d != 0 {
-                                let deg = lon[0].n as f64 / lon[0].d as f64;
-                                let min = lon[1].n as f64 / lon[1].d as f64;
-                                let sec = lon[2].n as f64 / lon[2].d as f64;
-                                exif_tags.push((
-                                    "GPS Longitude".to_string(),
-                                    format!("{deg:.0}° {min:.0}' {sec:.2}\" {lon_ref}"),
-                                ));
-                            }
-                        }
-                        if let Some(alt) = &gps.gps_altitude {
-                            if alt.d != 0 {
-                                let alt_m = alt.n as f64 / alt.d as f64;
-                                exif_tags
-                                    .push(("GPS Altitude".to_string(), format!("{alt_m:.1} m")));
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        exif::extract_dng_and_exif_metadata(path, &mut metadata, &mut orientation, &mut exif_tags);
 
         exif_tags.push((
-            "CFA Pattern".to_string(),
-            format!("{:?}", dummy_meta.cfa_pattern),
+            "CFA Pattern".to_owned(),
+            format!("{:?}", metadata.cfa_pattern),
         ));
         exif_tags.push((
-            "Sensor Black Level".to_string(),
+            "Sensor Black Level".to_owned(),
             format!(
                 "{:.1}, {:.1}, {:.1}, {:.1}",
                 black_levels[0], black_levels[1], black_levels[2], black_levels[3]
             ),
         ));
         exif_tags.push((
-            "Sensor White Level".to_string(),
+            "Sensor White Level".to_owned(),
             format!(
                 "{:.1}, {:.1}, {:.1}, {:.1}",
                 white_levels[0], white_levels[1], white_levels[2], white_levels[3]
@@ -531,28 +153,16 @@ impl RawDecoder for PureRustRawDecoder {
             )));
         }
 
-        let signed_cfa = normalize_cfa_signed(raw_samples, width, height, &dummy_meta)?;
-
-        // If no noise profile was loaded, compute wavelet MAD fallback
-        let estimated_noise = estimate_noise_profile_wavelet_mad(&signed_cfa)?;
-        dummy_meta.noise_profile = estimated_noise;
-
-        let orient_str = match orientation {
-            1 => "1 - Horizontal (Normal)",
-            2 => "2 - Mirror Horizontal",
-            3 => "3 - Rotate 180°",
-            4 => "4 - Mirror Vertical",
-            5 => "5 - Mirror Horizontal & Rotate 270° CW (Portrait)",
-            6 => "6 - Rotate 90° CW (Portrait)",
-            7 => "7 - Mirror Horizontal & Rotate 90° CW (Portrait)",
-            8 => "8 - Rotate 270° CW / 90° CCW (Portrait)",
-            _ => "1 - Normal",
-        };
-        exif_tags.push(("Orientation".to_string(), orient_str.to_string()));
+        let cfa_signed = normalize_cfa_signed(raw_samples.as_ref(), width, height, &metadata)?;
+        metadata.noise_profile = estimate_noise_profile_wavelet_mad(&cfa_signed)?;
+        exif_tags.push((
+            "Orientation".to_owned(),
+            exif::orientation_label(orientation).to_owned(),
+        ));
 
         Ok(DecodedRaw {
-            metadata: dummy_meta,
-            cfa_signed: signed_cfa,
+            metadata,
+            cfa_signed,
             wb_coeffs,
             color_matrix,
             exif_tags,

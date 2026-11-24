@@ -3,8 +3,10 @@
 //! Central interactive GPU image viewport with zoom, pan, cropping, horizon, and perspective overlays.
 
 pub mod brush_overlay;
+pub mod canvas;
 pub mod crop_overlay;
 pub mod hud;
+pub mod interaction;
 pub mod perspective_tools;
 pub mod split_compare;
 
@@ -12,10 +14,10 @@ use crate::app::RrawApp;
 use crate::i18n::Key;
 use crate::state::*;
 use crate::ui::sections::geometry::ParallelLinesToolState;
+
 impl RrawApp {
     /// Renders the central viewport with interactive pan, zoom, and vector overlay tools.
     pub fn render_central_viewport(&mut self, ui: &mut egui::Ui) {
-        // 6. Central Viewport Area with Interactive Zoom & Pan (Clean & Unobstructed)
         if self.session.needs_preview_update {
             self.update_preview_textures(ui.ctx());
         }
@@ -27,520 +29,84 @@ impl RrawApp {
                 let painter = ui.painter().with_clip_rect(available_rect);
                 let mut split_divider_rect: Option<egui::Rect> = None;
 
-                if let Some(texture) = &self.session.preview_texture {
-                    let margin = 16.0;
-                    let max_w = (available_rect.width() - margin * 2.0).max(10.0);
-                    let max_h = (available_rect.height() - margin * 2.0).max(10.0);
-
-                    let img_size = texture.size_vec2();
-                    let is_cropped_view = self.session.grading.geometry.crop_enabled
-                        && !self.viewport.is_crop_editing;
-                    let crop_w = (self.session.grading.geometry.crop_right
-                        - self.session.grading.geometry.crop_left)
-                        .clamp(0.05, 1.0);
-                    let crop_h = (self.session.grading.geometry.crop_bottom
-                        - self.session.grading.geometry.crop_top)
-                        .clamp(0.05, 1.0);
-                    let effective_img_size = if is_cropped_view {
-                        egui::vec2(img_size.x * crop_w, img_size.y * crop_h)
-                    } else {
-                        img_size
-                    };
-
-                    let fit_scale =
-                        (max_w / effective_img_size.x).min(max_h / effective_img_size.y);
-                    self.viewport.last_fit_scale = fit_scale;
-
-                    let current_scale = if self.viewport.zoom_level <= 0.0 {
-                        fit_scale
-                    } else {
-                        self.viewport.zoom_level
-                    };
-
-                    let display_size = effective_img_size * current_scale;
-                    let center = available_rect.center() + self.viewport.pan_offset;
-                    let preview_rect = egui::Rect::from_center_size(center, display_size);
+                if let Some(texture) = self.session.preview_texture.clone() {
+                    let layout = canvas::compute_viewport_layout(
+                        available_rect,
+                        texture.size_vec2(),
+                        &self.session.grading.geometry,
+                        self.viewport.is_crop_editing,
+                        self.viewport.zoom_level,
+                        self.viewport.pan_offset,
+                    );
+                    self.viewport.last_fit_scale = layout.fit_scale;
 
                     let resp = ui.allocate_rect(available_rect, egui::Sense::click_and_drag());
-                    let is_brush_active =
-                        self.session
-                            .grading
-                            .active_brush_mask_idx
-                            .is_some_and(|idx| {
-                                self.session.grading.local_masks.get(idx).is_some_and(|m| {
-                                    matches!(m.kind, LocalMaskKind::FreehandBrush { .. })
-                                        && m.enabled
-                                })
-                            });
+                    let is_brush_active = self.is_freehand_brush_active();
                     let is_tool_active = self.viewport.horizon_tool_active
                         || self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive
                         || is_brush_active;
 
                     if is_brush_active {
-                        if ui.input(|i| i.key_pressed(egui::Key::OpenBracket)) {
-                            if let Some(mask_idx) = self.session.grading.active_brush_mask_idx {
-                                if let Some(mask) =
-                                    self.session.grading.local_masks.get_mut(mask_idx)
-                                {
-                                    if let LocalMaskKind::FreehandBrush { brush_radius, .. } =
-                                        &mut mask.kind
-                                    {
-                                        let step = if *brush_radius > 0.05 {
-                                            0.01
-                                        } else if *brush_radius > 0.01 {
-                                            0.002
-                                        } else {
-                                            0.001
-                                        };
-                                        *brush_radius = (*brush_radius - step).max(0.001);
-                                        ui.ctx().request_repaint();
-                                    }
-                                }
-                            }
-                        }
-                        if ui.input(|i| i.key_pressed(egui::Key::CloseBracket)) {
-                            if let Some(mask_idx) = self.session.grading.active_brush_mask_idx {
-                                if let Some(mask) =
-                                    self.session.grading.local_masks.get_mut(mask_idx)
-                                {
-                                    if let LocalMaskKind::FreehandBrush { brush_radius, .. } =
-                                        &mut mask.kind
-                                    {
-                                        let step = if *brush_radius >= 0.05 {
-                                            0.01
-                                        } else if *brush_radius >= 0.01 {
-                                            0.002
-                                        } else {
-                                            0.001
-                                        };
-                                        *brush_radius = (*brush_radius + step).min(0.5);
-                                        ui.ctx().request_repaint();
-                                    }
-                                }
-                            }
-                        }
+                        interaction::handle_brush_radius_shortcuts(ui, &mut self.session.grading);
                     }
 
-                    let is_holding_space = ui.input(|i| i.key_down(egui::Key::Space));
-                    let is_middle_drag =
-                        ui.input(|i| i.pointer.button_down(egui::PointerButton::Middle));
-                    let is_panning_override =
-                        (is_holding_space || is_middle_drag) && self.viewport.zoom_level > 0.0;
-
-                    // Clamping pan offset to ensure image never moves out of viewport
-                    if self.viewport.zoom_level <= 0.0 {
-                        self.viewport.pan_offset = egui::Vec2::ZERO;
-                    } else {
-                        let max_pan_x = ((display_size.x - available_rect.width() + margin * 2.0)
-                            * 0.5)
-                            .max(0.0);
-                        let max_pan_y = ((display_size.y - available_rect.height() + margin * 2.0)
-                            * 0.5)
-                            .max(0.0);
-                        self.viewport.pan_offset.x =
-                            self.viewport.pan_offset.x.clamp(-max_pan_x, max_pan_x);
-                        self.viewport.pan_offset.y =
-                            self.viewport.pan_offset.y.clamp(-max_pan_y, max_pan_y);
-                    }
-
-                    if resp.dragged()
-                        && (!is_tool_active || is_panning_override)
-                        && self.viewport.crop_drag_handle == CropDragHandle::None
-                        && self.viewport.zoom_level > 0.0
-                    {
-                        self.viewport.pan_offset += resp.drag_delta();
-                        let max_pan_x = ((display_size.x - available_rect.width() + margin * 2.0)
-                            * 0.5)
-                            .max(0.0);
-                        let max_pan_y = ((display_size.y - available_rect.height() + margin * 2.0)
-                            * 0.5)
-                            .max(0.0);
-                        self.viewport.pan_offset.x =
-                            self.viewport.pan_offset.x.clamp(-max_pan_x, max_pan_x);
-                        self.viewport.pan_offset.y =
-                            self.viewport.pan_offset.y.clamp(-max_pan_y, max_pan_y);
-                    }
-
-                    if resp.double_clicked() && !self.viewport.is_crop_editing && !is_tool_active {
-                        if self.viewport.zoom_level <= 0.0 {
-                            self.viewport.zoom_level = 1.0;
-                            self.viewport.pan_offset = egui::Vec2::ZERO;
-                        } else {
-                            self.viewport.zoom_level = 0.0;
-                            self.viewport.pan_offset = egui::Vec2::ZERO;
-                        }
-                    }
-
-                    let scroll = ui.input(|i| i.smooth_scroll_delta.y);
-                    if scroll.abs() > 0.0
-                        && resp.hovered()
-                        && (!is_tool_active || is_brush_active)
-                        && !self.viewport.is_crop_editing
-                    {
-                        let zoom_factor = (scroll * 0.003).exp();
-                        let min_scale = fit_scale;
-                        let max_scale = (fit_scale * 20.0).max(10.0);
-                        let new_scale = (current_scale * zoom_factor).clamp(min_scale, max_scale);
-
-                        if (new_scale - fit_scale).abs() / fit_scale < 0.015
-                            || new_scale <= fit_scale
-                        {
-                            self.viewport.zoom_level = 0.0;
-                            self.viewport.pan_offset = egui::Vec2::ZERO;
-                        } else {
-                            if let Some(mouse_pos) = resp.hover_pos() {
-                                let old_offset = mouse_pos - center;
-                                let scale_change = new_scale / current_scale;
-                                self.viewport.pan_offset -= old_offset * (scale_change - 1.0);
-                            }
-                            self.viewport.zoom_level = new_scale;
-                        }
-                    }
-
-                    // Draw image with background frame (paper-white pass-partout frame when Soft Proofing paper simulation is active)
-                    if self.session.grading.soft_proof.enabled
-                        && self.session.grading.soft_proof.simulate_paper_and_ink
-                    {
-                        let paper_col = match self.session.grading.soft_proof.profile {
-                            rraw_color::SoftProofProfile::FineArtMattePaper => {
-                                egui::Color32::from_rgb(244, 240, 230)
-                            }
-                            rraw_color::SoftProofProfile::GlossyBarytaPaper => {
-                                egui::Color32::from_rgb(249, 247, 243)
-                            }
-                            _ => egui::Color32::from_rgb(248, 248, 246),
-                        };
-                        painter.rect_filled(preview_rect.expand(10.0), 3.0, paper_col);
-                    } else {
-                        painter.rect_filled(
-                            preview_rect.expand(2.0),
-                            4.0,
-                            egui::Color32::from_rgb(10, 10, 12),
-                        );
-                    }
-
-                    let uv = if is_cropped_view {
-                        egui::Rect::from_min_max(
-                            egui::pos2(
-                                self.session.grading.geometry.crop_left,
-                                self.session.grading.geometry.crop_top,
-                            ),
-                            egui::pos2(
-                                self.session.grading.geometry.crop_right,
-                                self.session.grading.geometry.crop_bottom,
-                            ),
-                        )
-                    } else {
-                        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
-                    };
-
-                    let is_holding_right_click = ui.input(|i| {
-                        i.pointer.button_down(egui::PointerButton::Secondary)
-                            && i.pointer
-                                .interact_pos()
-                                .is_some_and(|p| available_rect.contains(p))
-                    });
-
-                    let is_holding_shortcut_key = !ui.ctx().egui_wants_keyboard_input()
-                        && ui.input(|i| {
-                            i.key_down(egui::Key::P)
-                                || i.key_down(egui::Key::Backslash)
-                                || (i.key_down(egui::Key::D)
-                                    && !i.modifiers.command
-                                    && !i.modifiers.ctrl)
-                        });
-
-                    if ui.input(|i| i.key_pressed(egui::Key::O)) {
-                        if self.session.grading.show_local_mask_overlay.is_some() {
-                            self.session.grading.show_local_mask_overlay = None;
-                            self.session.needs_preview_update = true;
-                            ui.ctx().request_repaint();
-                        } else if !self.session.grading.local_masks.is_empty() {
-                            self.session.grading.show_local_mask_overlay = Some(0);
-                            self.session.needs_preview_update = true;
-                            ui.ctx().request_repaint();
-                        }
-                    }
-
-                    let is_holding_left_fit = !self.viewport.split_compare
-                        && !self.export.is_any_dialog_open()
-                        && !ui.ctx().egui_wants_pointer_input()
-                        && ui.input(|i| {
-                            i.pointer.button_down(egui::PointerButton::Primary)
-                                && i.pointer
-                                    .interact_pos()
-                                    .is_some_and(|p| preview_rect.contains(p))
-                        })
-                        && !is_tool_active
-                        && self.viewport.crop_drag_handle == CropDragHandle::None
-                        && self.viewport.zoom_level <= 0.0;
-
-                    let show_original = self.session.is_comparing_original
-                        || is_holding_left_fit
-                        || is_holding_right_click
-                        || is_holding_shortcut_key;
-
-                    let active_texture = if show_original {
-                        self.session.original_texture.as_ref().unwrap_or(texture)
-                    } else {
-                        texture
-                    };
-
-                    match (
-                        &self.session.original_texture,
-                        self.viewport.split_compare && !show_original,
-                    ) {
-                        (Some(orig), true) => {
-                            let (before, after) = crate::view_tools::split_comparison(
-                                preview_rect,
-                                uv,
-                                self.viewport.split_position,
-                            );
-                            if before.screen.width() >= 1.0 {
-                                painter.image(
-                                    orig.id(),
-                                    before.screen,
-                                    before.uv,
-                                    egui::Color32::WHITE,
-                                );
-                            }
-                            if after.screen.width() >= 1.0 {
-                                painter.image(
-                                    texture.id(),
-                                    after.screen,
-                                    after.uv,
-                                    egui::Color32::WHITE,
-                                );
-                            }
-                        }
-                        _ => {
-                            painter.image(
-                                active_texture.id(),
-                                preview_rect,
-                                uv,
-                                egui::Color32::WHITE,
-                            );
-                        }
-                    }
-                    painter.rect_stroke(
-                        preview_rect,
-                        0.0,
-                        egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 65, 75)),
-                        egui::StrokeKind::Outside,
+                    let is_panning_override = interaction::handle_pan_and_zoom(
+                        ui,
+                        &resp,
+                        available_rect,
+                        &layout,
+                        &mut self.viewport,
+                        is_tool_active,
+                        is_brush_active,
                     );
 
-                    let cur_lang = self.lang();
+                    self.handle_mask_overlay_shortcut(ui);
 
-                    // Live Original HUD Badge
-                    if show_original {
-                        hud::render_original_badge(
-                            &painter,
-                            available_rect,
-                            self.t(Key::ViewportOriginalBadge),
-                        );
-                    }
+                    let show_original = interaction::resolve_show_original(
+                        ui,
+                        available_rect,
+                        layout.preview_rect,
+                        &self.viewport,
+                        self.session.is_comparing_original,
+                        self.export.is_any_dialog_open(),
+                        is_tool_active,
+                    );
 
-                    // Live Soft Proofing HUD Badge
-                    if self.session.grading.soft_proof.enabled
-                        || self.session.grading.soft_proof.show_gamut_warning
-                    {
-                        hud::render_soft_proofing_hud(
-                            &painter,
-                            available_rect,
-                            &self.session.grading.soft_proof,
-                            self.viewport.histogram.out_of_gamut_count,
-                            cur_lang,
-                        );
-                    }
+                    let split_pos = self
+                        .viewport
+                        .split_compare
+                        .then_some(self.viewport.split_position);
+                    canvas::paint_canvas_image(
+                        &painter,
+                        &layout,
+                        &self.session.grading.soft_proof,
+                        &texture,
+                        self.session.original_texture.as_ref(),
+                        show_original,
+                        split_pos,
+                    );
 
-                    // Active Local Mask Overlay HUD Badge
-                    if let Some(mask_idx) = self.session.grading.show_local_mask_overlay {
-                        let default_mask_name =
-                            crate::i18n::tc(cur_lang, "Viewport.DefaultMaskName");
-                        let mask_name = self
-                            .session
-                            .grading
-                            .local_masks
-                            .get(mask_idx)
-                            .map_or(default_mask_name, |m| m.name.as_str());
-                        hud::render_local_mask_hud(&painter, available_rect, mask_name, cur_lang);
-                    }
-
+                    self.render_viewport_huds(&painter, available_rect, show_original);
                     let brush_ctx = brush_overlay::BrushViewportContext {
                         available_rect,
-                        preview_rect,
+                        preview_rect: layout.preview_rect,
                         is_panning_override,
-                        is_cropped_view,
+                        is_cropped_view: layout.is_cropped_view,
                     };
+                    self.handle_viewport_overlays(ui, &resp, &painter, &brush_ctx, is_brush_active);
 
-                    let pre_viewport_grading = self.session.grading.clone();
-                    let pointer_down = ui.input(|i| i.pointer.any_down());
-
-                    // Interactive freehand brush painting / erasing
-                    if is_brush_active {
-                        let (needs_upd, save_sidecar) = brush_overlay::handle_brush_painting(
-                            ui,
-                            &resp,
-                            &brush_ctx,
-                            &self.session.grading.geometry,
-                            &mut self.session.grading.local_masks,
-                            self.session.grading.active_brush_mask_idx,
-                        );
-                        if needs_upd {
-                            self.session.needs_preview_update = true;
-                            ui.ctx().request_repaint();
-                        }
-                        if save_sidecar {
-                            self.session.sidecar_dirty = true;
-                        }
-
-                        // Active Brush HUD Badge
-                        if let Some(mask_idx) = self.session.grading.active_brush_mask_idx {
-                            if let Some(mask) = self.session.grading.local_masks.get(mask_idx) {
-                                let has_mask_overlay =
-                                    self.session.grading.show_local_mask_overlay.is_some();
-                                hud::render_brush_hud(
-                                    &painter,
-                                    available_rect,
-                                    mask,
-                                    has_mask_overlay,
-                                    self.viewport.zoom_level,
-                                    cur_lang,
-                                );
-                            }
-                        }
-                    }
-
-                    // Interactive mouse cropping
-                    if self.session.grading.geometry.crop_enabled && self.viewport.is_crop_editing {
-                        let mut crop_state = crop_overlay::CropToolState {
-                            geometry: &mut self.session.grading.geometry,
-                            is_crop_editing: &mut self.viewport.is_crop_editing,
-                            crop_drag_handle: &mut self.viewport.crop_drag_handle,
-                        };
-                        let crop_out = crop_overlay::handle_crop_overlay(
-                            ui,
-                            &resp,
-                            &painter,
-                            available_rect,
-                            preview_rect,
-                            &mut crop_state,
-                            cur_lang,
-                        );
-                        if crop_out.needs_preview_update {
-                            self.session.needs_preview_update = true;
-                        }
-                        if crop_out.save_sidecar {
-                            self.session.sidecar_dirty = true;
-                        }
-                        if !self.viewport.is_crop_editing {
-                            self.activate_canvas_tool(
-                                crate::controllers::viewport::ActiveCanvasTool::None,
-                            );
-                        }
-                    }
-
-                    // 2-parallel-lines perspective correction tool interaction
-                    if self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive {
-                        let mut tool_state = ParallelLinesToolState {
-                            phase: &mut self.viewport.parallel_tool_phase,
-                            line1: &mut self.viewport.parallel_line1,
-                            line2: &mut self.viewport.parallel_line2,
-                            drag_start: &mut self.viewport.parallel_drag_start,
-                            status_message: &mut self.status_message,
-                        };
-                        let p_out = perspective_tools::handle_parallel_lines_tool(
-                            ui,
-                            &resp,
-                            &painter,
-                            available_rect,
-                            &mut tool_state,
-                            &mut self.session.grading.geometry,
-                            cur_lang,
-                        );
-                        if p_out.mark_custom_preset {
-                            self.session.grading.preset = GradingPreset::Custom;
-                            self.session.current_preset = GradingPreset::Custom;
-                        }
-                        if p_out.needs_preview_update {
-                            self.session.needs_preview_update = true;
-                        }
-                        if p_out.save_sidecar {
-                            self.session.sidecar_dirty = true;
-                        }
-                        if self.viewport.parallel_tool_phase == ParallelToolPhase::Inactive {
-                            self.activate_canvas_tool(
-                                crate::controllers::viewport::ActiveCanvasTool::None,
-                            );
-                        }
-                    }
-
-                    // Leveling horizon line interaction
-                    if self.viewport.horizon_tool_active {
-                        let h_out = perspective_tools::handle_horizon_tool(
-                            ui,
-                            &resp,
-                            &painter,
-                            &mut self.viewport.horizon_tool_active,
-                            &mut self.viewport.horizon_start_point,
-                            &mut self.session.grading.geometry,
-                        );
-                        if h_out.mark_custom_preset {
-                            self.session.grading.preset = GradingPreset::Custom;
-                            self.session.current_preset = GradingPreset::Custom;
-                        }
-                        if h_out.needs_preview_update {
-                            self.session.needs_preview_update = true;
-                        }
-                        if h_out.save_sidecar {
-                            self.session.sidecar_dirty = true;
-                        }
-                        if !self.viewport.horizon_tool_active {
-                            self.activate_canvas_tool(
-                                crate::controllers::viewport::ActiveCanvasTool::None,
-                            );
-                        }
-                    }
-
-                    if self.session.grading != pre_viewport_grading {
-                        self.notify_grading_edited(pre_viewport_grading, pointer_down);
-                        ui.ctx().request_repaint();
-                    }
-
-                    // Brush cursor ring indicator preview
-                    if is_brush_active {
-                        brush_overlay::render_brush_cursor_ring(
-                            ui,
-                            &resp,
-                            &painter,
-                            &brush_ctx,
-                            &self.session.grading.local_masks,
-                            self.session.grading.active_brush_mask_idx,
-                        );
-                    }
                     if self.viewport.split_compare
                         && !show_original
                         && self.session.original_texture.is_some()
                     {
-                        split_divider_rect = Some(preview_rect);
+                        split_divider_rect = Some(layout.preview_rect);
                     }
-                } else if self.workers.is_decoding {
-                    let msg = crate::i18n::tc(self.lang(), "Viewport.DecodingStatus");
-                    painter.text(
-                        available_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        msg,
-                        egui::FontId::proportional(18.0),
-                        egui::Color32::from_rgb(100, 180, 255),
-                    );
                 } else {
-                    let msg = crate::i18n::tc(self.lang(), "Viewport.EmptyStatus");
-                    painter.text(
-                        available_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        msg,
-                        egui::FontId::proportional(16.0),
-                        egui::Color32::from_rgb(140, 145, 155),
+                    canvas::paint_status_placeholder(
+                        &painter,
+                        available_rect,
+                        self.workers.is_decoding,
+                        self.lang(),
                     );
                 }
 
@@ -551,6 +117,211 @@ impl RrawApp {
                     self.set_current_photo_rating(rating);
                 }
             });
+    }
+
+    fn is_freehand_brush_active(&self) -> bool {
+        self.session
+            .grading
+            .active_brush_mask_idx
+            .is_some_and(|idx| {
+                self.session.grading.local_masks.get(idx).is_some_and(|m| {
+                    matches!(m.kind, LocalMaskKind::FreehandBrush { .. }) && m.enabled
+                })
+            })
+    }
+
+    fn handle_mask_overlay_shortcut(&mut self, ui: &egui::Ui) {
+        if ui.input(|i| i.key_pressed(egui::Key::O)) {
+            if self.session.grading.show_local_mask_overlay.is_some() {
+                self.session.grading.show_local_mask_overlay = None;
+                self.session.needs_preview_update = true;
+                ui.ctx().request_repaint();
+            } else if !self.session.grading.local_masks.is_empty() {
+                self.session.grading.show_local_mask_overlay = Some(0);
+                self.session.needs_preview_update = true;
+                ui.ctx().request_repaint();
+            }
+        }
+    }
+
+    fn render_viewport_huds(
+        &self,
+        painter: &egui::Painter,
+        available_rect: egui::Rect,
+        show_original: bool,
+    ) {
+        let cur_lang = self.lang();
+        if show_original {
+            hud::render_original_badge(painter, available_rect, self.t(Key::ViewportOriginalBadge));
+        }
+
+        if self.session.grading.soft_proof.enabled
+            || self.session.grading.soft_proof.show_gamut_warning
+        {
+            hud::render_soft_proofing_hud(
+                painter,
+                available_rect,
+                &self.session.grading.soft_proof,
+                self.viewport.histogram.out_of_gamut_count,
+                cur_lang,
+            );
+        }
+
+        if let Some(mask_idx) = self.session.grading.show_local_mask_overlay {
+            let default_mask_name = crate::i18n::tc(cur_lang, "Viewport.DefaultMaskName");
+            let mask_name = self
+                .session
+                .grading
+                .local_masks
+                .get(mask_idx)
+                .map_or(default_mask_name, |m| m.name.as_str());
+            hud::render_local_mask_hud(painter, available_rect, mask_name, cur_lang);
+        }
+    }
+
+    fn handle_viewport_overlays(
+        &mut self,
+        ui: &mut egui::Ui,
+        resp: &egui::Response,
+        painter: &egui::Painter,
+        brush_ctx: &brush_overlay::BrushViewportContext,
+        is_brush_active: bool,
+    ) {
+        let cur_lang = self.lang();
+        let available_rect = brush_ctx.available_rect;
+        let preview_rect = brush_ctx.preview_rect;
+
+        let pre_viewport_grading = self.session.grading.clone();
+        let pointer_down = ui.input(|i| i.pointer.any_down());
+
+        if is_brush_active {
+            let (needs_upd, save_sidecar) = brush_overlay::handle_brush_painting(
+                ui,
+                resp,
+                brush_ctx,
+                &self.session.grading.geometry,
+                &mut self.session.grading.local_masks,
+                self.session.grading.active_brush_mask_idx,
+            );
+            if needs_upd {
+                self.session.needs_preview_update = true;
+                ui.ctx().request_repaint();
+            }
+            if save_sidecar {
+                self.session.sidecar_dirty = true;
+            }
+            if let Some(mask_idx) = self.session.grading.active_brush_mask_idx {
+                if let Some(mask) = self.session.grading.local_masks.get(mask_idx) {
+                    let has_mask_overlay = self.session.grading.show_local_mask_overlay.is_some();
+                    hud::render_brush_hud(
+                        painter,
+                        available_rect,
+                        mask,
+                        has_mask_overlay,
+                        self.viewport.zoom_level,
+                        cur_lang,
+                    );
+                }
+            }
+        }
+
+        if self.session.grading.geometry.crop_enabled && self.viewport.is_crop_editing {
+            let mut crop_state = crop_overlay::CropToolState {
+                geometry: &mut self.session.grading.geometry,
+                is_crop_editing: &mut self.viewport.is_crop_editing,
+                crop_drag_handle: &mut self.viewport.crop_drag_handle,
+            };
+            let crop_out = crop_overlay::handle_crop_overlay(
+                ui,
+                resp,
+                painter,
+                available_rect,
+                preview_rect,
+                &mut crop_state,
+                cur_lang,
+            );
+            if crop_out.needs_preview_update {
+                self.session.needs_preview_update = true;
+            }
+            if crop_out.save_sidecar {
+                self.session.sidecar_dirty = true;
+            }
+            if !self.viewport.is_crop_editing {
+                self.activate_canvas_tool(crate::controllers::viewport::ActiveCanvasTool::None);
+            }
+        }
+
+        if self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive {
+            let mut tool_state = ParallelLinesToolState {
+                phase: &mut self.viewport.parallel_tool_phase,
+                line1: &mut self.viewport.parallel_line1,
+                line2: &mut self.viewport.parallel_line2,
+                drag_start: &mut self.viewport.parallel_drag_start,
+                status_message: &mut self.status_message,
+            };
+            let p_out = perspective_tools::handle_parallel_lines_tool(
+                ui,
+                resp,
+                painter,
+                available_rect,
+                &mut tool_state,
+                &mut self.session.grading.geometry,
+                cur_lang,
+            );
+            if p_out.mark_custom_preset {
+                self.session.grading.preset = GradingPreset::Custom;
+                self.session.current_preset = GradingPreset::Custom;
+            }
+            if p_out.needs_preview_update {
+                self.session.needs_preview_update = true;
+            }
+            if p_out.save_sidecar {
+                self.session.sidecar_dirty = true;
+            }
+            if self.viewport.parallel_tool_phase == ParallelToolPhase::Inactive {
+                self.activate_canvas_tool(crate::controllers::viewport::ActiveCanvasTool::None);
+            }
+        }
+
+        if self.viewport.horizon_tool_active {
+            let h_out = perspective_tools::handle_horizon_tool(
+                ui,
+                resp,
+                painter,
+                &mut self.viewport.horizon_tool_active,
+                &mut self.viewport.horizon_start_point,
+                &mut self.session.grading.geometry,
+            );
+            if h_out.mark_custom_preset {
+                self.session.grading.preset = GradingPreset::Custom;
+                self.session.current_preset = GradingPreset::Custom;
+            }
+            if h_out.needs_preview_update {
+                self.session.needs_preview_update = true;
+            }
+            if h_out.save_sidecar {
+                self.session.sidecar_dirty = true;
+            }
+            if !self.viewport.horizon_tool_active {
+                self.activate_canvas_tool(crate::controllers::viewport::ActiveCanvasTool::None);
+            }
+        }
+
+        if self.session.grading != pre_viewport_grading {
+            self.notify_grading_edited(pre_viewport_grading, pointer_down);
+            ui.ctx().request_repaint();
+        }
+
+        if is_brush_active {
+            brush_overlay::render_brush_cursor_ring(
+                ui,
+                resp,
+                painter,
+                brush_ctx,
+                &self.session.grading.local_masks,
+                self.session.grading.active_brush_mask_idx,
+            );
+        }
     }
 
     /// Paints the draggable Before/After divider and updates `split_position` while dragging.
