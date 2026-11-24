@@ -91,7 +91,7 @@ pub fn render(ui: &mut Ui, ctx: &mut MaskUiContext<'_>) -> SectionOutput {
             .fill(Color32::from_rgb(30, 34, 40))
             .inner_margin(6.0)
             .show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
+                ui.horizontal(|ui| {
                     let icon = match &mask.kind {
                         LocalMaskKind::LinearGradient { .. } => "📏",
                         LocalMaskKind::RadialGradient { .. } => "⭕",
@@ -110,6 +110,18 @@ pub fn render(ui: &mut Ui, ctx: &mut MaskUiContext<'_>) -> SectionOutput {
                         changed = true;
                     }
 
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .small_button("✖")
+                            .on_hover_text(t(Key::InspectorDeleteMaskTooltip))
+                            .clicked()
+                        {
+                            local_mask_to_remove = Some(idx);
+                        }
+                    });
+                });
+
+                ui.horizontal_wrapped(|ui| {
                     if mask.enabled && matches!(mask.kind, LocalMaskKind::FreehandBrush { .. }) {
                         let is_painting = active_brush_idx == Some(idx);
                         if ui
@@ -138,16 +150,6 @@ pub fn render(ui: &mut Ui, ctx: &mut MaskUiContext<'_>) -> SectionOutput {
                     {
                         changed = true;
                     }
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .small_button("✖")
-                            .on_hover_text(t(Key::InspectorDeleteMaskTooltip))
-                            .clicked()
-                        {
-                            local_mask_to_remove = Some(idx);
-                        }
-                    });
                 });
 
                 if mask.enabled {
@@ -386,19 +388,15 @@ pub fn render(ui: &mut Ui, ctx: &mut MaskUiContext<'_>) -> SectionOutput {
     *active_brush_mask_idx = active_brush_idx;
 
     ui.separator();
-    ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(t(Key::InspectorAiMasksTitle)).strong());
-        let caps = rraw_coreml::CoreMlHardwareCapabilities::detect();
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if caps.has_ane {
-                ui.label(
-                    egui::RichText::new(t(Key::MaskAiHardwareAne))
-                        .small()
-                        .color(Color32::from_rgb(90, 220, 140)),
-                );
-            }
-        });
-    });
+    ui.label(egui::RichText::new(t(Key::InspectorAiMasksTitle)).strong());
+    let caps = rraw_coreml::CoreMlHardwareCapabilities::detect();
+    if caps.has_ane {
+        ui.label(
+            egui::RichText::new(t(Key::MaskAiHardwareAne))
+                .small()
+                .color(Color32::from_rgb(90, 220, 140)),
+        );
+    }
     ui.label(
         egui::RichText::new(t(Key::InspectorAiMasksSubtitle))
             .small()
@@ -464,9 +462,21 @@ pub fn render(ui: &mut Ui, ctx: &mut MaskUiContext<'_>) -> SectionOutput {
                         changed = true;
                     }
 
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .small_button("✖")
+                            .on_hover_text(t(Key::InspectorAiDeleteTooltip))
+                            .clicked()
+                        {
+                            category_to_remove = Some(layer.category);
+                        }
+                    });
+                });
+
+                ui.horizontal_wrapped(|ui| {
                     let is_overlay = active_overlay == Some(layer.category);
                     if ui
-                        .selectable_label(is_overlay, "👁 Masque")
+                        .selectable_label(is_overlay, "👁")
                         .on_hover_text(t(Key::InspectorAiOverlayTooltip))
                         .clicked()
                     {
@@ -485,16 +495,6 @@ pub fn render(ui: &mut Ui, ctx: &mut MaskUiContext<'_>) -> SectionOutput {
                     {
                         changed = true;
                     }
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .small_button("✖")
-                            .on_hover_text(t(Key::InspectorAiDeleteTooltip))
-                            .clicked()
-                        {
-                            category_to_remove = Some(layer.category);
-                        }
-                    });
                 });
 
                 if layer.enabled {
