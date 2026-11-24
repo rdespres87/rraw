@@ -195,7 +195,11 @@ impl RrawApp {
         }
 
         let has_clipboard = self.library.recipe_clipboard.is_some();
-        let clipboard_summary = self.library.recipe_clipboard.as_ref().map(|c| c.summary());
+        let clipboard_summary = self
+            .library
+            .recipe_clipboard
+            .as_ref()
+            .map(|c| c.summary(lang));
         let mut actions = FilmstripFrameActions::default();
 
         let strip_ctx = FilmstripStripContext {

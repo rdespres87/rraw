@@ -219,12 +219,18 @@ fn test_tool_family_categorization_and_palette_grouping() {
 
     // Verify ToolFamily labels and constants
     assert_eq!(ToolFamily::ALL.len(), 6);
-    assert_eq!(ToolFamily::Light.label(), "☀️ Lumière");
-    assert_eq!(ToolFamily::Color.label(), "🎨 Couleur");
-    assert_eq!(ToolFamily::Detail.label(), "🔍 Détail");
-    assert_eq!(ToolFamily::Geometry.label(), "📐 Géométrie");
-    assert_eq!(ToolFamily::LocalMasks.label(), "🖌️ Masques");
-    assert_eq!(ToolFamily::All.label(), "Tous");
+    assert_eq!(ToolFamily::Light.label_lang(Language::Fr), "☀️ Lumière");
+    assert_eq!(ToolFamily::Color.label_lang(Language::Fr), "🎨 Couleur");
+    assert_eq!(ToolFamily::Detail.label_lang(Language::Fr), "🔍 Détail");
+    assert_eq!(
+        ToolFamily::Geometry.label_lang(Language::Fr),
+        "📐 Géométrie"
+    );
+    assert_eq!(
+        ToolFamily::LocalMasks.label_lang(Language::Fr),
+        "🖌️ Masques"
+    );
+    assert_eq!(ToolFamily::All.label_lang(Language::Fr), "Tous");
 }
 
 #[test]

@@ -197,7 +197,7 @@ impl RrawApp {
         }
 
         if let Some(clip) = &self.library.recipe_clipboard {
-            let clip_summary = clip.summary();
+            let clip_summary = clip.summary(self.lang());
             let paste_label = if sel_count > 0 {
                 format!(
                     "{} ({sel_count})",

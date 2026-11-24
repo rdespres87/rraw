@@ -223,7 +223,7 @@ fn test_grading_recipe_clipboard_summary_format() {
         ..Default::default()
     };
     let clipboard = GradingRecipeClipboard::from_grading(&grading);
-    let summary = clipboard.summary();
+    let summary = clipboard.summary(rraw_app::Language::En);
     assert!(summary.contains("Kodak Portra 400"));
     assert!(summary.contains("+0.65 EV"));
     assert!(summary.contains("5600K"));

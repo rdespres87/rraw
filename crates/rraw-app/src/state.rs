@@ -42,11 +42,6 @@ impl CurveChannel {
     ];
 
     #[must_use]
-    pub fn label(self) -> &'static str {
-        self.label_lang(Language::Fr)
-    }
-
-    #[must_use]
     pub fn label_lang(self, lang: Language) -> &'static str {
         match self {
             Self::CombinedRgb => Key::CurveChannelRgb.translate(lang),
@@ -113,11 +108,6 @@ impl CropAspectRatio {
         Self::Ratio5x4,
         Self::Ratio9x16,
     ];
-
-    #[must_use]
-    pub fn label(self) -> &'static str {
-        self.label_lang(Language::Fr)
-    }
 
     #[must_use]
     pub fn label_lang(self, lang: Language) -> &'static str {
@@ -241,11 +231,6 @@ pub enum ExportScaleMode {
 }
 
 impl ExportScaleMode {
-    #[must_use]
-    pub fn label(&self) -> &'static str {
-        self.label_lang(Language::Fr)
-    }
-
     /// Language-aware display label for export scale mode.
     #[must_use]
     pub fn label_lang(&self, lang: Language) -> &'static str {
@@ -283,11 +268,6 @@ impl ToolFamily {
     ];
 
     #[must_use]
-    pub fn label(self) -> &'static str {
-        self.label_lang(Language::Fr)
-    }
-
-    #[must_use]
     pub fn label_lang(self, lang: Language) -> &'static str {
         match self {
             Self::All => Key::FamilyAll.translate(lang),
@@ -298,11 +278,6 @@ impl ToolFamily {
             Self::LocalMasks => Key::FamilyLocalMasks.translate(lang),
             Self::Timelapse => Key::FamilyTimelapse.translate(lang),
         }
-    }
-
-    #[must_use]
-    pub fn short_label(self) -> &'static str {
-        self.short_label_lang(Language::Fr)
     }
 
     #[must_use]
@@ -375,11 +350,6 @@ impl DarkroomSection {
             Self::Timelapse => ToolFamily::Timelapse,
             Self::LegacyOther => ToolFamily::All,
         }
-    }
-
-    #[must_use]
-    pub fn title(self) -> &'static str {
-        self.title_lang(Language::Fr)
     }
 
     #[must_use]
@@ -781,10 +751,10 @@ impl GradingRecipeClipboard {
         grading.smart_lighting = self.smart_lighting.clone();
     }
 
-    /// Formats a concise human-readable summary of the clipboard recipe.
+    /// Formats a concise human-readable summary of the clipboard recipe in the requested language.
     #[must_use]
-    pub fn summary(&self) -> String {
-        let preset_name = self.preset.name();
+    pub fn summary(&self, lang: Language) -> String {
+        let preset_name = self.preset.name_lang(lang);
         let exp_sign = if self.tone.exposure_ev >= 0.0 {
             "+"
         } else {

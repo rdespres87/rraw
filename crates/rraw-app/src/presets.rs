@@ -109,18 +109,8 @@ impl GradingPreset {
     }
 
     #[must_use]
-    pub fn name(self) -> &'static str {
-        self.name_lang(Language::Fr)
-    }
-
-    #[must_use]
     pub fn name_lang(self, lang: Language) -> &'static str {
         crate::i18n::tc(lang, self.name_i18n_key())
-    }
-
-    #[must_use]
-    pub fn description(self) -> &'static str {
-        self.description_lang(Language::Fr)
     }
 
     #[must_use]

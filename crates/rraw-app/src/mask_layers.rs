@@ -101,12 +101,6 @@ impl SemanticMaskLayer {
                 && self.temperature_shift.abs() < 1e-3)
     }
 
-    /// Human-readable French UI label for a semantic category.
-    #[must_use]
-    pub fn category_label(category: rraw_core::SemanticMaskCategory) -> &'static str {
-        Self::category_label_lang(category, Language::Fr)
-    }
-
     /// Language-aware UI label for a semantic category.
     #[must_use]
     pub fn category_label_lang(

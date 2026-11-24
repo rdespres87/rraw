@@ -472,7 +472,7 @@ impl RrawApp {
     pub fn copy_active_recipe(&mut self) {
         if self.session.loaded_photo.is_some() {
             let clipboard = GradingRecipeClipboard::from_grading(&self.session.grading);
-            let summary = clipboard.summary();
+            let summary = clipboard.summary(self.lang());
             self.library.recipe_clipboard = Some(clipboard);
             self.status_message = format!("📋 Rendu copié dans le presse-papiers ({summary})");
         } else {
@@ -496,7 +496,7 @@ impl RrawApp {
         };
 
         let clipboard = GradingRecipeClipboard::from_grading(&grading);
-        let summary = clipboard.summary();
+        let summary = clipboard.summary(self.lang());
         self.library.recipe_clipboard = Some(clipboard);
         self.status_message = format!("📋 Rendu copié dans le presse-papiers ({summary})");
     }
