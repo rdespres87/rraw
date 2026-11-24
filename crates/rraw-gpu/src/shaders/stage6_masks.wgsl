@@ -15,9 +15,9 @@ struct GpuMaskData {
     mask_type: u32,          // 0 = Disabled, 1 = Linear, 2 = Radial, 3 = Parametric, 4 = SemanticAi
     exposure_offset_ev: f32, // EV offset
     opacity: f32,            // [0.0, 1.0]
-    _pad0: f32,
+    temperature_shift: f32,  // Local color temperature shift [-100, 100]
     param_vec0: vec4<f32>,   // Linear: [start.x, start.y, end.x, end.y], Radial: [cx, cy, rx, ry], Param: [lum_min, lum_max, lum_feather, has_lum], SemanticAi: [cat_idx, invert, feather, 0]
-    param_vec1: vec4<f32>,   // Radial: [rot_rad, 0, 0, 0], Param: [chroma_min, chroma_max, chroma_feather, has_chroma]
+    param_vec1: vec4<f32>,   // Linear: [0, invert, feather, 0], Radial: [rot_rad, invert, feather, 0], Param: [chroma_min, chroma_max, chroma_feather, has_chroma]
     param_vec2: vec4<f32>,   // Param: [hue_min, hue_max, hue_feather, has_hue]
 };
 
@@ -95,6 +95,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let y_aces = 0.2722287 * r_in + 0.6740818 * g_in + 0.0536895 * b_in;
 
     var total_ev: f32 = 0.0;
+    var total_temp: f32 = 0.0;
 
     for (var i: u32 = 0u; i < params.mask_count; i = i + 1u) {
         let mask = masks[i];
@@ -105,15 +106,23 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         var weight: f32 = 0.0;
 
         if (mask.mask_type == 1u) {
-            // Linear directional gradient
+            // Linear directional gradient with optional smoothstep feather and inversion
             let start = mask.param_vec0.xy;
             let end = mask.param_vec0.zw;
             let dir = end - start;
             let len_sq = max(dot(dir, dir), 1e-12);
             let t = clamp(dot(pos - start, dir) / len_sq, 0.0, 1.0);
-            weight = t;
+            let f = mask.param_vec1.z;
+            if (f > 0.0 && f <= 0.95) {
+                weight = t * t * (3.0 - 2.0 * t);
+            } else {
+                weight = t;
+            }
+            if (mask.param_vec1.y > 0.5) {
+                weight = clamp(1.0 - weight, 0.0, 1.0);
+            }
         } else if (mask.mask_type == 2u) {
-            // Radial elliptical gradient with rotation
+            // Radial elliptical gradient with rotation, optional smoothstep feather, and inversion
             let center = mask.param_vec0.xy;
             let radius = max(mask.param_vec0.zw, vec2<f32>(1e-6, 1e-6));
             let rot = mask.param_vec1.x;
@@ -126,8 +135,25 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let ry = (-delta.x * sin_r + delta.y * cos_r) / radius.y;
 
             let dist = sqrt(rx * rx + ry * ry);
-            let falloff = clamp(1.0 - dist, 0.0, 1.0);
-            weight = falloff;
+            let f = mask.param_vec1.z;
+            if (f > 0.0) {
+                let fc = clamp(f, 0.05, 1.0);
+                let inner = max(1.0 - fc, 0.0);
+                if (dist <= inner) {
+                    weight = 1.0;
+                } else if (dist >= 1.0) {
+                    weight = 0.0;
+                } else {
+                    let t = (dist - inner) / max(1.0 - inner, 1e-4);
+                    let s = t * t * (3.0 - 2.0 * t);
+                    weight = 1.0 - s;
+                }
+            } else {
+                weight = clamp(1.0 - dist, 0.0, 1.0);
+            }
+            if (mask.param_vec1.y > 0.5) {
+                weight = clamp(1.0 - weight, 0.0, 1.0);
+            }
         } else if (mask.mask_type == 3u) {
             // Parametric ACEScg qualifier
             var p_weight: f32 = 1.0;
@@ -152,12 +178,16 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             weight = sample_semantic_bilinear(pos, cat_idx, invert, feather);
         }
 
-        total_ev = total_ev + (weight * mask.opacity * mask.exposure_offset_ev);
+        let w_eff = weight * mask.opacity;
+        total_ev = total_ev + (w_eff * mask.exposure_offset_ev);
+        total_temp = total_temp + (w_eff * mask.temperature_shift);
     }
 
     let gain = exp2(total_ev);
+    let r_t = max(1.0 + total_temp * 0.004, 0.1);
+    let b_t = max(1.0 - total_temp * 0.004, 0.1);
 
-    rgb_out[px_idx] = max(r_in * gain, 0.0);
+    rgb_out[px_idx] = max(r_in * gain * r_t, 0.0);
     rgb_out[px_idx + 1u] = max(g_in * gain, 0.0);
-    rgb_out[px_idx + 2u] = max(b_in * gain, 0.0);
+    rgb_out[px_idx + 2u] = max(b_in * gain * b_t, 0.0);
 }

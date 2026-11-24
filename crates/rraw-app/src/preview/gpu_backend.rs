@@ -75,12 +75,6 @@ pub fn gpu_fallback_reason(
         return Some("optical defringe");
     }
 
-    if grading.masks.show_semantic_mask_overlay.is_some()
-        || grading.masks.show_local_mask_overlay.is_some()
-    {
-        return Some("mask overlay visualization");
-    }
-
     let local_masks_compatible = grading
         .masks
         .local_masks
@@ -90,27 +84,10 @@ pub fn gpu_fallback_reason(
             matches!(
                 m.kind,
                 LocalMaskKind::LinearGradient { .. } | LocalMaskKind::RadialGradient { .. }
-            ) && !m.invert
-                && m.contrast.abs() <= 1e-4
-                && m.saturation.abs() <= 1e-4
-                && m.temperature_shift.abs() <= 1e-4
+            )
         });
     if !local_masks_compatible {
-        return Some("advanced local mask");
-    }
-
-    let semantic_masks_compatible = grading
-        .masks
-        .semantic_masks
-        .iter()
-        .filter(|m| m.enabled)
-        .all(|m| {
-            m.contrast.abs() <= 1e-4
-                && m.saturation.abs() <= 1e-4
-                && m.temperature_shift.abs() <= 1e-4
-        });
-    if !semantic_masks_compatible {
-        return Some("semantic color/contrast mask");
+        return Some("freehand brush mask");
     }
 
     None
@@ -330,7 +307,7 @@ fn execute_gpu_preview_stages(
     };
     let (drt_rgb, _gpu_hist, _clip) = pipes.stage7.execute(&pipes.ctx, &stage6_rgb, &s7_params)?;
     let (color_image, hist_data) =
-        finalize_post_drt_display(&drt_rgb, preview_w, preview_h, grading);
+        finalize_post_drt_display(base, &drt_rgb, preview_w, preview_h, grading);
     t_s7.finish_and_record(&mut timing);
 
     Ok((color_image, hist_data, timing))
@@ -374,16 +351,32 @@ fn build_interleaved_semantic_rgba(sem: &rraw_ai::SemanticMaskSet) -> Option<(Ve
 }
 
 fn finalize_post_drt_display(
+    base: &BaseRgbPreview,
     drt_rgb: &[f32],
     preview_w: usize,
     preview_h: usize,
     grading: &DarkroomGradingState,
 ) -> (egui::ColorImage, HistogramData) {
-    let contrast_factor = (1.0 + (grading.tone.contrast / 100.0).clamp(-0.8, 2.0)).max(0.05);
+    let base_contrast_factor = (1.0 + (grading.tone.contrast / 100.0).clamp(-0.8, 2.0)).max(0.05);
     let base_vibrance = 0.10_f32;
     let user_vibrance = grading.tone.vibrance / 100.0;
     let user_sat = grading.tone.saturation / 100.0;
     let is_mono = grading.color.is_monochrome;
+
+    let has_post_drt_mask_adj = grading
+        .masks
+        .local_masks
+        .iter()
+        .any(|m| m.enabled && (m.contrast.abs() > 1e-4 || m.saturation.abs() > 1e-4))
+        || grading
+            .masks
+            .semantic_masks
+            .iter()
+            .any(|m| m.enabled && (m.contrast.abs() > 1e-4 || m.saturation.abs() > 1e-4));
+    let has_overlay = grading.masks.show_semantic_mask_overlay.is_some()
+        || grading.masks.show_local_mask_overlay.is_some();
+    let inv_w = 1.0 / preview_w.max(1) as f32;
+    let inv_h = 1.0 / preview_h.max(1) as f32;
 
     let has_cv = grading.effects.creative_vignette_amount.abs() > 0.1;
     let cv_amt = grading.effects.creative_vignette_amount / 100.0;
@@ -414,12 +407,34 @@ fn finalize_post_drt_display(
             let mut hl = [0_u32; 256];
             let mut sc = 0_u32;
             let mut hc = 0_u32;
+            let v_norm = ((py as f32 + 0.5) * inv_h).clamp(0.0, 1.0);
 
             for (px, (out_px, in_rgb)) in row_out
                 .iter_mut()
                 .zip(row_in.as_chunks::<3>().0)
                 .enumerate()
             {
+                let u_norm = if has_post_drt_mask_adj || has_overlay {
+                    ((px as f32 + 0.5) * inv_w).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                let (sem_contrast, sem_sat) = if has_post_drt_mask_adj {
+                    let (_, c, s, _) = crate::preview::masks::eval_all_mask_adjustments(
+                        &base.semantic_masks,
+                        &grading.masks.semantic_masks,
+                        &grading.masks.local_masks,
+                        u_norm,
+                        v_norm,
+                    );
+                    (c, s)
+                } else {
+                    (0.0, 0.0)
+                };
+
+                let contrast_factor = (base_contrast_factor
+                    * (1.0 + (sem_contrast / 100.0).clamp(-0.8, 2.0)))
+                .max(0.05);
                 let r_c = ((in_rgb[0] - 0.18) * contrast_factor + 0.18).max(0.0);
                 let g_c = ((in_rgb[1] - 0.18) * contrast_factor + 0.18).max(0.0);
                 let b_c = ((in_rgb[2] - 0.18) * contrast_factor + 0.18).max(0.0);
@@ -433,8 +448,9 @@ fn finalize_post_drt_display(
                     0.0
                 };
                 let vib_w = (1.0 - cur_sat).clamp(0.0, 1.0);
-                let eff_sat =
-                    ((1.0 + user_sat) * (1.0 + (base_vibrance + user_vibrance) * vib_w)).max(0.0);
+                let eff_sat = ((1.0 + user_sat + (sem_sat / 100.0))
+                    * (1.0 + (base_vibrance + user_vibrance) * vib_w))
+                    .max(0.0);
 
                 let mut r_s = lum_c + (r_c - lum_c) * eff_sat;
                 let mut g_s = lum_c + (g_c - lum_c) * eff_sat;
@@ -465,12 +481,47 @@ fn finalize_post_drt_display(
                 let ur = PreparedGradingFrame::to_u8_fast(r_s.max(0.0));
                 let ug = PreparedGradingFrame::to_u8_fast(g_s.max(0.0));
                 let ub = PreparedGradingFrame::to_u8_fast(b_s.max(0.0));
-                let [u8_r, u8_g, u8_b] = if is_mono {
+                let [mut u8_r, mut u8_g, mut u8_b] = if is_mono {
                     let lv = ((ur as u32 * 54 + ug as u32 * 183 + ub as u32 * 19) >> 8) as u8;
                     [lv, lv, lv]
                 } else {
                     [ur, ug, ub]
                 };
+
+                if let Some(overlay_cat) = grading.masks.show_semantic_mask_overlay {
+                    let (inv, fth) = grading
+                        .masks
+                        .semantic_masks
+                        .iter()
+                        .find(|m| m.category == overlay_cat)
+                        .map_or((false, 0.35), |m| (m.invert, m.feather));
+                    let mask_w =
+                        base.semantic_masks
+                            .sample_bilinear(overlay_cat, u_norm, v_norm, inv, fth)
+                            * 0.65;
+                    if mask_w > 1e-3 {
+                        u8_r = ((u8_r as f32) * (1.0 - mask_w) + 255.0 * mask_w).clamp(0.0, 255.0)
+                            as u8;
+                        u8_g = ((u8_g as f32) * (1.0 - mask_w) + 40.0 * mask_w).clamp(0.0, 255.0)
+                            as u8;
+                        u8_b = ((u8_b as f32) * (1.0 - mask_w) + 115.0 * mask_w).clamp(0.0, 255.0)
+                            as u8;
+                    }
+                }
+
+                if let Some(mask_idx) = grading.masks.show_local_mask_overlay {
+                    if let Some(m) = grading.masks.local_masks.get(mask_idx) {
+                        let mask_w = m.evaluate_weight(u_norm, v_norm) * 0.65;
+                        if mask_w > 1e-3 {
+                            u8_r = ((u8_r as f32) * (1.0 - mask_w) + 255.0 * mask_w)
+                                .clamp(0.0, 255.0) as u8;
+                            u8_g = ((u8_g as f32) * (1.0 - mask_w) + 40.0 * mask_w)
+                                .clamp(0.0, 255.0) as u8;
+                            u8_b = ((u8_b as f32) * (1.0 - mask_w) + 115.0 * mask_w)
+                                .clamp(0.0, 255.0) as u8;
+                        }
+                    }
+                }
 
                 hr[u8_r as usize] += 1;
                 hg[u8_g as usize] += 1;

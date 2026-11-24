@@ -17,6 +17,9 @@ fn test_linear_gradient_mask_weights() {
             end: [0.8, 0.5],
         },
         exposure_offset_ev: 1.0, // +1 EV -> 2x gain at full weight
+        temperature_shift: 0.0,
+        invert: false,
+        feather: 0.0,
         opacity: 1.0,
         enabled: true,
     };
@@ -82,6 +85,9 @@ fn test_radial_gradient_mask_weights() {
             rotation_deg: 0.0,
         },
         exposure_offset_ev: 1.0,
+        temperature_shift: 0.0,
+        invert: false,
+        feather: 0.0,
         opacity: 1.0,
         enabled: true,
     };
@@ -152,6 +158,9 @@ fn test_parametric_luminance_mask_weights() {
             hue_deg: None,
         },
         exposure_offset_ev: 1.0,
+        temperature_shift: 0.0,
+        invert: false,
+        feather: 0.0,
         opacity: 1.0,
         enabled: true,
     };
@@ -231,6 +240,9 @@ fn test_semantic_ai_mask_gpu_weights_and_invert() {
             feather: 0.25,
         },
         exposure_offset_ev: -1.0, // 0.5x gain on sky -> 0.4 * 0.5 = 0.2
+        temperature_shift: 0.0,
+        invert: false,
+        feather: 0.0,
         opacity: 1.0,
         enabled: true,
     };
@@ -243,6 +255,9 @@ fn test_semantic_ai_mask_gpu_weights_and_invert() {
             feather: 0.25,
         },
         exposure_offset_ev: 1.0, // 2.0x gain on subject -> 0.4 * 2.0 = 0.8
+        temperature_shift: 0.0,
+        invert: false,
+        feather: 0.0,
         opacity: 1.0,
         enabled: true,
     };
@@ -304,6 +319,9 @@ fn test_semantic_ai_mask_gpu_weights_and_invert() {
             feather: 0.25,
         },
         exposure_offset_ev: 1.0,
+        temperature_shift: 0.0,
+        invert: false,
+        feather: 0.0,
         opacity: 1.0,
         enabled: true,
     };

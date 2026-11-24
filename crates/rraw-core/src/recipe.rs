@@ -392,6 +392,15 @@ pub struct GeometricMask {
     pub kind: MaskKind,
     /// Exposure adjustment applied inside this mask in EV.
     pub exposure_offset_ev: f32,
+    /// Local color temperature shift applied inside this mask (`[-100.0, 100.0]`).
+    #[serde(default)]
+    pub temperature_shift: f32,
+    /// Whether to invert the geometric mask weight (`1.0 - w`).
+    #[serde(default)]
+    pub invert: bool,
+    /// Smoothstep feather in `[0.05, 1.0]`. When `0.0` (legacy default), uses linear falloff.
+    #[serde(default)]
+    pub feather: f32,
     /// Mask opacity in `[0.0, 1.0]`.
     pub opacity: f32,
     /// Whether this mask is currently active.

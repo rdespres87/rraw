@@ -640,6 +640,9 @@ impl DarkroomGradingState {
                             end: *end,
                         },
                         exposure_offset_ev: mask.exposure_ev,
+                        temperature_shift: mask.temperature_shift,
+                        invert: mask.invert,
+                        feather: mask.feather.clamp(0.05, 1.0),
                         opacity: mask.opacity,
                         enabled: mask.enabled,
                     });
@@ -657,6 +660,9 @@ impl DarkroomGradingState {
                             rotation_deg: *rotation_deg,
                         },
                         exposure_offset_ev: mask.exposure_ev,
+                        temperature_shift: mask.temperature_shift,
+                        invert: mask.invert,
+                        feather: mask.feather.clamp(0.05, 1.0),
                         opacity: mask.opacity,
                         enabled: mask.enabled,
                     });
@@ -674,6 +680,9 @@ impl DarkroomGradingState {
                                 rotation_deg: 0.0,
                             },
                             exposure_offset_ev: mask.exposure_ev,
+                            temperature_shift: mask.temperature_shift,
+                            invert: mask.invert,
+                            feather: mask.feather.clamp(0.05, 1.0),
                             opacity: (mask.opacity * dab.flow).clamp(0.0, 1.0),
                             enabled: mask.enabled,
                         });
@@ -690,6 +699,9 @@ impl DarkroomGradingState {
                     feather: layer.feather,
                 },
                 exposure_offset_ev: layer.exposure_ev,
+                temperature_shift: layer.temperature_shift,
+                invert: layer.invert,
+                feather: layer.feather,
                 opacity: layer.opacity,
                 enabled: layer.enabled,
             });

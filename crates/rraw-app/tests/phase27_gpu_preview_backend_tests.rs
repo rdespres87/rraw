@@ -108,9 +108,10 @@ fn can_use_gpu_fast_path_accepts_standard_grading_and_rejects_cpu_only_modes() {
     sharpened.denoise_sharpen.capture_sharpening_amount = 1.2;
     assert!(!can_use_gpu_fast_path(&base, &sharpened));
 
-    // EV-only linear gradient mask stays on GPU, while non-EV mask contrast falls back to CPU.
-    let mut ev_mask = grading.clone();
-    ev_mask.masks.local_masks.push(LocalMaskLayer {
+    // Local gradient masks (including invert, contrast, saturation, temperature, overlay) stay on GPU;
+    // freehand brush masks fall back to CPU.
+    let mut adv_mask = grading.clone();
+    adv_mask.masks.local_masks.push(LocalMaskLayer {
         id: "lin1".to_string(),
         name: "Grad".to_string(),
         kind: LocalMaskKind::LinearGradient {
@@ -118,21 +119,37 @@ fn can_use_gpu_fast_path_accepts_standard_grading_and_rejects_cpu_only_modes() {
             end: [0.0, 1.0],
         },
         enabled: true,
-        invert: false,
-        feather: 0.2,
-        opacity: 1.0,
+        invert: true,
+        feather: 0.35,
+        opacity: 0.9,
         exposure_ev: -0.5,
+        contrast: 25.0,
+        saturation: 18.0,
+        temperature_shift: 15.0,
+    });
+    adv_mask.masks.show_local_mask_overlay = Some(0);
+    assert!(can_use_gpu_fast_path(&base, &adv_mask));
+
+    let mut brush_mask = grading.clone();
+    brush_mask.masks.local_masks.push(LocalMaskLayer {
+        id: "brush1".to_string(),
+        name: "Brush".to_string(),
+        kind: LocalMaskKind::FreehandBrush {
+            dabs: Vec::new(),
+            brush_radius: 0.05,
+            brush_flow: 1.0,
+            erase_mode: false,
+        },
+        enabled: true,
+        invert: false,
+        feather: 0.5,
+        opacity: 1.0,
+        exposure_ev: 0.5,
         contrast: 0.0,
         saturation: 0.0,
         temperature_shift: 0.0,
     });
-    assert!(can_use_gpu_fast_path(&base, &ev_mask));
-
-    let mut contrast_mask = ev_mask.clone();
-    if let Some(m) = contrast_mask.masks.local_masks.first_mut() {
-        m.contrast = 25.0;
-    }
-    assert!(!can_use_gpu_fast_path(&base, &contrast_mask));
+    assert!(!can_use_gpu_fast_path(&base, &brush_mask));
 }
 
 #[test]
@@ -194,7 +211,50 @@ fn gpu_preview_engine_matches_cpu_within_delta_e_1_0() {
         CurvePoint { x: 1.0, y: 1.0 },
     ];
 
-    let scenarios = [DarkroomGradingState::default(), curved_grading];
+    let mut advanced_masks = DarkroomGradingState::default();
+    advanced_masks.masks.local_masks.push(LocalMaskLayer {
+        id: "rad_inv".to_string(),
+        name: "Radial".to_string(),
+        kind: LocalMaskKind::RadialGradient {
+            center: [0.5, 0.5],
+            radius: [0.35, 0.3],
+            rotation_deg: 15.0,
+        },
+        enabled: true,
+        invert: true,
+        feather: 0.4,
+        opacity: 0.85,
+        exposure_ev: -0.4,
+        contrast: 20.0,
+        saturation: 15.0,
+        temperature_shift: 12.0,
+    });
+    advanced_masks.masks.local_masks.push(LocalMaskLayer {
+        id: "lin_warm".to_string(),
+        name: "Linear".to_string(),
+        kind: LocalMaskKind::LinearGradient {
+            start: [0.0, 0.1],
+            end: [0.0, 0.9],
+        },
+        enabled: true,
+        invert: false,
+        feather: 0.5,
+        opacity: 0.7,
+        exposure_ev: 0.25,
+        contrast: -10.0,
+        saturation: -12.0,
+        temperature_shift: -15.0,
+    });
+
+    let mut overlay_masks = advanced_masks.clone();
+    overlay_masks.masks.show_local_mask_overlay = Some(0);
+
+    let scenarios = [
+        DarkroomGradingState::default(),
+        curved_grading,
+        advanced_masks,
+        overlay_masks,
+    ];
     for grading in &scenarios {
         let (gpu_img, gpu_hist, _gpu_timing, backend) =
             engine.render_preview_profiled(&base, grading, true);

@@ -40,6 +40,9 @@ fn test_canonical_json_roundtrip_is_idempotent() -> Result<(), Box<dyn std::erro
             end: [0.5, 0.4],
         },
         exposure_offset_ev: -0.75,
+        temperature_shift: 0.0,
+        invert: false,
+        feather: 0.0,
         opacity: 0.9,
         enabled: true,
     });
@@ -242,6 +245,9 @@ fn test_semantic_ai_mask_serialization_and_hash_invariance(
                 feather: 0.35,
             },
             exposure_offset_ev: 0.5,
+            temperature_shift: 0.0,
+            invert: false,
+            feather: 0.0,
             opacity: 0.85,
             enabled: true,
         });

@@ -65,7 +65,7 @@ struct GpuMaskData {
     mask_type: u32,
     exposure_offset_ev: f32,
     opacity: f32,
-    _pad0: f32,
+    temperature_shift: f32,
     param_vec0: [f32; 4],
     param_vec1: [f32; 4],
     param_vec2: [f32; 4],
@@ -77,7 +77,7 @@ impl Default for GpuMaskData {
             mask_type: 0,
             exposure_offset_ev: 0.0,
             opacity: 0.0,
-            _pad0: 0.0,
+            temperature_shift: 0.0,
             param_vec0: [0.0; 4],
             param_vec1: [0.0; 4],
             param_vec2: [0.0; 4],
@@ -230,12 +230,15 @@ impl Stage6Pipeline {
             let mut gm = GpuMaskData {
                 exposure_offset_ev: mask.exposure_offset_ev,
                 opacity: mask.opacity.clamp(0.0, 1.0),
+                temperature_shift: mask.temperature_shift,
                 ..Default::default()
             };
+            let invert_flag = if mask.invert { 1.0 } else { 0.0 };
             match &mask.kind {
                 MaskKind::LinearGradient { start, end } => {
                     gm.mask_type = 1;
                     gm.param_vec0 = [start[0], start[1], end[0], end[1]];
+                    gm.param_vec1 = [0.0, invert_flag, mask.feather, 0.0];
                 }
                 MaskKind::RadialGradient {
                     center,
@@ -244,7 +247,7 @@ impl Stage6Pipeline {
                 } => {
                     gm.mask_type = 2;
                     gm.param_vec0 = [center[0], center[1], radius[0], radius[1]];
-                    gm.param_vec1 = [rotation_deg.to_radians(), 0.0, 0.0, 0.0];
+                    gm.param_vec1 = [rotation_deg.to_radians(), invert_flag, mask.feather, 0.0];
                 }
                 MaskKind::ParametricColor {
                     luminance,
