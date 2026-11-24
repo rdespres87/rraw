@@ -433,15 +433,24 @@ impl RrawApp {
                                 let prev_horizon = self.viewport.horizon_tool_active;
                                 let prev_phase = self.viewport.parallel_tool_phase;
                                 let prev_brush = self.session.grading.active_brush_mask_idx;
-                                let out = sections::masks::render(
-                                    ui,
-                                    &mut self.session.grading.local_masks,
-                                    &mut self.session.grading.show_local_mask_overlay,
-                                    &mut self.session.grading.active_brush_mask_idx,
-                                    &mut self.session.grading.semantic_masks,
-                                    &mut self.session.grading.show_semantic_mask_overlay,
-                                    cur_lang,
-                                );
+                                let mut mask_ctx = sections::masks::MaskUiContext {
+                                    local_masks: &mut self.session.grading.local_masks,
+                                    show_local_mask_overlay: &mut self
+                                        .session
+                                        .grading
+                                        .show_local_mask_overlay,
+                                    active_brush_mask_idx: &mut self
+                                        .session
+                                        .grading
+                                        .active_brush_mask_idx,
+                                    semantic_masks: &mut self.session.grading.semantic_masks,
+                                    show_semantic_mask_overlay: &mut self
+                                        .session
+                                        .grading
+                                        .show_semantic_mask_overlay,
+                                    language: cur_lang,
+                                };
+                                let out = sections::masks::render(ui, &mut mask_ctx);
                                 self.reconcile_canvas_tool_transitions(
                                     prev_crop,
                                     prev_horizon,

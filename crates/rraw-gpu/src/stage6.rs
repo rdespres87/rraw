@@ -15,6 +15,37 @@ pub struct Stage6Params {
     pub masks: Stage6MasksParams,
 }
 
+/// Interleaved RGBA semantic probability map (`[Subject, Sky, Background, Portrait]` in `[0.0, 1.0]`)
+/// passed to Stage 6 AI semantic mask evaluation.
+#[derive(Debug, Clone, Copy)]
+pub struct SemanticMaskPass<'a> {
+    pub rgba_probabilities: &'a [f32],
+    pub width: u32,
+    pub height: u32,
+}
+
+impl SemanticMaskPass<'_> {
+    /// Returns the expected interleaved RGBA buffer length (`width * height * 4`).
+    #[must_use]
+    pub const fn expected_len(&self) -> usize {
+        (self.width as usize)
+            .saturating_mul(self.height as usize)
+            .saturating_mul(4)
+    }
+
+    /// Validates non-zero dimensions and exact RGBA buffer length.
+    pub fn validate(&self) -> Result<(), GpuError> {
+        let expected = self.expected_len();
+        if self.width == 0 || self.height == 0 || self.rgba_probabilities.len() != expected {
+            return Err(GpuError::BufferLengthMismatch {
+                expected,
+                actual: self.rgba_probabilities.len(),
+            });
+        }
+        Ok(())
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 struct Stage6UniformsGpu {
@@ -165,15 +196,14 @@ impl Stage6Pipeline {
 
     /// Executes Stage 6 local geometric, parametric, and CoreML AI semantic masks on the GPU.
     ///
-    /// When `semantic_rgba` is provided as `Some((buffer, sem_width, sem_height))`, `buffer` must
-    /// have length `sem_width * sem_height * 4` storing interleaved `[Subject, Sky, Background, Portrait]`
-    /// probabilities in `[0.0, 1.0]`.
+    /// When `semantic_pass` is provided, its buffer must have length `width * height * 4` storing
+    /// interleaved `[Subject, Sky, Background, Portrait]` probabilities in `[0.0, 1.0]`.
     pub fn execute_with_semantics(
         &self,
         ctx: &GpuContext,
         rgb_in: &[f32],
         params: &Stage6Params,
-        semantic_rgba: Option<(&[f32], u32, u32)>,
+        semantic_pass: Option<SemanticMaskPass<'_>>,
     ) -> Result<Vec<f32>, GpuError> {
         let count = (params.width as usize)
             .saturating_mul(params.height as usize)
@@ -185,15 +215,9 @@ impl Stage6Pipeline {
             });
         }
 
-        let (sem_slice, sem_width, sem_height) = if let Some((buf, sw, sh)) = semantic_rgba {
-            let expected_sem = (sw as usize).saturating_mul(sh as usize).saturating_mul(4);
-            if buf.len() != expected_sem || sw == 0 || sh == 0 {
-                return Err(GpuError::BufferLengthMismatch {
-                    expected: expected_sem,
-                    actual: buf.len(),
-                });
-            }
-            (buf, sw, sh)
+        let (sem_slice, sem_width, sem_height) = if let Some(pass) = semantic_pass {
+            pass.validate()?;
+            (pass.rgba_probabilities, pass.width, pass.height)
         } else {
             (&[0.0_f32; 4][..], 1, 1)
         };
@@ -404,5 +428,48 @@ impl Stage6Pipeline {
         staging_buffer.unmap();
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_semantic_mask_pass_validation() {
+        let valid_buf = vec![0.5_f32; 2 * 3 * 4];
+        let valid = SemanticMaskPass {
+            rgba_probabilities: &valid_buf,
+            width: 2,
+            height: 3,
+        };
+        assert_eq!(valid.expected_len(), 24);
+        assert!(valid.validate().is_ok());
+
+        let zero_dim = SemanticMaskPass {
+            rgba_probabilities: &[],
+            width: 0,
+            height: 4,
+        };
+        assert!(matches!(
+            zero_dim.validate(),
+            Err(GpuError::BufferLengthMismatch {
+                expected: 0,
+                actual: 0
+            })
+        ));
+
+        let short_buf = SemanticMaskPass {
+            rgba_probabilities: &valid_buf[..12],
+            width: 2,
+            height: 3,
+        };
+        assert!(matches!(
+            short_buf.validate(),
+            Err(GpuError::BufferLengthMismatch {
+                expected: 24,
+                actual: 12
+            })
+        ));
     }
 }

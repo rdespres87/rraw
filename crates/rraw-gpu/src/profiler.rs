@@ -16,6 +16,25 @@ use crate::stage5::{Stage5Params, Stage5Pipeline};
 use crate::stage6::{Stage6Params, Stage6Pipeline};
 use crate::stage7::{Stage7Params, Stage7Pipeline};
 
+/// Raw sensor input frame for a full 7-stage profiled GPU pipeline run.
+#[derive(Debug, Clone, Copy)]
+pub struct RawSensorFrame<'a> {
+    pub raw_pixels: &'a [u16],
+    pub cfa_pattern: CfaPattern,
+    pub wb_multipliers: [f32; 3],
+}
+
+/// Shared dispatch parameters for profiled full and interactive GPU pipeline executions.
+#[derive(Debug, Clone, Copy)]
+pub struct PipelineDispatchContext<'a> {
+    pub width: u32,
+    pub height: u32,
+    pub uv_lut: &'a UvLutTable,
+    pub stage5_params: &'a Stage5Params,
+    pub stage6_params: &'a Stage6Params,
+    pub stage7_params: &'a Stage7Params,
+}
+
 /// Comprehensive GPU compute pipeline profiler orchestrating and benchmarking all 7 discrete stages.
 pub struct GpuPipelineProfiler {
     pub stage1: Stage1Pipeline,
@@ -50,25 +69,19 @@ impl GpuPipelineProfiler {
     }
 
     /// Executes the full 7-stage GPU rendering pipeline from raw sensor data with per-stage timing instrumentation.
-    #[allow(clippy::too_many_arguments)]
     pub fn execute_full_profiled(
         &self,
         ctx: &GpuContext,
-        raw_pixels: &[u16],
-        width: u32,
-        height: u32,
-        cfa_pattern: CfaPattern,
-        wb_multipliers: [f32; 3],
-        uv_lut: &UvLutTable,
-        stage5_params: &Stage5Params,
-        stage6_params: &Stage6Params,
-        stage7_params: &Stage7Params,
+        sensor: &RawSensorFrame<'_>,
+        dispatch: &PipelineDispatchContext<'_>,
     ) -> Result<(Vec<f32>, PipelineTiming), GpuError> {
+        let width = dispatch.width;
+        let height = dispatch.height;
         let num_pixels = (width as usize).saturating_mul(height as usize);
-        if raw_pixels.len() != num_pixels {
+        if sensor.raw_pixels.len() != num_pixels {
             return Err(GpuError::BufferLengthMismatch {
                 expected: num_pixels,
-                actual: raw_pixels.len(),
+                actual: sensor.raw_pixels.len(),
             });
         }
 
@@ -80,7 +93,7 @@ impl GpuPipelineProfiler {
             height,
             black_levels: [512.0, 512.0, 512.0, 512.0],
             white_levels: [16383.0, 16383.0, 16383.0, 16383.0],
-            cfa_pattern,
+            cfa_pattern: sensor.cfa_pattern,
             noise_profile: NoiseProfile::default(),
             wavelet_passes: 1,
         };
@@ -89,15 +102,15 @@ impl GpuPipelineProfiler {
             ExecutionBackend::GpuMetal,
             num_pixels,
         );
-        let (norm_cfa, clip_mask) = self.stage1.execute(ctx, raw_pixels, &s1_params)?;
+        let (norm_cfa, clip_mask) = self.stage1.execute(ctx, sensor.raw_pixels, &s1_params)?;
         t1.finish_and_record(&mut timing);
 
         // Stage 2: Bayer / X-Trans Demosaicing
         let s2_params = Stage2Params {
             width,
             height,
-            cfa_pattern,
-            wb_multipliers,
+            cfa_pattern: sensor.cfa_pattern,
+            wb_multipliers: sensor.wb_multipliers,
         };
         let t2 = StageTimer::start(
             PipelineStageId::Stage4Demosaic,
@@ -145,7 +158,9 @@ impl GpuPipelineProfiler {
             ExecutionBackend::GpuMetal,
             num_pixels,
         );
-        let s4_rgb = self.stage4.execute(ctx, &s3_rgb, uv_lut, &s4_params)?;
+        let s4_rgb = self
+            .stage4
+            .execute(ctx, &s3_rgb, dispatch.uv_lut, &s4_params)?;
         t4.finish_and_record(&mut timing);
 
         // Stage 5: Tonal Grading, 3D LUT & Local Contrast
@@ -154,7 +169,7 @@ impl GpuPipelineProfiler {
             ExecutionBackend::GpuMetal,
             num_pixels,
         );
-        let s5_rgb = self.stage5.execute(ctx, &s4_rgb, stage5_params)?;
+        let s5_rgb = self.stage5.execute(ctx, &s4_rgb, dispatch.stage5_params)?;
         t5.finish_and_record(&mut timing);
 
         // Stage 6: Local Geometric, Parametric & Semantic Masks
@@ -163,7 +178,7 @@ impl GpuPipelineProfiler {
             ExecutionBackend::GpuMetal,
             num_pixels,
         );
-        let s6_rgb = self.stage6.execute(ctx, &s5_rgb, stage6_params)?;
+        let s6_rgb = self.stage6.execute(ctx, &s5_rgb, dispatch.stage6_params)?;
         t6.finish_and_record(&mut timing);
 
         // Stage 7: AgX / OpenDRT EDR Display Tone Mapping & Viewport Output
@@ -172,7 +187,7 @@ impl GpuPipelineProfiler {
             ExecutionBackend::GpuMetal,
             num_pixels,
         );
-        let (display_rgb, _, _) = self.stage7.execute(ctx, &s6_rgb, stage7_params)?;
+        let (display_rgb, _, _) = self.stage7.execute(ctx, &s6_rgb, dispatch.stage7_params)?;
         t7.finish_and_record(&mut timing);
 
         Ok((display_rgb, timing))
@@ -181,18 +196,14 @@ impl GpuPipelineProfiler {
     /// Executes only the interactive Darkroom stages (Stages 4, 5, 6, 7) from an existing demosaiced RGB buffer.
     ///
     /// This reflects live parameter scrubbing in the user interface (slider moves, tone curves, crop, masks).
-    #[allow(clippy::too_many_arguments)]
     pub fn execute_interactive_viewport_profiled(
         &self,
         ctx: &GpuContext,
         demosaiced_rgb: &[f32],
-        width: u32,
-        height: u32,
-        uv_lut: &UvLutTable,
-        stage5_params: &Stage5Params,
-        stage6_params: &Stage6Params,
-        stage7_params: &Stage7Params,
+        dispatch: &PipelineDispatchContext<'_>,
     ) -> Result<(Vec<f32>, PipelineTiming), GpuError> {
+        let width = dispatch.width;
+        let height = dispatch.height;
         let num_pixels = (width as usize).saturating_mul(height as usize);
         if demosaiced_rgb.len() != num_pixels * 3 {
             return Err(GpuError::BufferLengthMismatch {
@@ -218,7 +229,7 @@ impl GpuPipelineProfiler {
         );
         let s4_rgb = self
             .stage4
-            .execute(ctx, demosaiced_rgb, uv_lut, &s4_params)?;
+            .execute(ctx, demosaiced_rgb, dispatch.uv_lut, &s4_params)?;
         t4.finish_and_record(&mut timing);
 
         // Stage 5: Tonal Grading
@@ -227,7 +238,7 @@ impl GpuPipelineProfiler {
             ExecutionBackend::GpuMetal,
             num_pixels,
         );
-        let s5_rgb = self.stage5.execute(ctx, &s4_rgb, stage5_params)?;
+        let s5_rgb = self.stage5.execute(ctx, &s4_rgb, dispatch.stage5_params)?;
         t5.finish_and_record(&mut timing);
 
         // Stage 6: Masks
@@ -236,7 +247,7 @@ impl GpuPipelineProfiler {
             ExecutionBackend::GpuMetal,
             num_pixels,
         );
-        let s6_rgb = self.stage6.execute(ctx, &s5_rgb, stage6_params)?;
+        let s6_rgb = self.stage6.execute(ctx, &s5_rgb, dispatch.stage6_params)?;
         t6.finish_and_record(&mut timing);
 
         // Stage 7: Display Output
@@ -245,7 +256,7 @@ impl GpuPipelineProfiler {
             ExecutionBackend::GpuMetal,
             num_pixels,
         );
-        let (display_rgb, _, _) = self.stage7.execute(ctx, &s6_rgb, stage7_params)?;
+        let (display_rgb, _, _) = self.stage7.execute(ctx, &s6_rgb, dispatch.stage7_params)?;
         t7.finish_and_record(&mut timing);
 
         Ok((display_rgb, timing))
@@ -290,18 +301,21 @@ mod tests {
             headroom: 1.0,
         };
 
-        let (out_rgb, timing) = profiler.execute_full_profiled(
-            &ctx,
-            &raw_pixels,
+        let sensor = RawSensorFrame {
+            raw_pixels: &raw_pixels,
+            cfa_pattern: CfaPattern::Bayer(BayerOrigin::Rggb),
+            wb_multipliers: [2.0, 1.0, 1.5],
+        };
+        let dispatch = PipelineDispatchContext {
             width,
             height,
-            CfaPattern::Bayer(BayerOrigin::Rggb),
-            [2.0, 1.0, 1.5],
-            &uv_lut,
-            &s5_params,
-            &s6_params,
-            &s7_params,
-        )?;
+            uv_lut: &uv_lut,
+            stage5_params: &s5_params,
+            stage6_params: &s6_params,
+            stage7_params: &s7_params,
+        };
+
+        let (out_rgb, timing) = profiler.execute_full_profiled(&ctx, &sensor, &dispatch)?;
 
         assert_eq!(out_rgb.len(), (width * height * 3) as usize);
         assert!(!timing.stages.is_empty());

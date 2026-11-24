@@ -8,7 +8,10 @@ use std::time::Duration;
 use rraw_core::{
     BayerOrigin, CfaPattern, ExecutionBackend, PipelineStageId, PipelineTiming, Stage6MasksParams,
 };
-use rraw_gpu::{GpuContext, GpuPipelineProfiler, Stage5Params, Stage6Params, Stage7Params};
+use rraw_gpu::{
+    GpuContext, GpuPipelineProfiler, PipelineDispatchContext, RawSensorFrame, Stage5Params,
+    Stage6Params, Stage7Params,
+};
 use rraw_optics::{OpticalCorrectionModel, UvLutGenerator};
 
 #[test]
@@ -41,18 +44,21 @@ fn test_gpu_all_7_stages_profiled() -> Result<(), Box<dyn Error>> {
         headroom: 2.0,
     };
 
-    let (out_rgb, timing) = profiler.execute_full_profiled(
-        &ctx,
-        &raw_pixels,
+    let sensor = RawSensorFrame {
+        raw_pixels: &raw_pixels,
+        cfa_pattern: CfaPattern::Bayer(BayerOrigin::Rggb),
+        wb_multipliers: [2.1, 1.0, 1.6],
+    };
+    let dispatch = PipelineDispatchContext {
         width,
         height,
-        CfaPattern::Bayer(BayerOrigin::Rggb),
-        [2.1, 1.0, 1.6],
-        &uv_lut,
-        &stage5,
-        &stage6,
-        &stage7,
-    )?;
+        uv_lut: &uv_lut,
+        stage5_params: &stage5,
+        stage6_params: &stage6,
+        stage7_params: &stage7,
+    };
+
+    let (out_rgb, timing) = profiler.execute_full_profiled(&ctx, &sensor, &dispatch)?;
 
     assert_eq!(out_rgb.len(), num_pixels * 3);
 
@@ -116,16 +122,17 @@ fn test_gpu_interactive_viewport_benchmark() -> Result<(), Box<dyn Error>> {
         headroom: 1.5,
     };
 
-    let (display_rgb, timing) = profiler.execute_interactive_viewport_profiled(
-        &ctx,
-        &demosaiced_rgb,
+    let dispatch = PipelineDispatchContext {
         width,
         height,
-        &uv_lut,
-        &stage5,
-        &stage6,
-        &stage7,
-    )?;
+        uv_lut: &uv_lut,
+        stage5_params: &stage5,
+        stage6_params: &stage6,
+        stage7_params: &stage7,
+    };
+
+    let (display_rgb, timing) =
+        profiler.execute_interactive_viewport_profiled(&ctx, &demosaiced_rgb, &dispatch)?;
 
     assert_eq!(display_rgb.len(), num_pixels * 3);
     assert!(timing.stage_timing(PipelineStageId::Stage5Optics).is_some());

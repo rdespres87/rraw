@@ -2,10 +2,11 @@
 
 //! Interactive perspective leveling and parallel lines tools.
 
-use egui::{Color32, Painter, Pos2, Rect, Response, Stroke, Ui, Vec2};
+use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
 
+use super::ViewportToolContext;
 use crate::grading::GeometryGradingParams;
-use crate::i18n::{Key, Language};
+use crate::i18n::Key;
 use crate::state::ParallelToolPhase;
 use crate::ui::sections::geometry::ParallelLinesToolState;
 
@@ -21,13 +22,17 @@ pub struct PerspectiveToolOutput {
 #[allow(clippy::too_many_lines)]
 pub fn handle_parallel_lines_tool(
     ui: &mut Ui,
-    resp: &Response,
-    painter: &Painter,
-    available_rect: Rect,
+    ctx: &ViewportToolContext<'_>,
     tool_state: &mut ParallelLinesToolState<'_>,
     geometry: &mut GeometryGradingParams,
-    cur_lang: Language,
 ) -> PerspectiveToolOutput {
+    let ViewportToolContext {
+        resp,
+        painter,
+        available_rect,
+        language: cur_lang,
+        ..
+    } = *ctx;
     let mut out = PerspectiveToolOutput::default();
     if *tool_state.phase == ParallelToolPhase::Inactive {
         return out;
@@ -155,12 +160,12 @@ pub fn handle_parallel_lines_tool(
 /// Handles the interactive horizon leveling tool.
 pub fn handle_horizon_tool(
     ui: &mut Ui,
-    resp: &Response,
-    painter: &Painter,
+    ctx: &ViewportToolContext<'_>,
     horizon_tool_active: &mut bool,
     horizon_start_point: &mut Option<Pos2>,
     geometry: &mut GeometryGradingParams,
 ) -> PerspectiveToolOutput {
+    let ViewportToolContext { resp, painter, .. } = *ctx;
     let mut out = PerspectiveToolOutput::default();
     if !*horizon_tool_active {
         return out;

@@ -268,12 +268,12 @@ fn test_semantic_ai_mask_gpu_weights_and_invert() {
         }
     };
 
-    let out = match pipeline.execute_with_semantics(
-        &ctx,
-        &rgb_in,
-        &params,
-        Some((&sem_rgba, sem_w, sem_h)),
-    ) {
+    let sem_pass = rraw_gpu::SemanticMaskPass {
+        rgba_probabilities: &sem_rgba,
+        width: sem_w,
+        height: sem_h,
+    };
+    let out = match pipeline.execute_with_semantics(&ctx, &rgb_in, &params, Some(sem_pass)) {
         Ok(o) => o,
         Err(e) => {
             eprintln!("Stage6 execution skipped: {e:?}");
@@ -314,8 +314,7 @@ fn test_semantic_ai_mask_gpu_weights_and_invert() {
             masks: vec![inv_sky_mask],
         },
     };
-    if let Ok(out_inv) =
-        pipeline.execute_with_semantics(&ctx, &rgb_in, &inv_params, Some((&sem_rgba, sem_w, sem_h)))
+    if let Ok(out_inv) = pipeline.execute_with_semantics(&ctx, &rgb_in, &inv_params, Some(sem_pass))
     {
         assert!((out_inv[idx_top] - 0.4).abs() < 0.03);
         assert!((out_inv[idx_bot] - 0.8).abs() < 0.03);

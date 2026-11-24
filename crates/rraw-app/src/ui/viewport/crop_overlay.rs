@@ -2,10 +2,11 @@
 
 //! Interactive crop box overlay, rule-of-thirds grid and handle interaction.
 
-use egui::{Color32, Painter, Pos2, Rect, Response, Stroke, StrokeKind, Ui, Vec2};
+use egui::{Color32, Pos2, Rect, Stroke, StrokeKind, Ui, Vec2};
 
+use super::ViewportToolContext;
 use crate::grading::GeometryGradingParams;
-use crate::i18n::{Key, Language};
+use crate::i18n::Key;
 use crate::state::CropDragHandle;
 
 /// Output result from crop overlay interactions.
@@ -26,13 +27,16 @@ pub struct CropToolState<'a> {
 #[allow(clippy::too_many_lines)]
 pub fn handle_crop_overlay(
     ui: &mut Ui,
-    resp: &Response,
-    painter: &Painter,
-    available_rect: Rect,
-    preview_rect: Rect,
+    ctx: &ViewportToolContext<'_>,
     tool_state: &mut CropToolState<'_>,
-    cur_lang: Language,
 ) -> CropOverlayOutput {
+    let ViewportToolContext {
+        resp,
+        painter,
+        available_rect,
+        preview_rect,
+        language: cur_lang,
+    } = *ctx;
     let geometry = &mut *tool_state.geometry;
     let is_crop_editing = &mut *tool_state.is_crop_editing;
     let crop_drag_handle = &mut *tool_state.crop_drag_handle;

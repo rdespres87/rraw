@@ -11,9 +11,18 @@ pub mod perspective_tools;
 pub mod split_compare;
 
 use crate::app::RrawApp;
-use crate::i18n::Key;
+use crate::i18n::{Key, Language};
 use crate::state::*;
 use crate::ui::sections::geometry::ParallelLinesToolState;
+
+/// Shared read-only viewport canvas context passed to interactive overlay tools.
+pub struct ViewportToolContext<'a> {
+    pub resp: &'a egui::Response,
+    pub painter: &'a egui::Painter,
+    pub available_rect: egui::Rect,
+    pub preview_rect: egui::Rect,
+    pub language: Language,
+}
 
 impl RrawApp {
     /// Renders the central viewport with interactive pan, zoom, and vector overlay tools.
@@ -225,21 +234,21 @@ impl RrawApp {
             }
         }
 
+        let tool_ctx = ViewportToolContext {
+            resp,
+            painter,
+            available_rect,
+            preview_rect,
+            language: cur_lang,
+        };
+
         if self.session.grading.geometry.crop_enabled && self.viewport.is_crop_editing {
             let mut crop_state = crop_overlay::CropToolState {
                 geometry: &mut self.session.grading.geometry,
                 is_crop_editing: &mut self.viewport.is_crop_editing,
                 crop_drag_handle: &mut self.viewport.crop_drag_handle,
             };
-            let crop_out = crop_overlay::handle_crop_overlay(
-                ui,
-                resp,
-                painter,
-                available_rect,
-                preview_rect,
-                &mut crop_state,
-                cur_lang,
-            );
+            let crop_out = crop_overlay::handle_crop_overlay(ui, &tool_ctx, &mut crop_state);
             if crop_out.needs_preview_update {
                 self.session.needs_preview_update = true;
             }
@@ -261,12 +270,9 @@ impl RrawApp {
             };
             let p_out = perspective_tools::handle_parallel_lines_tool(
                 ui,
-                resp,
-                painter,
-                available_rect,
+                &tool_ctx,
                 &mut tool_state,
                 &mut self.session.grading.geometry,
-                cur_lang,
             );
             if p_out.mark_custom_preset {
                 self.session.grading.preset = GradingPreset::Custom;
@@ -286,8 +292,7 @@ impl RrawApp {
         if self.viewport.horizon_tool_active {
             let h_out = perspective_tools::handle_horizon_tool(
                 ui,
-                resp,
-                painter,
+                &tool_ctx,
                 &mut self.viewport.horizon_tool_active,
                 &mut self.viewport.horizon_start_point,
                 &mut self.session.grading.geometry,

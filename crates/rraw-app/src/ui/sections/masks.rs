@@ -9,17 +9,25 @@ use super::SectionOutput;
 use crate::i18n::{Key, Language};
 use crate::state::{LocalMaskKind, LocalMaskLayer, SemanticMaskLayer};
 
+/// Mutable mask state and language context for the AI Semantic & Local Masks inspector section.
+pub struct MaskUiContext<'a> {
+    pub local_masks: &'a mut Vec<LocalMaskLayer>,
+    pub show_local_mask_overlay: &'a mut Option<usize>,
+    pub active_brush_mask_idx: &'a mut Option<usize>,
+    pub semantic_masks: &'a mut Vec<SemanticMaskLayer>,
+    pub show_semantic_mask_overlay: &'a mut Option<SemanticMaskCategory>,
+    pub language: Language,
+}
+
 /// Renders the AI Semantic & Local geometric/brush masks darkroom section.
 #[allow(clippy::too_many_lines)]
-pub fn render(
-    ui: &mut Ui,
-    local_masks: &mut Vec<LocalMaskLayer>,
-    show_local_mask_overlay: &mut Option<usize>,
-    active_brush_mask_idx: &mut Option<usize>,
-    semantic_masks: &mut Vec<SemanticMaskLayer>,
-    show_semantic_mask_overlay: &mut Option<SemanticMaskCategory>,
-    cur_lang: Language,
-) -> SectionOutput {
+pub fn render(ui: &mut Ui, ctx: &mut MaskUiContext<'_>) -> SectionOutput {
+    let local_masks = &mut *ctx.local_masks;
+    let show_local_mask_overlay = &mut *ctx.show_local_mask_overlay;
+    let active_brush_mask_idx = &mut *ctx.active_brush_mask_idx;
+    let semantic_masks = &mut *ctx.semantic_masks;
+    let show_semantic_mask_overlay = &mut *ctx.show_semantic_mask_overlay;
+    let cur_lang = ctx.language;
     let mut out = SectionOutput::nothing();
     let mut changed = false;
     let t = |key: Key| key.translate(cur_lang);

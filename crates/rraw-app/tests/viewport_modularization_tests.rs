@@ -78,15 +78,14 @@ fn test_crop_overlay_handles_inactive() {
             crop_drag_handle: &mut crop_drag_handle,
         };
 
-        let out = crop_overlay::handle_crop_overlay(
-            ui,
-            &resp,
-            &painter,
+        let tool_ctx = rraw_app::ui::viewport::ViewportToolContext {
+            resp: &resp,
+            painter: &painter,
             available_rect,
             preview_rect,
-            &mut tool_state,
-            Language::Fr,
-        );
+            language: Language::Fr,
+        };
+        let out = crop_overlay::handle_crop_overlay(ui, &tool_ctx, &mut tool_state);
         assert!(!out.needs_preview_update);
         assert!(!out.save_sidecar);
     });
@@ -116,15 +115,19 @@ fn test_perspective_tools_inactive() {
             status_message: &mut status_message,
         };
         let mut geom = GeometryGradingParams::default();
+        let tool_ctx = rraw_app::ui::viewport::ViewportToolContext {
+            resp: &resp,
+            painter: &painter,
+            available_rect,
+            preview_rect: available_rect,
+            language: Language::Fr,
+        };
 
         let out = perspective_tools::handle_parallel_lines_tool(
             ui,
-            &resp,
-            &painter,
-            available_rect,
+            &tool_ctx,
             &mut tool_state,
             &mut geom,
-            Language::Fr,
         );
         assert!(!out.mark_custom_preset);
         assert!(!out.needs_preview_update);

@@ -157,15 +157,15 @@ fn test_masks_section_least_privilege() {
         let mut semantic_masks = Vec::new();
         let mut show_semantic_overlay = None;
 
-        let out = masks::render(
-            ui,
-            &mut local_masks,
-            &mut show_local_overlay,
-            &mut active_brush_idx,
-            &mut semantic_masks,
-            &mut show_semantic_overlay,
-            Language::Fr,
-        );
+        let mut mask_ctx = masks::MaskUiContext {
+            local_masks: &mut local_masks,
+            show_local_mask_overlay: &mut show_local_overlay,
+            active_brush_mask_idx: &mut active_brush_idx,
+            semantic_masks: &mut semantic_masks,
+            show_semantic_mask_overlay: &mut show_semantic_overlay,
+            language: Language::Fr,
+        };
+        let out = masks::render(ui, &mut mask_ctx);
         assert!(!out.mark_custom_preset);
         assert!(!out.needs_preview_update);
     });

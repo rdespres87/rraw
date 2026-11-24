@@ -180,10 +180,10 @@ pub fn execute_stage6_gpu(
         ctx,
         rgb_in,
         &params,
-        Some((
-            &sem_rgba,
-            semantic_masks.width as u32,
-            semantic_masks.height as u32,
-        )),
+        Some(rraw_gpu::SemanticMaskPass {
+            rgba_probabilities: &sem_rgba,
+            width: semantic_masks.width as u32,
+            height: semantic_masks.height as u32,
+        }),
     )
 }
