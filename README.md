@@ -177,6 +177,15 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 # Run all unit and integration tests across all 12 crates
 cargo test --workspace
+
+# Run headless WGPU ColorChecker visual regression benchmark (CIEDE2000 Delta E 00 < 0.5)
+cargo test -p rraw-gpu --test visual_regression_colorchecker_tests
+
+# Measure core DSP & GPU crate line coverage (enforces >= 85% threshold in CI)
+cargo llvm-cov \
+  --package rraw-core --package rraw-color --package rraw-optics \
+  --package rraw-decode --package rraw-gpu \
+  --fail-under-lines 85 --summary-only
 ```
 
 ---

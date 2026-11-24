@@ -118,6 +118,13 @@ pub fn delta_e_00(acescg: Vec3, expected_lab: [f32; 3]) -> f32 {
     ciede2000(actual_lab, expected_lab)
 }
 
+/// Computes the CIEDE2000 total color difference Delta E 00 between two ACEScg linear colors.
+#[must_use]
+pub fn delta_e_00_acescg(actual_acescg: Vec3, reference_acescg: Vec3) -> f32 {
+    let reference_lab = xyz_to_lab(MAT_ACESCG_TO_XYZ_D60 * reference_acescg);
+    delta_e_00(actual_acescg, reference_lab)
+}
+
 /// Standard CIEDE2000 formula implementation (Sharma et al. 2005).
 fn ciede2000(lab1: [f32; 3], lab2: [f32; 3]) -> f32 {
     let (l1, a1, b1) = (lab1[0] as f64, lab1[1] as f64, lab1[2] as f64);
