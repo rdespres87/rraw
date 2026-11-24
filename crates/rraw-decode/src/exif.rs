@@ -369,14 +369,170 @@ const fn light_source_label(ls: u16) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{exposure_program_label, light_source_label, orientation_label};
+    use super::*;
+    use rawler::formats::tiff::Rational;
+    use rraw_core::{BayerOrigin, CfaPattern, ColorLabel, NoiseProfile, PickStatus};
+
+    fn sample_metadata() -> PhotoMetadata {
+        PhotoMetadata {
+            camera_make: "TestMake".to_owned(),
+            camera_model: "TestBody".to_owned(),
+            lens_model: None,
+            focal_length_mm: None,
+            aperture_f_number: None,
+            iso: None,
+            width: 64,
+            height: 64,
+            black_levels: [0.0; 4],
+            white_levels: [16383.0; 4],
+            cfa_pattern: CfaPattern::Bayer(BayerOrigin::Rggb),
+            noise_profile: NoiseProfile::default(),
+            vignette_handled_by_gainmap: false,
+            dng_warp_rectilinear: None,
+            rating: 0,
+            pick: PickStatus::Unflagged,
+            label: ColorLabel::None,
+            keywords: Vec::new(),
+        }
+    }
 
     #[test]
     fn formats_known_and_unknown_exif_enums() {
+        for o in 1..=9 {
+            assert!(!orientation_label(o).is_empty());
+        }
         assert_eq!(orientation_label(6), "6 - Rotate 90° CW (Portrait)");
         assert_eq!(orientation_label(99), "1 - Normal");
+
+        for p in 1..=9 {
+            assert!(!exposure_program_label(p).is_empty());
+        }
         assert_eq!(exposure_program_label(3), "Aperture Priority");
+
+        for m in 1..=7 {
+            assert!(!metering_mode_label(m).is_empty());
+        }
+        assert_eq!(metering_mode_label(3), "Spot");
+
+        assert_eq!(color_space_label(1), "sRGB");
+        assert_eq!(color_space_label(2), "Adobe RGB");
+        assert_eq!(color_space_label(65535), "Uncalibrated");
+        assert_eq!(color_space_label(9), "Custom / Other");
+
+        for em in 0..=3 {
+            assert!(!exposure_mode_label(em).is_empty());
+        }
+        for sct in 0..=4 {
+            assert!(!scene_capture_label(sct).is_empty());
+        }
+        for ls in [1, 2, 3, 4, 9, 10, 11, 17, 18, 19, 20, 21, 22, 23, 255] {
+            assert!(!light_source_label(ls).is_empty());
+        }
         assert_eq!(light_source_label(21), "D65");
         assert_eq!(light_source_label(255), "Unknown");
+    }
+
+    #[test]
+    fn populates_camera_scene_gps_and_exposure_tags() {
+        let mut rmeta = rawler::decoders::RawMetadata::default();
+        rmeta.exif.focal_length = Some(Rational::new(50, 1));
+        rmeta.exif.fnumber = Some(Rational::new(14, 10));
+        rmeta.exif.exposure_time = Some(Rational::new(1, 250));
+        rmeta.exif.iso_speed_ratings = Some(400);
+        rmeta.exif.lens_model = Some("Sigma Sigma 50mm f/1.4".to_owned());
+        rmeta.exif.lens_make = Some("Sigma".to_owned());
+        rmeta.exif.exposure_bias = Some(rawler::formats::tiff::SRational::new(-1, 2));
+        rmeta.exif.max_aperture_value = Some(Rational::new(10, 10));
+        rmeta.exif.date_time_original = Some("2026:11:24 12:00:00".to_owned());
+        rmeta.exif.exposure_program = Some(3);
+        rmeta.exif.metering_mode = Some(5);
+        rmeta.exif.white_balance = Some(0);
+        rmeta.exif.flash = Some(1);
+        rmeta.exif.artist = Some("Photographer".to_owned());
+        rmeta.exif.copyright = Some("Copyright 2026".to_owned());
+        rmeta.exif.serial_number = Some("SN12345".to_owned());
+        rmeta.exif.lens_serial_number = Some("LSN67890".to_owned());
+        rmeta.exif.owner_name = Some("Owner".to_owned());
+        rmeta.exif.color_space = Some(1);
+        rmeta.exif.exposure_mode = Some(0);
+        rmeta.exif.scene_capture_type = Some(1);
+        rmeta.exif.light_source = Some(21);
+        rmeta.exif.create_date = Some("2026:11:24 12:00:00".to_owned());
+        rmeta.exif.modify_date = Some("2026:11:24 12:05:00".to_owned());
+        rmeta.exif.offset_time_original = Some("+01:00".to_owned());
+        rmeta.exif.image_number = Some(42);
+        rmeta.exif.user_comment = Some("Test frame".to_owned());
+        rmeta.exif.gps = Some(Default::default());
+        if let Some(gps) = rmeta.exif.gps.as_mut() {
+            gps.gps_latitude = Some([
+                Rational::new(48, 1),
+                Rational::new(51, 1),
+                Rational::new(2400, 100),
+            ]);
+            gps.gps_latitude_ref = Some("N".to_owned());
+            gps.gps_longitude = Some([
+                Rational::new(2, 1),
+                Rational::new(21, 1),
+                Rational::new(700, 100),
+            ]);
+            gps.gps_longitude_ref = Some("E".to_owned());
+            gps.gps_altitude = Some(Rational::new(350, 10));
+        }
+
+        let mut metadata = sample_metadata();
+        let mut tags = Vec::new();
+        let rawsource = rawler::rawsource::RawSource::new_from_slice(&[]);
+        populate_exposure_and_lens_tags(&rawsource, &rmeta, &mut metadata, &mut tags);
+        populate_camera_and_scene_tags(&rmeta, &mut tags);
+        populate_gps_tags(&rmeta, &mut tags);
+
+        assert_eq!(metadata.focal_length_mm, Some(50.0));
+        assert_eq!(metadata.iso, Some(400));
+        assert_eq!(metadata.lens_model.as_deref(), Some("Sigma 50mm f/1.4"));
+        assert!(tags
+            .iter()
+            .any(|(k, v)| k == "Shutter Speed" && v == "1/250 s"));
+        assert!(tags.iter().any(|(k, v)| k == "Flash" && v == "Fired"));
+        assert!(tags.iter().any(|(k, _)| k == "GPS Latitude"));
+        assert!(tags.iter().any(|(k, _)| k == "GPS Longitude"));
+        assert!(tags
+            .iter()
+            .any(|(k, v)| k == "GPS Altitude" && v == "35.0 m"));
+
+        // Long exposure (>= 1s), manual WB, flash did not fire, empty push_non_empty
+        rmeta.exif.exposure_time = Some(Rational::new(2, 1));
+        rmeta.exif.white_balance = Some(1);
+        rmeta.exif.flash = Some(0);
+        rmeta.exif.gps = None;
+        let mut tags2 = Vec::new();
+        populate_exposure_and_lens_tags(&rawsource, &rmeta, &mut metadata, &mut tags2);
+        populate_camera_and_scene_tags(&rmeta, &mut tags2);
+        populate_gps_tags(&rmeta, &mut tags2);
+        push_non_empty(&mut tags2, "Ignored", Some(""));
+        assert!(tags2
+            .iter()
+            .any(|(k, v)| k == "Shutter Speed" && v == "2.0 s"));
+        assert!(tags2
+            .iter()
+            .any(|(k, v)| k == "White Balance Mode" && v == "Manual"));
+        assert!(tags2
+            .iter()
+            .any(|(k, v)| k == "Flash" && v == "Did not fire"));
+        assert!(!tags2.iter().any(|(k, _)| k == "Ignored"));
+    }
+
+    #[test]
+    fn extract_metadata_handles_missing_path_gracefully() {
+        let mut metadata = sample_metadata();
+        let mut orientation = 1;
+        let mut tags = Vec::new();
+        extract_dng_and_exif_metadata(
+            Path::new("/nonexistent/rraw_missing_file.dng"),
+            &mut metadata,
+            &mut orientation,
+            &mut tags,
+        );
+        assert_eq!(orientation, 1);
+        assert!(tags.is_empty());
     }
 }

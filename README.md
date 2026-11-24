@@ -182,11 +182,11 @@ cargo test --workspace
 # Run headless WGPU ColorChecker visual regression benchmark (CIEDE2000 Delta E 00 < 0.5)
 cargo test -p rraw-gpu --test visual_regression_colorchecker_tests
 
-# Measure deterministic core CPU DSP crate line coverage (enforces >= 82% threshold in CI)
+# Measure deterministic core CPU DSP crate line coverage (enforces >= 85% threshold in CI)
 cargo llvm-cov \
   --package rraw-core --package rraw-color --package rraw-optics \
   --package rraw-decode \
-  --fail-under-lines 82 --summary-only
+  --fail-under-lines 85 --summary-only
 
 # Measure full 5-crate DSP & GPU line coverage on bare-metal Apple Silicon Metal (>= 85%)
 cargo llvm-cov \

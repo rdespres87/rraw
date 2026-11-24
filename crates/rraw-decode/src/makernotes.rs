@@ -257,3 +257,92 @@ fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
         .windows(needle.len())
         .position(|window| window == needle)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build_pentax_makernote(is_little: bool, tag: u16, id0: u8, id1: u8) -> Vec<u8> {
+        let mut buf = Vec::new();
+        buf.extend_from_slice(b"PENTAX \0");
+        buf.extend_from_slice(if is_little { b"II" } else { b"MM" });
+        let count: u16 = 1;
+        buf.extend_from_slice(&if is_little {
+            count.to_le_bytes()
+        } else {
+            count.to_be_bytes()
+        });
+        buf.extend_from_slice(&if is_little {
+            tag.to_le_bytes()
+        } else {
+            tag.to_be_bytes()
+        });
+        // type (2) + count (4)
+        buf.extend_from_slice(&[0, 1, 0, 0, 0, 2]);
+        // value bytes (4)
+        buf.extend_from_slice(&[id0, id1, 0, 0]);
+        buf
+    }
+
+    #[test]
+    fn sanitize_lens_name_deduplicates_prefixes() {
+        assert_eq!(sanitize_lens_name("Sigma Sigma 18-35mm"), "Sigma 18-35mm");
+        assert_eq!(sanitize_lens_name("SMC SMC-DA 35mm"), "SMC-DA 35mm");
+        assert_eq!(
+            sanitize_lens_name("  Sony FE 50mm f/1.4  "),
+            "Sony FE 50mm f/1.4"
+        );
+        assert_eq!(sanitize_lens_name("50mm"), "50mm");
+    }
+
+    #[test]
+    fn extract_and_resolve_pentax_makernote_le_and_be() {
+        // Manual lens id <= 2 returns None from Pentax resolver
+        let manual = build_pentax_makernote(true, 0x003F, 1, 0);
+        assert_eq!(extract_pentax_lens_id(&manual), Some((1, 0)));
+        assert!(resolve_pentax_lens(&manual, "PENTAX", "K-1", None, None).is_none());
+
+        // Missing tag 0x003F or truncated IFD returns None
+        let other_tag = build_pentax_makernote(true, 0x0001, 5, 1);
+        assert_eq!(extract_pentax_lens_id(&other_tag), None);
+        assert_eq!(parse_pentax_ifd(&[0u8], true), None);
+        assert_eq!(parse_pentax_ifd(&[1, 0, 0, 0], true), None);
+
+        // Pick a real K-mount lens with id.0 > 2 and valid byte-sized IDs
+        if let Some(sample) = get_lenses().iter().find(|l| {
+            l.mount == "k-mount"
+                && l.identifiers
+                    .id
+                    .is_some_and(|id| id.0 > 2 && id.0 <= 255 && id.1 <= 255)
+        }) {
+            if let Some((id0, id1)) = sample.identifiers.id {
+                let fl = Some(sample.focal_range[0].as_f32());
+                let ap = Some(sample.aperture_range[0].as_f32());
+
+                let le_bytes = build_pentax_makernote(true, 0x003F, id0 as u8, id1 as u8);
+                assert_eq!(extract_pentax_lens_id(&le_bytes), Some((id0, id1)));
+                let resolved_le =
+                    resolve_universal_lens(&le_bytes, "RICOH IMAGING", "K-3 III", fl, ap);
+                assert!(resolved_le.is_some());
+
+                let be_bytes = build_pentax_makernote(false, 0x003F, id0 as u8, id1 as u8);
+                assert_eq!(extract_pentax_lens_id(&be_bytes), Some((id0, id1)));
+                let resolved_be = resolve_universal_lens(&be_bytes, "PENTAX", "K-1", fl, ap);
+                assert!(resolved_be.is_some());
+            }
+        }
+    }
+
+    #[test]
+    fn resolve_by_mount_and_optics_covers_all_mounts_and_fallbacks() {
+        // Unknown manufacturer or missing focal/aperture -> None
+        assert!(resolve_universal_lens(&[], "Hasselblad", "X2D", Some(50.0), Some(2.8)).is_none());
+        assert!(resolve_universal_lens(&[], "Sony", "A7IV", None, Some(2.8)).is_none());
+        assert!(resolve_universal_lens(&[], "Sony", "A7IV", Some(50.0), None).is_none());
+
+        // Exercise mount branches (Sony, Canon, Nikon, Fujifilm, Pentax)
+        for make in ["Sony", "Canon", "Nikon", "Fujifilm", "Pentax"] {
+            let _ = resolve_universal_lens(&[], make, "Body", Some(50.0), Some(1.4));
+        }
+    }
+}

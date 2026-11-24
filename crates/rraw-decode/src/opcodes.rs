@@ -410,3 +410,202 @@ pub fn extract_dng_warp_rectilinear(raw_bytes: &[u8]) -> Option<rraw_core::DngWa
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn push_be_u32(buf: &mut Vec<u8>, v: u32) {
+        buf.extend_from_slice(&v.to_be_bytes());
+    }
+
+    fn push_be_f64(buf: &mut Vec<u8>, v: f64) {
+        buf.extend_from_slice(&v.to_be_bytes());
+    }
+
+    fn push_be_f32(buf: &mut Vec<u8>, v: f32) {
+        buf.extend_from_slice(&v.to_be_bytes());
+    }
+
+    fn wrap_opcode_list(entries: &[(u32, &[u8])]) -> Vec<u8> {
+        let mut out = Vec::new();
+        push_be_u32(&mut out, entries.len() as u32);
+        for &(id, payload) in entries {
+            push_be_u32(&mut out, id);
+            push_be_u32(&mut out, 0x0103_0000);
+            push_be_u32(&mut out, 0);
+            push_be_u32(&mut out, payload.len() as u32);
+            out.extend_from_slice(payload);
+        }
+        out
+    }
+
+    fn build_tiff_with_opcode(
+        is_little: bool,
+        use_subifd: bool,
+        tag: u16,
+        opcode_stream: &[u8],
+    ) -> Vec<u8> {
+        let w16 = |buf: &mut Vec<u8>, v: u16| {
+            if is_little {
+                buf.extend_from_slice(&v.to_le_bytes());
+            } else {
+                buf.extend_from_slice(&v.to_be_bytes());
+            }
+        };
+        let w32 = |buf: &mut Vec<u8>, v: u32| {
+            if is_little {
+                buf.extend_from_slice(&v.to_le_bytes());
+            } else {
+                buf.extend_from_slice(&v.to_be_bytes());
+            }
+        };
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(if is_little { b"II" } else { b"MM" });
+        w16(&mut buf, 42);
+        w32(&mut buf, 8); // IFD0 offset
+
+        if use_subifd {
+            // IFD0: 1 entry (SubIFDs = 0x014A) pointing to offset 26
+            w16(&mut buf, 1);
+            w16(&mut buf, 0x014A);
+            w16(&mut buf, 4); // LONG
+            w32(&mut buf, 1);
+            w32(&mut buf, 26); // SubIFD offset
+            w32(&mut buf, 0); // next IFD
+            debug_assert_eq!(buf.len(), 26);
+            // SubIFD: 1 entry (tag) pointing to offset 44
+            w16(&mut buf, 1);
+            w16(&mut buf, tag);
+            w16(&mut buf, 7); // UNDEFINED
+            w32(&mut buf, opcode_stream.len() as u32);
+            w32(&mut buf, 44);
+            w32(&mut buf, 0);
+            debug_assert_eq!(buf.len(), 44);
+            buf.extend_from_slice(opcode_stream);
+        } else {
+            // IFD0: 1 entry (tag) pointing to offset 26
+            w16(&mut buf, 1);
+            w16(&mut buf, tag);
+            w16(&mut buf, 7); // UNDEFINED
+            w32(&mut buf, opcode_stream.len() as u32);
+            w32(&mut buf, 26);
+            w32(&mut buf, 0);
+            debug_assert_eq!(buf.len(), 26);
+            buf.extend_from_slice(opcode_stream);
+        }
+        buf
+    }
+
+    #[test]
+    fn parse_opcode_list_covers_all_variants_and_error_paths() -> Result<(), DecodeError> {
+        // Stream too short (< 4)
+        assert!(parse_opcode_list(&[0, 0]).is_err());
+        // Truncated header (count = 1, < 20 bytes)
+        assert!(parse_opcode_list(&[0, 0, 0, 1, 0, 0, 0, 1]).is_err());
+        // Payload overflow (declared size = 100, 0 bytes remaining)
+        let mut overflow = Vec::new();
+        push_be_u32(&mut overflow, 1);
+        push_be_u32(&mut overflow, 1);
+        push_be_u32(&mut overflow, 0);
+        push_be_u32(&mut overflow, 0);
+        push_be_u32(&mut overflow, 100);
+        assert!(parse_opcode_list(&overflow).is_err());
+
+        // Short payloads for IDs 1, 2, 3, 9
+        assert!(parse_opcode_list(&wrap_opcode_list(&[(1, &[0, 1])])).is_err());
+        assert!(parse_opcode_list(&wrap_opcode_list(&[(2, &[0, 1])])).is_err());
+        assert!(parse_opcode_list(&wrap_opcode_list(&[(3, &[0; 16])])).is_err());
+        assert!(parse_opcode_list(&wrap_opcode_list(&[(9, &[0; 16])])).is_err());
+
+        // GainMap grid overflow & short gain payload
+        let mut gm_overflow = vec![0u8; 56];
+        gm_overflow[48..52].copy_from_slice(&u32::MAX.to_be_bytes());
+        gm_overflow[52..56].copy_from_slice(&u32::MAX.to_be_bytes());
+        assert!(parse_opcode_list(&wrap_opcode_list(&[(9, &gm_overflow)])).is_err());
+
+        let mut gm_short = vec![0u8; 56];
+        gm_short[48..52].copy_from_slice(&2u32.to_be_bytes());
+        gm_short[52..56].copy_from_slice(&2u32.to_be_bytes());
+        assert!(parse_opcode_list(&wrap_opcode_list(&[(9, &gm_short)])).is_err());
+
+        // Valid WarpRectilinear (1), WarpFisheye (2), FixVignetteRadial (3), GainMap (9), Unknown (99)
+        let mut warp = Vec::new();
+        push_be_u32(&mut warp, 1);
+        push_be_f64(&mut warp, 1.0);
+        push_be_f64(&mut warp, -0.02);
+
+        let mut vig = Vec::new();
+        for v in [0.1, -0.05, 0.01, 0.0, 0.0, 0.5, 0.5] {
+            push_be_f64(&mut vig, v);
+        }
+
+        let mut gm = Vec::new();
+        for v in [0.0, 0.0, 1.0, 1.0] {
+            push_be_f64(&mut gm, v);
+        }
+        for v in [0u32, 1, 1, 1, 2, 2] {
+            push_be_u32(&mut gm, v);
+        }
+        for v in [1.0f32, 1.05, 1.05, 1.1] {
+            push_be_f32(&mut gm, v);
+        }
+
+        let stream = wrap_opcode_list(&[
+            (1, &warp),
+            (2, &warp),
+            (3, &vig),
+            (9, &gm),
+            (99, &[0xDE, 0xAD]),
+        ]);
+        let ops = parse_opcode_list(&stream)?;
+        assert_eq!(ops.len(), 5);
+        assert!(matches!(
+            ops[0],
+            DngOpcode::WarpRectilinear { planes: 1, .. }
+        ));
+        assert!(matches!(ops[1], DngOpcode::WarpFisheye { planes: 1, .. }));
+        assert!(matches!(ops[2], DngOpcode::FixVignetteRadial { .. }));
+        assert!(matches!(
+            ops[3],
+            DngOpcode::GainMap {
+                map_points_v: 2,
+                map_points_h: 2,
+                ..
+            }
+        ));
+        assert!(matches!(ops[4], DngOpcode::Unknown { opcode_id: 99, .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn extract_dng_opcodes_handles_le_be_subifds_and_invalid_headers() {
+        assert!(extract_dng_opcodes(&[0, 1, 2]).is_empty());
+        assert!(extract_dng_opcodes(b"XX000000").is_empty());
+        assert!(extract_dng_warp_rectilinear(b"XX000000").is_none());
+
+        // Little-Endian IFD0 with OpcodeList1 (0xC685) containing WarpRectilinear
+        let mut warp = Vec::new();
+        push_be_u32(&mut warp, 1);
+        push_be_f64(&mut warp, 1.0);
+        push_be_f64(&mut warp, -0.01);
+        let warp_stream = wrap_opcode_list(&[(1, &warp)]);
+        let le_tiff = build_tiff_with_opcode(true, false, 0xC685, &warp_stream);
+        let extracted = extract_dng_warp_rectilinear(&le_tiff);
+        assert!(extracted.is_some());
+
+        // Big-Endian SubIFD with OpcodeList2 (0xC686) containing FixVignetteRadial
+        let mut vig = Vec::new();
+        for v in [0.1, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5] {
+            push_be_f64(&mut vig, v);
+        }
+        let vig_stream = wrap_opcode_list(&[(3, &vig)]);
+        let be_tiff = build_tiff_with_opcode(false, true, 0xC686, &vig_stream);
+        let ops = extract_dng_opcodes(&be_tiff);
+        assert!(matches!(
+            ops.first(),
+            Some(DngOpcode::FixVignetteRadial { .. })
+        ));
+    }
+}
