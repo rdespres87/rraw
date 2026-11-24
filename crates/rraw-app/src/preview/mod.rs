@@ -4,6 +4,7 @@
 
 pub mod decode_coordinator;
 pub mod decoder;
+pub mod gpu_backend;
 pub mod masks;
 pub mod orientation;
 pub mod pipeline;
@@ -12,6 +13,7 @@ pub mod types;
 
 pub use decode_coordinator::*;
 pub use decoder::*;
+pub use gpu_backend::*;
 pub use masks::*;
 pub use orientation::*;
 pub use pipeline::*;

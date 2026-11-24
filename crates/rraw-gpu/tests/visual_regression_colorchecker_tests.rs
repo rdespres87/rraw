@@ -105,14 +105,9 @@ fn sample_patch_interior_mean(rgb: &[f32], width: u32, patch_idx: usize) -> Vec3
     sum / samples
 }
 
-/// Analytical CPU reference matching `stage7_display_scopes.wgsl::agx_drt`.
+/// Analytical CPU reference matching `stage7_display_scopes.wgsl::agx_drt` (`rraw_color::apply_agx_edr`).
 fn agx_drt_cpu(x: f32, headroom: f32) -> f32 {
-    if x <= 0.0 {
-        return 0.0;
-    }
-    let h = headroom.max(1.0);
-    let norm_x = x / h;
-    ((norm_x * (1.0 + norm_x * 0.1)) / (1.0 + norm_x)) * h
+    rraw_color::apply_agx_edr(x, headroom)
 }
 
 #[test]

@@ -47,6 +47,10 @@ pub struct RrawApp {
     pub export: ExportBatchController,
     /// Background worker threads and asynchronous channels controller.
     pub workers: BackgroundWorkers,
+    /// Lazily initialized live WGPU interactive preview engine with automatic CPU fallback.
+    pub gpu_engine: GpuPreviewEngine,
+    /// Execution backend that rendered the latest interactive preview frame.
+    pub active_preview_backend: PreviewBackendKind,
 }
 
 impl RrawApp {
@@ -129,6 +133,8 @@ impl RrawApp {
             library,
             export: ExportBatchController::new(),
             workers,
+            gpu_engine: GpuPreviewEngine::new(),
+            active_preview_backend: PreviewBackendKind::CpuRayon,
         };
 
         // Restore previous photo if available, valid and matching active filters, otherwise open first filtered photo in directory
@@ -174,6 +180,8 @@ impl RrawApp {
             library: LibraryController::new(),
             export: ExportBatchController::new(),
             workers: BackgroundWorkers::new_headless(),
+            gpu_engine: GpuPreviewEngine::new(),
+            active_preview_backend: PreviewBackendKind::CpuRayon,
         }
     }
 
@@ -316,7 +324,12 @@ impl RrawApp {
     /// Updates the main viewport texture and histogram from the active base preview.
     pub fn update_preview_textures(&mut self, ctx: &egui::Context) {
         if let Some(base) = &self.session.base_preview {
-            let (mut preview, hist) = render_preview_from_base(base, &self.session.grading);
+            let (mut preview, hist, _timing, backend) = self.gpu_engine.render_preview_profiled(
+                base,
+                &self.session.grading,
+                self.layout_config.gpu_preview_enabled,
+            );
+            self.active_preview_backend = backend;
 
             // Dynamically update the active filmstrip thumbnail with live grading and crop
             if let Some(photo) = &self.session.loaded_photo {

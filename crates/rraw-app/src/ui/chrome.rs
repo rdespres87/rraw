@@ -604,6 +604,50 @@ impl RrawApp {
                                 .open_dialog(crate::controllers::export::ActiveModalDialog::About);
                         }
                         ui.label(egui::RichText::new("·").weak());
+                        let (backend_label, backend_color) = match self.active_preview_backend {
+                            crate::preview::PreviewBackendKind::GpuWgpu => {
+                                ("⚡ GPU", Color32::from_rgb(120, 230, 165))
+                            }
+                            crate::preview::PreviewBackendKind::CpuRayon => {
+                                ("⚙ CPU", Color32::from_rgb(165, 170, 180))
+                            }
+                        };
+                        let adapter_hint = self
+                            .gpu_engine
+                            .adapter_name()
+                            .unwrap_or("CPU Rayon fallback");
+                        let backend_tooltip = if self.layout_config.gpu_preview_enabled {
+                            if let Some(reason) = self.gpu_engine.last_fallback_reason() {
+                                format!(
+                                    "Preview backend: {backend_label} (fallback: {reason}) — click to force CPU"
+                                )
+                            } else {
+                                format!(
+                                    "Preview backend: {backend_label} ({adapter_hint}) — click to force CPU"
+                                )
+                            }
+                        } else {
+                            "Preview backend: CPU forced — click to enable WGPU acceleration"
+                                .to_string()
+                        };
+                        if ui
+                            .selectable_label(
+                                self.layout_config.gpu_preview_enabled,
+                                egui::RichText::new(backend_label)
+                                    .small()
+                                    .strong()
+                                    .color(backend_color),
+                            )
+                            .on_hover_text(backend_tooltip)
+                            .clicked()
+                        {
+                            self.layout_config.gpu_preview_enabled =
+                                !self.layout_config.gpu_preview_enabled;
+                            self.layout_config.save();
+                            self.session.needs_preview_update = true;
+                            ui.ctx().request_repaint();
+                        }
+                        ui.label(egui::RichText::new("·").weak());
                         ui.label(self.t(Key::StatusSurfaceInfo));
                         ui.label(egui::RichText::new("·").weak());
 

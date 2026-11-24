@@ -432,6 +432,9 @@ pub struct AppLayoutConfig {
     /// Active contextual tab in the left sidebar panel (toggled with `Cmd+1/2/3`).
     #[serde(default)]
     pub left_panel_tab: LeftPanelTab,
+    /// Whether live WGPU compute preview acceleration is enabled (automatically falls back to CPU/Rayon when unavailable or for CPU-only modes).
+    #[serde(default = "default_true")]
+    pub gpu_preview_enabled: bool,
 }
 
 const fn default_true() -> bool {
@@ -451,6 +454,7 @@ impl Default for AppLayoutConfig {
             last_open_photo: None,
             raw_only_filter: None,
             left_panel_tab: LeftPanelTab::Explorer,
+            gpu_preview_enabled: true,
         }
     }
 }
@@ -501,6 +505,7 @@ impl AppLayoutConfig {
             last_open_photo: loaded.last_open_photo,
             raw_only_filter: loaded.raw_only_filter,
             left_panel_tab: loaded.left_panel_tab,
+            gpu_preview_enabled: loaded.gpu_preview_enabled,
         }
     }
 

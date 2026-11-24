@@ -12,13 +12,13 @@ struct Stage7Uniforms {
 @group(0) @binding(4) var<storage, read_write> clipping_alert: atomic<u32>;
 
 // Parametric analytical AgX shoulder bounded by display headroom H
+// Matches `rraw_color::apply_agx_edr` bit-for-bit.
 fn agx_drt(x: f32, h: f32) -> f32 {
     if (x <= 0.0) {
         return 0.0;
     }
-    let norm_x = x / h;
-    let compressed = (norm_x * (1.0 + norm_x * 0.1)) / (1.0 + norm_x);
-    return compressed * h;
+    let denom = x + h * ((1.0 + 0.5 * x) / (1.0 + 0.8 * x));
+    return h * (x / denom);
 }
 
 @compute @workgroup_size(16, 16, 1)

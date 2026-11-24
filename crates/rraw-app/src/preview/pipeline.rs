@@ -474,6 +474,121 @@ impl<'a> PreparedGradingFrame<'a> {
         &self.buffers.brush_grids
     }
 
+    /// Returns the effective linear RGB samples (after optional denoise/defringe pre-processing).
+    #[inline]
+    #[must_use]
+    pub fn effective_samples(&self) -> &[[f32; 3]] {
+        self.buffers
+            .processed_samples
+            .as_deref()
+            .unwrap_or(&self.base.samples_rgb)
+    }
+
+    /// Returns the precomputed Smart Lighting per-pixel luminance gain map, if active.
+    #[inline]
+    #[must_use]
+    pub fn smart_lighting_map(&self) -> Option<&[f32]> {
+        self.buffers.smart_lighting_map.as_deref()
+    }
+
+    /// Evaluates the pre-Stage-5 linear RGB value at `(px, py)` including optical lens distortion,
+    /// radial vignetting, geometric warp (rotation, flip, keystone), white balance, exposure,
+    /// camera-to-sRGB matrix, Smart Lighting gain map, and shadows/highlights/blacks tonal shift.
+    #[inline]
+    #[must_use]
+    pub fn evaluate_pre_stage5_linear(&self, px: usize, py: usize) -> [f32; 3] {
+        let geom = &self.geometry;
+        let u = &self.uniforms;
+        let effective_samples = self.effective_samples();
+        let max_sample_idx = effective_samples.len().saturating_sub(1);
+
+        let (sample_idx, v_mult) = if geom.is_identity_geom_base {
+            let s_idx = (py * geom.preview_w + px).min(max_sample_idx);
+            let v = if geom.v_gain > 1e-4 {
+                let kx = px as f32 - geom.cx;
+                let ky = py as f32 - geom.cy;
+                let norm_r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
+                1.0 + geom.v_gain * norm_r2 + (geom.v_gain * 0.4) * (norm_r2 * norm_r2)
+            } else {
+                1.0
+            };
+            (s_idx, v)
+        } else {
+            let orig_x = px as f32;
+            let orig_y = py as f32;
+            let raw_dx = (orig_x - geom.cx) * geom.flip_x;
+            let raw_dy = (orig_y - geom.cy) * geom.flip_y;
+            let rx = raw_dx * geom.cos_rot + raw_dy * geom.sin_rot;
+            let ry = -raw_dx * geom.sin_rot + raw_dy * geom.cos_rot;
+            let v_scale = (1.0 + geom.keystone_v * (ry / geom.cy)).max(0.1);
+            let kx = (rx / v_scale) / geom.auto_zoom;
+            let h_scale = (1.0 + geom.keystone_h * (kx / geom.cx)).max(0.1);
+            let ky = (ry / h_scale) / geom.auto_zoom;
+
+            let s_idx = if geom.k_dist.abs() > 1e-5 {
+                let r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
+                let warp = 1.0 + geom.k_dist * r2;
+                let warped_x = ((geom.cx + kx * warp).round() as isize)
+                    .clamp(0, geom.preview_w as isize - 1) as usize;
+                let warped_y = ((geom.cy + ky * warp).round() as isize)
+                    .clamp(0, geom.preview_h as isize - 1) as usize;
+                warped_y * geom.preview_w + warped_x
+            } else {
+                let sx = ((geom.cx + kx).round() as isize).clamp(0, geom.preview_w as isize - 1)
+                    as usize;
+                let sy = ((geom.cy + ky).round() as isize).clamp(0, geom.preview_h as isize - 1)
+                    as usize;
+                sy * geom.preview_w + sx
+            };
+
+            let v = if geom.v_gain > 1e-4 {
+                let norm_r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
+                1.0 + geom.v_gain * norm_r2 + (geom.v_gain * 0.4) * (norm_r2 * norm_r2)
+            } else {
+                1.0
+            };
+            (s_idx.min(max_sample_idx), v)
+        };
+
+        let [mean_r, mean_g, mean_b] = effective_samples[sample_idx];
+        let mut r_s =
+            (u.combined_mat[0] * mean_r + u.combined_mat[1] * mean_g + u.combined_mat[2] * mean_b)
+                .max(0.0)
+                * v_mult;
+        let mut g_s =
+            (u.combined_mat[3] * mean_r + u.combined_mat[4] * mean_g + u.combined_mat[5] * mean_b)
+                .max(0.0)
+                * v_mult;
+        let mut b_s =
+            (u.combined_mat[6] * mean_r + u.combined_mat[7] * mean_g + u.combined_mat[8] * mean_b)
+                .max(0.0)
+                * v_mult;
+
+        if let Some(gains) = self.smart_lighting_map() {
+            let sl_idx = sample_idx.min(gains.len().saturating_sub(1));
+            let g = gains[sl_idx];
+            r_s *= g;
+            g_s *= g;
+            b_s *= g;
+        }
+
+        if u.has_tonal_adjustment {
+            let lum = 0.2126 * r_s + 0.7152 * g_s + 0.0722 * b_s;
+            let y_norm = lum / (lum + 0.18);
+            let shadow_shift = (self.grading.tone.shadows / 100.0) * 2.5 * (1.0 - y_norm).powi(2);
+            let highlight_shift = (self.grading.tone.highlights / 100.0) * 2.5 * y_norm.powi(2);
+            let blacks_shift = (self.grading.tone.blacks / 100.0) * 1.5 * (1.0 - y_norm).powi(4);
+            let tone_gain = 2.0_f32.powf(shadow_shift + highlight_shift + blacks_shift);
+            [
+                (r_s * tone_gain).max(0.0),
+                (g_s * tone_gain).max(0.0),
+                (b_s * tone_gain).max(0.0),
+            ]
+        } else {
+            [r_s, g_s, b_s]
+        }
+    }
+
     /// Returns the base preview width in pixels.
     #[inline]
     #[must_use]
