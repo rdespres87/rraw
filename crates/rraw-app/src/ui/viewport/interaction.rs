@@ -57,11 +57,11 @@ pub fn compute_scroll_zoom(
 
 /// Handles `[` and `]` keyboard shortcuts to resize the active freehand brush mask radius.
 pub fn handle_brush_radius_shortcuts(ui: &egui::Ui, grading: &mut DarkroomGradingState) {
-    let Some(mask_idx) = grading.active_brush_mask_idx else {
+    let Some(mask_idx) = grading.masks.active_brush_mask_idx else {
         return;
     };
     if ui.input(|i| i.key_pressed(egui::Key::OpenBracket)) {
-        if let Some(mask) = grading.local_masks.get_mut(mask_idx) {
+        if let Some(mask) = grading.masks.local_masks.get_mut(mask_idx) {
             if let LocalMaskKind::FreehandBrush { brush_radius, .. } = &mut mask.kind {
                 let step = if *brush_radius > 0.05 {
                     0.01
@@ -76,7 +76,7 @@ pub fn handle_brush_radius_shortcuts(ui: &egui::Ui, grading: &mut DarkroomGradin
         }
     }
     if ui.input(|i| i.key_pressed(egui::Key::CloseBracket)) {
-        if let Some(mask) = grading.local_masks.get_mut(mask_idx) {
+        if let Some(mask) = grading.masks.local_masks.get_mut(mask_idx) {
             if let LocalMaskKind::FreehandBrush { brush_radius, .. } = &mut mask.kind {
                 let step = if *brush_radius >= 0.05 {
                     0.01

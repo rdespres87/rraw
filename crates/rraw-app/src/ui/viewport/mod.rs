@@ -131,22 +131,28 @@ impl RrawApp {
     fn is_freehand_brush_active(&self) -> bool {
         self.session
             .grading
+            .masks
             .active_brush_mask_idx
             .is_some_and(|idx| {
-                self.session.grading.local_masks.get(idx).is_some_and(|m| {
-                    matches!(m.kind, LocalMaskKind::FreehandBrush { .. }) && m.enabled
-                })
+                self.session
+                    .grading
+                    .masks
+                    .local_masks
+                    .get(idx)
+                    .is_some_and(|m| {
+                        matches!(m.kind, LocalMaskKind::FreehandBrush { .. }) && m.enabled
+                    })
             })
     }
 
     fn handle_mask_overlay_shortcut(&mut self, ui: &egui::Ui) {
         if ui.input(|i| i.key_pressed(egui::Key::O)) {
-            if self.session.grading.show_local_mask_overlay.is_some() {
-                self.session.grading.show_local_mask_overlay = None;
+            if self.session.grading.masks.show_local_mask_overlay.is_some() {
+                self.session.grading.masks.show_local_mask_overlay = None;
                 self.session.needs_preview_update = true;
                 ui.ctx().request_repaint();
-            } else if !self.session.grading.local_masks.is_empty() {
-                self.session.grading.show_local_mask_overlay = Some(0);
+            } else if !self.session.grading.masks.local_masks.is_empty() {
+                self.session.grading.masks.show_local_mask_overlay = Some(0);
                 self.session.needs_preview_update = true;
                 ui.ctx().request_repaint();
             }
@@ -176,11 +182,12 @@ impl RrawApp {
             );
         }
 
-        if let Some(mask_idx) = self.session.grading.show_local_mask_overlay {
+        if let Some(mask_idx) = self.session.grading.masks.show_local_mask_overlay {
             let default_mask_name = crate::i18n::tc(cur_lang, "Viewport.DefaultMaskName");
             let mask_name = self
                 .session
                 .grading
+                .masks
                 .local_masks
                 .get(mask_idx)
                 .map_or(default_mask_name, |m| m.name.as_str());
@@ -209,8 +216,8 @@ impl RrawApp {
                 resp,
                 brush_ctx,
                 &self.session.grading.geometry,
-                &mut self.session.grading.local_masks,
-                self.session.grading.active_brush_mask_idx,
+                &mut self.session.grading.masks.local_masks,
+                self.session.grading.masks.active_brush_mask_idx,
             );
             if needs_upd {
                 self.session.needs_preview_update = true;
@@ -219,9 +226,10 @@ impl RrawApp {
             if save_sidecar {
                 self.session.sidecar_dirty = true;
             }
-            if let Some(mask_idx) = self.session.grading.active_brush_mask_idx {
-                if let Some(mask) = self.session.grading.local_masks.get(mask_idx) {
-                    let has_mask_overlay = self.session.grading.show_local_mask_overlay.is_some();
+            if let Some(mask_idx) = self.session.grading.masks.active_brush_mask_idx {
+                if let Some(mask) = self.session.grading.masks.local_masks.get(mask_idx) {
+                    let has_mask_overlay =
+                        self.session.grading.masks.show_local_mask_overlay.is_some();
                     hud::render_brush_hud(
                         painter,
                         available_rect,
@@ -327,8 +335,8 @@ impl RrawApp {
                 resp,
                 painter,
                 brush_ctx,
-                &self.session.grading.local_masks,
-                self.session.grading.active_brush_mask_idx,
+                &self.session.grading.masks.local_masks,
+                self.session.grading.masks.active_brush_mask_idx,
             );
         }
     }

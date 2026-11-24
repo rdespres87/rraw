@@ -42,6 +42,51 @@ impl ExportRasterBuffer {
     }
 }
 
+/// Precomputed frame dimensions, optical distortion, lens vignetting, and geometric warp state.
+#[derive(Debug, Clone, Copy)]
+pub struct FrameGeometry {
+    pub preview_w: usize,
+    pub preview_h: usize,
+    pub cx: f32,
+    pub cy: f32,
+    pub max_radius_sq: f32,
+    pub k_dist: f32,
+    pub v_gain: f32,
+    pub cos_rot: f32,
+    pub sin_rot: f32,
+    pub flip_x: f32,
+    pub flip_y: f32,
+    pub keystone_v: f32,
+    pub keystone_h: f32,
+    pub auto_zoom: f32,
+    pub is_identity_geom_base: bool,
+}
+
+/// Precomputed scalar/matrix grading uniforms shared across every pixel in a frame.
+#[derive(Debug, Clone, Copy)]
+pub struct GradingUniformPayload {
+    pub combined_mat: [f32; 9],
+    pub has_tonal_adjustment: bool,
+    pub has_curves: bool,
+    pub base_contrast_factor: f32,
+    pub base_vibrance: f32,
+    pub user_vibrance: f32,
+    pub user_sat: f32,
+    pub has_creative_vignette: bool,
+    pub cv_amt: f32,
+    pub cv_mid: f32,
+    pub cv_feather: f32,
+    pub cv_round: f32,
+}
+
+/// Heap-allocated precomputed pixel, gain-map, curve-LUT, and spatial brush-grid buffers.
+pub struct FramePrecomputedBuffers {
+    pub processed_samples: Option<Vec<[f32; 3]>>,
+    pub smart_lighting_map: Option<Vec<f32>>,
+    pub curves_lut: Box<[[f32; 4]; 1024]>,
+    pub brush_grids: Vec<Option<PrecomputedBrushGrid>>,
+}
+
 /// Shared precomputed frame state for per-pixel evaluation across both interactive preview and export.
 ///
 /// Guarantees 100% mathematical parity between `render_preview_from_base_profiled` and
@@ -49,37 +94,9 @@ impl ExportRasterBuffer {
 pub struct PreparedGradingFrame<'a> {
     base: &'a BaseRgbPreview,
     grading: &'a DarkroomGradingState,
-    preview_w: usize,
-    preview_h: usize,
-    cx: f32,
-    cy: f32,
-    max_radius_sq: f32,
-    k_dist: f32,
-    v_gain: f32,
-    cos_rot: f32,
-    sin_rot: f32,
-    flip_x: f32,
-    flip_y: f32,
-    keystone_v: f32,
-    keystone_h: f32,
-    auto_zoom: f32,
-    is_identity_geom_base: bool,
-    processed_samples: Option<Vec<[f32; 3]>>,
-    combined_mat: [f32; 9],
-    smart_lighting_map: Option<Vec<f32>>,
-    has_tonal_adjustment: bool,
-    has_curves: bool,
-    curves_lut: Box<[[f32; 4]; 1024]>,
-    brush_grids: Vec<Option<PrecomputedBrushGrid>>,
-    base_contrast_factor: f32,
-    base_vibrance: f32,
-    user_vibrance: f32,
-    user_sat: f32,
-    has_creative_vignette: bool,
-    cv_amt: f32,
-    cv_mid: f32,
-    cv_feather: f32,
-    cv_round: f32,
+    geometry: FrameGeometry,
+    uniforms: GradingUniformPayload,
+    buffers: FramePrecomputedBuffers,
 }
 
 impl<'a> PreparedGradingFrame<'a> {
@@ -271,6 +288,7 @@ impl<'a> PreparedGradingFrame<'a> {
         let curves_lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
         let has_curves = !grading.tone_curves.is_identity();
         let brush_grids: Vec<Option<PrecomputedBrushGrid>> = grading
+            .masks
             .local_masks
             .iter()
             .map(PrecomputedBrushGrid::from_layer)
@@ -395,59 +413,86 @@ impl<'a> PreparedGradingFrame<'a> {
         Self {
             base,
             grading,
-            preview_w,
-            preview_h,
-            cx,
-            cy,
-            max_radius_sq,
-            k_dist,
-            v_gain,
-            cos_rot,
-            sin_rot,
-            flip_x,
-            flip_y,
-            keystone_v,
-            keystone_h,
-            auto_zoom,
-            is_identity_geom_base,
-            processed_samples,
-            combined_mat,
-            smart_lighting_map,
-            has_tonal_adjustment,
-            has_curves,
-            curves_lut,
-            brush_grids,
-            base_contrast_factor,
-            base_vibrance,
-            user_vibrance,
-            user_sat,
-            has_creative_vignette,
-            cv_amt,
-            cv_mid,
-            cv_feather,
-            cv_round,
+            geometry: FrameGeometry {
+                preview_w,
+                preview_h,
+                cx,
+                cy,
+                max_radius_sq,
+                k_dist,
+                v_gain,
+                cos_rot,
+                sin_rot,
+                flip_x,
+                flip_y,
+                keystone_v,
+                keystone_h,
+                auto_zoom,
+                is_identity_geom_base,
+            },
+            uniforms: GradingUniformPayload {
+                combined_mat,
+                has_tonal_adjustment,
+                has_curves,
+                base_contrast_factor,
+                base_vibrance,
+                user_vibrance,
+                user_sat,
+                has_creative_vignette,
+                cv_amt,
+                cv_mid,
+                cv_feather,
+                cv_round,
+            },
+            buffers: FramePrecomputedBuffers {
+                processed_samples,
+                smart_lighting_map,
+                curves_lut,
+                brush_grids,
+            },
         }
+    }
+
+    /// Returns the precomputed frame geometry and optical warp parameters.
+    #[inline]
+    #[must_use]
+    pub const fn geometry(&self) -> &FrameGeometry {
+        &self.geometry
+    }
+
+    /// Returns the precomputed scalar/matrix grading uniforms for this frame.
+    #[inline]
+    #[must_use]
+    pub const fn uniforms(&self) -> &GradingUniformPayload {
+        &self.uniforms
+    }
+
+    /// Returns the precomputed spatial brush acceleration grids.
+    #[inline]
+    #[must_use]
+    pub fn brush_grids(&self) -> &[Option<PrecomputedBrushGrid>] {
+        &self.buffers.brush_grids
     }
 
     /// Returns the base preview width in pixels.
     #[inline]
     #[must_use]
     pub const fn preview_w(&self) -> usize {
-        self.preview_w
+        self.geometry.preview_w
     }
 
     /// Returns the base preview height in pixels.
     #[inline]
     #[must_use]
     pub const fn preview_h(&self) -> usize {
-        self.preview_h
+        self.geometry.preview_h
     }
 
     /// Returns true if the frame has identity geometry (no rotation, distortion, keystone, flip, or auto-zoom).
     #[inline]
     #[must_use]
     pub const fn is_identity_geom_base(&self) -> bool {
-        self.is_identity_geom_base
+        self.geometry.is_identity_geom_base
     }
 
     /// Evaluates the full per-pixel optical, tonal, curve, 3D LUT, local mask, DRT, and soft-proofing chain.
@@ -461,81 +506,81 @@ impl<'a> PreparedGradingFrame<'a> {
         orig_y: f32,
         identity_xy: Option<(usize, usize)>,
     ) -> ([f32; 3], SoftProofResult, f32, f32) {
+        let geom = &self.geometry;
+        let u = &self.uniforms;
         let effective_samples = self
+            .buffers
             .processed_samples
             .as_deref()
             .unwrap_or(&self.base.samples_rgb);
         let max_sample_idx = effective_samples.len().saturating_sub(1);
 
         let (sample_idx, v_mult, u_norm, v_norm) = if let Some((ix, iy)) = identity_xy {
-            let s_idx = (iy * self.preview_w + ix).min(max_sample_idx);
-            let v = if self.v_gain > 1e-4 {
-                let kx = ix as f32 - self.cx;
-                let ky = iy as f32 - self.cy;
-                let norm_r2 = (kx * kx + ky * ky) / self.max_radius_sq;
-                1.0 + self.v_gain * norm_r2 + (self.v_gain * 0.4) * (norm_r2 * norm_r2)
+            let s_idx = (iy * geom.preview_w + ix).min(max_sample_idx);
+            let v = if geom.v_gain > 1e-4 {
+                let kx = ix as f32 - geom.cx;
+                let ky = iy as f32 - geom.cy;
+                let norm_r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
+                1.0 + geom.v_gain * norm_r2 + (geom.v_gain * 0.4) * (norm_r2 * norm_r2)
             } else {
                 1.0
             };
-            let un = (ix as f32 + 0.5) / (self.preview_w.max(1) as f32);
-            let vn = (iy as f32 + 0.5) / (self.preview_h.max(1) as f32);
+            let un = (ix as f32 + 0.5) / (geom.preview_w.max(1) as f32);
+            let vn = (iy as f32 + 0.5) / (geom.preview_h.max(1) as f32);
             (s_idx, v, un, vn)
         } else {
-            let raw_dx = (orig_x - self.cx) * self.flip_x;
-            let raw_dy = (orig_y - self.cy) * self.flip_y;
-            let rx = raw_dx * self.cos_rot + raw_dy * self.sin_rot;
-            let ry = -raw_dx * self.sin_rot + raw_dy * self.cos_rot;
-            let v_scale = (1.0 + self.keystone_v * (ry / self.cy)).max(0.1);
-            let kx = (rx / v_scale) / self.auto_zoom;
-            let h_scale = (1.0 + self.keystone_h * (kx / self.cx)).max(0.1);
-            let ky = (ry / h_scale) / self.auto_zoom;
+            let raw_dx = (orig_x - geom.cx) * geom.flip_x;
+            let raw_dy = (orig_y - geom.cy) * geom.flip_y;
+            let rx = raw_dx * geom.cos_rot + raw_dy * geom.sin_rot;
+            let ry = -raw_dx * geom.sin_rot + raw_dy * geom.cos_rot;
+            let v_scale = (1.0 + geom.keystone_v * (ry / geom.cy)).max(0.1);
+            let kx = (rx / v_scale) / geom.auto_zoom;
+            let h_scale = (1.0 + geom.keystone_h * (kx / geom.cx)).max(0.1);
+            let ky = (ry / h_scale) / geom.auto_zoom;
 
-            let s_idx = if self.k_dist.abs() > 1e-5 {
-                let r2 = (kx * kx + ky * ky) / self.max_radius_sq;
-                let warp = 1.0 + self.k_dist * r2;
-                let warped_x = ((self.cx + kx * warp).round() as isize)
-                    .clamp(0, self.preview_w as isize - 1) as usize;
-                let warped_y = ((self.cy + ky * warp).round() as isize)
-                    .clamp(0, self.preview_h as isize - 1) as usize;
-                warped_y * self.preview_w + warped_x
+            let s_idx = if geom.k_dist.abs() > 1e-5 {
+                let r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
+                let warp = 1.0 + geom.k_dist * r2;
+                let warped_x = ((geom.cx + kx * warp).round() as isize)
+                    .clamp(0, geom.preview_w as isize - 1) as usize;
+                let warped_y = ((geom.cy + ky * warp).round() as isize)
+                    .clamp(0, geom.preview_h as isize - 1) as usize;
+                warped_y * geom.preview_w + warped_x
             } else {
-                let sx = ((self.cx + kx).round() as isize).clamp(0, self.preview_w as isize - 1)
+                let sx = ((geom.cx + kx).round() as isize).clamp(0, geom.preview_w as isize - 1)
                     as usize;
-                let sy = ((self.cy + ky).round() as isize).clamp(0, self.preview_h as isize - 1)
+                let sy = ((geom.cy + ky).round() as isize).clamp(0, geom.preview_h as isize - 1)
                     as usize;
-                sy * self.preview_w + sx
+                sy * geom.preview_w + sx
             };
 
-            let v = if self.v_gain > 1e-4 {
-                let norm_r2 = (kx * kx + ky * ky) / self.max_radius_sq;
-                1.0 + self.v_gain * norm_r2 + (self.v_gain * 0.4) * (norm_r2 * norm_r2)
+            let v = if geom.v_gain > 1e-4 {
+                let norm_r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
+                1.0 + geom.v_gain * norm_r2 + (geom.v_gain * 0.4) * (norm_r2 * norm_r2)
             } else {
                 1.0
             };
-            let un = (orig_x / (self.preview_w.max(1) as f32)).clamp(0.0, 1.0);
-            let vn = (orig_y / (self.preview_h.max(1) as f32)).clamp(0.0, 1.0);
+            let un = (orig_x / (geom.preview_w.max(1) as f32)).clamp(0.0, 1.0);
+            let vn = (orig_y / (geom.preview_h.max(1) as f32)).clamp(0.0, 1.0);
             (s_idx.min(max_sample_idx), v, un, vn)
         };
 
         let [mean_r, mean_g, mean_b] = effective_samples[sample_idx];
 
-        let mut r_scaled = (self.combined_mat[0] * mean_r
-            + self.combined_mat[1] * mean_g
-            + self.combined_mat[2] * mean_b)
-            .max(0.0)
-            * v_mult;
-        let mut g_scaled = (self.combined_mat[3] * mean_r
-            + self.combined_mat[4] * mean_g
-            + self.combined_mat[5] * mean_b)
-            .max(0.0)
-            * v_mult;
-        let mut b_scaled = (self.combined_mat[6] * mean_r
-            + self.combined_mat[7] * mean_g
-            + self.combined_mat[8] * mean_b)
-            .max(0.0)
-            * v_mult;
+        let mut r_scaled =
+            (u.combined_mat[0] * mean_r + u.combined_mat[1] * mean_g + u.combined_mat[2] * mean_b)
+                .max(0.0)
+                * v_mult;
+        let mut g_scaled =
+            (u.combined_mat[3] * mean_r + u.combined_mat[4] * mean_g + u.combined_mat[5] * mean_b)
+                .max(0.0)
+                * v_mult;
+        let mut b_scaled =
+            (u.combined_mat[6] * mean_r + u.combined_mat[7] * mean_g + u.combined_mat[8] * mean_b)
+                .max(0.0)
+                * v_mult;
 
-        if let Some(gains) = &self.smart_lighting_map {
+        if let Some(gains) = &self.buffers.smart_lighting_map {
             let sl_idx = sample_idx.min(gains.len().saturating_sub(1));
             let g = gains[sl_idx];
             r_scaled *= g;
@@ -543,7 +588,7 @@ impl<'a> PreparedGradingFrame<'a> {
             b_scaled *= g;
         }
 
-        let (r_toned, g_toned, b_toned) = if self.has_tonal_adjustment {
+        let (r_toned, g_toned, b_toned) = if u.has_tonal_adjustment {
             let lum = 0.2126 * r_scaled + 0.7152 * g_scaled + 0.0722 * b_scaled;
             let y_norm = lum / (lum + 0.18);
             let shadow_weight = (1.0 - y_norm).powi(2);
@@ -562,10 +607,10 @@ impl<'a> PreparedGradingFrame<'a> {
             (r_scaled, g_scaled, b_scaled)
         };
 
-        let (r_curved, g_curved, b_curved) = if self.has_curves {
+        let (r_curved, g_curved, b_curved) = if u.has_curves {
             let c = rraw_color::curves::apply_tone_curves_lut(
                 glam::Vec3::new(r_toned, g_toned, b_toned),
-                &self.curves_lut,
+                &self.buffers.curves_lut,
             );
             (c.x, c.y, c.z)
         } else {
@@ -586,19 +631,18 @@ impl<'a> PreparedGradingFrame<'a> {
             (r_curved, g_curved, b_curved)
         };
 
-        let (sem_ev, sem_contrast, sem_sat, sem_temp) =
-            if !self.grading.semantic_masks.is_empty() || !self.grading.local_masks.is_empty() {
-                eval_all_mask_adjustments_with_brush_grids(
-                    &self.base.semantic_masks,
-                    &self.grading.semantic_masks,
-                    &self.grading.local_masks,
-                    &self.brush_grids,
-                    u_norm,
-                    v_norm,
-                )
-            } else {
-                (0.0, 0.0, 0.0, 0.0)
-            };
+        let (sem_ev, sem_contrast, sem_sat, sem_temp) = if !self.grading.masks.is_empty() {
+            eval_all_mask_adjustments_with_brush_grids(
+                &self.base.semantic_masks,
+                &self.grading.masks.semantic_masks,
+                &self.grading.masks.local_masks,
+                &self.buffers.brush_grids,
+                u_norm,
+                v_norm,
+            )
+        } else {
+            (0.0, 0.0, 0.0, 0.0)
+        };
 
         let (r_sem, g_sem, b_sem) = if sem_ev.abs() > 1e-4 || sem_temp.abs() > 1e-3 {
             let g_ev = 2.0_f32.powf(sem_ev);
@@ -627,7 +671,7 @@ impl<'a> PreparedGradingFrame<'a> {
         };
 
         let eff_factor =
-            (self.base_contrast_factor * (1.0 + (sem_contrast / 100.0).clamp(-0.8, 2.0))).max(0.05);
+            (u.base_contrast_factor * (1.0 + (sem_contrast / 100.0).clamp(-0.8, 2.0))).max(0.05);
         let r_c = ((r_drt - 0.18) * eff_factor + 0.18).max(0.0);
         let g_c = ((g_drt - 0.18) * eff_factor + 0.18).max(0.0);
         let b_c = ((b_drt - 0.18) * eff_factor + 0.18).max(0.0);
@@ -641,29 +685,29 @@ impl<'a> PreparedGradingFrame<'a> {
             0.0
         };
         let vib_weight = (1.0 - current_sat).clamp(0.0, 1.0);
-        let eff_sat = ((1.0 + self.user_sat + (sem_sat / 100.0))
-            * (1.0 + (self.base_vibrance + self.user_vibrance) * vib_weight))
+        let eff_sat = ((1.0 + u.user_sat + (sem_sat / 100.0))
+            * (1.0 + (u.base_vibrance + u.user_vibrance) * vib_weight))
             .max(0.0);
 
         let r_s = lum_c + (r_c - lum_c) * eff_sat;
         let g_s = lum_c + (g_c - lum_c) * eff_sat;
         let b_s = lum_c + (b_c - lum_c) * eff_sat;
 
-        let (r_s, g_s, b_s) = if self.has_creative_vignette {
-            let u_rel = (orig_x - self.cx) / self.cx.max(1.0);
-            let v_rel = (orig_y - self.cy) / self.cy.max(1.0);
+        let (r_s, g_s, b_s) = if u.has_creative_vignette {
+            let u_rel = (orig_x - geom.cx) / geom.cx.max(1.0);
+            let v_rel = (orig_y - geom.cy) / geom.cy.max(1.0);
             let r_ellip = (u_rel * u_rel + v_rel * v_rel).sqrt();
-            let r_circ = ((orig_x - self.cx).powi(2) + (orig_y - self.cy).powi(2)).sqrt()
-                / self.cx.min(self.cy).max(1.0);
+            let r_circ = ((orig_x - geom.cx).powi(2) + (orig_y - geom.cy).powi(2)).sqrt()
+                / geom.cx.min(geom.cy).max(1.0);
             let r_rect = u_rel.abs().max(v_rel.abs());
-            let r_dist = if self.cv_round > 0.0 {
-                r_ellip * (1.0 - self.cv_round) + r_circ * self.cv_round
+            let r_dist = if u.cv_round > 0.0 {
+                r_ellip * (1.0 - u.cv_round) + r_circ * u.cv_round
             } else {
-                r_ellip * (1.0 + self.cv_round) + r_rect * (-self.cv_round)
+                r_ellip * (1.0 + u.cv_round) + r_rect * (-u.cv_round)
             };
-            let t = ((r_dist - self.cv_mid) / (self.cv_feather.max(0.05) * 1.2)).clamp(0.0, 1.0);
+            let t = ((r_dist - u.cv_mid) / (u.cv_feather.max(0.05) * 1.2)).clamp(0.0, 1.0);
             let smooth_t = t * t * (3.0 - 2.0 * t);
-            let cv_mult = (1.0 + self.cv_amt * smooth_t).max(0.0);
+            let cv_mult = (1.0 + u.cv_amt * smooth_t).max(0.0);
             (r_s * cv_mult, g_s * cv_mult, b_s * cv_mult)
         } else {
             (r_s, g_s, b_s)
@@ -835,8 +879,9 @@ pub fn render_preview_from_base_profiled(
                     u8_b = ((u8_b as f32) * (1.0 - w) + alert_b * w).clamp(0.0, 255.0) as u8;
                 }
 
-                if let Some(overlay_cat) = grading.show_semantic_mask_overlay {
+                if let Some(overlay_cat) = grading.masks.show_semantic_mask_overlay {
                     let (inv, fth) = grading
+                        .masks
                         .semantic_masks
                         .iter()
                         .find(|m| m.category == overlay_cat)
@@ -855,9 +900,9 @@ pub fn render_preview_from_base_profiled(
                     }
                 }
 
-                if let Some(mask_idx) = grading.show_local_mask_overlay {
-                    if let Some(m) = grading.local_masks.get(mask_idx) {
-                        let raw_mw = if let Some(Some(grid)) = frame.brush_grids.get(mask_idx) {
+                if let Some(mask_idx) = grading.masks.show_local_mask_overlay {
+                    if let Some(m) = grading.masks.local_masks.get(mask_idx) {
+                        let raw_mw = if let Some(Some(grid)) = frame.brush_grids().get(mask_idx) {
                             grid.sample(u_norm, v_norm)
                         } else {
                             m.evaluate_weight(u_norm, v_norm)

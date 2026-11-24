@@ -830,7 +830,7 @@ fn test_ai_semantic_masks_lifecycle_and_sidecar_roundtrip() -> Result<(), Box<dy
     std::fs::write(&photo_path, b"dummy raw content")?;
 
     let mut grading = DarkroomGradingState::default();
-    assert!(grading.semantic_masks.is_empty());
+    assert!(grading.masks.semantic_masks.is_empty());
 
     {
         let sky_layer = grading.upsert_semantic_mask(SemanticMaskCategory::Sky);
@@ -847,7 +847,7 @@ fn test_ai_semantic_masks_lifecycle_and_sidecar_roundtrip() -> Result<(), Box<dy
         subj_layer.invert = true;
     }
 
-    assert_eq!(grading.semantic_masks.len(), 2);
+    assert_eq!(grading.masks.semantic_masks.len(), 2);
 
     let stage6 = grading.to_stage6_masks_params();
     assert_eq!(stage6.masks.len(), 2);
@@ -864,8 +864,8 @@ fn test_ai_semantic_masks_lifecycle_and_sidecar_roundtrip() -> Result<(), Box<dy
     let (loaded_opt, rating_opt) = app::load_photo_sidecars(&photo_path);
     assert_eq!(rating_opt, Some(5));
     let loaded = loaded_opt.ok_or("Expected loaded DarkroomGradingState")?;
-    assert_eq!(loaded.semantic_masks.len(), 2);
-    assert_eq!(loaded.semantic_masks, grading.semantic_masks);
+    assert_eq!(loaded.masks.semantic_masks.len(), 2);
+    assert_eq!(loaded.masks.semantic_masks, grading.masks.semantic_masks);
 
     let _ = std::fs::remove_dir_all(&temp_dir);
     Ok(())
@@ -945,7 +945,10 @@ fn test_ai_semantic_mask_overlay_visualization() {
     let (preview_no_overlay, _) = app::render_preview_from_base(&base, &neutral);
 
     let mut with_overlay = DarkroomGradingState {
-        show_semantic_mask_overlay: Some(SemanticMaskCategory::Sky),
+        masks: rraw_app::state::MaskGradingState {
+            show_semantic_mask_overlay: Some(SemanticMaskCategory::Sky),
+            ..Default::default()
+        },
         ..Default::default()
     };
     let (preview_overlay, _) = app::render_preview_from_base(&base, &with_overlay);
@@ -956,7 +959,7 @@ fn test_ai_semantic_mask_overlay_visualization() {
         "Ruby overlay must boost red channel over detected sky region"
     );
 
-    with_overlay.show_semantic_mask_overlay = None;
+    with_overlay.masks.show_semantic_mask_overlay = None;
 }
 
 #[test]

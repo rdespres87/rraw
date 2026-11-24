@@ -77,10 +77,7 @@ impl RrawApp {
                     || (self.session.grading.optics.vignette_amount - 50.0).abs() > 0.01
             }
             DarkroomSection::Effects => self.session.grading.effects.is_active(),
-            DarkroomSection::AiSemanticMasks => {
-                !self.session.grading.semantic_masks.is_empty()
-                    || !self.session.grading.local_masks.is_empty()
-            }
+            DarkroomSection::AiSemanticMasks => !self.session.grading.masks.is_empty(),
             DarkroomSection::Timelapse => false,
             DarkroomSection::LegacyOther => false,
         }
@@ -89,7 +86,7 @@ impl RrawApp {
     /// Resets all parameters of a specific darkroom section back to standard defaults.
     pub fn reset_section(&mut self, section: DarkroomSection) {
         if section != DarkroomSection::AiSemanticMasks {
-            self.session.grading.active_brush_mask_idx = None;
+            self.session.grading.masks.active_brush_mask_idx = None;
         }
         self.record_undo_snapshot();
         match section {
@@ -166,9 +163,9 @@ impl RrawApp {
                 self.session.grading.effects = EffectsGradingParams::default();
             }
             DarkroomSection::AiSemanticMasks => {
-                self.session.grading.semantic_masks.clear();
-                self.session.grading.local_masks.clear();
-                self.session.grading.active_brush_mask_idx = None;
+                self.session.grading.masks.semantic_masks.clear();
+                self.session.grading.masks.local_masks.clear();
+                self.session.grading.masks.active_brush_mask_idx = None;
             }
             DarkroomSection::Timelapse | DarkroomSection::LegacyOther => {}
         }
@@ -366,7 +363,7 @@ impl RrawApp {
                 }
                 let is_section_open = state.is_open();
                 if section == DarkroomSection::AiSemanticMasks && !is_section_open {
-                    self.session.grading.active_brush_mask_idx = None;
+                    self.session.grading.masks.active_brush_mask_idx = None;
                 }
 
                 state
@@ -432,21 +429,24 @@ impl RrawApp {
                                 let prev_crop = self.viewport.is_crop_editing;
                                 let prev_horizon = self.viewport.horizon_tool_active;
                                 let prev_phase = self.viewport.parallel_tool_phase;
-                                let prev_brush = self.session.grading.active_brush_mask_idx;
+                                let prev_brush = self.session.grading.masks.active_brush_mask_idx;
                                 let mut mask_ctx = sections::masks::MaskUiContext {
-                                    local_masks: &mut self.session.grading.local_masks,
+                                    local_masks: &mut self.session.grading.masks.local_masks,
                                     show_local_mask_overlay: &mut self
                                         .session
                                         .grading
+                                        .masks
                                         .show_local_mask_overlay,
                                     active_brush_mask_idx: &mut self
                                         .session
                                         .grading
+                                        .masks
                                         .active_brush_mask_idx,
-                                    semantic_masks: &mut self.session.grading.semantic_masks,
+                                    semantic_masks: &mut self.session.grading.masks.semantic_masks,
                                     show_semantic_mask_overlay: &mut self
                                         .session
                                         .grading
+                                        .masks
                                         .show_semantic_mask_overlay,
                                     language: cur_lang,
                                 };
@@ -473,7 +473,7 @@ impl RrawApp {
                                 let prev_crop = self.viewport.is_crop_editing;
                                 let prev_horizon = self.viewport.horizon_tool_active;
                                 let prev_phase = self.viewport.parallel_tool_phase;
-                                let prev_brush = self.session.grading.active_brush_mask_idx;
+                                let prev_brush = self.session.grading.masks.active_brush_mask_idx;
                                 let dims = self.session.loaded_photo.as_ref().map(|p| p.dimensions);
                                 let out = sections::crop::render(
                                     ui,
@@ -494,7 +494,7 @@ impl RrawApp {
                                 let prev_crop = self.viewport.is_crop_editing;
                                 let prev_horizon = self.viewport.horizon_tool_active;
                                 let prev_phase = self.viewport.parallel_tool_phase;
-                                let prev_brush = self.session.grading.active_brush_mask_idx;
+                                let prev_brush = self.session.grading.masks.active_brush_mask_idx;
                                 let out = sections::straighten::render(
                                     ui,
                                     &mut self.session.grading.geometry,
@@ -515,7 +515,7 @@ impl RrawApp {
                                 let prev_crop = self.viewport.is_crop_editing;
                                 let prev_horizon = self.viewport.horizon_tool_active;
                                 let prev_phase = self.viewport.parallel_tool_phase;
-                                let prev_brush = self.session.grading.active_brush_mask_idx;
+                                let prev_brush = self.session.grading.masks.active_brush_mask_idx;
                                 let mut tool_state = sections::geometry::ParallelLinesToolState {
                                     phase: &mut self.viewport.parallel_tool_phase,
                                     line1: &mut self.viewport.parallel_line1,
@@ -651,11 +651,11 @@ impl RrawApp {
                                 if sections::timelapse::render_export_button(ui, cur_lang) {
                                     self.export
                                         .set_target_mode(ExportTargetMode::TimelapseSequence);
-                                    self.export.export_subfolder = "Timelapse".to_string();
+                                    self.export.config.subfolder = "Timelapse".to_string();
                                     self.export.open_dialog(
                                         crate::controllers::export::ActiveModalDialog::Export,
                                     );
-                                    self.export.export_status = None;
+                                    self.export.stats.status = None;
                                 }
                                 sections::SectionOutput::nothing()
                             }
@@ -680,7 +680,7 @@ impl RrawApp {
                         if section != DarkroomSection::AiSemanticMasks
                             && (out.needs_preview_update || grading_edited)
                         {
-                            self.session.grading.active_brush_mask_idx = None;
+                            self.session.grading.masks.active_brush_mask_idx = None;
                         }
                     });
             });

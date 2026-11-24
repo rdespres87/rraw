@@ -8,7 +8,9 @@ pub mod session;
 pub mod viewport;
 pub mod workers;
 
-pub use export::ExportBatchController;
+pub use export::{
+    ExportBatchConfig, ExportBatchController, ExportRuntimeStats, TimelapseExportConfig,
+};
 pub use library::LibraryController;
 pub use session::PhotoSession;
 pub use viewport::ViewportController;

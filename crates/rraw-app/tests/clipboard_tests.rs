@@ -130,8 +130,11 @@ fn test_grading_recipe_clipboard_capture_and_selective_application(
             keystone_horizontal: -0.05,
             ..Default::default()
         },
-        local_masks: vec![target_mask.clone()],
-        show_local_mask_overlay: Some(0),
+        masks: rraw_app::state::MaskGradingState {
+            local_masks: vec![target_mask.clone()],
+            show_local_mask_overlay: Some(0),
+            ..Default::default()
+        },
         optics: OpticsGradingParams {
             distortion_correction: false,
             distortion_amount: 0.0,
@@ -187,9 +190,9 @@ fn test_grading_recipe_clipboard_capture_and_selective_application(
     assert!(target.geometry.geometry_enabled);
     assert_eq!(target.geometry.keystone_vertical, 0.15);
     assert_eq!(target.geometry.keystone_horizontal, -0.05);
-    assert_eq!(target.local_masks.len(), 1);
-    assert_eq!(target.local_masks[0].id, target_mask.id);
-    assert_eq!(target.show_local_mask_overlay, Some(0));
+    assert_eq!(target.masks.local_masks.len(), 1);
+    assert_eq!(target.masks.local_masks[0].id, target_mask.id);
+    assert_eq!(target.masks.show_local_mask_overlay, Some(0));
     assert!(!target.optics.distortion_correction);
     assert_eq!(target.optics.distortion_amount, 0.0);
     assert!(target.optics.chromatic_aberration_correction);

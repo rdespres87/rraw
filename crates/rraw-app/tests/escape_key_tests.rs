@@ -63,10 +63,10 @@ fn test_escape_cancels_perspective_and_brush_tools() {
     );
     assert_eq!(app.library.selected_photos.len(), 1);
 
-    app.session.grading.active_brush_mask_idx = Some(0);
+    app.session.grading.masks.active_brush_mask_idx = Some(0);
     let dismissed_brush = app.handle_escape_key();
     assert!(dismissed_brush);
-    assert!(app.session.grading.active_brush_mask_idx.is_none());
+    assert!(app.session.grading.masks.active_brush_mask_idx.is_none());
     assert_eq!(app.library.selected_photos.len(), 1);
 
     let dismissed_sel = app.handle_escape_key();

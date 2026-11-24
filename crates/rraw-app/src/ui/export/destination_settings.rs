@@ -31,7 +31,7 @@ impl RrawApp {
         ui.horizontal_wrapped(|ui| {
             if ui
                 .radio_value(
-                    &mut self.export.export_target_mode,
+                    &mut self.export.config.target_mode,
                     ExportTargetMode::CurrentPhoto,
                     t(Key::ExportTargetCurrent),
                 )
@@ -44,7 +44,7 @@ impl RrawApp {
             let batch_label = format!("{batch_word} ({sel_count} photo{s_suffix})");
             if ui
                 .radio_value(
-                    &mut self.export.export_target_mode,
+                    &mut self.export.config.target_mode,
                     ExportTargetMode::BatchSelection,
                     batch_label,
                 )
@@ -55,7 +55,7 @@ impl RrawApp {
             }
             if ui
                 .radio_value(
-                    &mut self.export.export_target_mode,
+                    &mut self.export.config.target_mode,
                     ExportTargetMode::TimelapseSequence,
                     t(Key::ExportTargetTimelapse),
                 )
@@ -63,13 +63,13 @@ impl RrawApp {
             {
                 self.export
                     .set_target_mode(ExportTargetMode::TimelapseSequence);
-                if self.export.export_subfolder == "Export" {
-                    self.export.export_subfolder = "Timelapse".to_owned();
+                if self.export.config.subfolder == "Export" {
+                    self.export.config.subfolder = "Timelapse".to_owned();
                 }
             }
         });
 
-        match self.export.export_target_mode {
+        match self.export.config.target_mode {
             ExportTargetMode::CurrentPhoto => self.render_active_photo_summary(ui, lang),
             ExportTargetMode::BatchSelection => {
                 if sel_count == 0 {
@@ -125,7 +125,7 @@ impl RrawApp {
         ui.separator();
         ui.heading(t(Key::ExportResizeHeading));
         egui::ComboBox::from_id_salt("export_scale_combo")
-            .selected_text(self.export.export_scale_mode.label_lang(lang))
+            .selected_text(self.export.config.scale_mode.label_lang(lang))
             .show_ui(ui, |ui| {
                 for mode in [
                     ExportScaleMode::Original,
@@ -135,7 +135,7 @@ impl RrawApp {
                     ExportScaleMode::FitLongEdge3840,
                 ] {
                     ui.selectable_value(
-                        &mut self.export.export_scale_mode,
+                        &mut self.export.config.scale_mode,
                         mode,
                         mode.label_lang(lang),
                     );
@@ -145,7 +145,7 @@ impl RrawApp {
         ui.separator();
         ui.heading(t(Key::ExportDestinationHeading));
         ui.horizontal(|ui| {
-            let dest_label = if let Some(dir) = &self.export.export_custom_dir {
+            let dest_label = if let Some(dir) = &self.export.config.custom_dir {
                 dir.to_string_lossy().into_owned()
             } else if let Some(photo) = &self.session.loaded_photo {
                 photo
@@ -159,34 +159,34 @@ impl RrawApp {
             ui.label(egui::RichText::new(dest_label).small().monospace());
             if ui.button(t(Key::SidebarBrowseButton)).clicked() {
                 if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                    self.export.export_custom_dir = Some(folder);
+                    self.export.config.custom_dir = Some(folder);
                 }
             }
         });
 
         ui.horizontal(|ui| {
             ui.checkbox(
-                &mut self.export.export_use_subfolder,
+                &mut self.export.config.use_subfolder,
                 t(Key::ExportUseSubfolder),
             );
-            if self.export.export_use_subfolder {
+            if self.export.config.use_subfolder {
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.export.export_subfolder)
+                    egui::TextEdit::singleline(&mut self.export.config.subfolder)
                         .desired_width(120.0),
                 );
             }
         });
 
-        if self.export.export_target_mode == ExportTargetMode::TimelapseSequence {
+        if self.export.config.target_mode == ExportTargetMode::TimelapseSequence {
             ui.horizontal(|ui| {
                 ui.label(t(Key::ExportSequencePrefix));
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.export.timelapse_sequence_prefix)
+                    egui::TextEdit::singleline(&mut self.export.config.timelapse.sequence_prefix)
                         .desired_width(120.0),
                 );
-                let ext = self.export.export_format.extension();
+                let ext = self.export.config.format.extension();
                 let sample = rraw_export::format_sequence_filename(
-                    &self.export.timelapse_sequence_prefix,
+                    &self.export.config.timelapse.sequence_prefix,
                     1,
                     ext,
                 );
@@ -200,7 +200,7 @@ impl RrawApp {
             ui.horizontal(|ui| {
                 ui.label(t(Key::ExportFileSuffix));
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.export.export_suffix).desired_width(120.0),
+                    egui::TextEdit::singleline(&mut self.export.config.suffix).desired_width(120.0),
                 );
             });
         }
@@ -215,16 +215,16 @@ impl RrawApp {
         let t = |key: Key| key.translate(lang);
         let mut action = ExportFooterAction::default();
 
-        if self.export.is_exporting {
+        if self.export.stats.is_exporting {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.spinner();
-                ui.label(egui::RichText::new(&self.export.export_progress_label).strong());
+                ui.label(egui::RichText::new(&self.export.stats.progress_label).strong());
             });
-            ui.add(egui::ProgressBar::new(self.export.export_progress).animate(true));
+            ui.add(egui::ProgressBar::new(self.export.stats.progress).animate(true));
         }
 
-        if let Some((msg, success)) = &self.export.export_status {
+        if let Some((msg, success)) = &self.export.stats.status {
             ui.add_space(6.0);
             let col = if *success {
                 Color32::from_rgb(100, 220, 120)
@@ -239,21 +239,21 @@ impl RrawApp {
         ui.horizontal(|ui| {
             if ui
                 .add_enabled(
-                    !self.export.is_exporting,
+                    !self.export.stats.is_exporting,
                     egui::Button::new(t(Key::ExportCancel)),
                 )
                 .clicked()
             {
                 action.close_dialog = true;
             }
-            let export_btn_text = match self.export.export_target_mode {
+            let export_btn_text = match self.export.config.target_mode {
                 ExportTargetMode::CurrentPhoto => t(Key::ExportBtnSingle),
                 ExportTargetMode::BatchSelection => t(Key::ExportBtnBatch),
                 ExportTargetMode::TimelapseSequence => t(Key::ExportBtnTimelapse),
             };
             if ui
                 .add_enabled(
-                    !self.export.is_exporting,
+                    !self.export.stats.is_exporting,
                     egui::Button::new(egui::RichText::new(export_btn_text).strong())
                         .fill(Color32::from_rgb(30, 110, 210)),
                 )

@@ -79,12 +79,12 @@ fn test_p1_2_active_modal_dialog_exclusivity_and_target_mode_sync() {
     assert!(!exp.show_shortcuts_dialog);
 
     exp.set_target_mode(ExportTargetMode::BatchSelection);
-    assert_eq!(exp.export_target_mode, ExportTargetMode::BatchSelection);
-    assert!(exp.export_batch_selection);
+    assert_eq!(exp.config.target_mode, ExportTargetMode::BatchSelection);
+    assert!(exp.config.batch_selection);
 
     exp.set_target_mode(ExportTargetMode::CurrentPhoto);
-    assert_eq!(exp.export_target_mode, ExportTargetMode::CurrentPhoto);
-    assert!(!exp.export_batch_selection);
+    assert_eq!(exp.config.target_mode, ExportTargetMode::CurrentPhoto);
+    assert!(!exp.config.batch_selection);
 }
 
 #[test]
@@ -114,12 +114,12 @@ fn test_p1_3_interactive_canvas_tools_mutual_exclusion() {
         app.viewport.parallel_tool_phase,
         ParallelToolPhase::Inactive
     );
-    assert_eq!(app.session.grading.active_brush_mask_idx, Some(2));
+    assert_eq!(app.session.grading.masks.active_brush_mask_idx, Some(2));
     assert_eq!(app.active_canvas_tool(), ActiveCanvasTool::FreehandBrush(2));
 
     app.activate_canvas_tool(ActiveCanvasTool::None);
     assert_eq!(app.active_canvas_tool(), ActiveCanvasTool::None);
-    assert!(app.session.grading.active_brush_mask_idx.is_none());
+    assert!(app.session.grading.masks.active_brush_mask_idx.is_none());
 }
 
 #[test]

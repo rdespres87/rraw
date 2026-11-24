@@ -47,7 +47,7 @@ fn test_p0_1_render_export_image_with_depth_single_buffer_and_parity() -> Result
     // Add a local mask with negative contrast to verify the 0.05 floor prevents contrast inversion
     let mut mask = LocalMaskLayer::new_linear("NegContrast", [0.0, 0.0], [1.0, 1.0]);
     mask.contrast = -90.0;
-    grading.local_masks.push(mask);
+    grading.masks.local_masks.push(mask);
 
     // 1. 8-bit export allocates ONLY the u8 buffer
     let (w8, h8, buf8) =
@@ -112,9 +112,9 @@ fn test_p0_2_timelapse_background_export_streams_async_without_blocking(
 
     let mut app = RrawApp::new_headless();
     app.open_directory(&temp_dir);
-    app.export.export_target_mode = ExportTargetMode::TimelapseSequence;
-    app.export.export_subfolder = "TimelapseOut".to_string();
-    app.export.timelapse_sequence_prefix = "seq".to_string();
+    app.export.config.target_mode = ExportTargetMode::TimelapseSequence;
+    app.export.config.subfolder = "TimelapseOut".to_string();
+    app.export.config.timelapse.sequence_prefix = "seq".to_string();
 
     app.spawn_background_export()?;
 

@@ -17,29 +17,29 @@ impl RrawApp {
         ui.heading(t(Key::ExportFormatHeading));
         ui.horizontal(|ui| {
             ui.selectable_value(
-                &mut self.export.export_format,
+                &mut self.export.config.format,
                 ExportFormatChoice::Jpeg,
                 "JPEG",
             );
             ui.selectable_value(
-                &mut self.export.export_format,
+                &mut self.export.config.format,
                 ExportFormatChoice::Png,
                 "PNG",
             );
             ui.selectable_value(
-                &mut self.export.export_format,
+                &mut self.export.config.format,
                 ExportFormatChoice::Tiff,
                 "TIFF",
             );
             ui.selectable_value(
-                &mut self.export.export_format,
+                &mut self.export.config.format,
                 ExportFormatChoice::Avif,
                 "AVIF",
             );
         });
 
         ui.add_space(4.0);
-        match self.export.export_format {
+        match self.export.config.format {
             ExportFormatChoice::Jpeg | ExportFormatChoice::Avif => {
                 self.render_lossy_quality_slider(ui, lang);
             }
@@ -47,12 +47,12 @@ impl RrawApp {
                 ui.horizontal(|ui| {
                     ui.label(t(Key::ExportBitDepth));
                     ui.radio_value(
-                        &mut self.export.export_bit_depth,
+                        &mut self.export.config.bit_depth,
                         ExportBitDepth::Bits8,
                         t(Key::ExportBitDepth8Standard),
                     );
                     ui.radio_value(
-                        &mut self.export.export_bit_depth,
+                        &mut self.export.config.bit_depth,
                         ExportBitDepth::Bits16,
                         t(Key::ExportBitDepth16Lossless),
                     );
@@ -62,12 +62,12 @@ impl RrawApp {
                 ui.horizontal(|ui| {
                     ui.label(t(Key::ExportBitDepth));
                     ui.radio_value(
-                        &mut self.export.export_bit_depth,
+                        &mut self.export.config.bit_depth,
                         ExportBitDepth::Bits8,
                         t(Key::ExportBitDepth8),
                     );
                     ui.radio_value(
-                        &mut self.export.export_bit_depth,
+                        &mut self.export.config.bit_depth,
                         ExportBitDepth::Bits16,
                         t(Key::ExportBitDepth16Studio),
                     );
@@ -77,7 +77,7 @@ impl RrawApp {
 
         ui.add_space(4.0);
         ui.checkbox(
-            &mut self.export.export_hdr_gain_map,
+            &mut self.export.config.hdr_gain_map,
             crate::i18n::export_hdr_gain_map_checkbox_label(lang),
         )
         .on_hover_text(crate::i18n::export_hdr_gain_map_checkbox_tooltip(lang));
@@ -87,11 +87,11 @@ impl RrawApp {
         let t = |key: Key| key.translate(lang);
         ui.horizontal(|ui| {
             ui.label(t(Key::ExportJpegQuality));
-            ui.add(egui::Slider::new(&mut self.export.export_jpeg_quality, 1..=100).suffix("%"));
+            ui.add(egui::Slider::new(&mut self.export.config.jpeg_quality, 1..=100).suffix("%"));
         });
-        let quality_desc = if self.export.export_jpeg_quality >= 92 {
+        let quality_desc = if self.export.config.jpeg_quality >= 92 {
             t(Key::ExportJpegQualityMax)
-        } else if self.export.export_jpeg_quality >= 80 {
+        } else if self.export.config.jpeg_quality >= 80 {
             t(Key::ExportJpegQualityBalanced)
         } else {
             t(Key::ExportJpegQualityLow)

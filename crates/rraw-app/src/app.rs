@@ -204,7 +204,7 @@ impl RrawApp {
         self.layout_config.active_tool_family = family;
 
         if !matches!(family, ToolFamily::All | ToolFamily::LocalMasks) {
-            self.session.grading.active_brush_mask_idx = None;
+            self.session.grading.masks.active_brush_mask_idx = None;
         }
 
         if !matches!(family, ToolFamily::All | ToolFamily::Geometry) {
@@ -232,7 +232,7 @@ impl RrawApp {
             ActiveCanvasTool::Horizon
         } else if self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive {
             ActiveCanvasTool::ParallelLines(self.viewport.parallel_tool_phase)
-        } else if let Some(idx) = self.session.grading.active_brush_mask_idx {
+        } else if let Some(idx) = self.session.grading.masks.active_brush_mask_idx {
             ActiveCanvasTool::FreehandBrush(idx)
         } else {
             ActiveCanvasTool::None
@@ -251,7 +251,7 @@ impl RrawApp {
         self.viewport.parallel_line1 = None;
         self.viewport.parallel_line2 = None;
         self.viewport.parallel_drag_start = None;
-        self.session.grading.active_brush_mask_idx = None;
+        self.session.grading.masks.active_brush_mask_idx = None;
 
         match tool {
             ActiveCanvasTool::None => {}
@@ -269,7 +269,7 @@ impl RrawApp {
                 };
             }
             ActiveCanvasTool::FreehandBrush(mask_idx) => {
-                self.session.grading.active_brush_mask_idx = Some(mask_idx);
+                self.session.grading.masks.active_brush_mask_idx = Some(mask_idx);
             }
         }
     }
@@ -294,7 +294,7 @@ impl RrawApp {
         {
             let phase = self.viewport.parallel_tool_phase;
             self.activate_canvas_tool(ActiveCanvasTool::ParallelLines(phase));
-        } else if let Some(idx) = self.session.grading.active_brush_mask_idx {
+        } else if let Some(idx) = self.session.grading.masks.active_brush_mask_idx {
             if prev_brush != Some(idx) {
                 self.activate_canvas_tool(ActiveCanvasTool::FreehandBrush(idx));
             }
@@ -829,8 +829,8 @@ impl RrawApp {
             self.viewport.parallel_drag_start = None;
             self.status_message = self.t(Key::EscapePerspectiveDeactivated).to_string();
             true
-        } else if self.session.grading.active_brush_mask_idx.is_some() {
-            self.session.grading.active_brush_mask_idx = None;
+        } else if self.session.grading.masks.active_brush_mask_idx.is_some() {
+            self.session.grading.masks.active_brush_mask_idx = None;
             self.status_message = self.t(Key::EscapeBrushDeactivated).to_string();
             true
         } else if !self.library.selected_photos.is_empty() {
@@ -1316,15 +1316,15 @@ impl eframe::App for RrawApp {
 
         // Drain background export status & completion
         while let Ok((progress, label, outcome)) = self.workers.export_receiver.try_recv() {
-            self.export.export_progress = progress;
-            self.export.export_progress_label = label;
+            self.export.stats.progress = progress;
+            self.export.stats.progress_label = label;
             if let Some(res) = outcome {
-                self.export.is_exporting = false;
+                self.export.stats.is_exporting = false;
                 match res {
                     Ok(path) => {
                         let file_name =
                             path.file_name().and_then(|n| n.to_str()).unwrap_or("image");
-                        let status_txt = match self.export.export_target_mode {
+                        let status_txt = match self.export.config.target_mode {
                             crate::state::ExportTargetMode::CurrentPhoto => {
                                 format!(
                                     "{}{file_name}",
@@ -1338,19 +1338,19 @@ impl eframe::App for RrawApp {
                             }
                             crate::state::ExportTargetMode::TimelapseSequence => {
                                 let frames = self.timelapse_candidate_paths().len();
-                                let fps = self.export.timelapse_fps.fps();
+                                let fps = self.export.config.timelapse.fps.fps();
                                 crate::i18n::tc(self.lang(), "Export.TimelapseSuccess")
                                     .replace("{frames}", &frames.to_string())
                                     .replace("{fps}", &fps.to_string())
                             }
                         };
                         self.status_message = status_txt.clone();
-                        self.export.export_status = Some((status_txt, true));
+                        self.export.stats.status = Some((status_txt, true));
                         self.export
                             .close_dialog(crate::controllers::export::ActiveModalDialog::Export);
                     }
                     Err(err) => {
-                        self.export.export_status = Some((
+                        self.export.stats.status = Some((
                             format!("{}{err}", self.t(crate::i18n::Key::ExportFailedPrefix)),
                             false,
                         ));
@@ -1359,7 +1359,7 @@ impl eframe::App for RrawApp {
             }
         }
 
-        if self.export.is_exporting {
+        if self.export.stats.is_exporting {
             ui.ctx().request_repaint();
         }
 

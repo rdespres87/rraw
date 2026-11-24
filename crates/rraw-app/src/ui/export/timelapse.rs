@@ -25,13 +25,18 @@ impl RrawApp {
         let t = |key: Key| key.translate(lang);
         let tl_paths = self.timelapse_candidate_paths();
         let frame_count = tl_paths.len();
-        let dur_s = self.export.timelapse_fps.duration_seconds(frame_count);
+        let dur_s = self
+            .export
+            .config
+            .timelapse
+            .fps
+            .duration_seconds(frame_count);
 
         let seq_text = crate::i18n::tc(lang, "Export.TimelapseSequence")
             .replace("{count}", &frame_count.to_string());
         let dur_text = crate::i18n::tc(lang, "Export.TimelapseDuration")
             .replace("{dur}", &format!("{dur_s:.2}"))
-            .replace("{fps}", &self.export.timelapse_fps.fps().to_string());
+            .replace("{fps}", &self.export.config.timelapse.fps.fps().to_string());
         ui.horizontal_wrapped(|ui| {
             ui.label(
                 egui::RichText::new(seq_text)
@@ -50,25 +55,29 @@ impl RrawApp {
         ui.horizontal(|ui| {
             ui.label(t(Key::TimelapseFps));
             egui::ComboBox::from_id_salt(format!("{id_salt_prefix}_timelapse_fps_combo"))
-                .selected_text(self.export.timelapse_fps.label())
+                .selected_text(self.export.config.timelapse.fps.label())
                 .show_ui(ui, |ui| {
                     for fps in rraw_export::TimelapseFrameRate::ALL {
-                        ui.selectable_value(&mut self.export.timelapse_fps, fps, fps.label());
+                        ui.selectable_value(
+                            &mut self.export.config.timelapse.fps,
+                            fps,
+                            fps.label(),
+                        );
                     }
                 });
         });
 
         ui.separator();
         ui.checkbox(
-            &mut self.export.timelapse_deflicker.enabled,
+            &mut self.export.config.timelapse.deflicker.enabled,
             t(Key::TimelapseDeflickerTitle),
         )
         .on_hover_text(t(Key::TimelapseDeflickerTooltip));
 
-        if self.export.timelapse_deflicker.enabled {
+        if self.export.config.timelapse.deflicker.enabled {
             ui.horizontal(|ui| {
                 ui.label(t(Key::TimelapseWindowSize));
-                let mut rad = self.export.timelapse_deflicker.window_radius as u32;
+                let mut rad = self.export.config.timelapse.deflicker.window_radius as u32;
                 if ui
                     .add(
                         egui::Slider::new(&mut rad, 1..=15)
@@ -76,29 +85,29 @@ impl RrawApp {
                     )
                     .changed()
                 {
-                    self.export.timelapse_deflicker.window_radius = rad as usize;
+                    self.export.config.timelapse.deflicker.window_radius = rad as usize;
                 }
             });
             ui.horizontal(|ui| {
                 ui.label(t(Key::TimelapseIntensity));
-                let mut pct = (self.export.timelapse_deflicker.strength * 100.0).round();
+                let mut pct = (self.export.config.timelapse.deflicker.strength * 100.0).round();
                 if ui
                     .add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%"))
                     .changed()
                 {
-                    self.export.timelapse_deflicker.strength = (pct / 100.0).clamp(0.0, 1.0);
+                    self.export.config.timelapse.deflicker.strength = (pct / 100.0).clamp(0.0, 1.0);
                 }
             });
         }
 
         ui.separator();
         ui.checkbox(
-            &mut self.export.timelapse_keyframe_ramping,
+            &mut self.export.config.timelapse.keyframe_ramping,
             t(Key::TimelapseHolyGrailTitle),
         )
         .on_hover_text(t(Key::TimelapseHolyGrailTooltip));
 
-        if self.export.timelapse_keyframe_ramping && frame_count >= 2 {
+        if self.export.config.timelapse.keyframe_ramping && frame_count >= 2 {
             self.render_timelapse_keyframes(
                 ui,
                 lang,

@@ -174,7 +174,7 @@ impl RrawApp {
             } else if cmd_export {
                 self.export
                     .open_dialog(crate::controllers::export::ActiveModalDialog::Export);
-                self.export.export_status = None;
+                self.export.stats.status = None;
             } else if switch_tab_1 {
                 self.set_left_panel_tab(LeftPanelTab::Explorer);
                 self.layout_config.save();
@@ -211,12 +211,12 @@ impl RrawApp {
                 if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::D) {
                     let prev = self.library.selected_photos.len();
                     self.library.selected_photos.clear();
-                    self.session.grading.active_brush_mask_idx = None;
+                    self.session.grading.masks.active_brush_mask_idx = None;
                     self.status_message = crate::i18n::batch_deselection_message(self.lang(), prev);
                 }
                 if i.key_pressed(egui::Key::Space) {
                     // In Darkroom with brush active, Space is reserved for panning zoomed image
-                    if self.session.grading.active_brush_mask_idx.is_none() {
+                    if self.session.grading.masks.active_brush_mask_idx.is_none() {
                         if let Some(photo) = &self.session.loaded_photo {
                             if self.library.selected_photos.contains(&photo.path) {
                                 self.library.selected_photos.remove(&photo.path);
@@ -328,7 +328,7 @@ impl RrawApp {
                     if ui.button(self.t(Key::TopBarExport)).clicked() {
                         self.export
                             .open_dialog(crate::controllers::export::ActiveModalDialog::Export);
-                        self.export.export_status = None;
+                        self.export.stats.status = None;
                     }
 
                     if ui
@@ -338,10 +338,10 @@ impl RrawApp {
                     {
                         self.export
                             .set_target_mode(ExportTargetMode::TimelapseSequence);
-                        self.export.export_subfolder = "Timelapse".to_string();
+                        self.export.config.subfolder = "Timelapse".to_string();
                         self.export
                             .open_dialog(crate::controllers::export::ActiveModalDialog::Export);
-                        self.export.export_status = None;
+                        self.export.stats.status = None;
                     }
 
                     ui.separator();
@@ -575,11 +575,11 @@ impl RrawApp {
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    if self.export.is_exporting {
+                    if self.export.stats.is_exporting {
                         ui.spinner();
-                        ui.label(egui::RichText::new(&self.export.export_progress_label).strong());
+                        ui.label(egui::RichText::new(&self.export.stats.progress_label).strong());
                         ui.add(
-                            egui::ProgressBar::new(self.export.export_progress)
+                            egui::ProgressBar::new(self.export.stats.progress)
                                 .desired_width(120.0)
                                 .animate(true),
                         );

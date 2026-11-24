@@ -103,8 +103,9 @@ fn test_modular_presets_sidecar_and_mask_layers_submodules_and_reexports() {
     let grid = PrecomputedBrushGrid::from_layer(&brush);
     assert!(grid.is_some());
 
-    state.local_masks.push(brush);
+    state.masks.local_masks.push(brush);
     state
+        .masks
         .semantic_masks
         .push(SemanticMaskLayer::new(rraw_core::SemanticMaskCategory::Sky));
 
@@ -114,8 +115,8 @@ fn test_modular_presets_sidecar_and_mask_layers_submodules_and_reexports() {
     let mut restored = DarkroomGradingState::default();
     recipe.apply_to(&mut restored);
     assert_eq!(restored.preset, GradingPreset::FujiClassicChrome);
-    assert_eq!(restored.local_masks.len(), 1);
-    assert_eq!(restored.semantic_masks.len(), 1);
+    assert_eq!(restored.masks.local_masks.len(), 1);
+    assert_eq!(restored.masks.semantic_masks.len(), 1);
 }
 
 #[test]

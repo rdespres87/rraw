@@ -573,11 +573,7 @@ pub struct DarkroomGradingState {
     pub geometry: GeometryGradingParams,
     pub tone_curves: rraw_core::curves::ToneCurvesRecipe,
     pub custom_clut: Option<CustomClutState>,
-    pub semantic_masks: Vec<SemanticMaskLayer>,
-    pub show_semantic_mask_overlay: Option<rraw_core::SemanticMaskCategory>,
-    pub local_masks: Vec<LocalMaskLayer>,
-    pub show_local_mask_overlay: Option<usize>,
-    pub active_brush_mask_idx: Option<usize>,
+    pub masks: MaskGradingState,
     pub soft_proof: rraw_color::SoftProofConfig,
     pub smart_lighting: rraw_core::SmartLightingParams,
 }
@@ -598,11 +594,7 @@ impl DarkroomGradingState {
             geometry: GeometryGradingParams::untouched_raw(),
             tone_curves: rraw_core::curves::ToneCurvesRecipe::default(),
             custom_clut: None,
-            semantic_masks: Vec::new(),
-            show_semantic_mask_overlay: None,
-            local_masks: Vec::new(),
-            show_local_mask_overlay: None,
-            active_brush_mask_idx: None,
+            masks: MaskGradingState::default(),
             soft_proof: rraw_color::SoftProofConfig::default(),
             smart_lighting: rraw_core::SmartLightingParams {
                 mode: rraw_core::SmartLightingMode::Off,
@@ -618,32 +610,19 @@ impl DarkroomGradingState {
         &mut self,
         category: rraw_core::SemanticMaskCategory,
     ) -> &mut SemanticMaskLayer {
-        if let Some(pos) = self
-            .semantic_masks
-            .iter()
-            .position(|m| m.category == category)
-        {
-            &mut self.semantic_masks[pos]
-        } else {
-            self.semantic_masks.push(SemanticMaskLayer::new(category));
-            let last_idx = self.semantic_masks.len() - 1;
-            &mut self.semantic_masks[last_idx]
-        }
+        self.masks.upsert_semantic_mask(category)
     }
 
     /// Removes the semantic mask layer for `category` if present.
     pub fn remove_semantic_mask(&mut self, category: rraw_core::SemanticMaskCategory) {
-        self.semantic_masks.retain(|m| m.category != category);
-        if self.show_semantic_mask_overlay == Some(category) {
-            self.show_semantic_mask_overlay = None;
-        }
+        self.masks.remove_semantic_mask(category);
     }
 
     /// Converts all configured local and semantic mask layers into `rraw_core::Stage6MasksParams` for GPU Stage 6.
     #[must_use]
     pub fn to_stage6_masks_params(&self) -> rraw_core::Stage6MasksParams {
         let mut masks = Vec::new();
-        for mask in &self.local_masks {
+        for mask in &self.masks.local_masks {
             if !mask.enabled {
                 continue;
             }
@@ -697,7 +676,7 @@ impl DarkroomGradingState {
                 }
             }
         }
-        for layer in &self.semantic_masks {
+        for layer in &self.masks.semantic_masks {
             masks.push(rraw_core::GeometricMask {
                 id: format!("ai_{}", layer.category.id_str()),
                 kind: rraw_core::MaskKind::SemanticAi {
@@ -726,11 +705,7 @@ impl Default for DarkroomGradingState {
             geometry: GeometryGradingParams::default(),
             tone_curves: rraw_core::curves::ToneCurvesRecipe::default(),
             custom_clut: None,
-            semantic_masks: Vec::new(),
-            show_semantic_mask_overlay: None,
-            local_masks: Vec::new(),
-            show_local_mask_overlay: None,
-            active_brush_mask_idx: None,
+            masks: MaskGradingState::default(),
             soft_proof: rraw_color::SoftProofConfig::default(),
             smart_lighting: rraw_core::SmartLightingParams {
                 mode: rraw_core::SmartLightingMode::Slight,

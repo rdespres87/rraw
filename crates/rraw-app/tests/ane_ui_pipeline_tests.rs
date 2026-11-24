@@ -63,7 +63,7 @@ fn test_stage6_gpu_semantic_masks_execution() -> TestResult {
     let mut grading = DarkroomGradingState::default();
     let mut sky_layer = SemanticMaskLayer::new(SemanticMaskCategory::Sky);
     sky_layer.exposure_ev = -1.0;
-    grading.semantic_masks.push(sky_layer);
+    grading.masks.semantic_masks.push(sky_layer);
 
     let stage6_params = grading.to_stage6_masks_params();
     assert!(!stage6_params.masks.is_empty());

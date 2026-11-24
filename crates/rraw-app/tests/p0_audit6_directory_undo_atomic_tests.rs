@@ -91,6 +91,7 @@ fn brush_tool_auto_deactivates_on_tool_family_change_or_section_focus_shift(
 
     app.session
         .grading
+        .masks
         .local_masks
         .push(rraw_app::state::LocalMaskLayer::new_brush(
             "Brush 1".to_string(),
@@ -99,14 +100,14 @@ fn brush_tool_auto_deactivates_on_tool_family_change_or_section_focus_shift(
         ));
     app.activate_canvas_tool(rraw_app::controllers::viewport::ActiveCanvasTool::FreehandBrush(0));
 
-    assert_eq!(app.session.grading.active_brush_mask_idx, Some(0));
+    assert_eq!(app.session.grading.masks.active_brush_mask_idx, Some(0));
 
     app.set_active_tool_family(rraw_app::state::ToolFamily::Light);
-    assert_eq!(app.session.grading.active_brush_mask_idx, None);
+    assert_eq!(app.session.grading.masks.active_brush_mask_idx, None);
 
     app.activate_canvas_tool(rraw_app::controllers::viewport::ActiveCanvasTool::FreehandBrush(0));
     app.reset_section(rraw_app::state::DarkroomSection::ExposureTone);
-    assert_eq!(app.session.grading.active_brush_mask_idx, None);
+    assert_eq!(app.session.grading.masks.active_brush_mask_idx, None);
 
     Ok(())
 }

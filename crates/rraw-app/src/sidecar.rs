@@ -66,8 +66,8 @@ impl SidecarRecipe {
                 .as_ref()
                 .and_then(|c| c.path.as_ref().map(|p| p.to_string_lossy().to_string())),
             custom_lut_strength: grading.custom_clut.as_ref().map_or(1.0, |c| c.strength),
-            semantic_masks: grading.semantic_masks.clone(),
-            local_masks: grading.local_masks.clone(),
+            semantic_masks: grading.masks.semantic_masks.clone(),
+            local_masks: grading.masks.local_masks.clone(),
             soft_proof: grading.soft_proof,
             smart_lighting: grading.smart_lighting.clone(),
         }
@@ -103,8 +103,8 @@ impl SidecarRecipe {
         } else {
             grading.custom_clut = None;
         }
-        grading.semantic_masks = self.semantic_masks.clone();
-        grading.local_masks = self.local_masks.clone();
+        grading.masks.semantic_masks = self.semantic_masks.clone();
+        grading.masks.local_masks = self.local_masks.clone();
         grading.soft_proof = self.soft_proof;
         grading.smart_lighting = self.smart_lighting.clone();
         if let Some(ref pid) = self.preset {

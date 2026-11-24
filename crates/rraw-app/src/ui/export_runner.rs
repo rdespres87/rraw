@@ -284,13 +284,13 @@ impl RrawApp {
 
     /// Spawns a background thread executing the export without blocking the UI event loop.
     pub fn spawn_background_export(&mut self) -> Result<(), String> {
-        // Keep backward compatibility if export_batch_selection was toggled programmatically
-        let mode = if self.export.export_target_mode == ExportTargetMode::CurrentPhoto
-            && self.export.export_batch_selection
+        // Keep backward compatibility if batch_selection was toggled programmatically
+        let mode = if self.export.config.target_mode == ExportTargetMode::CurrentPhoto
+            && self.export.config.batch_selection
         {
             ExportTargetMode::BatchSelection
         } else {
-            self.export.export_target_mode
+            self.export.config.target_mode
         };
 
         if mode == ExportTargetMode::TimelapseSequence {
@@ -339,7 +339,7 @@ impl RrawApp {
 
         let mut items = Vec::with_capacity(photos_to_export.len());
 
-        let base_dest = self.export.export_custom_dir.clone().unwrap_or_else(|| {
+        let base_dest = self.export.config.custom_dir.clone().unwrap_or_else(|| {
             self.session
                 .loaded_photo
                 .as_ref()
@@ -347,18 +347,18 @@ impl RrawApp {
                 .unwrap_or_else(|| PathBuf::from("."))
         });
 
-        let final_dest = if self.export.export_use_subfolder
-            && !self.export.export_subfolder.trim().is_empty()
+        let final_dest = if self.export.config.use_subfolder
+            && !self.export.config.subfolder.trim().is_empty()
         {
-            base_dest.join(self.export.export_subfolder.trim())
+            base_dest.join(self.export.config.subfolder.trim())
         } else {
             base_dest
         };
 
         let _ = std::fs::create_dir_all(&final_dest);
 
-        let ext = self.export.export_format.extension();
-        let suffix = &self.export.export_suffix;
+        let ext = self.export.config.format.extension();
+        let suffix = &self.export.config.suffix;
 
         for photo_path in &photos_to_export {
             let stem = photo_path
@@ -405,11 +405,11 @@ impl RrawApp {
         self.save_current_photo_sidecar();
 
         let export_config = ExportWriteConfig {
-            format: self.export.export_format,
-            jpeg_quality: self.export.export_jpeg_quality,
-            bit_depth: self.export.export_bit_depth,
-            scale_mode: self.export.export_scale_mode,
-            hdr_gain_map: self.export.export_hdr_gain_map,
+            format: self.export.config.format,
+            jpeg_quality: self.export.config.jpeg_quality,
+            bit_depth: self.export.config.bit_depth,
+            scale_mode: self.export.config.scale_mode,
+            hdr_gain_map: self.export.config.hdr_gain_map,
         };
         let tx = self.workers.export_sender.clone();
 
@@ -580,31 +580,31 @@ impl RrawApp {
         }
 
         let first_path = sequence_paths[0].clone();
-        let base_dest = self.export.export_custom_dir.clone().unwrap_or_else(|| {
+        let base_dest = self.export.config.custom_dir.clone().unwrap_or_else(|| {
             first_path
                 .parent()
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| PathBuf::from("."))
         });
-        let final_dest = if self.export.export_use_subfolder
-            && !self.export.export_subfolder.trim().is_empty()
+        let final_dest = if self.export.config.use_subfolder
+            && !self.export.config.subfolder.trim().is_empty()
         {
-            base_dest.join(self.export.export_subfolder.trim())
+            base_dest.join(self.export.config.subfolder.trim())
         } else {
             base_dest
         };
 
         let export_config = ExportWriteConfig {
-            format: self.export.export_format,
-            jpeg_quality: self.export.export_jpeg_quality,
-            bit_depth: self.export.export_bit_depth,
-            scale_mode: self.export.export_scale_mode,
-            hdr_gain_map: self.export.export_hdr_gain_map,
+            format: self.export.config.format,
+            jpeg_quality: self.export.config.jpeg_quality,
+            bit_depth: self.export.config.bit_depth,
+            scale_mode: self.export.config.scale_mode,
+            hdr_gain_map: self.export.config.hdr_gain_map,
         };
-        let keyframe_ramping = self.export.timelapse_keyframe_ramping;
-        let deflicker_cfg = self.export.timelapse_deflicker;
-        let seq_prefix = self.export.timelapse_sequence_prefix.clone();
-        let fps = self.export.timelapse_fps;
+        let keyframe_ramping = self.export.config.timelapse.keyframe_ramping;
+        let deflicker_cfg = self.export.config.timelapse.deflicker;
+        let seq_prefix = self.export.config.timelapse.sequence_prefix.clone();
+        let fps = self.export.config.timelapse.fps;
         let tx = self.workers.export_sender.clone();
 
         std::thread::spawn(move || {

@@ -181,7 +181,7 @@ impl RrawApp {
                     .set_target_mode(ExportTargetMode::BatchSelection);
                 self.export
                     .open_dialog(crate::controllers::export::ActiveModalDialog::Export);
-                self.export.export_status = None;
+                self.export.stats.status = None;
             }
         }
 

@@ -60,18 +60,18 @@ impl RrawApp {
         );
 
         if trigger_export {
-            self.export.is_exporting = true;
-            self.export.export_progress = 0.05;
-            self.export.export_progress_label =
+            self.export.stats.is_exporting = true;
+            self.export.stats.progress = 0.05;
+            self.export.stats.progress_label =
                 crate::i18n::tc(lang, "Export.PreparingStatus").to_owned();
-            self.export.export_status = None;
+            self.export.stats.status = None;
             // Close the export modal immediately while progress is tracked in the status bar
             self.export
                 .close_dialog(crate::controllers::export::ActiveModalDialog::Export);
 
             if let Err(err) = self.spawn_background_export() {
-                self.export.is_exporting = false;
-                self.export.export_status =
+                self.export.stats.is_exporting = false;
+                self.export.stats.status =
                     Some((format!("{}{err}", t(Key::ExportFailedPrefix)), false));
                 self.status_message = format!("{}{err}", t(Key::ExportFailedPrefix));
             }

@@ -176,3 +176,49 @@ fn test_sidecar_recipe_legacy_flat_json_backward_compatibility(
 
     Ok(())
 }
+
+#[test]
+fn test_phase4_de_obesity_substructs_composition() {
+    use rraw_app::controllers::{
+        ExportBatchConfig, ExportBatchController, ExportRuntimeStats, TimelapseExportConfig,
+    };
+    use rraw_app::preview::{BaseRgbPreview, PreparedGradingFrame};
+    use rraw_app::state::{ExportTargetMode, MaskGradingState};
+
+    // 4.1 PreparedGradingFrame sub-structs (FrameGeometry + GradingUniformPayload + FramePrecomputedBuffers)
+    let rgb = image::RgbImage::from_pixel(16, 12, image::Rgb([128, 128, 128]));
+    let base = BaseRgbPreview::from_rgb_image(&rgb, 16);
+    let grading = DarkroomGradingState::default();
+    let frame = PreparedGradingFrame::prepare(&base, &grading, false);
+    assert_eq!(frame.geometry().preview_w, 16);
+    assert_eq!(frame.geometry().preview_h, 12);
+    assert!(frame.geometry().is_identity_geom_base);
+    assert!(!frame.uniforms().has_curves);
+    assert!(frame.brush_grids().is_empty());
+
+    // 4.2 ExportBatchController sub-structs (ExportBatchConfig + TimelapseExportConfig + ExportRuntimeStats)
+    let mut ctrl = ExportBatchController::new();
+    assert_eq!(
+        ctrl.config.jpeg_quality,
+        ExportBatchConfig::default().jpeg_quality
+    );
+    assert_eq!(
+        ctrl.config.timelapse.sequence_prefix,
+        TimelapseExportConfig::default().sequence_prefix
+    );
+    assert!(!ctrl.stats.is_exporting);
+    assert_eq!(ctrl.stats.progress, ExportRuntimeStats::default().progress);
+    ctrl.set_target_mode(ExportTargetMode::TimelapseSequence);
+    assert!(ctrl.config.batch_selection);
+
+    // 4.3 DarkroomGradingState masks composition (MaskGradingState)
+    let mut state = DarkroomGradingState::default();
+    assert_eq!(state.masks, MaskGradingState::default());
+    assert!(state.masks.is_empty());
+    state.upsert_semantic_mask(rraw_core::SemanticMaskCategory::Sky);
+    assert!(!state.masks.is_empty());
+    state.masks.show_semantic_mask_overlay = Some(rraw_core::SemanticMaskCategory::Sky);
+    state.remove_semantic_mask(rraw_core::SemanticMaskCategory::Sky);
+    assert!(state.masks.is_empty());
+    assert_eq!(state.masks.show_semantic_mask_overlay, None);
+}

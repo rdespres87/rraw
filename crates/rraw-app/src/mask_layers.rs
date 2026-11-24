@@ -6,6 +6,50 @@ use serde::{Deserialize, Serialize};
 
 use crate::i18n::{Key, Language};
 
+/// Cohesive local and AI semantic masking state, including interactive overlay and brush selection.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct MaskGradingState {
+    pub semantic_masks: Vec<SemanticMaskLayer>,
+    pub show_semantic_mask_overlay: Option<rraw_core::SemanticMaskCategory>,
+    pub local_masks: Vec<LocalMaskLayer>,
+    pub show_local_mask_overlay: Option<usize>,
+    pub active_brush_mask_idx: Option<usize>,
+}
+
+impl MaskGradingState {
+    /// Returns true if no semantic or local mask layers are configured.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.semantic_masks.is_empty() && self.local_masks.is_empty()
+    }
+
+    /// Returns a mutable reference to the semantic mask layer for `category`, creating it if absent.
+    pub fn upsert_semantic_mask(
+        &mut self,
+        category: rraw_core::SemanticMaskCategory,
+    ) -> &mut SemanticMaskLayer {
+        if let Some(pos) = self
+            .semantic_masks
+            .iter()
+            .position(|m| m.category == category)
+        {
+            &mut self.semantic_masks[pos]
+        } else {
+            self.semantic_masks.push(SemanticMaskLayer::new(category));
+            let last_idx = self.semantic_masks.len() - 1;
+            &mut self.semantic_masks[last_idx]
+        }
+    }
+
+    /// Removes the semantic mask layer for `category` if present.
+    pub fn remove_semantic_mask(&mut self, category: rraw_core::SemanticMaskCategory) {
+        self.semantic_masks.retain(|m| m.category != category);
+        if self.show_semantic_mask_overlay == Some(category) {
+            self.show_semantic_mask_overlay = None;
+        }
+    }
+}
+
 /// Local adjustment layer driven by a CoreML AI semantic segmentation mask.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SemanticMaskLayer {

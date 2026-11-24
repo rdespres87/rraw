@@ -86,18 +86,18 @@ fn test_local_masks_sidecar_recipe_roundtrip() {
     mask2.exposure_ev = 0.8;
     mask2.saturation = 10.0;
 
-    grading.local_masks.push(mask1);
-    grading.local_masks.push(mask2);
+    grading.masks.local_masks.push(mask1);
+    grading.masks.local_masks.push(mask2);
 
     let recipe = SidecarRecipe::from_state(&grading, 5);
     let mut restored = DarkroomGradingState::default();
     recipe.apply_to(&mut restored);
 
-    assert_eq!(restored.local_masks.len(), 2);
-    assert_eq!(restored.local_masks[0].name, "Linear Sky");
-    assert!((restored.local_masks[0].exposure_ev - (-1.5)).abs() < 1e-4);
-    assert_eq!(restored.local_masks[1].name, "Subject Light");
-    assert!((restored.local_masks[1].exposure_ev - 0.8).abs() < 1e-4);
+    assert_eq!(restored.masks.local_masks.len(), 2);
+    assert_eq!(restored.masks.local_masks[0].name, "Linear Sky");
+    assert!((restored.masks.local_masks[0].exposure_ev - (-1.5)).abs() < 1e-4);
+    assert_eq!(restored.masks.local_masks[1].name, "Subject Light");
+    assert!((restored.masks.local_masks[1].exposure_ev - 0.8).abs() < 1e-4);
 }
 
 #[test]

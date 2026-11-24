@@ -14,6 +14,91 @@ pub enum ActiveModalDialog {
     About,
 }
 
+/// Timelapse-specific sequence export parameters (frame rate, temporal deflicker, Holy Grail ramping).
+#[derive(Debug, Clone)]
+pub struct TimelapseExportConfig {
+    /// Frame rate for timelapse sequence export.
+    pub fps: rraw_export::TimelapseFrameRate,
+    /// Temporal exposure deflicker configuration for timelapse export.
+    pub deflicker: rraw_export::TimelapseDeflickerConfig,
+    /// Whether to interpolate exposure & white balance keyframes across the sequence.
+    pub keyframe_ramping: bool,
+    /// Base filename prefix for numbered timelapse sequence output (`<prefix>_00001.<ext>`).
+    pub sequence_prefix: String,
+}
+
+impl Default for TimelapseExportConfig {
+    fn default() -> Self {
+        Self {
+            fps: rraw_export::TimelapseFrameRate::Fps24,
+            deflicker: rraw_export::TimelapseDeflickerConfig::default(),
+            keyframe_ramping: false,
+            sequence_prefix: "timelapse".to_string(),
+        }
+    }
+}
+
+/// Persistent user configuration for single, batch, and timelapse image exports.
+#[derive(Debug, Clone)]
+pub struct ExportBatchConfig {
+    /// Selected output format for photo export.
+    pub format: ExportFormatChoice,
+    /// JPEG quality parameter (1-100).
+    pub jpeg_quality: u8,
+    /// Bit depth for raster export (8-bit or 16-bit).
+    pub bit_depth: ExportBitDepth,
+    /// Scaling mode applied during export.
+    pub scale_mode: ExportScaleMode,
+    /// Whether to compute and emit ISO 21496-1 Gain Map HDR metadata (`.hdrgm.xmp` + `.tmap`).
+    pub hdr_gain_map: bool,
+    /// Custom export destination folder, if chosen by user.
+    pub custom_dir: Option<PathBuf>,
+    /// Whether to create a subfolder in the photo directory upon export.
+    pub use_subfolder: bool,
+    /// Name of the subfolder for exported files.
+    pub subfolder: String,
+    /// Suffix appended to the exported filename.
+    pub suffix: String,
+    /// Whether export applies to all selected photos in batch or current photo.
+    pub batch_selection: bool,
+    /// Target export mode (Single photo, Batch selection, or Timelapse sequence).
+    pub target_mode: ExportTargetMode,
+    /// Timelapse sequence configuration.
+    pub timelapse: TimelapseExportConfig,
+}
+
+impl Default for ExportBatchConfig {
+    fn default() -> Self {
+        Self {
+            format: ExportFormatChoice::Jpeg,
+            jpeg_quality: 92,
+            bit_depth: ExportBitDepth::Bits8,
+            scale_mode: ExportScaleMode::Original,
+            hdr_gain_map: false,
+            custom_dir: None,
+            use_subfolder: true,
+            subfolder: "Export".to_string(),
+            suffix: String::new(),
+            batch_selection: false,
+            target_mode: ExportTargetMode::CurrentPhoto,
+            timelapse: TimelapseExportConfig::default(),
+        }
+    }
+}
+
+/// Live asynchronous runtime telemetry for an active or completed background export job.
+#[derive(Debug, Clone, Default)]
+pub struct ExportRuntimeStats {
+    /// Whether an asynchronous export background task is currently executing.
+    pub is_exporting: bool,
+    /// Progress fraction of background export task `[0.0, 1.0]`.
+    pub progress: f32,
+    /// Detailed status message displayed during export.
+    pub progress_label: String,
+    /// Status message from latest export operation: `(message, is_success)`.
+    pub status: Option<(String, bool)>,
+}
+
 /// Batch export, modal dialogs and timelapse sequence controller.
 #[derive(Debug, Clone)]
 pub struct ExportBatchController {
@@ -25,44 +110,10 @@ pub struct ExportBatchController {
     pub show_shortcuts_dialog: bool,
     /// Whether the "About" version dialog is open.
     pub show_about_dialog: bool,
-    /// Selected output format for photo export.
-    pub export_format: ExportFormatChoice,
-    /// JPEG quality parameter (1-100).
-    pub export_jpeg_quality: u8,
-    /// Bit depth for raster export (8-bit or 16-bit).
-    pub export_bit_depth: ExportBitDepth,
-    /// Scaling mode applied during export.
-    pub export_scale_mode: ExportScaleMode,
-    /// Whether to compute and emit ISO 21496-1 Gain Map HDR metadata (`.hdrgm.xmp` + `.tmap`).
-    pub export_hdr_gain_map: bool,
-    /// Custom export destination folder, if chosen by user.
-    pub export_custom_dir: Option<PathBuf>,
-    /// Status message from latest export operation: (message, is_success).
-    pub export_status: Option<(String, bool)>,
-    /// Whether to create a subfolder in the photo directory upon export.
-    pub export_use_subfolder: bool,
-    /// Name of the subfolder for exported files.
-    pub export_subfolder: String,
-    /// Suffix appended to the exported filename.
-    pub export_suffix: String,
-    /// Whether export applies to all selected photos in batch or current photo.
-    pub export_batch_selection: bool,
-    /// Target export mode (Single photo, Batch selection, or Timelapse sequence).
-    pub export_target_mode: ExportTargetMode,
-    /// Frame rate for timelapse sequence export.
-    pub timelapse_fps: rraw_export::TimelapseFrameRate,
-    /// Temporal exposure deflicker configuration for timelapse export.
-    pub timelapse_deflicker: rraw_export::TimelapseDeflickerConfig,
-    /// Whether to interpolate exposure & white balance keyframes across the sequence.
-    pub timelapse_keyframe_ramping: bool,
-    /// Base filename prefix for numbered timelapse sequence output (`<prefix>_00001.<ext>`).
-    pub timelapse_sequence_prefix: String,
-    /// Whether an asynchronous export background task is currently executing.
-    pub is_exporting: bool,
-    /// Progress fraction of background export task [0.0, 1.0].
-    pub export_progress: f32,
-    /// Detailed status message displayed during export.
-    pub export_progress_label: String,
+    /// User-selected export format, destination, scaling, and timelapse settings.
+    pub config: ExportBatchConfig,
+    /// Asynchronous background export progress and completion status.
+    pub stats: ExportRuntimeStats,
 }
 
 impl Default for ExportBatchController {
@@ -80,25 +131,8 @@ impl ExportBatchController {
             show_export_dialog: false,
             show_shortcuts_dialog: false,
             show_about_dialog: false,
-            export_format: ExportFormatChoice::Jpeg,
-            export_jpeg_quality: 92,
-            export_bit_depth: ExportBitDepth::Bits8,
-            export_scale_mode: ExportScaleMode::Original,
-            export_hdr_gain_map: false,
-            export_custom_dir: None,
-            export_status: None,
-            export_use_subfolder: true,
-            export_subfolder: "Export".to_string(),
-            export_suffix: String::new(),
-            export_batch_selection: false,
-            export_target_mode: ExportTargetMode::CurrentPhoto,
-            timelapse_fps: rraw_export::TimelapseFrameRate::Fps24,
-            timelapse_deflicker: rraw_export::TimelapseDeflickerConfig::default(),
-            timelapse_keyframe_ramping: false,
-            timelapse_sequence_prefix: "timelapse".to_string(),
-            is_exporting: false,
-            export_progress: 0.0,
-            export_progress_label: String::new(),
+            config: ExportBatchConfig::default(),
+            stats: ExportRuntimeStats::default(),
         }
     }
 
@@ -133,10 +167,10 @@ impl ExportBatchController {
         }
     }
 
-    /// Sets the export target mode and keeps the legacy `export_batch_selection` flag strictly synchronized.
+    /// Sets the export target mode and keeps the legacy `batch_selection` flag strictly synchronized.
     pub fn set_target_mode(&mut self, mode: ExportTargetMode) {
-        self.export_target_mode = mode;
-        self.export_batch_selection = matches!(
+        self.config.target_mode = mode;
+        self.config.batch_selection = matches!(
             mode,
             ExportTargetMode::BatchSelection | ExportTargetMode::TimelapseSequence
         );
