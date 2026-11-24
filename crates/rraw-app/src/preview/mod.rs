@@ -8,6 +8,7 @@ pub mod gpu_backend;
 pub mod masks;
 pub mod orientation;
 pub mod pipeline;
+pub mod render;
 pub mod thumbnail_cache;
 pub mod types;
 
@@ -17,5 +18,6 @@ pub use gpu_backend::*;
 pub use masks::*;
 pub use orientation::*;
 pub use pipeline::*;
+pub use render::*;
 pub use thumbnail_cache::*;
 pub use types::*;

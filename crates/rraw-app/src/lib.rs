@@ -3,6 +3,7 @@
 //! Native macOS 120 Hz ProMotion EDR darkroom and catalog-free RAW workspace.
 
 pub mod app;
+mod app_library;
 pub mod controllers;
 pub mod grading;
 pub mod i18n;
