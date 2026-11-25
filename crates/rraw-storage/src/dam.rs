@@ -321,7 +321,7 @@ impl SqliteDamIndex {
 
     /// Incrementally synchronizes a photo with the DAM database.
     ///
-    /// Respects `.rraw.json` (and `.xmp`) as the single source of truth for ratings and tags.
+    /// Respects `.rraw.json` as the single source of truth for ratings and tags.
     /// If the database record already exists and has `updated_at >= max(raw_mtime, sidecars_mtime)`,
     /// indexing is skipped to maximize performance.
     pub fn sync_photo(
@@ -361,7 +361,7 @@ impl SqliteDamIndex {
     }
 
     /// Fast sidecar sync path: updates star rating, color label, and pick status
-    /// directly from `.rraw.json` / `.xmp` without requiring photo re-decoding.
+    /// directly from `.rraw.json` without requiring photo re-decoding.
     pub fn sync_sidecar<P: AsRef<Path>>(&self, raw_path: P) -> Result<bool, StorageError> {
         let p = raw_path.as_ref();
         let (sidecar_rating, sidecar_label, sidecar_pick) = read_sidecar_overrides(p);

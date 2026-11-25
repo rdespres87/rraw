@@ -1,16 +1,14 @@
 #![forbid(unsafe_code)]
 
-//! Catalog-free DAM index contracts and non-destructive `.rraw.json` / `.xmp` sidecar paths.
+//! Catalog-free DAM index contracts and non-destructive `.rraw.json` sidecar paths.
 
 pub mod dam;
 pub mod error;
 pub mod thumbnail;
-pub mod xmp;
 
 pub use dam::{DamFilter, DamPhotoRecord, SqliteDamIndex, SyncAction};
 pub use error::StorageError;
 pub use thumbnail::{DiskThumbnailCache, ThumbnailSize};
-pub use xmp::XmpEditor;
 
 use std::path::{Path, PathBuf};
 

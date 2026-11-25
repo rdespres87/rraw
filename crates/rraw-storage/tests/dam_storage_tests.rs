@@ -2,74 +2,8 @@ use rraw_core::{
     BayerOrigin, CfaPattern, ColorLabel, NoiseProfile, NoiseProfileSource, PhotoMetadata,
     PickStatus,
 };
-use rraw_storage::{DamFilter, DiskThumbnailCache, SqliteDamIndex, ThumbnailSize, XmpEditor};
+use rraw_storage::{DamFilter, DiskThumbnailCache, SqliteDamIndex, ThumbnailSize};
 use std::path::Path;
-
-#[test]
-fn test_xmp_roundtrip_preserves_third_party_nodes() {
-    let original_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
- <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-  <rdf:Description rdf:about=""
-    xmlns:xmp="http://ns.adobe.com/xap/1.0/"
-    xmlns:dc="http://purl.org/dc/elements/1.1/"
-    xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
-    xmlns:darktable="http://darktable.sf.net/">
-   <crs:ProcessVersion>15.4</crs:ProcessVersion>
-   <crs:ToneCurvePV2012>
-    <rdf:Seq>
-     <rdf:li>0, 0</rdf:li>
-     <rdf:li>255, 255</rdf:li>
-    </rdf:Seq>
-   </crs:ToneCurvePV2012>
-   <darktable:history>
-    <rdf:Seq>
-     <rdf:li darktable:operation="bilat" darktable:enabled="1"/>
-    </rdf:Seq>
-   </darktable:history>
-   <xmp:Rating>1</xmp:Rating>
-   <xmp:Label>Red</xmp:Label>
-   <dc:subject>
-    <rdf:Bag>
-     <rdf:li>Original</rdf:li>
-    </rdf:Bag>
-   </dc:subject>
-  </rdf:Description>
- </rdf:RDF>
-</x:xmpmeta>"#;
-
-    let mut editor = match XmpEditor::parse_str(original_xml) {
-        Ok(e) => e,
-        Err(_) => return,
-    };
-
-    assert_eq!(editor.rating(), Some(1));
-    assert_eq!(editor.label(), Some(ColorLabel::Red));
-
-    // Modify standard metadata
-    editor.set_rating(4);
-    editor.set_label(ColorLabel::Green);
-    editor.set_keywords(&["Landscape".to_owned(), "Mountains".to_owned()]);
-
-    let serialized = match editor.to_xml_string() {
-        Ok(s) => s,
-        Err(_) => return,
-    };
-
-    // Assert that standard tags were updated
-    assert!(serialized.contains("<xmp:Rating>4</xmp:Rating>"));
-    assert!(serialized.contains("<xmp:Label>Green</xmp:Label>"));
-    assert!(serialized.contains("<rdf:li>Landscape</rdf:li>"));
-    assert!(serialized.contains("<rdf:li>Mountains</rdf:li>"));
-
-    // Assert that third-party XML elements remain completely intact
-    assert!(serialized.contains("<crs:ProcessVersion>15.4</crs:ProcessVersion>"));
-    assert!(serialized.contains("<crs:ToneCurvePV2012>"));
-    assert!(serialized.contains("<rdf:li>0, 0</rdf:li>"));
-    assert!(serialized.contains("<rdf:li>255, 255</rdf:li>"));
-    assert!(serialized.contains("darktable:operation=\"bilat\""));
-    assert!(serialized.contains("darktable:enabled=\"1\""));
-}
 
 #[test]
 fn test_sqlite_dam_index_and_filtering() {

@@ -387,7 +387,7 @@ impl RrawApp {
         self.session.needs_preview_update = false;
     }
 
-    /// Persists current photo grading and rating to both `.rraw.json` and `.xmp` sidecars and memory cache.
+    /// Persists current photo grading and rating to `.rraw/<photo>.rraw.json` and memory cache.
     pub fn save_current_photo_sidecar(&mut self) {
         if let Some(photo) = &self.session.loaded_photo {
             let rating = self

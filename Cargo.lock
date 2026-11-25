@@ -3955,7 +3955,6 @@ dependencies = [
 name = "rraw-storage"
 version = "0.3.0"
 dependencies = [
- "quick-xml 0.37.5",
  "rraw-core",
  "rusqlite",
  "serde",
