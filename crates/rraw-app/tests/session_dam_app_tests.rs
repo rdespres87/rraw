@@ -83,8 +83,9 @@ fn test_set_rating_bidirectional_sync() -> Result<(), Box<dyn std::error::Error>
     let mut app = RrawApp::new_headless();
     app.open_directory(&session_dir);
 
-    // Rate photo via app
+    // Rate photo via app (non-blocking enqueue to background DAM writer)
     app.set_photo_rating_for_path(&photo_path, 5);
+    app.workers.flush_dam_writes();
 
     // 1. Verify in-memory rating
     assert_eq!(app.library.photo_ratings.get(&photo_path), Some(&5));
@@ -96,7 +97,7 @@ fn test_set_rating_bidirectional_sync() -> Result<(), Box<dyn std::error::Error>
         "Sidecar .rraw.json must be written in .rraw/"
     );
 
-    // 3. Verify SQLite DAM database was updated
+    // 3. Verify SQLite DAM database was updated asynchronously
     let dam = app
         .library
         .session_dam
@@ -108,6 +109,19 @@ fn test_set_rating_bidirectional_sync() -> Result<(), Box<dyn std::error::Error>
         "Photo record must exist in SQLite cache.db"
     );
     assert_eq!(record.map(|r| r.rating), Some(5));
+
+    // 4. Rapid burst ratings coalesce deterministically in order on the background DAM worker
+    for r in 1..=4_u8 {
+        app.set_photo_rating_for_path(&photo_path, r);
+    }
+    app.workers.flush_dam_writes();
+    let dam = app
+        .library
+        .session_dam
+        .as_ref()
+        .ok_or("session_dam missing")?;
+    let updated = dam.get_photo(&photo_path)?;
+    assert_eq!(updated.map(|r| r.rating), Some(4));
 
     Ok(())
 }

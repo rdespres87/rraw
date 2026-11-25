@@ -6,8 +6,25 @@ use crate::preview::{DecodeCoordinator, DecodeRequest, LruThumbnailCache};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+/// Bounded capacity for non-blocking background SQLite DAM rating updates.
+const DAM_WRITE_QUEUE_CAPACITY: usize = 256;
+
+/// Commands processed sequentially by the background SQLite DAM write worker.
+#[derive(Debug)]
+pub enum DamWriteRequest {
+    UpdateRating {
+        dam: rraw_storage::SqliteDamIndex,
+        photo_path: PathBuf,
+        rating: u8,
+        color_label: rraw_core::ColorLabel,
+        pick_status: rraw_core::PickStatus,
+    },
+    Flush(Sender<()>),
+}
 
 /// Progress event emitted by background export tasks: `(progress_fraction, label, final_result)`.
 pub type ExportProgressMessage = (f32, String, Option<Result<PathBuf, String>>);
@@ -46,6 +63,14 @@ pub struct BackgroundWorkers {
     pub dam_index_receiver: Receiver<(PathBuf, u8)>,
     /// Dedicated epoch counter cancelling only superseded directory indexers (independent of photo decoding).
     dam_index_epoch: Arc<AtomicU64>,
+    /// Bounded non-blocking channel sender for background SQLite DAM rating writes.
+    pub dam_write_tx: SyncSender<DamWriteRequest>,
+}
+
+impl Drop for BackgroundWorkers {
+    fn drop(&mut self) {
+        self.flush_dam_writes();
+    }
 }
 
 impl Default for BackgroundWorkers {
@@ -96,6 +121,10 @@ impl BackgroundWorkers {
             });
         }
 
+        let (dam_write_tx, dam_write_rx) =
+            sync_channel::<DamWriteRequest>(DAM_WRITE_QUEUE_CAPACITY);
+        std::thread::spawn(move || run_dam_write_worker(dam_write_rx));
+
         Self {
             decode_sender,
             decode_receiver,
@@ -113,10 +142,11 @@ impl BackgroundWorkers {
             dam_index_sender,
             dam_index_receiver,
             dam_index_epoch: Arc::new(AtomicU64::new(0)),
+            dam_write_tx,
         }
     }
 
-    /// Creates a headless background worker configuration without starting background threads.
+    /// Creates a headless background worker configuration without starting decode/thumbnail threads.
     #[must_use]
     pub fn new_headless() -> Self {
         let (decode_sender, decode_receiver) = channel();
@@ -126,6 +156,9 @@ impl BackgroundWorkers {
         let (dam_index_sender, dam_index_receiver) = channel();
         let decode_coordinator = DecodeCoordinator::new();
         let (decode_req_tx, _decode_req_rx) = channel::<DecodeRequest>();
+        let (dam_write_tx, dam_write_rx) =
+            sync_channel::<DamWriteRequest>(DAM_WRITE_QUEUE_CAPACITY);
+        std::thread::spawn(move || run_dam_write_worker(dam_write_rx));
 
         Self {
             decode_sender,
@@ -144,6 +177,37 @@ impl BackgroundWorkers {
             dam_index_sender,
             dam_index_receiver,
             dam_index_epoch: Arc::new(AtomicU64::new(0)),
+            dam_write_tx,
+        }
+    }
+
+    /// Enqueues a SQLite DAM rating update without blocking the UI thread.
+    pub fn enqueue_dam_rating_update(
+        &self,
+        dam: rraw_storage::SqliteDamIndex,
+        photo_path: PathBuf,
+        rating: u8,
+    ) {
+        let req = DamWriteRequest::UpdateRating {
+            dam,
+            photo_path,
+            rating,
+            color_label: rraw_core::ColorLabel::None,
+            pick_status: rraw_core::PickStatus::Unflagged,
+        };
+        let _ = self.dam_write_tx.try_send(req);
+    }
+
+    /// Deterministically waits until all previously enqueued DAM writes have completed
+    /// (zero `thread::sleep`, bounded by a 5-second timeout).
+    pub fn flush_dam_writes(&self) {
+        let (ack_tx, ack_rx) = channel();
+        if self
+            .dam_write_tx
+            .send(DamWriteRequest::Flush(ack_tx))
+            .is_ok()
+        {
+            let _ = ack_rx.recv_timeout(Duration::from_secs(5));
         }
     }
 
@@ -258,5 +322,25 @@ impl BackgroundWorkers {
                 let _ = tx.send((path, rating));
             }
         });
+    }
+}
+
+/// Sequential background worker executing SQLite DAM rating updates off the UI thread.
+fn run_dam_write_worker(rx: Receiver<DamWriteRequest>) {
+    while let Ok(req) = rx.recv() {
+        match req {
+            DamWriteRequest::UpdateRating {
+                dam,
+                photo_path,
+                rating,
+                color_label,
+                pick_status,
+            } => {
+                let _ = dam.update_ratings(&photo_path, rating, color_label, pick_status);
+            }
+            DamWriteRequest::Flush(ack) => {
+                let _ = ack.send(());
+            }
+        }
     }
 }

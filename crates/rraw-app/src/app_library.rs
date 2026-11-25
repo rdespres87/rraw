@@ -295,14 +295,10 @@ impl RrawApp {
             .unwrap_or_else(|| self.session.grading.clone());
         save_photo_sidecars(photo_path, &grading, rating);
 
-        // Bidirectional sync with SQLite session DAM
+        // Non-blocking enqueue to background SQLite DAM writer (zero UI-thread Mutex/sleep stalls)
         if let Some(dam) = &self.library.session_dam {
-            let _ = dam.update_ratings(
-                photo_path,
-                rating,
-                rraw_core::ColorLabel::None,
-                rraw_core::PickStatus::Unflagged,
-            );
+            self.workers
+                .enqueue_dam_rating_update(dam.clone(), photo_path.to_path_buf(), rating);
         }
 
         let star_text = if rating > 0 {
