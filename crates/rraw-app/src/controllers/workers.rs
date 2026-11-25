@@ -5,7 +5,7 @@ use crate::preview::types::BackgroundDecodePayload;
 use crate::preview::{DecodeCoordinator, DecodeRequest, LruThumbnailCache};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
@@ -44,6 +44,8 @@ pub struct BackgroundWorkers {
     pub dam_index_sender: Sender<(PathBuf, u8)>,
     /// Channel receiver for background DAM session indexing updates.
     pub dam_index_receiver: Receiver<(PathBuf, u8)>,
+    /// Dedicated epoch counter cancelling only superseded directory indexers (independent of photo decoding).
+    dam_index_epoch: Arc<AtomicU64>,
 }
 
 impl Default for BackgroundWorkers {
@@ -110,6 +112,7 @@ impl BackgroundWorkers {
             export_cancel: Arc::new(AtomicBool::new(false)),
             dam_index_sender,
             dam_index_receiver,
+            dam_index_epoch: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -140,6 +143,7 @@ impl BackgroundWorkers {
             export_cancel: Arc::new(AtomicBool::new(false)),
             dam_index_sender,
             dam_index_receiver,
+            dam_index_epoch: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -186,15 +190,15 @@ impl BackgroundWorkers {
         dam: rraw_storage::SqliteDamIndex,
         entries: Vec<PathBuf>,
     ) {
-        let epoch_handle = self.decode_coordinator.epoch_handle();
-        let current_epoch = epoch_handle.load(std::sync::atomic::Ordering::Relaxed);
+        let epoch_handle = Arc::clone(&self.dam_index_epoch);
+        let current_epoch = epoch_handle.fetch_add(1, Ordering::AcqRel).wrapping_add(1);
         let tx = self.dam_index_sender.clone();
 
         std::thread::spawn(move || {
             // First stream pre-existing cached ratings immediately from SQLite (background)
             if let Ok(existing_ratings) = dam.load_all_ratings() {
                 for (path, rating) in existing_ratings {
-                    if epoch_handle.load(std::sync::atomic::Ordering::Relaxed) != current_epoch {
+                    if epoch_handle.load(Ordering::Acquire) != current_epoch {
                         return;
                     }
                     let _ = tx.send((path, rating));
@@ -202,7 +206,7 @@ impl BackgroundWorkers {
             }
 
             for path in entries {
-                if epoch_handle.load(std::sync::atomic::Ordering::Relaxed) != current_epoch {
+                if epoch_handle.load(Ordering::Acquire) != current_epoch {
                     break;
                 }
 

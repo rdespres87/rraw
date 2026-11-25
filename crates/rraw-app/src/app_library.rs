@@ -10,6 +10,27 @@ use crate::preview::*;
 use crate::state::*;
 
 impl RrawApp {
+    /// Opens (or creates) `.rraw/cache.db` for `abs_dir`, preloads all cached star ratings
+    /// synchronously for Frame-0 filmstrip rendering, and spawns the background sidecar indexer.
+    pub fn initialize_session_dam(&mut self, abs_dir: &Path) {
+        match rraw_storage::SqliteDamIndex::open_session_database(abs_dir) {
+            Ok(dam) => {
+                if let Ok(ratings) = dam.load_all_ratings() {
+                    for (path, rating) in ratings {
+                        self.library.photo_ratings.insert(path, rating);
+                    }
+                }
+                self.workers
+                    .spawn_directory_indexer(dam.clone(), self.library.directory_entries.clone());
+                self.library.session_dam = Some(dam);
+            }
+            Err(err) => {
+                eprintln!("Failed to open session database: {err}");
+                self.library.session_dam = None;
+            }
+        }
+    }
+
     /// Dispatches a thumbnail generation request to background worker pool if not already loaded or pending.
     pub fn request_thumbnail(&mut self, path: PathBuf) {
         if self.workers.thumbnail_textures.contains_key(&path)
@@ -59,25 +80,8 @@ impl RrawApp {
         self.layout_config.last_open_directory = Some(abs_dir.clone());
         self.layout_config.save();
 
-        // 1. Open SQLite session database (creates .rraw/cache.db) with WAL pragmas
-        match rraw_storage::SqliteDamIndex::open_session_database(&abs_dir) {
-            Ok(dam) => {
-                // Synchronously pre-load all existing ratings from SQLite so stars appear immediately at Frame 0
-                if let Ok(ratings) = dam.load_all_ratings() {
-                    for (path, rating) in ratings {
-                        self.library.photo_ratings.insert(path, rating);
-                    }
-                }
-                // Background worker asynchronously preloads cached ratings and indexes directory photos without freezing the UI thread
-                self.workers
-                    .spawn_directory_indexer(dam.clone(), self.library.directory_entries.clone());
-                self.library.session_dam = Some(dam);
-            }
-            Err(err) => {
-                eprintln!("Failed to open session database: {err}");
-                self.library.session_dam = None;
-            }
-        }
+        // 1. Open SQLite session database (creates .rraw/cache.db) with WAL pragmas and preload Frame-0 ratings
+        self.initialize_session_dam(&abs_dir);
 
         // Only preload sidecar synchronously for the currently active photo (if in this directory).
         // Other photos in the folder have their ratings streamed asynchronously by `spawn_directory_indexer`
@@ -258,7 +262,7 @@ impl RrawApp {
         drained
     }
 
-    /// Sets the rating (0 to 5) of the currently loaded photo and persists to `.rraw.json`, `.xmp`, and SQLite session DAM.
+    /// Sets the rating (0 to 5) of the currently loaded photo and persists to `.rraw.json` and SQLite session DAM.
     pub fn set_current_photo_rating(&mut self, rating: u8) {
         if let Some(photo) = &mut self.session.loaded_photo {
             let path = photo.path.clone();
@@ -266,7 +270,8 @@ impl RrawApp {
         }
     }
 
-    /// Sets the rating of any photo in the library, persisting to sidecars and SQLite session DAM.
+    /// Sets the rating of any photo in the library, persisting to `.rraw.json` and asynchronously
+    /// enqueueing the SQLite session DAM update off the UI thread.
     pub fn set_photo_rating_for_path(&mut self, photo_path: &Path, rating: u8) {
         self.library
             .photo_ratings
@@ -281,7 +286,7 @@ impl RrawApp {
             entry.photo_view.rating = rating;
         }
 
-        // Save immediately to adjacent <photo>.rraw.json and <photo>.xmp
+        // Save immediately to adjacent .rraw/<photo>.rraw.json
         let grading = self
             .library
             .photo_gradings

@@ -112,7 +112,7 @@ impl RrawApp {
         let raw_only_filter = layout_config.raw_only_filter.unwrap_or(raw_count > 0);
 
         let mut library = LibraryController::new();
-        library.current_directory = Some(initial_dir);
+        library.current_directory = Some(initial_dir.clone());
         library.directory_entries = initial_entries;
         library.raw_only_filter = raw_only_filter;
         library.refresh_subdirectories();
@@ -136,6 +136,9 @@ impl RrawApp {
             gpu_engine: GpuPreviewEngine::new(),
             active_preview_backend: PreviewBackendKind::CpuRayon,
         };
+
+        // Open SQLite session DAM and preload star ratings at startup before opening the first photo
+        app.initialize_session_dam(&initial_dir);
 
         // Restore previous photo if available, valid and matching active filters, otherwise open first filtered photo in directory
         let photo_to_open = app

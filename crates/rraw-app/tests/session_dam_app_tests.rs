@@ -111,3 +111,43 @@ fn test_set_rating_bidirectional_sync() -> Result<(), Box<dyn std::error::Error>
 
     Ok(())
 }
+
+#[test]
+fn test_directory_indexer_survives_decode_epoch_and_populates_unselected_stars(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (_guard, session_dir) = create_temp_dir("unselected_stars")?;
+    let photo_a = session_dir.join("A_FIRST.DNG");
+    let photo_b = session_dir.join("B_SECOND.DNG");
+    fs::write(&photo_a, b"dummy dng a")?;
+    fs::write(&photo_b, b"dummy dng b")?;
+
+    // Persist a 5-star sidecar on photo_b only (without pre-populating cache.db)
+    let grading = rraw_app::state::DarkroomGradingState::default();
+    rraw_app::state::save_photo_sidecars(&photo_b, &grading, 5);
+
+    let mut app = RrawApp::new_headless();
+    app.open_directory(&session_dir);
+
+    // Simulate immediate photo decode epoch bump (opening photo_a must NOT cancel directory indexing!)
+    let _ = app
+        .workers
+        .decode_coordinator
+        .create_request(photo_a.clone(), false);
+
+    // Drain background indexer events until photo_b's 5-star rating arrives without ever opening photo_b
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while app.library.photo_ratings.get(&photo_b).copied() != Some(5)
+        && std::time::Instant::now() < deadline
+    {
+        app.drain_dam_indexing_events(64);
+        std::thread::yield_now();
+    }
+
+    assert_eq!(
+        app.library.photo_ratings.get(&photo_b).copied(),
+        Some(5),
+        "Unselected photo_b must display its 5-star rating even after decode_coordinator epoch increments"
+    );
+
+    Ok(())
+}
