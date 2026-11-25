@@ -76,6 +76,7 @@ fn test_crop_overlay_handles_inactive() {
             geometry: &mut geom,
             is_crop_editing: &mut is_crop_editing,
             crop_drag_handle: &mut crop_drag_handle,
+            crop_show_grid: true,
         };
 
         let tool_ctx = rraw_app::ui::viewport::ViewportToolContext {

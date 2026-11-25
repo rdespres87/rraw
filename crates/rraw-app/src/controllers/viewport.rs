@@ -49,6 +49,8 @@ pub struct ViewportController {
     pub parallel_drag_start: Option<egui::Pos2>,
     /// Whether the crop frame is actively being manipulated in the central viewport.
     pub is_crop_editing: bool,
+    /// Whether the rule-of-thirds grid overlay is displayed while editing the crop frame.
+    pub crop_show_grid: bool,
     /// Active interactive handle being dragged for cropping.
     pub crop_drag_handle: CropDragHandle,
     /// Active color channel in the tone curves inspector.
@@ -82,6 +84,7 @@ impl ViewportController {
             parallel_line2: None,
             parallel_drag_start: None,
             is_crop_editing: false,
+            crop_show_grid: true,
             crop_drag_handle: CropDragHandle::None,
             active_curve_channel: CurveChannel::CombinedRgb,
             dragging_curve_point: None,

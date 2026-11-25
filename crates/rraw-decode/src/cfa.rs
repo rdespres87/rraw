@@ -51,43 +51,60 @@ pub fn resolve_cfa_pattern_from_rawler(cfa: &rawler::cfa::CFA) -> CfaPattern {
     CfaPattern::Bayer(BayerOrigin::Rggb)
 }
 
+/// Sensor crop rectangle in raw sensor coordinates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SensorCropRect {
+    pub x: usize,
+    pub y: usize,
+    pub width: usize,
+    pub height: usize,
+}
+
+/// Full sensor dimensions in raw sensor pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SensorDimensions {
+    pub width: usize,
+    pub height: usize,
+}
+
 /// Aligns crop margins to preserve the underlying sensor CFA phase.
 ///
 /// - For Bayer (`period = 2`), coordinates are aligned to multiples of 2.
 /// - For Fujifilm X-Trans (`period = 6`), coordinates are aligned to multiples of 6.
 ///
-/// Boundaries are clamped to `max_width` and `max_height` to prevent out-of-bounds indexing.
+/// Boundaries are clamped to `bounds` to prevent out-of-bounds indexing.
 #[must_use]
 pub fn align_crop_to_cfa_phase(
     cfa_pattern: &CfaPattern,
-    crop_x: usize,
-    crop_y: usize,
-    crop_w: usize,
-    crop_h: usize,
-    max_width: usize,
-    max_height: usize,
-) -> (usize, usize, usize, usize) {
+    crop: SensorCropRect,
+    bounds: SensorDimensions,
+) -> SensorCropRect {
     let align = match cfa_pattern {
         CfaPattern::Bayer(_) => 2,
         CfaPattern::XTrans(_) => 6,
     };
 
-    let ax = (crop_x / align) * align;
-    let ay = (crop_y / align) * align;
-    let aw = (crop_w / align) * align;
-    let ah = (crop_h / align) * align;
+    let ax = (crop.x / align) * align;
+    let ay = (crop.y / align) * align;
+    let aw = (crop.width / align) * align;
+    let ah = (crop.height / align) * align;
 
-    let clamped_w = if ax + aw <= max_width {
+    let clamped_w = if ax + aw <= bounds.width {
         aw
     } else {
-        ((max_width.saturating_sub(ax)) / align) * align
+        ((bounds.width.saturating_sub(ax)) / align) * align
     };
 
-    let clamped_h = if ay + ah <= max_height {
+    let clamped_h = if ay + ah <= bounds.height {
         ah
     } else {
-        ((max_height.saturating_sub(ay)) / align) * align
+        ((bounds.height.saturating_sub(ay)) / align) * align
     };
 
-    (ax, ay, clamped_w, clamped_h)
+    SensorCropRect {
+        x: ax,
+        y: ay,
+        width: clamped_w,
+        height: clamped_h,
+    }
 }

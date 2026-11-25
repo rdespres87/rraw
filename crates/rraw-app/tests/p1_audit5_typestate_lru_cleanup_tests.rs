@@ -86,10 +86,14 @@ fn test_p1_2_inspector_canvas_tool_transitions_and_checkbox_deactivation() {
     app.viewport.is_crop_editing = true;
     let ctx = egui::Context::default();
     let mut out1 = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let mut flags = sections::crop::CropUiFlags {
+            is_crop_editing: &mut app.viewport.is_crop_editing,
+            show_grid: &mut app.viewport.crop_show_grid,
+        };
         let _ = sections::crop::render(
             ui,
             &mut app.session.grading.geometry,
-            &mut app.viewport.is_crop_editing,
+            &mut flags,
             Some((1600, 1200)),
             Language::En,
         );

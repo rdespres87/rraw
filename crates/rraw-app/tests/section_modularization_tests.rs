@@ -90,14 +90,13 @@ fn test_crop_section_least_privilege() {
     with_test_ui(|ui| {
         let mut geom = GeometryGradingParams::default();
         let mut is_crop_editing = false;
+        let mut show_grid = true;
+        let mut flags = crop::CropUiFlags {
+            is_crop_editing: &mut is_crop_editing,
+            show_grid: &mut show_grid,
+        };
 
-        let out = crop::render(
-            ui,
-            &mut geom,
-            &mut is_crop_editing,
-            Some((6000, 4000)),
-            Language::Fr,
-        );
+        let out = crop::render(ui, &mut geom, &mut flags, Some((6000, 4000)), Language::Fr);
         assert!(!out.needs_preview_update);
         assert!(!is_crop_editing);
     });

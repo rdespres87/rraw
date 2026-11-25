@@ -59,41 +59,44 @@ impl RrawApp {
                         interaction::handle_brush_radius_shortcuts(ui, &mut self.session.grading);
                     }
 
+                    let pan_zoom_ctx = interaction::PanZoomContext {
+                        available_rect,
+                        layout: &layout,
+                        is_tool_active,
+                        is_brush_active,
+                    };
                     let is_panning_override = interaction::handle_pan_and_zoom(
                         ui,
                         &resp,
-                        available_rect,
-                        &layout,
+                        &pan_zoom_ctx,
                         &mut self.viewport,
-                        is_tool_active,
-                        is_brush_active,
                     );
 
                     self.handle_mask_overlay_shortcut(ui);
 
-                    let show_original = interaction::resolve_show_original(
-                        ui,
+                    let orig_ctx = interaction::OriginalPreviewContext {
                         available_rect,
-                        layout.preview_rect,
-                        &self.viewport,
-                        self.session.is_comparing_original,
-                        self.export.is_any_dialog_open(),
+                        preview_rect: layout.preview_rect,
+                        is_comparing_original: self.session.is_comparing_original,
+                        is_any_dialog_open: self.export.is_any_dialog_open(),
                         is_tool_active,
-                    );
+                    };
+                    let show_original =
+                        interaction::resolve_show_original(ui, &self.viewport, &orig_ctx);
 
                     let split_pos = self
                         .viewport
                         .split_compare
                         .then_some(self.viewport.split_position);
-                    canvas::paint_canvas_image(
-                        &painter,
-                        &layout,
-                        &self.session.grading.soft_proof,
-                        &texture,
-                        self.session.original_texture.as_ref(),
+                    let paint_params = canvas::CanvasPaintParams {
+                        layout: &layout,
+                        soft_proof: &self.session.grading.soft_proof,
+                        texture: &texture,
+                        original_texture: self.session.original_texture.as_ref(),
                         show_original,
-                        split_pos,
-                    );
+                        split_position: split_pos,
+                    };
+                    canvas::paint_canvas_image(&painter, &paint_params);
 
                     self.render_viewport_huds(&painter, available_rect, show_original);
                     let brush_ctx = brush_overlay::BrushViewportContext {
@@ -255,6 +258,7 @@ impl RrawApp {
                 geometry: &mut self.session.grading.geometry,
                 is_crop_editing: &mut self.viewport.is_crop_editing,
                 crop_drag_handle: &mut self.viewport.crop_drag_handle,
+                crop_show_grid: self.viewport.crop_show_grid,
             };
             let crop_out = crop_overlay::handle_crop_overlay(ui, &tool_ctx, &mut crop_state);
             if crop_out.needs_preview_update {

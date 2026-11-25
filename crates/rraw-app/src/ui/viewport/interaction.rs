@@ -92,17 +92,22 @@ pub fn handle_brush_radius_shortcuts(ui: &egui::Ui, grading: &mut DarkroomGradin
     }
 }
 
+/// Read-only layout and tool context for viewport pan/zoom interaction.
+pub struct PanZoomContext<'a> {
+    pub available_rect: egui::Rect,
+    pub layout: &'a ViewportLayout,
+    pub is_tool_active: bool,
+    pub is_brush_active: bool,
+}
+
 /// Handles viewport pan clamping, drag panning, double-click 100%/fit toggle, and wheel zoom.
 ///
 /// Returns `true` when Space or Middle-mouse panning override is active.
 pub fn handle_pan_and_zoom(
     ui: &egui::Ui,
     resp: &egui::Response,
-    available_rect: egui::Rect,
-    layout: &ViewportLayout,
+    ctx: &PanZoomContext<'_>,
     viewport: &mut ViewportController,
-    is_tool_active: bool,
-    is_brush_active: bool,
 ) -> bool {
     let is_holding_space = ui.input(|i| i.key_down(egui::Key::Space));
     let is_middle_drag = ui.input(|i| i.pointer.button_down(egui::PointerButton::Middle));
@@ -110,27 +115,27 @@ pub fn handle_pan_and_zoom(
 
     viewport.pan_offset = clamp_pan_offset(
         viewport.pan_offset,
-        layout.display_size,
-        available_rect,
-        layout.margin,
+        ctx.layout.display_size,
+        ctx.available_rect,
+        ctx.layout.margin,
         viewport.zoom_level,
     );
 
     if resp.dragged()
-        && (!is_tool_active || is_panning_override)
+        && (!ctx.is_tool_active || is_panning_override)
         && viewport.crop_drag_handle == CropDragHandle::None
         && viewport.zoom_level > 0.0
     {
         viewport.pan_offset = clamp_pan_offset(
             viewport.pan_offset + resp.drag_delta(),
-            layout.display_size,
-            available_rect,
-            layout.margin,
+            ctx.layout.display_size,
+            ctx.available_rect,
+            ctx.layout.margin,
             viewport.zoom_level,
         );
     }
 
-    if resp.double_clicked() && !viewport.is_crop_editing && !is_tool_active {
+    if resp.double_clicked() && !viewport.is_crop_editing && !ctx.is_tool_active {
         viewport.zoom_level = if viewport.zoom_level <= 0.0 { 1.0 } else { 0.0 };
         viewport.pan_offset = egui::Vec2::ZERO;
     }
@@ -138,15 +143,15 @@ pub fn handle_pan_and_zoom(
     let scroll = ui.input(|i| i.smooth_scroll_delta.y);
     if scroll.abs() > 0.0
         && resp.hovered()
-        && (!is_tool_active || is_brush_active)
+        && (!ctx.is_tool_active || ctx.is_brush_active)
         && !viewport.is_crop_editing
     {
         let (next_zoom, next_pan) = compute_scroll_zoom(
-            layout.current_scale,
-            layout.fit_scale,
+            ctx.layout.current_scale,
+            ctx.layout.fit_scale,
             scroll,
             resp.hover_pos(),
-            layout.center,
+            ctx.layout.center,
             viewport.pan_offset,
         );
         viewport.zoom_level = next_zoom;
@@ -156,21 +161,27 @@ pub fn handle_pan_and_zoom(
     is_panning_override
 }
 
+/// Context flags used to resolve whether the unprocessed original preview should be shown.
+#[derive(Debug, Clone, Copy)]
+pub struct OriginalPreviewContext {
+    pub available_rect: egui::Rect,
+    pub preview_rect: egui::Rect,
+    pub is_comparing_original: bool,
+    pub is_any_dialog_open: bool,
+    pub is_tool_active: bool,
+}
+
 /// Evaluates whether the user is currently requesting the unprocessed original preview.
 pub fn resolve_show_original(
     ui: &egui::Ui,
-    available_rect: egui::Rect,
-    preview_rect: egui::Rect,
     viewport: &ViewportController,
-    is_comparing_original: bool,
-    is_any_dialog_open: bool,
-    is_tool_active: bool,
+    ctx: &OriginalPreviewContext,
 ) -> bool {
     let is_holding_right_click = ui.input(|i| {
         i.pointer.button_down(egui::PointerButton::Secondary)
             && i.pointer
                 .interact_pos()
-                .is_some_and(|p| available_rect.contains(p))
+                .is_some_and(|p| ctx.available_rect.contains(p))
     });
 
     let is_holding_shortcut_key = !ui.ctx().egui_wants_keyboard_input()
@@ -181,19 +192,19 @@ pub fn resolve_show_original(
         });
 
     let is_holding_left_fit = !viewport.split_compare
-        && !is_any_dialog_open
+        && !ctx.is_any_dialog_open
         && !ui.ctx().egui_wants_pointer_input()
         && ui.input(|i| {
             i.pointer.button_down(egui::PointerButton::Primary)
                 && i.pointer
                     .interact_pos()
-                    .is_some_and(|p| preview_rect.contains(p))
+                    .is_some_and(|p| ctx.preview_rect.contains(p))
         })
-        && !is_tool_active
+        && !ctx.is_tool_active
         && viewport.crop_drag_handle == CropDragHandle::None
         && viewport.zoom_level <= 0.0;
 
-    is_comparing_original
+    ctx.is_comparing_original
         || is_holding_left_fit
         || is_holding_right_click
         || is_holding_shortcut_key

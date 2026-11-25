@@ -6,7 +6,7 @@ use std::borrow::Cow;
 
 use rraw_core::CfaPattern;
 
-use crate::cfa::align_crop_to_cfa_phase;
+use crate::cfa::{align_crop_to_cfa_phase, SensorCropRect, SensorDimensions};
 use crate::DecodeError;
 
 /// Crops optical black / sensor margins while preserving the CFA phase.
@@ -24,15 +24,21 @@ pub fn extract_cropped_samples<'a>(
     };
 
     if let Some(crop) = raw_image.crop_area.or(raw_image.active_area) {
-        let (crop_x, crop_y, crop_w, crop_h) = align_crop_to_cfa_phase(
+        let aligned = align_crop_to_cfa_phase(
             cfa_pattern,
-            crop.x(),
-            crop.y(),
-            crop.width(),
-            crop.height(),
-            raw_image.width,
-            raw_image.height,
+            SensorCropRect {
+                x: crop.x(),
+                y: crop.y(),
+                width: crop.width(),
+                height: crop.height(),
+            },
+            SensorDimensions {
+                width: raw_image.width,
+                height: raw_image.height,
+            },
         );
+        let (crop_x, crop_y, crop_w, crop_h) =
+            (aligned.x, aligned.y, aligned.width, aligned.height);
         if crop_x + crop_w <= raw_image.width
             && crop_y + crop_h <= raw_image.height
             && crop_w > 0

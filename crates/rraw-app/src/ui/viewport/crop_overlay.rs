@@ -21,6 +21,7 @@ pub struct CropToolState<'a> {
     pub geometry: &'a mut GeometryGradingParams,
     pub is_crop_editing: &'a mut bool,
     pub crop_drag_handle: &'a mut CropDragHandle,
+    pub crop_show_grid: bool,
 }
 
 /// Hit-tests `pos` against the crop rectangle corners, edges, and interior within `margin` pixels.
@@ -505,7 +506,7 @@ pub fn handle_crop_overlay(
         ctx.painter,
         ctx.preview_rect,
         crop_screen_rect,
-        tool_state.geometry.crop_show_grid,
+        tool_state.crop_show_grid,
     );
     draw_crop_handles(ctx.painter, crop_screen_rect);
     handle_crop_drag_interaction(ui, ctx, crop_screen_rect, tool_state, &mut out);

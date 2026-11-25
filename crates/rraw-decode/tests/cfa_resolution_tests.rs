@@ -4,7 +4,9 @@
 
 use rawler::cfa::CFA;
 use rraw_core::{BayerOrigin, CfaPattern};
-use rraw_decode::cfa::{align_crop_to_cfa_phase, resolve_cfa_pattern_from_rawler};
+use rraw_decode::cfa::{
+    align_crop_to_cfa_phase, resolve_cfa_pattern_from_rawler, SensorCropRect, SensorDimensions,
+};
 
 #[test]
 fn test_cfa_pattern_resolution_bayer_variants() {
@@ -71,19 +73,58 @@ fn test_align_crop_to_cfa_phase_bayer_and_xtrans() {
     let bayer = CfaPattern::Bayer(BayerOrigin::Rggb);
     let xtrans = CfaPattern::fujifilm_xtrans();
 
+    let bounds = SensorDimensions {
+        width: 1000,
+        height: 1000,
+    };
+
     // Bayer (period 2)
-    let (bx, by, bw, bh) = align_crop_to_cfa_phase(&bayer, 7, 9, 101, 203, 1000, 1000);
-    assert_eq!(bx % 2, 0);
-    assert_eq!(by % 2, 0);
-    assert_eq!(bw % 2, 0);
-    assert_eq!(bh % 2, 0);
-    assert_eq!((bx, by, bw, bh), (6, 8, 100, 202));
+    let b = align_crop_to_cfa_phase(
+        &bayer,
+        SensorCropRect {
+            x: 7,
+            y: 9,
+            width: 101,
+            height: 203,
+        },
+        bounds,
+    );
+    assert_eq!(b.x % 2, 0);
+    assert_eq!(b.y % 2, 0);
+    assert_eq!(b.width % 2, 0);
+    assert_eq!(b.height % 2, 0);
+    assert_eq!(
+        b,
+        SensorCropRect {
+            x: 6,
+            y: 8,
+            width: 100,
+            height: 202,
+        }
+    );
 
     // X-Trans (period 6)
-    let (xx, xy, xw, xh) = align_crop_to_cfa_phase(&xtrans, 7, 9, 501, 503, 1000, 1000);
-    assert_eq!(xx % 6, 0);
-    assert_eq!(xy % 6, 0);
-    assert_eq!(xw % 6, 0);
-    assert_eq!(xh % 6, 0);
-    assert_eq!((xx, xy, xw, xh), (6, 6, 498, 498));
+    let x = align_crop_to_cfa_phase(
+        &xtrans,
+        SensorCropRect {
+            x: 7,
+            y: 9,
+            width: 501,
+            height: 503,
+        },
+        bounds,
+    );
+    assert_eq!(x.x % 6, 0);
+    assert_eq!(x.y % 6, 0);
+    assert_eq!(x.width % 6, 0);
+    assert_eq!(x.height % 6, 0);
+    assert_eq!(
+        x,
+        SensorCropRect {
+            x: 6,
+            y: 6,
+            width: 498,
+            height: 498,
+        }
+    );
 }

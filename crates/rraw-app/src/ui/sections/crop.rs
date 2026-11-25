@@ -9,11 +9,17 @@ use crate::grading::GeometryGradingParams;
 use crate::i18n::{Key, Language};
 use crate::state::CropAspectRatio;
 
+/// Ephemeral UI flags for the Crop section (not persisted in `.rraw.json` sidecars).
+pub struct CropUiFlags<'a> {
+    pub is_crop_editing: &'a mut bool,
+    pub show_grid: &'a mut bool,
+}
+
 /// Renders the Crop darkroom section.
 pub fn render(
     ui: &mut Ui,
     geometry: &mut GeometryGradingParams,
-    is_crop_editing: &mut bool,
+    flags: &mut CropUiFlags<'_>,
     photo_dimensions: Option<(u32, u32)>,
     cur_lang: Language,
 ) -> SectionOutput {
@@ -23,14 +29,14 @@ pub fn render(
     let c_crop = ui.checkbox(&mut geometry.crop_enabled, t(Key::InspectorEnableCrop));
     if c_crop.changed() {
         if !geometry.crop_enabled {
-            *is_crop_editing = false;
+            *flags.is_crop_editing = false;
         }
         out.needs_preview_update = true;
         ui.ctx().request_repaint();
     }
 
     if !geometry.crop_enabled {
-        *is_crop_editing = false;
+        *flags.is_crop_editing = false;
     }
 
     if geometry.crop_enabled {
@@ -66,7 +72,7 @@ pub fn render(
                                 geometry.crop_bottom =
                                     (geometry.crop_top + crop_h).clamp(0.55, 1.0);
                             }
-                            *is_crop_editing = true;
+                            *flags.is_crop_editing = true;
                             out.needs_preview_update = true;
                             out.save_sidecar = true;
                             ui.ctx().request_repaint();
@@ -77,7 +83,7 @@ pub fn render(
 
         ui.add_space(4.0);
         ui.horizontal(|ui| {
-            if *is_crop_editing {
+            if *flags.is_crop_editing {
                 if ui
                     .button(
                         egui::RichText::new(t(Key::InspectorValidateCrop))
@@ -86,7 +92,7 @@ pub fn render(
                     )
                     .clicked()
                 {
-                    *is_crop_editing = false;
+                    *flags.is_crop_editing = false;
                     out.needs_preview_update = true;
                     out.save_sidecar = true;
                     ui.ctx().request_repaint();
@@ -95,7 +101,7 @@ pub fn render(
                 .button(egui::RichText::new(t(Key::InspectorAdjustCrop)).strong())
                 .clicked()
             {
-                *is_crop_editing = true;
+                *flags.is_crop_editing = true;
                 ui.ctx().request_repaint();
             }
 
@@ -105,14 +111,14 @@ pub fn render(
                 geometry.crop_right = 1.0;
                 geometry.crop_bottom = 1.0;
                 geometry.crop_aspect = CropAspectRatio::Free;
-                *is_crop_editing = false;
+                *flags.is_crop_editing = false;
                 out.needs_preview_update = true;
                 out.save_sidecar = true;
                 ui.ctx().request_repaint();
             }
         });
 
-        let c_grid = ui.checkbox(&mut geometry.crop_show_grid, t(Key::InspectorShowCropGrid));
+        let c_grid = ui.checkbox(flags.show_grid, t(Key::InspectorShowCropGrid));
         if c_grid.changed() {
             ui.ctx().request_repaint();
         }

@@ -75,16 +75,25 @@ pub fn compute_viewport_layout(
     }
 }
 
+/// Borrowed parameters for painting the central canvas image and passe-partout frame.
+pub struct CanvasPaintParams<'a> {
+    pub layout: &'a ViewportLayout,
+    pub soft_proof: &'a rraw_color::SoftProofConfig,
+    pub texture: &'a egui::TextureHandle,
+    pub original_texture: Option<&'a egui::TextureHandle>,
+    pub show_original: bool,
+    pub split_position: Option<f32>,
+}
+
 /// Paints the background pass-partout frame, the GPU preview texture (or split-compare pair), and border.
-pub fn paint_canvas_image(
-    painter: &egui::Painter,
-    layout: &ViewportLayout,
-    soft_proof: &rraw_color::SoftProofConfig,
-    texture: &egui::TextureHandle,
-    original_texture: Option<&egui::TextureHandle>,
-    show_original: bool,
-    split_position: Option<f32>,
-) {
+pub fn paint_canvas_image(painter: &egui::Painter, params: &CanvasPaintParams<'_>) {
+    let layout = params.layout;
+    let soft_proof = params.soft_proof;
+    let texture = params.texture;
+    let original_texture = params.original_texture;
+    let show_original = params.show_original;
+    let split_position = params.split_position;
+
     if soft_proof.enabled && soft_proof.simulate_paper_and_ink {
         let paper_col = match soft_proof.profile {
             rraw_color::SoftProofProfile::FineArtMattePaper => Color32::from_rgb(244, 240, 230),

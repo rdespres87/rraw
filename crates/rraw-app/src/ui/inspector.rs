@@ -486,10 +486,14 @@ impl RrawApp {
             }
             DarkroomSection::Crop => self.with_canvas_tool_reconcile(|app| {
                 let dims = app.session.loaded_photo.as_ref().map(|p| p.dimensions);
+                let mut flags = sections::crop::CropUiFlags {
+                    is_crop_editing: &mut app.viewport.is_crop_editing,
+                    show_grid: &mut app.viewport.crop_show_grid,
+                };
                 sections::crop::render(
                     ui,
                     &mut app.session.grading.geometry,
-                    &mut app.viewport.is_crop_editing,
+                    &mut flags,
                     dims,
                     cur_lang,
                 )
