@@ -5,6 +5,7 @@
 pub mod cache;
 pub mod context;
 pub mod error;
+pub mod fused;
 pub mod pipeline;
 pub mod profiler;
 pub mod roi;
@@ -17,14 +18,15 @@ pub mod stage7;
 pub use cache::{LruVramCache, VramPhotoEntry};
 pub use context::GpuContext;
 pub use error::GpuError;
+pub use fused::{execute_stages5_to_7_fused, FusedPreviewOutput, FusedPreviewRequest};
 pub use pipeline::{Stage1Params, Stage1Pipeline, Stage2Params, Stage2Pipeline};
 pub use profiler::{GpuPipelineProfiler, PipelineDispatchContext, RawSensorFrame};
 pub use roi::{expand_roi_with_halo, RoiWindow};
 pub use stage3::{Stage3Params, Stage3RlPipeline};
 pub use stage4::{Stage4Params, Stage4WarpPipeline};
 pub use stage5::{Stage5Params, Stage5Pipeline};
-pub use stage6::{SemanticMaskPass, Stage6Params, Stage6Pipeline};
-pub use stage7::{Stage7Params, Stage7Pipeline};
+pub use stage6::{SemanticMaskPass, Stage6IoBuffers, Stage6Params, Stage6Pipeline};
+pub use stage7::{Stage7IoBuffers, Stage7Params, Stage7Pipeline};
 
 use rraw_color::effective_laplacian_octaves;
 use rraw_core::{HeadroomSample, SurfaceFormat, SurfaceSpec};

@@ -21,6 +21,14 @@ struct Stage7UniformsGpu {
     _pad: f32,
 }
 
+/// Device-resident storage buffers bound by a Stage 7 compute dispatch.
+pub struct Stage7IoBuffers<'a> {
+    pub input: &'a wgpu::Buffer,
+    pub output: &'a wgpu::Buffer,
+    pub histogram: &'a wgpu::Buffer,
+    pub clipping: &'a wgpu::Buffer,
+}
+
 /// Headless GPU compute pipeline for Stage 7.
 pub struct Stage7Pipeline {
     pipeline: wgpu::ComputePipeline,
@@ -122,21 +130,15 @@ impl Stage7Pipeline {
         })
     }
 
-    /// Executes Stage 7 AgX tone mapping and scope reductions on the GPU.
-    pub fn execute(
+    /// Encodes Stage 7 AgX tone mapping and scope reductions directly into `encoder`
+    /// using device-resident buffers (zero intermediate CPU readback).
+    pub fn encode_into(
         &self,
         ctx: &GpuContext,
-        rgb_in: &[f32],
+        encoder: &mut wgpu::CommandEncoder,
+        buffers: Stage7IoBuffers<'_>,
         params: &Stage7Params,
-    ) -> Result<(Vec<f32>, Vec<u32>, bool), GpuError> {
-        let count = (params.width * params.height * 3) as usize;
-        if rgb_in.len() != count {
-            return Err(GpuError::BufferLengthMismatch {
-                expected: count,
-                actual: rgb_in.len(),
-            });
-        }
-
+    ) {
         let uniforms = Stage7UniformsGpu {
             width: params.width,
             height: params.height,
@@ -151,6 +153,59 @@ impl Stage7Pipeline {
                 contents: bytemuck::bytes_of(&uniforms),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
+
+        let bind_group = ctx.device().create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("stage7_bind_group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: buffers.input.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: buffers.output.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: buffers.histogram.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: buffers.clipping.as_entire_binding(),
+                },
+            ],
+        });
+
+        let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("stage7_compute_pass"),
+            timestamp_writes: None,
+        });
+        cpass.set_pipeline(&self.pipeline);
+        cpass.set_bind_group(0, &bind_group, &[]);
+        let workgroups_x = params.width.div_ceil(16);
+        let workgroups_y = params.height.div_ceil(16);
+        cpass.dispatch_workgroups(workgroups_x, workgroups_y, 1);
+    }
+
+    /// Executes Stage 7 AgX tone mapping and scope reductions on the GPU.
+    pub fn execute(
+        &self,
+        ctx: &GpuContext,
+        rgb_in: &[f32],
+        params: &Stage7Params,
+    ) -> Result<(Vec<f32>, Vec<u32>, bool), GpuError> {
+        let count = (params.width * params.height * 3) as usize;
+        if rgb_in.len() != count {
+            return Err(GpuError::BufferLengthMismatch {
+                expected: count,
+                actual: rgb_in.len(),
+            });
+        }
 
         let input_buffer = ctx
             .device()
@@ -208,50 +263,23 @@ impl Stage7Pipeline {
             mapped_at_creation: false,
         });
 
-        let bind_group = ctx.device().create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("stage7_bind_group"),
-            layout: &self.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniform_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: input_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: output_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: hist_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: clip_buffer.as_entire_binding(),
-                },
-            ],
-        });
-
         let mut encoder = ctx
             .device()
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("stage7_encoder"),
             });
 
-        {
-            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("stage7_compute_pass"),
-                timestamp_writes: None,
-            });
-            cpass.set_pipeline(&self.pipeline);
-            cpass.set_bind_group(0, &bind_group, &[]);
-            let workgroups_x = params.width.div_ceil(16);
-            let workgroups_y = params.height.div_ceil(16);
-            cpass.dispatch_workgroups(workgroups_x, workgroups_y, 1);
-        }
+        self.encode_into(
+            ctx,
+            &mut encoder,
+            Stage7IoBuffers {
+                input: &input_buffer,
+                output: &output_buffer,
+                histogram: &hist_buffer,
+                clipping: &clip_buffer,
+            },
+            params,
+        );
 
         encoder.copy_buffer_to_buffer(&output_buffer, 0, &staging_output, 0, buffer_size);
         encoder.copy_buffer_to_buffer(

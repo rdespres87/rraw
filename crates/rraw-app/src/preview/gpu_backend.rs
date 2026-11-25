@@ -2,13 +2,15 @@
 
 //! Live WGPU interactive preview backend (`Stage5` → `Stage6` → `Stage7`) with automatic CPU/Rayon fallback.
 
+use std::sync::Arc;
+
 use egui::Color32;
 use rayon::prelude::*;
 use rraw_color::DisplayTransform;
 use rraw_core::{ExecutionBackend, PipelineStageId, PipelineTiming, StageTimer};
 use rraw_gpu::{
-    GpuContext, GpuError, SemanticMaskPass, Stage5Params, Stage5Pipeline, Stage6Params,
-    Stage6Pipeline, Stage7Params, Stage7Pipeline,
+    execute_stages5_to_7_fused, FusedPreviewRequest, GpuContext, GpuError, SemanticMaskPass,
+    Stage5Params, Stage5Pipeline, Stage6Params, Stage6Pipeline, Stage7Params, Stage7Pipeline,
 };
 
 use super::pipeline::{render_preview_from_base_profiled, PreparedGradingFrame};
@@ -119,6 +121,7 @@ enum GpuEngineState {
 pub struct GpuPreviewEngine {
     state: GpuEngineState,
     last_fallback_reason: Option<&'static str>,
+    last_gpu_clipping: bool,
 }
 
 impl Default for GpuPreviewEngine {
@@ -134,7 +137,14 @@ impl GpuPreviewEngine {
         Self {
             state: GpuEngineState::Uninitialized,
             last_fallback_reason: None,
+            last_gpu_clipping: false,
         }
+    }
+
+    /// Returns whether the last GPU Stage 7 pass detected highlight clipping above display headroom.
+    #[must_use]
+    pub const fn last_gpu_clipping(&self) -> bool {
+        self.last_gpu_clipping
     }
 
     /// Returns the active GPU adapter name once initialized, or `None` if unavailable/uninitialized.
@@ -163,9 +173,61 @@ impl GpuPreviewEngine {
         matches!(self.state, GpuEngineState::Ready(_))
     }
 
-    /// Renders the interactive preview and histogram, using the live WGPU backend when
-    /// `gpu_enabled` is true, the grading qualifies for the GPU fast path, and an adapter is available.
-    /// Automatically falls back to the CPU/Rayon pipeline otherwise.
+    /// Renders the interactive preview and histogram with explicit display headroom (`1.0` for SDR,
+    /// `> 1.0` for EDR), using the fused live WGPU backend when eligible and available.
+    #[must_use]
+    pub fn render_preview_profiled_with_headroom(
+        &mut self,
+        base: &BaseRgbPreview,
+        grading: &DarkroomGradingState,
+        gpu_enabled: bool,
+        headroom: f32,
+    ) -> (
+        egui::ColorImage,
+        HistogramData,
+        PipelineTiming,
+        PreviewBackendKind,
+    ) {
+        if !gpu_enabled {
+            self.last_fallback_reason = Some("disabled by user");
+            self.last_gpu_clipping = false;
+            let (img, hist, timing) = render_preview_from_base_profiled(base, grading);
+            return (img, hist, timing, PreviewBackendKind::CpuRayon);
+        }
+
+        if let Some(reason) = gpu_fallback_reason(base, grading) {
+            self.last_fallback_reason = Some(reason);
+            self.last_gpu_clipping = false;
+            let (img, hist, timing) = render_preview_from_base_profiled(base, grading);
+            return (img, hist, timing, PreviewBackendKind::CpuRayon);
+        }
+
+        if !self.ensure_initialized() {
+            self.last_fallback_reason = Some("no WGPU adapter available");
+            self.last_gpu_clipping = false;
+            let (img, hist, timing) = render_preview_from_base_profiled(base, grading);
+            return (img, hist, timing, PreviewBackendKind::CpuRayon);
+        }
+
+        if let GpuEngineState::Ready(pipes) = &self.state {
+            if let Ok((img, hist, timing, has_clipping)) =
+                execute_gpu_preview_stages(pipes, base, grading, headroom)
+            {
+                self.last_fallback_reason = None;
+                self.last_gpu_clipping = has_clipping;
+                return (img, hist, timing, PreviewBackendKind::GpuWgpu);
+            }
+        }
+
+        self.last_fallback_reason = Some("GPU stage execution error");
+        self.last_gpu_clipping = false;
+        let (img, hist, timing) = render_preview_from_base_profiled(base, grading);
+        (img, hist, timing, PreviewBackendKind::CpuRayon)
+    }
+
+    /// Renders the interactive preview and histogram in SDR headroom (`1.0`), using the live WGPU
+    /// backend when `gpu_enabled` is true, the grading qualifies for the GPU fast path, and an
+    /// adapter is available. Automatically falls back to the CPU/Rayon pipeline otherwise.
     #[must_use]
     pub fn render_preview_profiled(
         &mut self,
@@ -178,34 +240,7 @@ impl GpuPreviewEngine {
         PipelineTiming,
         PreviewBackendKind,
     ) {
-        if !gpu_enabled {
-            self.last_fallback_reason = Some("disabled by user");
-            let (img, hist, timing) = render_preview_from_base_profiled(base, grading);
-            return (img, hist, timing, PreviewBackendKind::CpuRayon);
-        }
-
-        if let Some(reason) = gpu_fallback_reason(base, grading) {
-            self.last_fallback_reason = Some(reason);
-            let (img, hist, timing) = render_preview_from_base_profiled(base, grading);
-            return (img, hist, timing, PreviewBackendKind::CpuRayon);
-        }
-
-        if !self.ensure_initialized() {
-            self.last_fallback_reason = Some("no WGPU adapter available");
-            let (img, hist, timing) = render_preview_from_base_profiled(base, grading);
-            return (img, hist, timing, PreviewBackendKind::CpuRayon);
-        }
-
-        if let GpuEngineState::Ready(pipes) = &self.state {
-            if let Ok((img, hist, timing)) = execute_gpu_preview_stages(pipes, base, grading) {
-                self.last_fallback_reason = None;
-                return (img, hist, timing, PreviewBackendKind::GpuWgpu);
-            }
-        }
-
-        self.last_fallback_reason = Some("GPU stage execution error");
-        let (img, hist, timing) = render_preview_from_base_profiled(base, grading);
-        (img, hist, timing, PreviewBackendKind::CpuRayon)
+        self.render_preview_profiled_with_headroom(base, grading, gpu_enabled, 1.0)
     }
 }
 
@@ -228,7 +263,8 @@ fn execute_gpu_preview_stages(
     pipes: &CachedGpuPipelines,
     base: &BaseRgbPreview,
     grading: &DarkroomGradingState,
-) -> Result<(egui::ColorImage, HistogramData, PipelineTiming), GpuError> {
+    headroom: f32,
+) -> Result<(egui::ColorImage, HistogramData, PipelineTiming, bool), GpuError> {
     let preview_w = base.width;
     let preview_h = base.height;
     let width_u32 = u32::try_from(preview_w).map_err(|_| GpuError::BufferLengthMismatch {
@@ -252,65 +288,82 @@ fn execute_gpu_preview_stages(
 
     let has_curves = !grading.tone_curves.is_identity();
     let has_clut = grading.custom_clut.is_some();
-    let stage5_rgb = if has_curves || has_clut {
-        let mut s5_params = Stage5Params::new(width_u32, height_u32, 0, 0, 0.0);
+    let s5_params = if has_curves || has_clut {
+        let mut params = Stage5Params::new(width_u32, height_u32, 0, 0, 0.0);
         if has_curves {
             let lut = rraw_color::curves::generate_1d_lut_1024(&grading.tone_curves);
-            s5_params = s5_params.with_tone_curves(lut);
+            params = params.with_tone_curves(lut);
         }
         if let Some(clut) = &grading.custom_clut {
-            s5_params = s5_params.with_clut_3d((*clut.lut).clone(), clut.strength);
+            params = params.with_clut_3d_arc(Arc::clone(&clut.lut), clut.strength);
         }
-        pipes.stage5.execute(&pipes.ctx, &linear_rgb, &s5_params)?
+        Some(params)
     } else {
-        linear_rgb
+        None
     };
     t_s5.finish_and_record(&mut timing);
 
-    // Stage 6: GPU local geometric & semantic EV masks.
     let t_s6 = StageTimer::start(
         PipelineStageId::Stage6TonalGrading,
         ExecutionBackend::GpuMetal,
         num_pixels,
     );
     let stage6_masks = grading.to_stage6_masks_params();
-    let stage6_rgb = if !stage6_masks.masks.is_empty() {
-        let s6_params = Stage6Params {
+    let s6_params = if !stage6_masks.masks.is_empty() {
+        Some(Stage6Params {
             width: width_u32,
             height: height_u32,
             masks: stage6_masks,
-        };
-        let sem_rgba = build_interleaved_semantic_rgba(&base.semantic_masks);
-        let sem_pass = sem_rgba.as_ref().map(|(buf, sw, sh)| SemanticMaskPass {
-            rgba_probabilities: buf.as_slice(),
-            width: *sw,
-            height: *sh,
-        });
-        pipes
-            .stage6
-            .execute_with_semantics(&pipes.ctx, &stage5_rgb, &s6_params, sem_pass)?
+        })
     } else {
-        stage5_rgb
+        None
     };
+    let sem_rgba = if s6_params.is_some() {
+        build_interleaved_semantic_rgba(&base.semantic_masks)
+    } else {
+        None
+    };
+    let sem_pass = sem_rgba.as_ref().map(|(buf, sw, sh)| SemanticMaskPass {
+        rgba_probabilities: buf.as_slice(),
+        width: *sw,
+        height: *sh,
+    });
     t_s6.finish_and_record(&mut timing);
 
-    // Stage 7: GPU AgX DRT + scope pass.
+    // Fused single-submit GPU execution across active Stages 5 → 6 → 7 (zero intermediate readbacks).
     let t_s7 = StageTimer::start(
         PipelineStageId::Stage7EdrDisplay,
         ExecutionBackend::GpuMetal,
         num_pixels,
     );
+    let safe_headroom = if headroom.is_finite() {
+        headroom.clamp(1.0, 16.0)
+    } else {
+        1.0
+    };
     let s7_params = Stage7Params {
         width: width_u32,
         height: height_u32,
-        headroom: 1.0,
+        headroom: safe_headroom,
     };
-    let (drt_rgb, _gpu_hist, _clip) = pipes.stage7.execute(&pipes.ctx, &stage6_rgb, &s7_params)?;
+    let fused_req = FusedPreviewRequest {
+        linear_rgb: &linear_rgb,
+        stage5: s5_params.as_ref(),
+        stage6: s6_params.as_ref().map(|p| (p, sem_pass)),
+        stage7: s7_params,
+    };
+    let fused_out = execute_stages5_to_7_fused(
+        &pipes.ctx,
+        &pipes.stage5,
+        &pipes.stage6,
+        &pipes.stage7,
+        &fused_req,
+    )?;
     let (color_image, hist_data) =
-        finalize_post_drt_display(base, &drt_rgb, preview_w, preview_h, grading);
+        finalize_post_drt_display(base, &fused_out.drt_rgb, preview_w, preview_h, grading);
     t_s7.finish_and_record(&mut timing);
 
-    Ok((color_image, hist_data, timing))
+    Ok((color_image, hist_data, timing, fused_out.has_clipping))
 }
 
 fn build_pre_stage5_linear_rgb(base: &BaseRgbPreview, grading: &DarkroomGradingState) -> Vec<f32> {
