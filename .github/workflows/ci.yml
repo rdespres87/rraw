@@ -12,6 +12,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -68,3 +71,27 @@ jobs:
           name: lcov-core-crates
           path: lcov.info
           retention-days: 14
+
+  ci-linux:
+    name: Clippy & Workspace Tests (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Cargo dependencies and build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: ci-linux-x64
+
+      - name: Verify zero-warning workspace lints (cargo clippy)
+        run: cargo clippy --workspace --exclude rraw-app --all-targets -- -D warnings
+
+      - name: Execute cross-platform CPU/storage/export test suites
+        run: cargo test --workspace --exclude rraw-app --exclude rraw-gpu
