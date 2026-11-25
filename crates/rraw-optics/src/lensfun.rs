@@ -263,7 +263,11 @@ impl LensfunDatabase {
                     }
                 }
                 Event::Text(ref e) => {
-                    let text = e.unescape()?.trim().to_string();
+                    let text = e
+                        .decode()
+                        .map_err(quick_xml::Error::from)?
+                        .trim()
+                        .to_string();
                     if let Some(ref mut lens) = current_lens {
                         match current_tag.as_str() {
                             "maker" if !text.is_empty() => {
