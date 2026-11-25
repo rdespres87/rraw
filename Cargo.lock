@@ -3803,14 +3803,14 @@ dependencies = [
 
 [[package]]
 name = "rraw-ai"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "rraw-core",
 ]
 
 [[package]]
 name = "rraw-app"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -3838,7 +3838,7 @@ dependencies = [
 
 [[package]]
 name = "rraw-cli"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "clap",
  "png 0.17.16",
@@ -3849,7 +3849,7 @@ dependencies = [
 
 [[package]]
 name = "rraw-color"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "glam",
  "png 0.17.16",
@@ -3860,7 +3860,7 @@ dependencies = [
 
 [[package]]
 name = "rraw-core"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "rayon",
  "serde",
@@ -3871,7 +3871,7 @@ dependencies = [
 
 [[package]]
 name = "rraw-coreml"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "objc2 0.6.5",
  "rayon",
@@ -3882,7 +3882,7 @@ dependencies = [
 
 [[package]]
 name = "rraw-decode"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "byteorder",
  "rawler",
@@ -3892,7 +3892,7 @@ dependencies = [
 
 [[package]]
 name = "rraw-export"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -3908,7 +3908,7 @@ dependencies = [
 
 [[package]]
 name = "rraw-gpu"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "bytemuck",
  "glam",
@@ -3923,7 +3923,7 @@ dependencies = [
 
 [[package]]
 name = "rraw-macos-edr"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
@@ -3932,7 +3932,7 @@ dependencies = [
 
 [[package]]
 name = "rraw-optics"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "flate2",
  "quick-xml",
@@ -3944,7 +3944,7 @@ dependencies = [
 
 [[package]]
 name = "rraw-storage"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "rraw-core",
  "rusqlite",
