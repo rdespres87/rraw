@@ -213,10 +213,7 @@ mod macos_ffi {
         let _c_path = CString::new(path_str)
             .map_err(|e| CoreMlError::CompilationFailed(path_str.to_string(), e.to_string()))?;
 
-        // SAFETY:
-        // AnyClass::get verifies at runtime whether the MLModel class exists in the
-        // Objective-C runtime (available on macOS 10.13+). Does not dereference invalid pointers.
-        #[allow(unsafe_code)]
+        // Verify at runtime whether the MLModel class exists in the Objective-C runtime.
         let ml_model_cls = AnyClass::get(c"MLModel");
         if ml_model_cls.is_none() {
             return Err(CoreMlError::PlatformUnsupported(

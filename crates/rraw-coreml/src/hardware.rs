@@ -109,7 +109,8 @@ fn query_sysctl_by_name(name: &str) -> Option<String> {
         )
     };
 
-    if ret != 0 || len == 0 {
+    const MAX_SYSCTL_LEN: usize = 4096;
+    if ret != 0 || len == 0 || len > MAX_SYSCTL_LEN {
         return None;
     }
 
@@ -117,7 +118,8 @@ fn query_sysctl_by_name(name: &str) -> Option<String> {
 
     // SAFETY:
     // Second invocation populates `buf` up to capacity `len`.
-    // buf allocation is strictly sized according to the previous sysctl call.
+    // `buf` is strictly sized to the capacity returned by the first `sysctlbyname` call
+    // and bounded by `MAX_SYSCTL_LEN`.
     #[allow(unsafe_code)]
     let ret = unsafe {
         sysctlbyname(
@@ -129,9 +131,11 @@ fn query_sysctl_by_name(name: &str) -> Option<String> {
         )
     };
 
-    if ret != 0 {
+    if ret != 0 || len > buf.len() {
         return None;
     }
+
+    buf.truncate(len);
 
     // Strip trailing null characters if present
     while let Some(&0) = buf.last() {

@@ -1,10 +1,9 @@
-#![deny(unsafe_code)]
+#![forbid(unsafe_code)]
 
 //! Isolated macOS EDR display bridge implementing `DisplayHeadroomProvider`.
 //!
-//! This is the ONLY crate in the Rraw workspace configured with `#![deny(unsafe_code)]`
-//! rather than `#![forbid(unsafe_code)]`, allowing minimal, `// SAFETY:`-audited
-//! `#[allow(unsafe_code)]` `objc2` FFI blocks in Phase 2 without compiler error `E0453`.
+//! Queries `NSScreen` headroom safely through `objc2` bindings with
+//! `#![forbid(unsafe_code)]` enforced across the crate.
 
 use rraw_core::{DisplayHeadroomProvider, HeadroomSample, SurfaceFormat, SurfaceSpec};
 use std::fmt;
@@ -106,11 +105,8 @@ pub struct MacOsDisplayHeadroomProvider;
 #[cfg(target_os = "macos")]
 impl DisplayHeadroomProvider for MacOsDisplayHeadroomProvider {
     fn current_headroom(&self) -> HeadroomSample {
-        // SAFETY:
-        // MainThreadMarker::new() safely verifies that the thread is indeed the main UI thread.
-        // If not on the main thread or if no NSScreen is attached (headless CI),
-        // we safely return the nominal SDR headroom (1.0).
-        #[allow(unsafe_code)]
+        // MainThreadMarker::new() verifies that we are on the main UI thread;
+        // off the main thread or in headless CI we fall back to nominal SDR headroom (1.0).
         let (active, potential) = {
             use objc2::MainThreadMarker;
             use objc2_app_kit::NSScreen;

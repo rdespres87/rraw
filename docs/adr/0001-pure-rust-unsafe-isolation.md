@@ -7,8 +7,8 @@ Rraw decodes camera RAW files (TIFF/ISOBMFF, MakerNotes, DNG opcodes), Lensfun X
 ## Decision
 
 - All RAW, EXIF, MakerNote, DNG opcode, Lensfun XML, and image codec parsing/encoding uses pure safe Rust crates (`rawler`, `quick-xml`, `zune-jpegxl`, `image`/`ravif`) and pure-Rust parsers — C/C++ parser bindings (`libraw`, `exiv2`) are forbidden.
-- 10 of 12 workspace crates enforce `#![forbid(unsafe_code)]`.
-- Only `rraw-macos-edr` and `rraw-coreml` use `#![deny(unsafe_code)]` with targeted `#[allow(unsafe_code)]` blocks gated by `#[cfg(target_os = "macos")]` and documented `// SAFETY:` invariants.
+- 11 of 12 workspace crates enforce `#![forbid(unsafe_code)]` (including `rraw-macos-edr`, which queries `NSScreen` through safe `objc2` bindings).
+- Only `rraw-coreml` uses `#![deny(unsafe_code)]` with targeted `#[allow(unsafe_code)]` blocks gated by `#[cfg(all(target_os = "macos", target_arch = "aarch64"))]` and documented `// SAFETY:` invariants.
 - Platform-specific crates expose safe Rust traits (`DisplayHeadroomProvider`, `RawDenoiser`, `SemanticSegmenter`) with cross-platform fallbacks so non-macOS CI targets compile and test cleanly.
 
 ## Consequences

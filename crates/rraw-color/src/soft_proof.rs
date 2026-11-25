@@ -1,4 +1,4 @@
-//! Color Management & Soft Proofing (Task 6.4):
+//! Color Management & Soft Proofing:
 //! ICC Display & Printer Profile Simulation, Perceptual / Relative Colorimetric Intents,
 //! Paper White / Black Ink (BPC) reflectance mapping, and Out-of-Gamut detection.
 

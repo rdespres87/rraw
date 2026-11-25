@@ -2,29 +2,25 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Continue Post-`v0.3.0` Hardening (P1.2 & P2) or Push `main` when authorized**:
-  - **P1.2 (Code Quality & Residuals)**:
-    - Split `render_darkroom_section` (370 L in `crates/rraw-app/src/ui/inspector.rs`) into focused sub-functions.
-    - Wrap 6-7 parameter helpers in domain context structs.
-    - Remove residual `.xmp` cache key check in `crates/rraw-app/src/preview/decoder.rs`.
-    - Deduplicate `guard_constant_runs` in `crates/rraw-export/src/jxl.rs`.
-  - **P2 (QA & Hygiene)**:
-    - Replace `thread::sleep` in `tiling_tests.rs` and `session_dam_tests.rs` with deterministic synchronization.
-    - Increase `crates/rraw-core/src/recipe.rs` line coverage (`>= 85%`).
-    - Clean stale phase/task comment references in `src/` and remove stray `assets/i18n/.DS_Store`.
-  - **Verified Baseline**: **465+ tests passing across 95 suites**, 0 clippy warnings, 0 `#[allow(clippy::...)]`, 100% of `src/` files `< 1,000` lines, **87.17%** 4-crate CPU line coverage (`>= 85%` CI gate), multi-OS CI (`ci-macos` + `ci-linux`), `cargo audit` security workflow, and `docs/adr/` baseline.
+- **Push `main` to `origin/main` when authorized** (all Maturity Audit #10 P0, P1, and P2 remediation items are complete and locally verified) or start the next feature milestone (`v0.4.0`).
+  - **Verified Baseline**: **467 tests passing across 95 suites** (8.37s), 0 clippy warnings, 0 `#[allow(clippy::...)]`, **11 of 12 crates enforcing `#![forbid(unsafe_code)]`**, 100% of `src/` files `< 1,000` lines, **87.68%** 4-crate CPU line coverage (`>= 85%` CI gate), multi-OS CI (`ci-macos` + `ci-linux`), `cargo audit` security workflow, and `docs/adr/` baseline.
 
 ---
 
 ## Last Completed Milestone
 
-- **Post-`v0.3.0` Hardening & Performance (5 Local Commits Ahead of `origin/main` at `89ae601`)**:
+- **Post-`v0.3.0` Maturity Audit #10 Remediation (P0 + P1 + P2 Complete, 11 Local Commits Ahead of `origin/main` at `89ae601`)**:
   - `f8ac420` — Relaxed debug/CI latency budget in preview benchmarks while keeping 120 Hz (`8.333 ms`) in local release builds.
   - `26a4798` — Fused GPU Stages 5-7 into a single WGPU submission (`rraw-gpu/src/fused.rs`) and shared 3D CLUT via `Arc<ColorLut3d>`.
   - `aa2500f` — Initialized session DAM on startup in `RrawApp::new()` and decoupled `dam_index_epoch` from `DecodeCoordinator`.
   - `b6fea96` — Offloaded SQLite DAM rating writes to a bounded non-blocking background worker (`sync_channel(256)` + `Drop` flush).
   - `0418e19` — Added `ci-linux` cross-platform job in `.github/workflows/ci.yml` and weekly/PR `cargo audit` in `.github/workflows/security.yml`.
-  - Added baseline ADRs in `docs/adr/` and synced `docs/agent/{SESSION_STATE,HANDOFF}.md`.
+  - `db6e746` — Added baseline ADRs in `docs/adr/` and synced `docs/agent/{SESSION_STATE,HANDOFF}.md`.
+  - `9283967` — Decomposed `render_darkroom_section`, deduplicated `guard_constant_runs` in `jxl.rs`, and replaced residual `.xmp` thumbnail hash key with `.rraw.json`.
+  - `bdc36fd` — Removed obsolete `rraw-storage::xmp` module (`XmpEditor`, `StorageError::Xmp`, unused `quick-xml` dep) and residual sidecar `.xmp` references.
+  - `49d2196` — Wrapped 7-parameter CFA and viewport helpers in context structs and isolated ephemeral `crop_show_grid` into `ViewportController`.
+  - `b25f2ba` — Replaced `thread::sleep` in `tiling_tests.rs` and `session_dam_tests.rs` with deadlock-free `mpsc::channel` / `File::set_modified`, and expanded `recipe_dag_tests.rs` (4-crate coverage `87.68%`).
+  - P2.2 — Upgraded `rraw-macos-edr` to `#![forbid(unsafe_code)]`, removed redundant `#[allow(unsafe_code)]` in `rraw-coreml/src/engine.rs`, tightened `sysctlbyname` bounds in `rraw-coreml/src/hardware.rs`, cleaned stale comment references and stray `.DS_Store`, and synced `AGENTS.md`, `ADR-0001`, `SESSION_STATE.md`, and `HANDOFF.md`.
 
 ---
 

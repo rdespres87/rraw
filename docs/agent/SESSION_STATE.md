@@ -4,14 +4,19 @@
 
 ## Current Status
 
-- **Active Release Baseline**: `v0.3.0` (`89ae601` on `origin/main`) + **5 verified local commits ahead of `origin/main`** (`f8ac420`, `26a4798`, `aa2500f`, `b6fea96`, `0418e19`)
-- **Last Verified Baseline**: **465+ tests passing across 95 test suites**, 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **100% of `src/` files strictly under 1,000 lines**, **87.17% deterministic 4-crate CPU line coverage** (CI gate `>= 85%`), multi-OS CI (`ci-macos` + `ci-linux`), weekly/PR `cargo audit` security workflow, and baseline ADRs in `docs/adr/`.
-- **Local Commits Ahead of `origin/main`**:
+- **Active Release Baseline**: `v0.3.0` (`89ae601` on `origin/main`) + **10 verified local commits ahead of `origin/main`** (`f8ac420`..`b25f2ba`) + P2.2 safety/hygiene hardening
+- **Last Verified Baseline**: **467 tests passing across 95 test suites** (8.37s), 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **11 of 12 crates enforcing `#![forbid(unsafe_code)]`** (only `rraw-coreml` uses `#![deny(unsafe_code)]` for `sysctlbyname`), **100% of `src/` files strictly under 1,000 lines**, **87.68% deterministic 4-crate CPU line coverage** (CI gate `>= 85%`), multi-OS CI (`ci-macos` + `ci-linux`), weekly/PR `cargo audit` security workflow, and baseline ADRs in `docs/adr/`.
+- **Local Commits Ahead of `origin/main` (100% of Maturity Audit #10 P0 / P1 / P2 Complete)**:
   - `f8ac420` — `fix(test): relax debug and CI latency budget in preview benchmarks`
   - `26a4798` — `perf(gpu): fuse Stages 5-7 into single submission and share 3D CLUT via Arc`
   - `aa2500f` — `fix(dam): initialize session DAM on startup and decouple directory index epoch`
   - `b6fea96` — `perf(dam): offload SQLite rating writes to non-blocking background worker`
   - `0418e19` — `ci: add Linux cross-platform job and cargo-audit security workflow`
+  - `db6e746` — `docs: add baseline architecture decision records and sync session state`
+  - `9283967` — `refactor: decompose darkroom inspector section, deduplicate JXL guard, and update thumbnail sidecar hash`
+  - `bdc36fd` — `refactor(storage): remove obsolete XmpEditor module and residual XMP sidecar references`
+  - `49d2196` — `refactor: wrap high-arity viewport and CFA helpers in context structs and isolate crop grid flag`
+  - `b25f2ba` — `test: replace sleeps with deterministic sync and expand DAG coverage`
 - **Preceding Milestone**: Phase 28 — Maturity Audit #9 Remediation (`v0.3.0`, `89ae601`) **Complete**
   - **Coverage Gate >= 85% (`84586e6`)**: Added deterministic unit tests for `rraw-decode` (`opcodes`, `makernotes`, `exif`) and `rraw-optics` (`lensfun`), raising 4-crate CPU `cargo llvm-cov` line coverage from `82.72%` → `89.16%` and raising CI `coverage-core` gate from `82%` → `85%`.
   - **GPU Fast-Path for Advanced Masks & Overlay (`ce51de7`)**: Extended `GeometricMask` and `stage6_masks.wgsl` with `temperature_shift`, `invert`, and smoothstep `feather` parity; lifted CPU fallbacks for local/semantic masks and red mask overlays in `gpu_backend.rs` (only `FreehandBrush` falls back to CPU), verified live Metal GPU vs CPU parity ($\Delta E_{00} < 1.0$).
