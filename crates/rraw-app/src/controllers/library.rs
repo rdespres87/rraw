@@ -87,7 +87,17 @@ impl LibraryController {
             })
             .map(|e| e.path())
             .collect();
-        subdirs.sort();
+        subdirs.sort_by(|a, b| {
+            let ka = a
+                .file_name()
+                .map(|n| n.to_string_lossy().to_ascii_lowercase())
+                .unwrap_or_default();
+            let kb = b
+                .file_name()
+                .map(|n| n.to_string_lossy().to_ascii_lowercase())
+                .unwrap_or_default();
+            ka.cmp(&kb).then_with(|| a.cmp(b))
+        });
         self.cached_subdirectories = subdirs;
     }
 

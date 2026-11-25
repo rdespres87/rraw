@@ -56,6 +56,16 @@ impl RrawApp {
         self.library.directory_entries = scan_directory_for_images(&abs_dir);
         self.library.refresh_subdirectories();
 
+        if self.library.directory_entries.is_empty() {
+            self.workers.is_decoding = false;
+            self.session.loaded_photo = None;
+            self.session.base_preview = None;
+            self.session.cached_cfa = None;
+            self.session.preview_texture = None;
+            self.session.original_texture = None;
+            self.session.needs_preview_update = false;
+        }
+
         // Evict GPU textures of thumbnails belonging to previously opened folders
         self.workers
             .thumbnail_textures

@@ -33,10 +33,45 @@ pub struct FrameGeometry {
     pub is_identity_geom_base: bool,
 }
 
+/// Prevents magenta/violet color casts in clipped sensor highlights when white-balance
+/// multipliers exceed the green channel (e.g. R=2.2, G=1.0, B=1.8).
+///
+/// Non-clipped pixels (`max(r, g, b) < 0.99`) and unclipped HDR float pixels (`> 1.30`)
+/// are returned unchanged. Saturated sensor highlights (`0.99..=1.30`, covering sensors
+/// whose ADC max exceeds nominal white level such as `4095 / 3800 = 1.08`) are smoothly
+/// clamped to the minimum WB channel ceiling so clipped whites stay achromatic white.
+#[inline]
+#[must_use]
+pub fn clip_saturated_sensor_highlights(rgb: [f32; 3], eff_wb: [f32; 3]) -> [f32; 3] {
+    let [r, g, b] = rgb;
+    let peak = r.max(g).max(b);
+    if !(0.99..=1.30).contains(&peak) {
+        return rgb;
+    }
+    let min_wb = eff_wb[0].min(eff_wb[1]).min(eff_wb[2]);
+    if !min_wb.is_finite() || min_wb <= 0.0 {
+        return rgb;
+    }
+    let clamp_ch = |val: f32, wb: f32| -> f32 {
+        if wb > 0.0 && val > 0.0 {
+            let max_raw = min_wb / wb;
+            val.min(max_raw)
+        } else {
+            val
+        }
+    };
+    let t = ((peak - 0.99) / 0.01).clamp(0.0, 1.0);
+    let cr = clamp_ch(r, eff_wb[0]);
+    let cg = clamp_ch(g, eff_wb[1]);
+    let cb = clamp_ch(b, eff_wb[2]);
+    [r + (cr - r) * t, g + (cg - g) * t, b + (cb - b) * t]
+}
+
 /// Precomputed scalar/matrix grading uniforms shared across every pixel in a frame.
 #[derive(Debug, Clone, Copy)]
 pub struct GradingUniformPayload {
     pub combined_mat: [f32; 9],
+    pub eff_wb: [f32; 3],
     pub has_tonal_adjustment: bool,
     pub has_curves: bool,
     pub base_contrast_factor: f32,
@@ -334,7 +369,8 @@ impl<'a> PreparedGradingFrame<'a> {
             let n_pix = preview_w * preview_h;
             let mut rgb_linear = Vec::with_capacity(n_pix);
             for s in effective_samples.iter().take(n_pix) {
-                let [r, g, b] = *s;
+                let [r, g, b] =
+                    clip_saturated_sensor_highlights(*s, [eff_wb_r, eff_wb_g, eff_wb_b]);
                 let r_scaled =
                     (combined_mat[0] * r + combined_mat[1] * g + combined_mat[2] * b).max(0.0);
                 let g_scaled =
@@ -403,6 +439,7 @@ impl<'a> PreparedGradingFrame<'a> {
             },
             uniforms: GradingUniformPayload {
                 combined_mat,
+                eff_wb: [eff_wb_r, eff_wb_g, eff_wb_b],
                 has_tonal_adjustment,
                 has_curves,
                 base_contrast_factor,
@@ -521,7 +558,8 @@ impl<'a> PreparedGradingFrame<'a> {
             (s_idx.min(max_sample_idx), v)
         };
 
-        let [mean_r, mean_g, mean_b] = effective_samples[sample_idx];
+        let [mean_r, mean_g, mean_b] =
+            clip_saturated_sensor_highlights(effective_samples[sample_idx], u.eff_wb);
         let mut r_s =
             (u.combined_mat[0] * mean_r + u.combined_mat[1] * mean_g + u.combined_mat[2] * mean_b)
                 .max(0.0)
@@ -651,7 +689,8 @@ impl<'a> PreparedGradingFrame<'a> {
             (s_idx.min(max_sample_idx), v, un, vn)
         };
 
-        let [mean_r, mean_g, mean_b] = effective_samples[sample_idx];
+        let [mean_r, mean_g, mean_b] =
+            clip_saturated_sensor_highlights(effective_samples[sample_idx], u.eff_wb);
 
         let mut r_scaled =
             (u.combined_mat[0] * mean_r + u.combined_mat[1] * mean_g + u.combined_mat[2] * mean_b)

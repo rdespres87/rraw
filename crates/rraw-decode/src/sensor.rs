@@ -108,9 +108,55 @@ pub fn extract_cropped_samples<'a>(
     }
 }
 
-/// Replaces non-finite or non-positive white-balance multipliers with safe daylight fallbacks.
+/// Replaces non-finite or non-positive white-balance multipliers with safe daylight fallbacks
+/// and normalizes channels relative to Green (`wb[1] = 1.0`).
 #[must_use]
-pub fn sanitize_wb_coeffs(mut wb_coeffs: [f32; 4]) -> [f32; 4] {
+pub fn sanitize_wb_coeffs(wb_coeffs: [f32; 4]) -> [f32; 4] {
+    sanitize_wb_coeffs_with_matrix(wb_coeffs, None)
+}
+
+/// Sanitizes white-balance multipliers, deriving exact D65 daylight multipliers from the
+/// `XYZ -> Camera` `color_matrix` whenever camera as-shot WB is missing (`NaN` or `<= 0`).
+#[must_use]
+pub fn sanitize_wb_coeffs_with_matrix(
+    mut wb_coeffs: [f32; 4],
+    color_matrix: Option<&[f32; 9]>,
+) -> [f32; 4] {
+    let valid_rgb = wb_coeffs[0].is_finite()
+        && wb_coeffs[0] > 0.0
+        && wb_coeffs[1].is_finite()
+        && wb_coeffs[1] > 0.0
+        && wb_coeffs[2].is_finite()
+        && wb_coeffs[2] > 0.0;
+
+    if valid_rgb {
+        let g = wb_coeffs[1];
+        wb_coeffs[0] /= g;
+        wb_coeffs[1] = 1.0;
+        wb_coeffs[2] /= g;
+        if wb_coeffs[3].is_finite() && wb_coeffs[3] > 0.0 {
+            wb_coeffs[3] /= g;
+        }
+        return wb_coeffs;
+    }
+
+    // Derive D65 daylight neutral multipliers from XYZ_D65 -> Camera matrix when available
+    if let Some(cm) = color_matrix {
+        const D65_XYZ: [f32; 3] = [0.950_47, 1.0, 1.088_83];
+        let cam_r = cm[0] * D65_XYZ[0] + cm[1] * D65_XYZ[1] + cm[2] * D65_XYZ[2];
+        let cam_g = cm[3] * D65_XYZ[0] + cm[4] * D65_XYZ[1] + cm[5] * D65_XYZ[2];
+        let cam_b = cm[6] * D65_XYZ[0] + cm[7] * D65_XYZ[1] + cm[8] * D65_XYZ[2];
+        if cam_r.is_finite()
+            && cam_g.is_finite()
+            && cam_b.is_finite()
+            && cam_r > 1e-4
+            && cam_g > 1e-4
+            && cam_b > 1e-4
+        {
+            return [cam_g / cam_r, 1.0, cam_g / cam_b, 1.0];
+        }
+    }
+
     if !wb_coeffs[0].is_finite() || wb_coeffs[0] <= 0.0 {
         wb_coeffs[0] = 2.0;
     }
@@ -145,7 +191,7 @@ pub fn extract_color_matrix(raw_image: &rawler::RawImage) -> Option<[f32; 9]> {
 
 #[cfg(test)]
 mod tests {
-    use super::sanitize_wb_coeffs;
+    use super::{sanitize_wb_coeffs, sanitize_wb_coeffs_with_matrix};
 
     #[test]
     fn sanitize_wb_replaces_invalid_channels_and_preserves_valid_ones() {
@@ -154,5 +200,31 @@ mod tests {
 
         let valid = sanitize_wb_coeffs([2.15, 1.0, 1.62, 1.0]);
         assert_eq!(valid, [2.15, 1.0, 1.62, 1.0]);
+
+        // Unnormalized WB (e.g., G = 256) must normalize relative to Green
+        let unnorm = sanitize_wb_coeffs([512.0, 256.0, 384.0, 256.0]);
+        assert!((unnorm[0] - 2.0).abs() < 1e-5);
+        assert!((unnorm[1] - 1.0).abs() < 1e-5);
+        assert!((unnorm[2] - 1.5).abs() < 1e-5);
+    }
+
+    #[test]
+    fn sanitize_wb_derives_d65_from_color_matrix_when_camera_wb_missing() {
+        // Mamiya ZD XYZ->Cam matrix where rawler reports NaN WB
+        let mamiya_cm: [f32; 9] = [
+            0.7645, 0.2579, -0.1363, -0.8689, 1.6717, 0.2014, -0.3712, 0.5941, 0.5961,
+        ];
+        let wb = sanitize_wb_coeffs_with_matrix([f32::NAN; 4], Some(&mamiya_cm));
+        assert!(
+            (wb[0] - 1.274).abs() < 0.02,
+            "expected ~1.27, got {}",
+            wb[0]
+        );
+        assert!((wb[1] - 1.0).abs() < 1e-5);
+        assert!(
+            (wb[2] - 1.196).abs() < 0.02,
+            "expected ~1.20, got {}",
+            wb[2]
+        );
     }
 }

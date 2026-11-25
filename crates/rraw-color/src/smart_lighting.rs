@@ -395,16 +395,16 @@ pub fn apply_smart_lighting_acescg(
     let (shadow_lift, highlight_compression) = match params.mode {
         SmartLightingMode::Off => (0.0, 0.0),
         SmartLightingMode::Slight => (
-            (analysis.recommended_shadow_lift * 0.9).max(0.60) * eff_intensity,
-            (analysis.recommended_highlight_compression * 0.9).max(0.35) * eff_intensity,
+            analysis.recommended_shadow_lift * 0.45 * eff_intensity,
+            analysis.recommended_highlight_compression * 0.40 * eff_intensity,
         ),
         SmartLightingMode::Medium => (
-            (analysis.recommended_shadow_lift * 1.5).max(1.05) * eff_intensity,
-            (analysis.recommended_highlight_compression * 1.4).max(0.65) * eff_intensity,
+            (analysis.recommended_shadow_lift * 1.0).max(0.55) * eff_intensity,
+            (analysis.recommended_highlight_compression * 0.95).max(0.35) * eff_intensity,
         ),
         SmartLightingMode::Strong => (
-            (analysis.recommended_shadow_lift * 2.2).max(1.55) * eff_intensity,
-            (analysis.recommended_highlight_compression * 2.0).max(0.95) * eff_intensity,
+            (analysis.recommended_shadow_lift * 2.0).max(1.35) * eff_intensity,
+            (analysis.recommended_highlight_compression * 1.8).max(0.85) * eff_intensity,
         ),
         SmartLightingMode::Custom => (
             params.custom_shadow_lift * 1.8 * eff_intensity,

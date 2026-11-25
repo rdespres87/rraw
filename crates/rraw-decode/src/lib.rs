@@ -107,8 +107,9 @@ impl RawDecoder for PureRustRawDecoder {
             keywords: Vec::new(),
         };
 
-        let wb_coeffs = sensor::sanitize_wb_coeffs(raw_image.wb_coeffs);
         let color_matrix = sensor::extract_color_matrix(&raw_image);
+        let wb_coeffs =
+            sensor::sanitize_wb_coeffs_with_matrix(raw_image.wb_coeffs, color_matrix.as_ref());
 
         let mut exif_tags = Vec::with_capacity(64);
         exif_tags.push(("Camera Make".to_owned(), metadata.camera_make.clone()));
