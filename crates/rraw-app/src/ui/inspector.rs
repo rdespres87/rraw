@@ -412,276 +412,8 @@ impl RrawApp {
                         let pre_edit_grading = self.session.grading.clone();
                         let pointer_down = ui.ctx().input(|i| i.pointer.any_down());
 
-                        let out = match section {
-                            DarkroomSection::ExposureTone => sections::exposure_tone::render(
-                                ui,
-                                &mut self.session.grading.tone,
-                                &mut self.session.grading.smart_lighting,
-                                cur_lang,
-                            ),
-                            DarkroomSection::WhiteBalanceColor => sections::white_balance::render(
-                                ui,
-                                &mut self.session.grading.color,
-                                &mut self.session.grading.tone,
-                                cur_lang,
-                            ),
-                            DarkroomSection::AiSemanticMasks => {
-                                let prev_crop = self.viewport.is_crop_editing;
-                                let prev_horizon = self.viewport.horizon_tool_active;
-                                let prev_phase = self.viewport.parallel_tool_phase;
-                                let prev_brush = self.session.grading.masks.active_brush_mask_idx;
-                                let mut mask_ctx = sections::masks::MaskUiContext {
-                                    local_masks: &mut self.session.grading.masks.local_masks,
-                                    show_local_mask_overlay: &mut self
-                                        .session
-                                        .grading
-                                        .masks
-                                        .show_local_mask_overlay,
-                                    active_brush_mask_idx: &mut self
-                                        .session
-                                        .grading
-                                        .masks
-                                        .active_brush_mask_idx,
-                                    semantic_masks: &mut self.session.grading.masks.semantic_masks,
-                                    show_semantic_mask_overlay: &mut self
-                                        .session
-                                        .grading
-                                        .masks
-                                        .show_semantic_mask_overlay,
-                                    language: cur_lang,
-                                };
-                                let out = sections::masks::render(ui, &mut mask_ctx);
-                                self.reconcile_canvas_tool_transitions(
-                                    prev_crop,
-                                    prev_horizon,
-                                    prev_phase,
-                                    prev_brush,
-                                );
-                                out
-                            }
-                            DarkroomSection::SoftProofing => sections::soft_proofing::render(
-                                ui,
-                                &mut self.session.grading.soft_proof,
-                                self.viewport.histogram.out_of_gamut_count,
-                                cur_lang,
-                            ),
-                            DarkroomSection::ToneCurves => {
-                                self.render_tone_curves_section(ui);
-                                sections::SectionOutput::nothing()
-                            }
-                            DarkroomSection::Crop => {
-                                let prev_crop = self.viewport.is_crop_editing;
-                                let prev_horizon = self.viewport.horizon_tool_active;
-                                let prev_phase = self.viewport.parallel_tool_phase;
-                                let prev_brush = self.session.grading.masks.active_brush_mask_idx;
-                                let dims = self.session.loaded_photo.as_ref().map(|p| p.dimensions);
-                                let out = sections::crop::render(
-                                    ui,
-                                    &mut self.session.grading.geometry,
-                                    &mut self.viewport.is_crop_editing,
-                                    dims,
-                                    cur_lang,
-                                );
-                                self.reconcile_canvas_tool_transitions(
-                                    prev_crop,
-                                    prev_horizon,
-                                    prev_phase,
-                                    prev_brush,
-                                );
-                                out
-                            }
-                            DarkroomSection::Straighten => {
-                                let prev_crop = self.viewport.is_crop_editing;
-                                let prev_horizon = self.viewport.horizon_tool_active;
-                                let prev_phase = self.viewport.parallel_tool_phase;
-                                let prev_brush = self.session.grading.masks.active_brush_mask_idx;
-                                let out = sections::straighten::render(
-                                    ui,
-                                    &mut self.session.grading.geometry,
-                                    &mut self.viewport.horizon_tool_active,
-                                    &mut self.viewport.horizon_start_point,
-                                    &mut self.status_message,
-                                    cur_lang,
-                                );
-                                self.reconcile_canvas_tool_transitions(
-                                    prev_crop,
-                                    prev_horizon,
-                                    prev_phase,
-                                    prev_brush,
-                                );
-                                out
-                            }
-                            DarkroomSection::Geometry => {
-                                let prev_crop = self.viewport.is_crop_editing;
-                                let prev_horizon = self.viewport.horizon_tool_active;
-                                let prev_phase = self.viewport.parallel_tool_phase;
-                                let prev_brush = self.session.grading.masks.active_brush_mask_idx;
-                                let mut tool_state = sections::geometry::ParallelLinesToolState {
-                                    phase: &mut self.viewport.parallel_tool_phase,
-                                    line1: &mut self.viewport.parallel_line1,
-                                    line2: &mut self.viewport.parallel_line2,
-                                    drag_start: &mut self.viewport.parallel_drag_start,
-                                    status_message: &mut self.status_message,
-                                };
-                                let out = sections::geometry::render(
-                                    ui,
-                                    &mut self.session.grading.geometry,
-                                    &mut tool_state,
-                                    cur_lang,
-                                );
-                                self.reconcile_canvas_tool_transitions(
-                                    prev_crop,
-                                    prev_horizon,
-                                    prev_phase,
-                                    prev_brush,
-                                );
-                                out
-                            }
-                            DarkroomSection::DetailDenoise => sections::detail_denoise::render(
-                                ui,
-                                &mut self.session.grading.denoise_sharpen,
-                                cur_lang,
-                            ),
-                            DarkroomSection::OpticalCorrections => {
-                                let lens_info = if let Some(base) = &self.session.base_preview {
-                                    let active_matched = if let Some(override_name) =
-                                        &self.session.grading.optics.lens_profile_override
-                                    {
-                                        let focal = base.focal_length_mm.unwrap_or(50.0);
-                                        let aperture = base.aperture_f_number;
-                                        rraw_optics::LensfunDatabase::global()
-                                            .find_lens(override_name)
-                                            .map(|lens| rraw_optics::MatchedLens {
-                                                profile_name: format!(
-                                                    "{} {}",
-                                                    lens.maker, lens.model
-                                                ),
-                                                maker: lens.maker.clone(),
-                                                model: rraw_optics::LensfunDatabase::global()
-                                                    .interpolate_model(lens, focal, aperture),
-                                                is_exact_match: true,
-                                            })
-                                            .or_else(|| base.matched_lens.clone())
-                                    } else {
-                                        base.matched_lens.clone()
-                                    };
-
-                                    if let Some(matched) = active_matched {
-                                        let meta_str =
-                                            if let Some(photo) = &self.session.loaded_photo {
-                                                if !photo.focal_length_str.is_empty()
-                                                    && !photo.aperture_str.is_empty()
-                                                {
-                                                    format!(
-                                                        "{} · {}",
-                                                        photo.focal_length_str, photo.aperture_str
-                                                    )
-                                                } else {
-                                                    photo.focal_length_str.clone()
-                                                }
-                                            } else {
-                                                String::new()
-                                            };
-                                        let is_manual = self
-                                            .session
-                                            .grading
-                                            .optics
-                                            .lens_profile_override
-                                            .is_some();
-                                        let is_dng = matched.maker == "DNG Embedded";
-                                        Some(sections::optics::DetectedLensInfo {
-                                            name: matched.profile_name,
-                                            is_exact: matched.is_exact_match,
-                                            extra_metadata: meta_str,
-                                            is_manual_override: is_manual,
-                                            is_dng_opcode: is_dng,
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                } else if let Some(photo) = &self.session.loaded_photo {
-                                    let meta_str = if !photo.focal_length_str.is_empty()
-                                        && !photo.aperture_str.is_empty()
-                                    {
-                                        format!(
-                                            "{} · {}",
-                                            photo.focal_length_str, photo.aperture_str
-                                        )
-                                    } else {
-                                        photo.focal_length_str.clone()
-                                    };
-                                    let active_name = self
-                                        .session
-                                        .grading
-                                        .optics
-                                        .lens_profile_override
-                                        .as_ref()
-                                        .unwrap_or(&photo.lens_model);
-                                    let is_manual =
-                                        self.session.grading.optics.lens_profile_override.is_some();
-                                    if !active_name.is_empty() {
-                                        Some(sections::optics::DetectedLensInfo {
-                                            name: active_name.clone(),
-                                            is_exact: true,
-                                            extra_metadata: meta_str,
-                                            is_manual_override: is_manual,
-                                            is_dng_opcode: false,
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                };
-
-                                sections::optics::render(
-                                    ui,
-                                    &mut self.session.grading.optics,
-                                    lens_info,
-                                    cur_lang,
-                                )
-                            }
-                            DarkroomSection::Effects => sections::effects::render(
-                                ui,
-                                &mut self.session.grading.effects,
-                                cur_lang,
-                            ),
-                            DarkroomSection::Timelapse => {
-                                self.render_timelapse_controls_ui(ui, "inspector");
-                                if sections::timelapse::render_export_button(ui, cur_lang) {
-                                    self.export
-                                        .set_target_mode(ExportTargetMode::TimelapseSequence);
-                                    self.export.config.subfolder = "Timelapse".to_string();
-                                    self.export.open_dialog(
-                                        crate::controllers::export::ActiveModalDialog::Export,
-                                    );
-                                    self.export.stats.status = None;
-                                }
-                                sections::SectionOutput::nothing()
-                            }
-                            DarkroomSection::LegacyOther => sections::SectionOutput::nothing(),
-                        };
-
-                        if out.mark_custom_preset {
-                            self.session.grading.preset = GradingPreset::Custom;
-                            self.session.current_preset = GradingPreset::Custom;
-                        }
-                        if out.needs_preview_update {
-                            self.session.needs_preview_update = true;
-                            ui.ctx().request_repaint();
-                        }
-                        let grading_edited = self.session.grading != pre_edit_grading;
-                        if grading_edited {
-                            self.notify_grading_edited(pre_edit_grading, pointer_down);
-                            ui.ctx().request_repaint();
-                        } else if out.save_sidecar {
-                            self.save_current_photo_sidecar();
-                        }
-                        if section != DarkroomSection::AiSemanticMasks
-                            && (out.needs_preview_update || grading_edited)
-                        {
-                            self.session.grading.masks.active_brush_mask_idx = None;
-                        }
+                        let out = self.render_darkroom_section_body(ui, section, cur_lang);
+                        self.apply_section_output(ui, section, pre_edit_grading, pointer_down, out);
                     });
             });
 
@@ -694,5 +426,217 @@ impl RrawApp {
         }
 
         ui.add_space(4.0);
+    }
+
+    /// Snapshots active canvas tool flags, executes `f`, and reconciles mutual-exclusion transitions.
+    fn with_canvas_tool_reconcile<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let prev_crop = self.viewport.is_crop_editing;
+        let prev_horizon = self.viewport.horizon_tool_active;
+        let prev_phase = self.viewport.parallel_tool_phase;
+        let prev_brush = self.session.grading.masks.active_brush_mask_idx;
+        let result = f(self);
+        self.reconcile_canvas_tool_transitions(prev_crop, prev_horizon, prev_phase, prev_brush);
+        result
+    }
+
+    /// Dispatches the body UI of a single darkroom inspector section.
+    fn render_darkroom_section_body(
+        &mut self,
+        ui: &mut egui::Ui,
+        section: DarkroomSection,
+        cur_lang: crate::i18n::Language,
+    ) -> sections::SectionOutput {
+        match section {
+            DarkroomSection::ExposureTone => sections::exposure_tone::render(
+                ui,
+                &mut self.session.grading.tone,
+                &mut self.session.grading.smart_lighting,
+                cur_lang,
+            ),
+            DarkroomSection::WhiteBalanceColor => sections::white_balance::render(
+                ui,
+                &mut self.session.grading.color,
+                &mut self.session.grading.tone,
+                cur_lang,
+            ),
+            DarkroomSection::AiSemanticMasks => self.with_canvas_tool_reconcile(|app| {
+                let mut mask_ctx = sections::masks::MaskUiContext {
+                    local_masks: &mut app.session.grading.masks.local_masks,
+                    show_local_mask_overlay: &mut app.session.grading.masks.show_local_mask_overlay,
+                    active_brush_mask_idx: &mut app.session.grading.masks.active_brush_mask_idx,
+                    semantic_masks: &mut app.session.grading.masks.semantic_masks,
+                    show_semantic_mask_overlay: &mut app
+                        .session
+                        .grading
+                        .masks
+                        .show_semantic_mask_overlay,
+                    language: cur_lang,
+                };
+                sections::masks::render(ui, &mut mask_ctx)
+            }),
+            DarkroomSection::SoftProofing => sections::soft_proofing::render(
+                ui,
+                &mut self.session.grading.soft_proof,
+                self.viewport.histogram.out_of_gamut_count,
+                cur_lang,
+            ),
+            DarkroomSection::ToneCurves => {
+                self.render_tone_curves_section(ui);
+                sections::SectionOutput::nothing()
+            }
+            DarkroomSection::Crop => self.with_canvas_tool_reconcile(|app| {
+                let dims = app.session.loaded_photo.as_ref().map(|p| p.dimensions);
+                sections::crop::render(
+                    ui,
+                    &mut app.session.grading.geometry,
+                    &mut app.viewport.is_crop_editing,
+                    dims,
+                    cur_lang,
+                )
+            }),
+            DarkroomSection::Straighten => self.with_canvas_tool_reconcile(|app| {
+                sections::straighten::render(
+                    ui,
+                    &mut app.session.grading.geometry,
+                    &mut app.viewport.horizon_tool_active,
+                    &mut app.viewport.horizon_start_point,
+                    &mut app.status_message,
+                    cur_lang,
+                )
+            }),
+            DarkroomSection::Geometry => self.with_canvas_tool_reconcile(|app| {
+                let mut tool_state = sections::geometry::ParallelLinesToolState {
+                    phase: &mut app.viewport.parallel_tool_phase,
+                    line1: &mut app.viewport.parallel_line1,
+                    line2: &mut app.viewport.parallel_line2,
+                    drag_start: &mut app.viewport.parallel_drag_start,
+                    status_message: &mut app.status_message,
+                };
+                sections::geometry::render(
+                    ui,
+                    &mut app.session.grading.geometry,
+                    &mut tool_state,
+                    cur_lang,
+                )
+            }),
+            DarkroomSection::DetailDenoise => sections::detail_denoise::render(
+                ui,
+                &mut self.session.grading.denoise_sharpen,
+                cur_lang,
+            ),
+            DarkroomSection::OpticalCorrections => {
+                let lens_info = self.resolve_detected_lens_info();
+                sections::optics::render(ui, &mut self.session.grading.optics, lens_info, cur_lang)
+            }
+            DarkroomSection::Effects => {
+                sections::effects::render(ui, &mut self.session.grading.effects, cur_lang)
+            }
+            DarkroomSection::Timelapse => {
+                self.render_timelapse_controls_ui(ui, "inspector");
+                if sections::timelapse::render_export_button(ui, cur_lang) {
+                    self.export
+                        .set_target_mode(ExportTargetMode::TimelapseSequence);
+                    self.export.config.subfolder = "Timelapse".to_string();
+                    self.export
+                        .open_dialog(crate::controllers::export::ActiveModalDialog::Export);
+                    self.export.stats.status = None;
+                }
+                sections::SectionOutput::nothing()
+            }
+            DarkroomSection::LegacyOther => sections::SectionOutput::nothing(),
+        }
+    }
+
+    /// Resolves active lens metadata and profile badges for the Optical Corrections section.
+    fn resolve_detected_lens_info(&self) -> Option<sections::optics::DetectedLensInfo> {
+        let format_lens_meta = |photo: &crate::preview::LoadedPhotoView| {
+            if !photo.focal_length_str.is_empty() && !photo.aperture_str.is_empty() {
+                format!("{} · {}", photo.focal_length_str, photo.aperture_str)
+            } else {
+                photo.focal_length_str.clone()
+            }
+        };
+
+        let override_opt = self.session.grading.optics.lens_profile_override.as_ref();
+        let is_manual = override_opt.is_some();
+
+        if let Some(base) = &self.session.base_preview {
+            let active_matched = if let Some(override_name) = override_opt {
+                let focal = base.focal_length_mm.unwrap_or(50.0);
+                let aperture = base.aperture_f_number;
+                rraw_optics::LensfunDatabase::global()
+                    .find_lens(override_name)
+                    .map(|lens| rraw_optics::MatchedLens {
+                        profile_name: format!("{} {}", lens.maker, lens.model),
+                        maker: lens.maker.clone(),
+                        model: rraw_optics::LensfunDatabase::global()
+                            .interpolate_model(lens, focal, aperture),
+                        is_exact_match: true,
+                    })
+                    .or_else(|| base.matched_lens.clone())
+            } else {
+                base.matched_lens.clone()
+            };
+
+            let matched = active_matched?;
+            let extra_metadata = self
+                .session
+                .loaded_photo
+                .as_ref()
+                .map(format_lens_meta)
+                .unwrap_or_default();
+            let is_dng = matched.maker == "DNG Embedded";
+            return Some(sections::optics::DetectedLensInfo {
+                name: matched.profile_name,
+                is_exact: matched.is_exact_match,
+                extra_metadata,
+                is_manual_override: is_manual,
+                is_dng_opcode: is_dng,
+            });
+        }
+
+        let photo = self.session.loaded_photo.as_ref()?;
+        let active_name = override_opt.unwrap_or(&photo.lens_model);
+        if active_name.is_empty() {
+            return None;
+        }
+        Some(sections::optics::DetectedLensInfo {
+            name: active_name.clone(),
+            is_exact: true,
+            extra_metadata: format_lens_meta(photo),
+            is_manual_override: is_manual,
+            is_dng_opcode: false,
+        })
+    }
+
+    /// Applies post-edit grading notifications, sidecar persistence, and brush auto-deactivation.
+    fn apply_section_output(
+        &mut self,
+        ui: &egui::Ui,
+        section: DarkroomSection,
+        pre_edit_grading: DarkroomGradingState,
+        pointer_down: bool,
+        out: sections::SectionOutput,
+    ) {
+        if out.mark_custom_preset {
+            self.session.grading.preset = GradingPreset::Custom;
+            self.session.current_preset = GradingPreset::Custom;
+        }
+        if out.needs_preview_update {
+            self.session.needs_preview_update = true;
+            ui.ctx().request_repaint();
+        }
+        let grading_edited = self.session.grading != pre_edit_grading;
+        if grading_edited {
+            self.notify_grading_edited(pre_edit_grading, pointer_down);
+            ui.ctx().request_repaint();
+        } else if out.save_sidecar {
+            self.save_current_photo_sidecar();
+        }
+        if section != DarkroomSection::AiSemanticMasks
+            && (out.needs_preview_update || grading_edited)
+        {
+            self.session.grading.masks.active_brush_mask_idx = None;
+        }
     }
 }

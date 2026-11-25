@@ -12,18 +12,37 @@ use zune_jpegxl::JxlSimpleEncoder;
 
 use crate::error::ExportError;
 
+/// Pixel channel sample trait supporting 1-LSB toggling for constant-run guarding.
+trait JxlSample: Copy + PartialEq + Default {
+    fn toggle_lsb(&mut self);
+}
+
+impl JxlSample for u8 {
+    #[inline]
+    fn toggle_lsb(&mut self) {
+        *self ^= 1;
+    }
+}
+
+impl JxlSample for u16 {
+    #[inline]
+    fn toggle_lsb(&mut self) {
+        *self ^= 1;
+    }
+}
+
 /// Guards against `zune-jpegxl` 0.5.x's 32-bit `wbits` overflow in `encode_rle` when a 256×256
 /// tile contains very long constant-pixel runs (e.g., clipped pure-black shadows or vignetting).
 ///
 /// Only touches a single pixel's LSB (`^ 1`) after 128 consecutive identical pixels, keeping
 /// every RLE run strictly below 256 so `nbits + lz77_nbits + raw_nbits <= 27 < 32` while
 /// remaining visually indistinguishable (`1/255` in 8-bit, `1/65535` in 16-bit).
-fn guard_constant_runs_u8(rgb_u8: &[u8]) -> std::borrow::Cow<'_, [u8]> {
+fn guard_constant_runs<T: JxlSample>(rgb: &[T]) -> std::borrow::Cow<'_, [T]> {
     const MAX_RUN: usize = 128;
     let mut run = 0_usize;
-    let mut prev = [0_u8; 3];
+    let mut prev = [T::default(); 3];
     let mut needs_guard = false;
-    for &px in rgb_u8.as_chunks::<3>().0 {
+    for &px in rgb.as_chunks::<3>().0 {
         if run > 0 && px == prev {
             run += 1;
             if run >= MAX_RUN {
@@ -36,10 +55,10 @@ fn guard_constant_runs_u8(rgb_u8: &[u8]) -> std::borrow::Cow<'_, [u8]> {
         }
     }
     if !needs_guard {
-        return std::borrow::Cow::Borrowed(rgb_u8);
+        return std::borrow::Cow::Borrowed(rgb);
     }
 
-    let mut guarded = rgb_u8.to_vec();
+    let mut guarded = rgb.to_vec();
     let total_px = guarded.len() / 3;
     run = 0;
     let mut i = 0;
@@ -51,13 +70,13 @@ fn guard_constant_runs_u8(rgb_u8: &[u8]) -> std::borrow::Cow<'_, [u8]> {
             if run >= MAX_RUN {
                 // Toggle 1 LSB across Y, Co, and Cg channels over up to 3 pixels so no channel
                 // in YCoCg space can exceed MAX_RUN consecutive zero residuals.
-                guarded[base + 1] ^= 1;
+                guarded[base + 1].toggle_lsb();
                 if i + 1 < total_px {
-                    guarded[(i + 1) * 3] ^= 1;
-                    guarded[(i + 1) * 3 + 2] ^= 1;
+                    guarded[(i + 1) * 3].toggle_lsb();
+                    guarded[(i + 1) * 3 + 2].toggle_lsb();
                 }
                 if i + 2 < total_px {
-                    guarded[(i + 2) * 3] ^= 1;
+                    guarded[(i + 2) * 3].toggle_lsb();
                 }
                 prev = [guarded[base], guarded[base + 1], guarded[base + 2]];
                 run = 1;
@@ -73,58 +92,18 @@ fn guard_constant_runs_u8(rgb_u8: &[u8]) -> std::borrow::Cow<'_, [u8]> {
     std::borrow::Cow::Owned(guarded)
 }
 
-/// Guards against `zune-jpegxl` 0.5.x's 32-bit `wbits` overflow in `encode_rle` for 16-bit RGB.
-fn guard_constant_runs_u16(rgb_u16: &[u16]) -> std::borrow::Cow<'_, [u16]> {
-    const MAX_RUN: usize = 128;
-    let mut run = 0_usize;
-    let mut prev = [0_u16; 3];
-    let mut needs_guard = false;
-    for &px in rgb_u16.as_chunks::<3>().0 {
-        if run > 0 && px == prev {
-            run += 1;
-            if run >= MAX_RUN {
-                needs_guard = true;
-                break;
-            }
-        } else {
-            prev = px;
-            run = 1;
-        }
+/// Validates JPEG XL dimensions (`> 1x1`) and interleaved 3-channel buffer length.
+fn validate_jxl_buffer_len(actual: usize, width: usize, height: usize) -> Result<(), ExportError> {
+    if width <= 1 || height <= 1 {
+        return Err(ExportError::EncodingError(format!(
+            "JPEG XL encoder requires dimensions > 1x1, got {width}x{height}"
+        )));
     }
-    if !needs_guard {
-        return std::borrow::Cow::Borrowed(rgb_u16);
+    let expected = width.saturating_mul(height).saturating_mul(3);
+    if actual != expected {
+        return Err(ExportError::BufferLengthMismatch { expected, actual });
     }
-
-    let mut guarded = rgb_u16.to_vec();
-    let total_px = guarded.len() / 3;
-    run = 0;
-    let mut i = 0;
-    while i < total_px {
-        let base = i * 3;
-        let px = [guarded[base], guarded[base + 1], guarded[base + 2]];
-        if run > 0 && px == prev {
-            run += 1;
-            if run >= MAX_RUN {
-                guarded[base + 1] ^= 1;
-                if i + 1 < total_px {
-                    guarded[(i + 1) * 3] ^= 1;
-                    guarded[(i + 1) * 3 + 2] ^= 1;
-                }
-                if i + 2 < total_px {
-                    guarded[(i + 2) * 3] ^= 1;
-                }
-                prev = [guarded[base], guarded[base + 1], guarded[base + 2]];
-                run = 1;
-                i += 3;
-                continue;
-            }
-        } else {
-            prev = px;
-            run = 1;
-        }
-        i += 1;
-    }
-    std::borrow::Cow::Owned(guarded)
+    Ok(())
 }
 
 /// Encodes 8-bit interleaved RGB pixels (`width * height * 3`) into a lossless modular
@@ -135,20 +114,9 @@ pub fn encode_jxl_rgb_u8(
     height: usize,
     effort: u8,
 ) -> Result<Vec<u8>, ExportError> {
-    if width <= 1 || height <= 1 {
-        return Err(ExportError::EncodingError(format!(
-            "JPEG XL encoder requires dimensions > 1x1, got {width}x{height}"
-        )));
-    }
-    let expected = width.saturating_mul(height).saturating_mul(3);
-    if rgb_u8.len() != expected {
-        return Err(ExportError::BufferLengthMismatch {
-            expected,
-            actual: rgb_u8.len(),
-        });
-    }
+    validate_jxl_buffer_len(rgb_u8.len(), width, height)?;
 
-    let safe_rgb = guard_constant_runs_u8(rgb_u8);
+    let safe_rgb = guard_constant_runs(rgb_u8);
     let options = EncoderOptions::new(width, height, ColorSpace::RGB, BitDepth::Eight)
         .set_effort(effort.clamp(1, 9));
     let encoder = JxlSimpleEncoder::new(&safe_rgb, options);
@@ -168,20 +136,9 @@ pub fn encode_jxl_rgb_u16(
     height: usize,
     effort: u8,
 ) -> Result<Vec<u8>, ExportError> {
-    if width <= 1 || height <= 1 {
-        return Err(ExportError::EncodingError(format!(
-            "JPEG XL encoder requires dimensions > 1x1, got {width}x{height}"
-        )));
-    }
-    let expected = width.saturating_mul(height).saturating_mul(3);
-    if rgb_u16.len() != expected {
-        return Err(ExportError::BufferLengthMismatch {
-            expected,
-            actual: rgb_u16.len(),
-        });
-    }
+    validate_jxl_buffer_len(rgb_u16.len(), width, height)?;
 
-    let safe_rgb = guard_constant_runs_u16(rgb_u16);
+    let safe_rgb = guard_constant_runs(rgb_u16);
     let raw_bytes: &[u8] = bytemuck::cast_slice(&safe_rgb);
     let options = EncoderOptions::new(width, height, ColorSpace::RGB, BitDepth::Sixteen)
         .set_effort(effort.clamp(1, 9));
@@ -202,18 +159,7 @@ pub fn encode_jxl_rgb16(
     height: usize,
     effort: u8,
 ) -> Result<Vec<u8>, ExportError> {
-    if width <= 1 || height <= 1 {
-        return Err(ExportError::EncodingError(format!(
-            "JPEG XL encoder requires dimensions > 1x1, got {width}x{height}"
-        )));
-    }
-    let expected = width.saturating_mul(height).saturating_mul(3);
-    if rgb_linear.len() != expected {
-        return Err(ExportError::BufferLengthMismatch {
-            expected,
-            actual: rgb_linear.len(),
-        });
-    }
+    validate_jxl_buffer_len(rgb_linear.len(), width, height)?;
 
     let u16_samples: Vec<u16> = rgb_linear
         .iter()

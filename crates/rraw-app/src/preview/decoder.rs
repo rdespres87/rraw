@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use rraw_core::{ExecutionBackend, PipelineStageId, PipelineTiming, SignedCfaBuffer, StageTimer};
 use rraw_decode::{PureRustRawDecoder, RawDecoder};
-use rraw_storage::{DiskThumbnailCache, ThumbnailSize};
+use rraw_storage::{DiskThumbnailCache, SidecarPaths, ThumbnailSize};
 use sha2::{Digest, Sha256};
 
 use super::orientation::{
@@ -44,16 +44,16 @@ pub fn compute_thumbnail_content_hash(path: &Path) -> Option<String> {
     hasher.update(b":");
     hasher.update(mtime.to_le_bytes());
 
-    let sidecar_xmp = canonical.with_extension("xmp");
-    if let Ok(xmp_meta) = std::fs::metadata(&sidecar_xmp) {
-        let xmp_mtime = xmp_meta
+    let sidecar_json = SidecarPaths::from_raw_path(&canonical).recipe_json;
+    if let Ok(json_meta) = std::fs::metadata(&sidecar_json) {
+        let json_mtime = json_meta
             .modified()
             .ok()
             .and_then(|m| m.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_millis())
             .unwrap_or(0);
-        hasher.update(b":xmp:");
-        hasher.update(xmp_mtime.to_le_bytes());
+        hasher.update(b":rraw_json:");
+        hasher.update(json_mtime.to_le_bytes());
     }
 
     let result = hasher.finalize();
