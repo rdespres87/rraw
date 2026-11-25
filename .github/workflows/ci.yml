@@ -5,14 +5,21 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref to avoid macOS runner queue contention.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check-format-clippy:
-    name: Code Formatting & Strict Clippy Lints
+  ci-macos:
+    name: Format, Clippy, Workspace Tests & Core Coverage (macOS)
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,10 +27,15 @@ jobs:
       - name: Install stable Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Cache Cargo dependencies and build artifacts
         uses: swatinem/rust-cache@v2
+        with:
+          shared-key: ci-macos-arm64
 
       - name: Check code formatting (cargo fmt)
         run: cargo fmt --all -- --check
@@ -31,46 +43,12 @@ jobs:
       - name: Verify zero-warning workspace lints (cargo clippy)
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-  test-workspace:
-    name: Workspace Unit & Integration Tests (macOS)
-    runs-on: macos-latest
-    needs: check-format-clippy
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install stable Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo dependencies and build artifacts
-        uses: swatinem/rust-cache@v2
-
       - name: Execute all workspace unit & integration test suites
-        run: cargo test --workspace --verbose
-
-  coverage-core:
-    name: Core Crates Code Coverage (cargo-llvm-cov >= 82%)
-    runs-on: macos-latest
-    needs: check-format-clippy
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install stable Rust toolchain with llvm-tools-preview
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools-preview
-
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
-      - name: Cache Cargo dependencies and build artifacts
-        uses: swatinem/rust-cache@v2
+        run: cargo test --workspace
 
       - name: Run core CPU DSP coverage with >= 85% line threshold
-        # Note: GitHub-hosted macos-latest VMs lack Metal GPU passthrough, so
-        # rraw-gpu shader tests skip on CI and would artificially drop coverage.
-        # Full 5-crate coverage (including rraw-gpu) is >= 85% on bare-metal Apple Silicon.
+        # GitHub-hosted macos-latest VMs lack Metal GPU passthrough, so rraw-gpu
+        # shader tests skip on CI. Full 5-crate coverage is >= 85% on bare-metal Apple Silicon.
         run: |
           cargo llvm-cov \
             --package rraw-core \
