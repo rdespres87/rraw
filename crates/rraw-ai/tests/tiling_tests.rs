@@ -150,26 +150,46 @@ fn test_cooperative_token_cancellation() {
         epoch: Stage0Epoch(0),
     };
 
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel::<()>();
+    let (updated_tx, updated_rx) = std::sync::mpsc::channel::<()>();
+
     // Simulate background worker checking token before tile processing
     let handle = std::thread::spawn(move || {
-        for _step in 0..10 {
-            let current = match token_clone.read() {
-                Ok(guard) => *guard,
-                Err(_) => return,
-            };
-            if !rraw_ai::is_token_current(current, worker_token) {
-                flag_clone.store(true, Ordering::SeqCst);
-                return;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(5));
+        // First check observes the initial token as current
+        let initial = match token_clone.read() {
+            Ok(guard) => *guard,
+            Err(_) => return,
+        };
+        if !rraw_ai::is_token_current(initial, worker_token) {
+            return;
+        }
+        if ready_tx.send(()).is_err() {
+            return;
+        }
+        if updated_rx.recv().is_err() {
+            return;
+        }
+
+        // Next tile check observes the mutated epoch and cancels immediately
+        let current = match token_clone.read() {
+            Ok(guard) => *guard,
+            Err(_) => return,
+        };
+        if !rraw_ai::is_token_current(current, worker_token) {
+            flag_clone.store(true, Ordering::SeqCst);
         }
     });
 
-    // Main thread simulates user slider movement after 10ms
-    std::thread::sleep(std::time::Duration::from_millis(10));
+    // Wait until worker has confirmed the initial token, then mutate epoch.
+    // Using channels ensures early worker exit drops `ready_tx` instead of deadlocking.
+    assert!(
+        ready_rx.recv().is_ok(),
+        "Worker exited before confirming initial token"
+    );
     if let Ok(mut guard) = active_token.write() {
         guard.epoch = guard.epoch.next();
     }
+    let _ = updated_tx.send(());
 
     let _ = handle.join();
     assert!(

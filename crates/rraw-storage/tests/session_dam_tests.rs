@@ -153,10 +153,8 @@ fn test_incremental_sync_skips_unchanged_files() -> Result<(), Box<dyn std::erro
     let second_action = index.sync_photo(&raw_path, &meta)?;
     assert_eq!(second_action, SyncAction::Skipped);
 
-    // Now update .rraw.json sidecar
+    // Now update .rraw.json sidecar with a deterministically newer mtime
     let sidecars = SidecarPaths::from_raw_path(&raw_path);
-    // Ensure modified timestamp increases
-    std::thread::sleep(std::time::Duration::from_millis(1100));
     let recipe_content = serde_json::json!({
         "schema_version": 1,
         "rating": 5
@@ -165,6 +163,11 @@ fn test_incremental_sync_skips_unchanged_files() -> Result<(), Box<dyn std::erro
         &sidecars.recipe_json,
         serde_json::to_string(&recipe_content)?,
     )?;
+    let newer_mtime = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
+    fs::File::options()
+        .write(true)
+        .open(&sidecars.recipe_json)?
+        .set_modified(newer_mtime)?;
 
     // Third sync should detect newer sidecar and update
     let third_action = index.sync_photo(&raw_path, &meta)?;

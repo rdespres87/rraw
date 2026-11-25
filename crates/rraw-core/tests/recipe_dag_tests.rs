@@ -334,3 +334,202 @@ fn test_color_tone_recipe_clipboard_isolation_and_application(
 
     Ok(())
 }
+
+#[test]
+fn test_recipe_id_and_stage_hash_display_and_errors() -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_core::recipe::{RecipeId, StageHash};
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let id = RecipeId::default();
+    assert_eq!(id.to_string(), "default");
+    assert!(!format!("{id:?}").is_empty());
+    let id2 = id.clone();
+    assert_eq!(id, id2);
+    let mut h1 = DefaultHasher::new();
+    let mut h2 = DefaultHasher::new();
+    id.hash(&mut h1);
+    id2.hash(&mut h2);
+    assert_eq!(h1.finish(), h2.finish());
+
+    assert_eq!(StageHash::ZERO.to_string(), "00".repeat(32));
+    assert!(StageHash::ZERO < StageHash([1u8; 32]));
+    assert!(!format!("{:?}", StageHash::ZERO).is_empty());
+
+    // 64-byte string whose 2-byte chunks split 3-byte UTF-8 codepoints
+    let split_utf8 = "€".repeat(21) + "a";
+    assert_eq!(split_utf8.len(), 64);
+    assert!(StageHash::from_hex(&split_utf8).is_err());
+
+    assert!(matches!(
+        Recipe::from_canonical_json("{invalid"),
+        Err(rraw_core::CoreError::DeserializationError(_))
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_smart_lighting_modes_defaults_and_active_flag() -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_core::recipe::{SmartLightingMode, SmartLightingParams};
+
+    let params: SmartLightingParams = serde_json::from_str(r#"{"mode":"slight"}"#)?;
+    assert_eq!(params.mode, SmartLightingMode::Slight);
+    assert!((params.intensity - 1.0).abs() < f32::EPSILON);
+    assert!(params.custom_shadow_lift.abs() < f32::EPSILON);
+    assert!(params.custom_highlight_compression.abs() < f32::EPSILON);
+    assert!(params.is_active());
+
+    let off = SmartLightingParams {
+        mode: SmartLightingMode::Off,
+        intensity: 1.0,
+        custom_shadow_lift: 0.0,
+        custom_highlight_compression: 0.0,
+    };
+    assert!(!off.is_active());
+
+    let med_zero = SmartLightingParams {
+        mode: SmartLightingMode::Medium,
+        intensity: 0.0,
+        custom_shadow_lift: 0.0,
+        custom_highlight_compression: 0.0,
+    };
+    assert!(!med_zero.is_active());
+
+    for mode in [SmartLightingMode::Strong, SmartLightingMode::Custom] {
+        let active = SmartLightingParams {
+            mode,
+            intensity: 0.5,
+            custom_shadow_lift: 0.1,
+            custom_highlight_compression: 0.2,
+        };
+        assert!(active.is_active());
+        assert!(!format!("{active:?}").is_empty());
+        assert_eq!(active, active.clone());
+    }
+
+    for mode in [
+        SmartLightingMode::Off,
+        SmartLightingMode::Slight,
+        SmartLightingMode::Medium,
+        SmartLightingMode::Strong,
+        SmartLightingMode::Custom,
+    ] {
+        assert!(!format!("{mode:?}").is_empty());
+        let json = serde_json::to_string(&mode)?;
+        let decoded: SmartLightingMode = serde_json::from_str(&json)?;
+        assert_eq!(mode, decoded);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_semantic_mask_category_ids_and_all_mask_kinds_roundtrip(
+) -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_core::recipe::{ParametricRange, SemanticMaskCategory};
+
+    for cat in SemanticMaskCategory::ALL {
+        assert_eq!(SemanticMaskCategory::from_id_str(cat.id_str()), Some(cat));
+        assert!(!format!("{cat:?}").is_empty());
+    }
+    assert_eq!(
+        SemanticMaskCategory::from_id_str("Subject"),
+        Some(SemanticMaskCategory::Subject)
+    );
+    assert_eq!(
+        SemanticMaskCategory::from_id_str("Sky"),
+        Some(SemanticMaskCategory::Sky)
+    );
+    assert_eq!(
+        SemanticMaskCategory::from_id_str("Background"),
+        Some(SemanticMaskCategory::Background)
+    );
+    assert_eq!(
+        SemanticMaskCategory::from_id_str("Portrait"),
+        Some(SemanticMaskCategory::Portrait)
+    );
+    assert_eq!(SemanticMaskCategory::from_id_str("unknown"), None);
+
+    let ai_minimal: MaskKind = serde_json::from_str(r#"{"type":"semantic_ai","category":"sky"}"#)?;
+    assert_eq!(
+        ai_minimal,
+        MaskKind::SemanticAi {
+            category: SemanticMaskCategory::Sky,
+            invert: false,
+            feather: 0.5,
+        }
+    );
+
+    let rg = MaskKind::RadialGradient {
+        center: [0.5, 0.5],
+        radius: [0.3, 0.2],
+        rotation_deg: 15.0,
+    };
+    let rg_rt: MaskKind = serde_json::from_str(&serde_json::to_string(&rg)?)?;
+    assert_eq!(rg, rg_rt);
+    assert_eq!(rg, rg.clone());
+    assert!(!format!("{rg:?}").is_empty());
+
+    let range = Some(ParametricRange {
+        min_val: 0.1,
+        max_val: 0.9,
+        feather: 0.1,
+    });
+    let pc = MaskKind::ParametricColor {
+        luminance: range.clone(),
+        chroma: range.clone(),
+        hue_deg: range,
+    };
+    let pc_rt: MaskKind = serde_json::from_str(&serde_json::to_string(&pc)?)?;
+    assert_eq!(pc, pc_rt);
+    assert_eq!(pc, pc.clone());
+    assert!(!format!("{pc:?}").is_empty());
+
+    Ok(())
+}
+
+#[test]
+fn test_all_pipeline_enum_variants_roundtrip_and_hash_sensitivity(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut r1 = Recipe::default();
+    r1.stage1_sensor.cfa_denoise_mode = CfaDenoiseMode::NeuralCoreMl;
+    r1.stage2_demosaic.demosaic_algorithm = DemosaicAlgorithm::Markesteijn;
+    r1.stage2_demosaic.highlight_reconstruction = HighlightReconstructionMode::Blend;
+    r1.stage3_sharpen.iterations = 8;
+    r1.stage7_display.tone_mapper = ToneMapperKind::OpenDrt;
+    r1.stage7_display.output_color_space = OutputColorSpace::Rec2020;
+
+    let mut r2 = Recipe::default();
+    r2.stage1_sensor.cfa_denoise_mode = CfaDenoiseMode::Disabled;
+    r2.stage2_demosaic.demosaic_algorithm = DemosaicAlgorithm::Passthrough;
+    r2.stage2_demosaic.highlight_reconstruction = HighlightReconstructionMode::Disabled;
+    r2.stage7_display.output_color_space = OutputColorSpace::Srgb;
+
+    for recipe in [&r1, &r2] {
+        assert!(!format!("{recipe:?}").is_empty());
+        let json = recipe.to_canonical_json()?;
+        let decoded = Recipe::from_canonical_json(&json)?;
+        assert_eq!(*recipe, decoded);
+    }
+
+    let mut r_sharp = r1.clone();
+    let l0 = r_sharp.hash_l0("src_01");
+    let l1 = r_sharp.hash_l1("src_01");
+    let l2 = r_sharp.hash_l2();
+    let disp = r_sharp.hash_display("src_01", 2.0);
+    r_sharp.stage3_sharpen.iterations += 1;
+    assert_eq!(r_sharp.hash_l0("src_01"), l0);
+    assert_ne!(r_sharp.hash_l1("src_01"), l1);
+    assert_eq!(r_sharp.hash_l2(), l2);
+    assert_ne!(r_sharp.hash_display("src_01", 2.0), disp);
+
+    let mut r_disp = r1;
+    r_disp.stage7_display.tone_mapper = ToneMapperKind::AgX;
+    assert_eq!(r_disp.hash_l0("src_01"), l0);
+    assert_eq!(r_disp.hash_l1("src_01"), l1);
+    assert_eq!(r_disp.hash_l2(), l2);
+    assert_ne!(r_disp.hash_display("src_01", 2.0), disp);
+
+    Ok(())
+}
