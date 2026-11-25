@@ -187,6 +187,7 @@ pub enum ExportFormatChoice {
     Png,
     Tiff,
     Avif,
+    Jxl,
 }
 
 impl ExportFormatChoice {
@@ -197,6 +198,7 @@ impl ExportFormatChoice {
             Self::Png => "png",
             Self::Tiff => "tif",
             Self::Avif => "avif",
+            Self::Jxl => "jxl",
         }
     }
 
@@ -207,6 +209,7 @@ impl ExportFormatChoice {
             Self::Png => "PNG (.png)",
             Self::Tiff => "TIFF (.tif)",
             Self::Avif => "AVIF (.avif)",
+            Self::Jxl => "JPEG XL (.jxl)",
         }
     }
 }

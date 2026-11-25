@@ -13,7 +13,7 @@ pub use error::ExportError;
 pub use iso21496::{
     GainMapCalculator, GainMapReconstructor, Iso21496Params, Iso21496TmapBox, Iso21496XmpPacket,
 };
-pub use jxl::encode_jxl_rgb16;
+pub use jxl::{encode_jxl_rgb16, encode_jxl_rgb_u16, encode_jxl_rgb_u8};
 pub use timelapse::{
     compute_deflicker_ev_offsets, compute_frame_log_luminance, format_sequence_filename,
     interpolate_keyframes, write_timelapse_manifest, TimelapseDeflickerConfig, TimelapseFrameRate,

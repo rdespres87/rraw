@@ -21,6 +21,51 @@ impl RrawApp {
         u8_bytes: &[u8],
         u16_samples: &[u16],
     ) -> Result<(), String> {
+        let tmp_name = format!(
+            ".{}.rraw_tmp_{}",
+            target_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("export"),
+            std::process::id()
+        );
+        let tmp_path = target_path.with_file_name(tmp_name);
+        let write_result = Self::write_exported_image_to_path(
+            config,
+            &tmp_path,
+            out_w,
+            out_h,
+            u8_bytes,
+            u16_samples,
+        );
+        if let Err(err) = write_result {
+            let _ = std::fs::remove_file(&tmp_path);
+            return Err(err);
+        }
+        if let Err(err) = std::fs::rename(&tmp_path, target_path) {
+            let _ = std::fs::remove_file(&tmp_path);
+            return Err(format!("Failed to finalize exported file: {err}"));
+        }
+        if config.hdr_gain_map {
+            Self::write_iso21496_gain_map_sidecars(
+                target_path,
+                out_w,
+                out_h,
+                u8_bytes,
+                u16_samples,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn write_exported_image_to_path(
+        config: ExportWriteConfig,
+        target_path: &Path,
+        out_w: usize,
+        out_h: usize,
+        u8_bytes: &[u8],
+        u16_samples: &[u16],
+    ) -> Result<(), String> {
         match config.format {
             ExportFormatChoice::Jpeg => {
                 let file = std::fs::File::create(target_path)
@@ -121,15 +166,27 @@ impl RrawApp {
                     .flush()
                     .map_err(|e| format!("Failed to flush AVIF file: {e}"))?;
             }
-        }
-        if config.hdr_gain_map {
-            Self::write_iso21496_gain_map_sidecars(
-                target_path,
-                out_w,
-                out_h,
-                u8_bytes,
-                u16_samples,
-            )?;
+            ExportFormatChoice::Jxl => {
+                use std::io::Write;
+                let jxl_bytes = match config.bit_depth {
+                    ExportBitDepth::Bits16 => {
+                        rraw_export::encode_jxl_rgb_u16(u16_samples, out_w, out_h, 4)
+                    }
+                    ExportBitDepth::Bits8 => {
+                        rraw_export::encode_jxl_rgb_u8(u8_bytes, out_w, out_h, 4)
+                    }
+                }
+                .map_err(|e| format!("JPEG XL encoding error: {e}"))?;
+                let file = std::fs::File::create(target_path)
+                    .map_err(|e| format!("Failed to create file: {e}"))?;
+                let mut writer = std::io::BufWriter::new(file);
+                writer
+                    .write_all(&jxl_bytes)
+                    .map_err(|e| format!("JPEG XL write error: {e}"))?;
+                writer
+                    .flush()
+                    .map_err(|e| format!("Failed to flush JPEG XL file: {e}"))?;
+            }
         }
         Ok(())
     }
@@ -466,6 +523,11 @@ impl RrawApp {
                     .unwrap_or_else(|| load_photo_sidecars(&item.path).0.unwrap_or_default());
 
                 // Stage 2: Color grading, tone curves & geometry rendering (25% -> 60%)
+                if cancel.load(std::sync::atomic::Ordering::Acquire) {
+                    let msg = "Export cancelled by user.".to_string();
+                    let _ = tx.send((1.0, "Export cancelled".to_string(), Some(Err(msg))));
+                    return;
+                }
                 let _ = tx.send((
                     base_frac + step_frac * 0.25,
                     format!("Rendering {fname} ({}/{total})", idx + 1),
@@ -474,12 +536,19 @@ impl RrawApp {
 
                 let effective_depth = match export_config.format {
                     ExportFormatChoice::Jpeg | ExportFormatChoice::Avif => ExportBitDepth::Bits8,
-                    ExportFormatChoice::Png | ExportFormatChoice::Tiff => export_config.bit_depth,
+                    ExportFormatChoice::Png
+                    | ExportFormatChoice::Tiff
+                    | ExportFormatChoice::Jxl => export_config.bit_depth,
                 };
                 let (out_w, out_h, raster_buf) =
                     render_export_image_with_depth(&base, &grading, 1.0, effective_depth);
 
                 // Stage 3: Image compression & file writing (60% -> 98%)
+                if cancel.load(std::sync::atomic::Ordering::Acquire) {
+                    let msg = "Export cancelled by user.".to_string();
+                    let _ = tx.send((1.0, "Export cancelled".to_string(), Some(Err(msg))));
+                    return;
+                }
                 let _ = tx.send((
                     base_frac + step_frac * 0.60,
                     format!("Encoding {fname} ({}/{total})", idx + 1),
@@ -499,7 +568,7 @@ impl RrawApp {
                     Ok(()) => {
                         let _ = tx.send((
                             base_frac + step_frac * 0.98,
-                            format!("Enregistré {fname} ({}/{total})", idx + 1),
+                            format!("Saved {fname} ({}/{total})", idx + 1),
                             None,
                         ));
                         last_path = Some(item.target_path);
@@ -689,7 +758,9 @@ impl RrawApp {
             let ext = export_config.format.extension();
             let effective_depth = match export_config.format {
                 ExportFormatChoice::Jpeg | ExportFormatChoice::Avif => ExportBitDepth::Bits8,
-                ExportFormatChoice::Png | ExportFormatChoice::Tiff => export_config.bit_depth,
+                ExportFormatChoice::Png | ExportFormatChoice::Tiff | ExportFormatChoice::Jxl => {
+                    export_config.bit_depth
+                }
             };
             let valid_total = valid_snapshots.len();
             let mut last_path = None;

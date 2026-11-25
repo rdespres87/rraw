@@ -268,3 +268,47 @@ fn test_p2_2_iso21496_hdr_gain_map_export_wiring() -> Result<(), Box<dyn Error>>
     let _ = std::fs::remove_dir_all(&temp_dir);
     Ok(())
 }
+
+#[test]
+fn test_rraw_app_export_runner_writes_jxl_8bit_and_16bit() -> Result<(), Box<dyn std::error::Error>>
+{
+    let temp_dir = std::env::temp_dir().join(format!("rraw_app_jxl_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    std::fs::create_dir_all(&temp_dir)?;
+
+    assert_eq!(ExportFormatChoice::Jxl.extension(), "jxl");
+    assert_eq!(ExportFormatChoice::Jxl.label(), "JPEG XL (.jxl)");
+
+    let out_w = 16;
+    let out_h = 16;
+    let u8_bytes = vec![128_u8; out_w * out_h * 3];
+    let u16_samples = vec![32768_u16; out_w * out_h * 3];
+
+    for (name, bit_depth) in [
+        ("out8.jxl", ExportBitDepth::Bits8),
+        ("out16.jxl", ExportBitDepth::Bits16),
+    ] {
+        let target_path = temp_dir.join(name);
+        let config = ExportWriteConfig {
+            format: ExportFormatChoice::Jxl,
+            jpeg_quality: 92,
+            bit_depth,
+            scale_mode: ExportScaleMode::Original,
+            hdr_gain_map: false,
+        };
+        RrawApp::write_exported_image_static(
+            config,
+            &target_path,
+            out_w,
+            out_h,
+            &u8_bytes,
+            &u16_samples,
+        )?;
+        let bytes = std::fs::read(&target_path)?;
+        assert!(bytes.len() > 16);
+        assert_eq!(&bytes[0..2], &[0xFF, 0x0A]);
+    }
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    Ok(())
+}

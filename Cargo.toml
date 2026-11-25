@@ -80,3 +80,6 @@ opt-level = 3
 
 [profile.dev.package.rraw-app]
 opt-level = 3
+
+[profile.dev.package.zune-jpegxl]
+opt-level = 3

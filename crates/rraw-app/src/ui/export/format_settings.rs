@@ -36,6 +36,11 @@ impl RrawApp {
                 ExportFormatChoice::Avif,
                 "AVIF",
             );
+            ui.selectable_value(
+                &mut self.export.config.format,
+                ExportFormatChoice::Jxl,
+                "JXL",
+            );
         });
 
         ui.add_space(4.0);
@@ -43,7 +48,7 @@ impl RrawApp {
             ExportFormatChoice::Jpeg | ExportFormatChoice::Avif => {
                 self.render_lossy_quality_slider(ui, lang);
             }
-            ExportFormatChoice::Png => {
+            ExportFormatChoice::Png | ExportFormatChoice::Jxl => {
                 ui.horizontal(|ui| {
                     ui.label(t(Key::ExportBitDepth));
                     ui.radio_value(
