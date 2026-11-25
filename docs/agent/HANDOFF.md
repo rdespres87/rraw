@@ -2,16 +2,35 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Push `main` & Cut `v0.3.0` Release (or Run Maturity Audit #10)**:
-  - All 5 milestones of **Phase 28 — Maturity Audit #9 Remediation** are complete, audited (`APPROVED` by local Inquisitor `qwen/qwen3.6-35b-a3b`, 0 cloud tokens), and committed locally on `main` (ahead of `origin/main` at `8e3f967` / `v0.2.0`).
-  - Baseline verified: **460 tests passing across 95 suites**, 0 clippy warnings, 0 `#[allow(clippy::...)]`, 100% of `src/` files `< 1,000` lines, **89.16%** deterministic 4-crate CPU line coverage (`>= 85%` CI gate).
-  - Ready to push `main`, run Maturity Audit #10, or prepare `v0.3.0` release notes/tag when requested by the user.
+- **Continue Post-`v0.3.0` Hardening (P1.2 & P2) or Push `main` when authorized**:
+  - **P1.2 (Code Quality & Residuals)**:
+    - Split `render_darkroom_section` (370 L in `crates/rraw-app/src/ui/inspector.rs`) into focused sub-functions.
+    - Wrap 6-7 parameter helpers in domain context structs.
+    - Remove residual `.xmp` cache key check in `crates/rraw-app/src/preview/decoder.rs`.
+    - Deduplicate `guard_constant_runs` in `crates/rraw-export/src/jxl.rs`.
+  - **P2 (QA & Hygiene)**:
+    - Replace `thread::sleep` in `tiling_tests.rs` and `session_dam_tests.rs` with deterministic synchronization.
+    - Increase `crates/rraw-core/src/recipe.rs` line coverage (`>= 85%`).
+    - Clean stale phase/task comment references in `src/` and remove stray `assets/i18n/.DS_Store`.
+  - **Verified Baseline**: **465+ tests passing across 95 suites**, 0 clippy warnings, 0 `#[allow(clippy::...)]`, 100% of `src/` files `< 1,000` lines, **87.17%** 4-crate CPU line coverage (`>= 85%` CI gate), multi-OS CI (`ci-macos` + `ci-linux`), `cargo audit` security workflow, and `docs/adr/` baseline.
 
 ---
 
 ## Last Completed Milestone
 
-- **Phase 28 — Maturity Audit #9 Remediation (`v0.3.0-dev`) — COMPLETE**:
+- **Post-`v0.3.0` Hardening & Performance (5 Local Commits Ahead of `origin/main` at `89ae601`)**:
+  - `f8ac420` — Relaxed debug/CI latency budget in preview benchmarks while keeping 120 Hz (`8.333 ms`) in local release builds.
+  - `26a4798` — Fused GPU Stages 5-7 into a single WGPU submission (`rraw-gpu/src/fused.rs`) and shared 3D CLUT via `Arc<ColorLut3d>`.
+  - `aa2500f` — Initialized session DAM on startup in `RrawApp::new()` and decoupled `dam_index_epoch` from `DecodeCoordinator`.
+  - `b6fea96` — Offloaded SQLite DAM rating writes to a bounded non-blocking background worker (`sync_channel(256)` + `Drop` flush).
+  - `0418e19` — Added `ci-linux` cross-platform job in `.github/workflows/ci.yml` and weekly/PR `cargo audit` in `.github/workflows/security.yml`.
+  - Added baseline ADRs in `docs/adr/` and synced `docs/agent/{SESSION_STATE,HANDOFF}.md`.
+
+---
+
+## Preceding Milestone
+
+- **Phase 28 — Maturity Audit #9 Remediation (`v0.3.0`, `89ae601`) — COMPLETE**:
   - `84586e6` — Deterministic unit tests for `rraw-decode` (`opcodes`, `makernotes`, `exif`) & `rraw-optics` (`lensfun`); 4-crate CPU coverage `82.72% → 89.16%`; CI gate raised `82% → 85%`.
   - `ce51de7` — Stage 6 WGSL shader & `GpuPreviewEngine` parity for `temperature_shift`, `invert`, smoothstep `feather`, post-DRT mask `contrast`/`saturation`, and red mask overlays ($\Delta E_{00} < 1.0$).
   - `b6029ca` — Split `app.rs` (`1,443 → 874 L`) into `app_library.rs` and `preview/pipeline.rs` (`1,311 → 920 L`) into `preview/render.rs` (100% of `src/` files `< 1,000` L).

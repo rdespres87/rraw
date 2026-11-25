@@ -4,11 +4,15 @@
 
 ## Current Status
 
-- **Active Phase**: Phase 28 — Maturity Audit #9 Remediation (`v0.2.0 → v0.3.0-dev`) **Complete**
-- **Active Tasks**: All 5 remediation milestones completed, locally audited (`APPROVED` by `qwen/qwen3.6-35b-a3b`, 0 cloud tokens), and committed locally on `main` (ahead of `origin/main` at `8e3f967` / `v0.2.0`).
-- **Next Phase**: Push `main` & cut `v0.3.0` Release when requested by the user, or start next roadmap milestone.
-- **Last Verified Baseline**: **460 tests passing across 95 test suites**, 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **100% of `src/` files strictly under 1,000 lines**, **89.16% deterministic 4-crate CPU line coverage** (CI gate raised to `>= 85%`).
-- **Current Milestone**: Phase 28 — Maturity Audit #9 Remediation (`v0.3.0-dev`) **Complete**
+- **Active Release Baseline**: `v0.3.0` (`89ae601` on `origin/main`) + **5 verified local commits ahead of `origin/main`** (`f8ac420`, `26a4798`, `aa2500f`, `b6fea96`, `0418e19`)
+- **Last Verified Baseline**: **465+ tests passing across 95 test suites**, 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **100% of `src/` files strictly under 1,000 lines**, **87.17% deterministic 4-crate CPU line coverage** (CI gate `>= 85%`), multi-OS CI (`ci-macos` + `ci-linux`), weekly/PR `cargo audit` security workflow, and baseline ADRs in `docs/adr/`.
+- **Local Commits Ahead of `origin/main`**:
+  - `f8ac420` — `fix(test): relax debug and CI latency budget in preview benchmarks`
+  - `26a4798` — `perf(gpu): fuse Stages 5-7 into single submission and share 3D CLUT via Arc`
+  - `aa2500f` — `fix(dam): initialize session DAM on startup and decouple directory index epoch`
+  - `b6fea96` — `perf(dam): offload SQLite rating writes to non-blocking background worker`
+  - `0418e19` — `ci: add Linux cross-platform job and cargo-audit security workflow`
+- **Preceding Milestone**: Phase 28 — Maturity Audit #9 Remediation (`v0.3.0`, `89ae601`) **Complete**
   - **Coverage Gate >= 85% (`84586e6`)**: Added deterministic unit tests for `rraw-decode` (`opcodes`, `makernotes`, `exif`) and `rraw-optics` (`lensfun`), raising 4-crate CPU `cargo llvm-cov` line coverage from `82.72%` → `89.16%` and raising CI `coverage-core` gate from `82%` → `85%`.
   - **GPU Fast-Path for Advanced Masks & Overlay (`ce51de7`)**: Extended `GeometricMask` and `stage6_masks.wgsl` with `temperature_shift`, `invert`, and smoothstep `feather` parity; lifted CPU fallbacks for local/semantic masks and red mask overlays in `gpu_backend.rs` (only `FreehandBrush` falls back to CPU), verified live Metal GPU vs CPU parity ($\Delta E_{00} < 1.0$).
   - **100% `src/` Files Under 1,000 Lines (`b6029ca`)**: Split `app.rs` (1,443 → 874 L) into `app_library.rs` (581 L) and `preview/pipeline.rs` (1,311 → 920 L) into `preview/render.rs` (404 L) with zero behavioral changes.
