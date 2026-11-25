@@ -9,19 +9,33 @@ use rraw_core::CfaPattern;
 use crate::cfa::{align_crop_to_cfa_phase, SensorCropRect, SensorDimensions};
 use crate::DecodeError;
 
-/// Crops optical black / sensor margins while preserving the CFA phase.
-pub fn extract_cropped_samples<'a>(
-    raw_image: &'a rawler::RawImage,
+/// Typed single-plane sensor samples extracted from `rawler`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RawSamples<'a> {
+    U16(Cow<'a, [u16]>),
+    F32(Cow<'a, [f32]>),
+}
+
+fn crop_plane<'a, T: Copy>(
+    samples: &'a [T],
+    raw_image: &rawler::RawImage,
     cfa_pattern: &CfaPattern,
-) -> Result<(usize, usize, Cow<'a, [u16]>), DecodeError> {
-    let raw_samples = match &raw_image.data {
-        rawler::RawImageData::Integer(samples) => samples.as_slice(),
-        rawler::RawImageData::Float(_) => {
-            return Err(DecodeError::UnsupportedFormat(
-                "floating point raw image format not yet supported".to_owned(),
-            ));
-        }
-    };
+) -> Result<(usize, usize, Cow<'a, [T]>), DecodeError> {
+    let expected_len = raw_image
+        .width
+        .checked_mul(raw_image.height)
+        .ok_or_else(|| {
+            DecodeError::MalformedMetadata(format!(
+                "sensor dimensions overflow: {}x{}",
+                raw_image.width, raw_image.height
+            ))
+        })?;
+    if samples.len() != expected_len {
+        return Err(DecodeError::MalformedMetadata(format!(
+            "sensor plane length mismatch: expected {expected_len}, got {}",
+            samples.len()
+        )));
+    }
 
     if let Some(crop) = raw_image.crop_area.or(raw_image.active_area) {
         let aligned = align_crop_to_cfa_phase(
@@ -48,17 +62,50 @@ pub fn extract_cropped_samples<'a>(
             for row in crop_y..(crop_y + crop_h) {
                 let start = row * raw_image.width + crop_x;
                 let end = start + crop_w;
-                cropped.extend_from_slice(&raw_samples[start..end]);
+                cropped.extend_from_slice(&samples[start..end]);
             }
             return Ok((crop_w, crop_h, Cow::Owned(cropped)));
         }
     }
 
-    Ok((
-        raw_image.width,
-        raw_image.height,
-        Cow::Borrowed(raw_samples),
-    ))
+    Ok((raw_image.width, raw_image.height, Cow::Borrowed(samples)))
+}
+
+/// Crops optical black / sensor margins while preserving the CFA phase.
+///
+/// Rejects multi-channel (`cpp != 1`, e.g. Linear DNG / sRAW) and non-CFA images
+/// rather than silently slicing interleaved RGB samples into the Bayer pipeline.
+pub fn extract_cropped_samples<'a>(
+    raw_image: &'a rawler::RawImage,
+    cfa_pattern: &CfaPattern,
+) -> Result<(usize, usize, RawSamples<'a>), DecodeError> {
+    if raw_image.cpp != 1 {
+        return Err(DecodeError::UnsupportedFormat(format!(
+            "multi-channel RAW (cpp={}) is not supported as single-plane CFA",
+            raw_image.cpp
+        )));
+    }
+
+    if !matches!(
+        raw_image.photometric,
+        rawler::rawimage::RawPhotometricInterpretation::Cfa(_)
+    ) {
+        return Err(DecodeError::UnsupportedFormat(format!(
+            "non-CFA photometric interpretation ({:?}) is not supported",
+            raw_image.photometric
+        )));
+    }
+
+    match &raw_image.data {
+        rawler::RawImageData::Integer(samples) => {
+            let (w, h, plane) = crop_plane(samples.as_slice(), raw_image, cfa_pattern)?;
+            Ok((w, h, RawSamples::U16(plane)))
+        }
+        rawler::RawImageData::Float(samples) => {
+            let (w, h, plane) = crop_plane(samples.as_slice(), raw_image, cfa_pattern)?;
+            Ok((w, h, RawSamples::F32(plane)))
+        }
+    }
 }
 
 /// Replaces non-finite or non-positive white-balance multipliers with safe daylight fallbacks.

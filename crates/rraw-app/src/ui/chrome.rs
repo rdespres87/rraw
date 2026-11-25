@@ -152,10 +152,7 @@ impl RrawApp {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter(
                         "Supported Images",
-                        &[
-                            "arw", "cr2", "cr3", "dng", "nef", "raf", "rw2", "orf", "jpg", "jpeg",
-                            "png", "tif", "tiff",
-                        ],
+                        crate::preview::SUPPORTED_IMAGE_EXTENSIONS,
                     )
                     .pick_file()
                 {
@@ -302,10 +299,7 @@ impl RrawApp {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter(
                                 "Supported Images",
-                                &[
-                                    "arw", "cr2", "cr3", "dng", "nef", "raf", "rw2", "orf", "jpg",
-                                    "jpeg", "png", "tif", "tiff",
-                                ],
+                                crate::preview::SUPPORTED_IMAGE_EXTENSIONS,
                             )
                             .pick_file()
                         {

@@ -195,3 +195,21 @@ fn test_signed_normalization_sub_black_zero_mean() -> Result<(), Box<dyn std::er
 
     Ok(())
 }
+
+#[test]
+fn test_normalize_cfa_signed_f32_preserves_sub_black_and_sanitizes_non_finite(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (_, meta) = SyntheticRawBuilder::generate_dark_frame_raw(4, 4, 0.1, 1.1, 0.0)?;
+    let mut samples = vec![0.6_f32; 16];
+    samples[0] = 0.05; // sub-black -> -0.05
+    samples[1] = f32::NAN; // sanitized -> 0.0 -> (0.0 - 0.1) / 1.0 = -0.1
+    samples[2] = f32::INFINITY; // sanitized -> 0.0 -> -0.1
+
+    let normalized = rraw_decode::normalize_cfa_signed_f32(&samples, 4, 4, &meta)?;
+    let out = normalized.samples();
+    assert!((out[0] - (-0.05)).abs() < 1e-5);
+    assert!(out[1].is_finite());
+    assert!(out[2].is_finite());
+    assert!((out[3] - 0.5).abs() < 1e-5);
+    Ok(())
+}

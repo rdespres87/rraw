@@ -215,13 +215,25 @@ pub fn parse_tiff_ifd0_orientation(tiff: &[u8]) -> Option<u16> {
     None
 }
 
+/// Canonical list of RAW sensor file extensions supported by `rraw-decode` (`rawler`).
+pub const RAW_EXTENSIONS: &[&str] = &[
+    "dng", "arw", "cr2", "cr3", "crw", "nef", "nrw", "raf", "rw2", "rwl", "orf", "ori", "pef",
+    "iiq", "srw", "mrw", "3fr", "fff", "kdc", "dcr", "mos", "erf", "ari", "arq", "mef", "sr2",
+    "srf", "raw",
+];
+
+/// Canonical list of all image extensions (RAW + raster) accepted by file dialogs and folder scans.
+pub const SUPPORTED_IMAGE_EXTENSIONS: &[&str] = &[
+    "dng", "arw", "cr2", "cr3", "crw", "nef", "nrw", "raf", "rw2", "rwl", "orf", "ori", "pef",
+    "iiq", "srw", "mrw", "3fr", "fff", "kdc", "dcr", "mos", "erf", "ari", "arq", "mef", "sr2",
+    "srf", "raw", "jpg", "jpeg", "png", "tif", "tiff",
+];
+
 /// Checks if the given file extension corresponds to a RAW sensor format.
 #[must_use]
 pub fn is_raw_extension(ext: &str) -> bool {
-    matches!(
-        ext.to_ascii_lowercase().as_str(),
-        "dng" | "arw" | "cr2" | "cr3" | "nef" | "raf" | "rw2" | "orf" | "pef"
-    )
+    let lower = ext.to_ascii_lowercase();
+    RAW_EXTENSIONS.contains(&lower.as_str())
 }
 
 /// Reads the EXIF `Orientation` tag (`0x0112`, values `1..=8`) from a JPEG or TIFF/RAW file header.
@@ -280,17 +292,12 @@ pub fn scan_directory_for_images(dir: &Path) -> Vec<PathBuf> {
         return entries;
     };
 
-    const EXTENSIONS: &[&str] = &[
-        "dng", "arw", "cr2", "cr3", "nef", "raf", "rw2", "orf", "pef", "jpg", "jpeg", "png", "tif",
-        "tiff",
-    ];
-
     for entry in read_dir.flatten() {
         let path = entry.path();
         if path.is_file() {
             if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
                 let ext_lower = ext.to_ascii_lowercase();
-                if EXTENSIONS.contains(&ext_lower.as_str()) {
+                if SUPPORTED_IMAGE_EXTENSIONS.contains(&ext_lower.as_str()) {
                     entries.push(path);
                 }
             }

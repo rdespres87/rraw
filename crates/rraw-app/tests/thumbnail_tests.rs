@@ -64,7 +64,7 @@ fn test_create_thumbnail_from_preview_cropped() {
 
 #[test]
 fn test_is_raw_extension_classification() {
-    use rraw_app::preview::is_raw_extension;
+    use rraw_app::preview::{is_raw_extension, RAW_EXTENSIONS, SUPPORTED_IMAGE_EXTENSIONS};
 
     assert!(is_raw_extension("dng"));
     assert!(is_raw_extension("DNG"));
@@ -73,6 +73,23 @@ fn test_is_raw_extension_classification() {
     assert!(is_raw_extension("cr3"));
     assert!(is_raw_extension("nef"));
     assert!(is_raw_extension("raf"));
+    assert!(is_raw_extension("crw"));
+    assert!(is_raw_extension("iiq"));
+    assert!(is_raw_extension("srw"));
+    assert!(is_raw_extension("rwl"));
+    assert!(is_raw_extension("ori"));
+    assert!(is_raw_extension("nrw"));
+    assert!(is_raw_extension("mrw"));
+    assert!(is_raw_extension("3fr"));
+    assert!(is_raw_extension("fff"));
+    assert!(is_raw_extension("pef"));
+
+    for ext in RAW_EXTENSIONS {
+        assert!(
+            SUPPORTED_IMAGE_EXTENSIONS.contains(ext),
+            "SUPPORTED_IMAGE_EXTENSIONS must include RAW extension {ext}"
+        );
+    }
 
     assert!(!is_raw_extension("jpg"));
     assert!(!is_raw_extension("jpeg"));

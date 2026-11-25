@@ -69,6 +69,22 @@ fn test_cfa_pattern_resolution_fallback_on_unrecognized() {
 }
 
 #[test]
+fn test_try_resolve_cfa_rejects_unrecognized_and_accepts_bayer_xtrans() {
+    use rraw_decode::try_resolve_cfa_pattern_from_rawler;
+
+    assert_eq!(
+        try_resolve_cfa_pattern_from_rawler(&CFA::new("RGGB")),
+        Some(CfaPattern::Bayer(BayerOrigin::Rggb))
+    );
+    assert_eq!(
+        try_resolve_cfa_pattern_from_rawler(&CFA::new("GBRG")),
+        Some(CfaPattern::Bayer(BayerOrigin::Gbrg))
+    );
+    assert_eq!(try_resolve_cfa_pattern_from_rawler(&CFA::new("")), None);
+    assert_eq!(try_resolve_cfa_pattern_from_rawler(&CFA::new("CYGM")), None);
+}
+
+#[test]
 fn test_align_crop_to_cfa_phase_bayer_and_xtrans() {
     let bayer = CfaPattern::Bayer(BayerOrigin::Rggb);
     let xtrans = CfaPattern::fujifilm_xtrans();

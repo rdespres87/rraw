@@ -4,32 +4,29 @@
 
 use rraw_core::{BayerOrigin, CfaPattern};
 
-/// Resolves a canonical `rraw_core::CfaPattern` from a `rawler::cfa::CFA` structure.
+/// Strictly resolves a canonical `rraw_core::CfaPattern` from a `rawler::cfa::CFA` structure.
 ///
-/// Handles:
-/// 1. Fujifilm 6x6 X-Trans matrix (`width == 6 && height == 6` or 36 characters).
-/// 2. Bayer variants by name ("RGGB", "BGGR", "GRBG", "GBRG"), case-insensitively.
-/// 3. Bayer variants by 2x2 color quad inspection if name is generic.
-/// 4. Graceful fallback to `Bayer(Rggb)`.
+/// Returns `None` when the sensor CFA is empty or uses a non-Bayer / non-X-Trans layout
+/// (e.g., 4-color CYGM/RGBE or monochrome sensors).
 #[must_use]
-pub fn resolve_cfa_pattern_from_rawler(cfa: &rawler::cfa::CFA) -> CfaPattern {
+pub fn try_resolve_cfa_pattern_from_rawler(cfa: &rawler::cfa::CFA) -> Option<CfaPattern> {
     if (cfa.width == 6 && cfa.height == 6)
         || cfa.name.len() == 36
         || cfa.name.to_uppercase().contains("XTRANS")
     {
-        return CfaPattern::fujifilm_xtrans();
+        return Some(CfaPattern::fujifilm_xtrans());
     }
 
     let name_upper = cfa.name.to_uppercase();
     match name_upper.as_str() {
-        "RGGB" => return CfaPattern::Bayer(BayerOrigin::Rggb),
-        "BGGR" => return CfaPattern::Bayer(BayerOrigin::Bggr),
-        "GRBG" => return CfaPattern::Bayer(BayerOrigin::Grbg),
-        "GBRG" => return CfaPattern::Bayer(BayerOrigin::Gbrg),
+        "RGGB" => return Some(CfaPattern::Bayer(BayerOrigin::Rggb)),
+        "BGGR" => return Some(CfaPattern::Bayer(BayerOrigin::Bggr)),
+        "GRBG" => return Some(CfaPattern::Bayer(BayerOrigin::Grbg)),
+        "GBRG" => return Some(CfaPattern::Bayer(BayerOrigin::Gbrg)),
         _ => {}
     }
 
-    if cfa.width >= 2 && cfa.height >= 2 {
+    if cfa.width == 2 && cfa.height == 2 {
         let tl = cfa.color_at(0, 0);
         let tr = cfa.color_at(0, 1);
         let bl = cfa.color_at(1, 0);
@@ -39,16 +36,23 @@ pub fn resolve_cfa_pattern_from_rawler(cfa: &rawler::cfa::CFA) -> CfaPattern {
         const G: usize = 1;
         const B: usize = 2;
 
-        match (tl, tr, bl, br) {
-            (R, G, G, B) => return CfaPattern::Bayer(BayerOrigin::Rggb),
-            (B, G, G, R) => return CfaPattern::Bayer(BayerOrigin::Bggr),
-            (G, R, B, G) => return CfaPattern::Bayer(BayerOrigin::Grbg),
-            (G, B, R, G) => return CfaPattern::Bayer(BayerOrigin::Gbrg),
-            _ => {}
-        }
+        return match (tl, tr, bl, br) {
+            (R, G, G, B) => Some(CfaPattern::Bayer(BayerOrigin::Rggb)),
+            (B, G, G, R) => Some(CfaPattern::Bayer(BayerOrigin::Bggr)),
+            (G, R, B, G) => Some(CfaPattern::Bayer(BayerOrigin::Grbg)),
+            (G, B, R, G) => Some(CfaPattern::Bayer(BayerOrigin::Gbrg)),
+            _ => None,
+        };
     }
 
-    CfaPattern::Bayer(BayerOrigin::Rggb)
+    None
+}
+
+/// Resolves a canonical `rraw_core::CfaPattern` from a `rawler::cfa::CFA` structure,
+/// falling back to `Bayer(Rggb)` when unrecognized.
+#[must_use]
+pub fn resolve_cfa_pattern_from_rawler(cfa: &rawler::cfa::CFA) -> CfaPattern {
+    try_resolve_cfa_pattern_from_rawler(cfa).unwrap_or(CfaPattern::Bayer(BayerOrigin::Rggb))
 }
 
 /// Sensor crop rectangle in raw sensor coordinates.

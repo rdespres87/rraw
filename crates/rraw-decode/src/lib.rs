@@ -67,7 +67,15 @@ impl RawDecoder for PureRustRawDecoder {
             DecodeError::Io(format!("failed to decode RAW file {}: {e}", path.display()))
         })?;
 
-        let cfa_pattern = resolve_cfa_pattern_from_rawler(&raw_image.camera.cfa);
+        let cfa_pattern =
+            try_resolve_cfa_pattern_from_rawler(&raw_image.camera.cfa).ok_or_else(|| {
+                DecodeError::UnsupportedFormat(format!(
+                    "unsupported CFA pattern '{}' ({}x{})",
+                    raw_image.camera.cfa.name,
+                    raw_image.camera.cfa.width,
+                    raw_image.camera.cfa.height
+                ))
+            })?;
         let (width, height, raw_samples) =
             sensor::extract_cropped_samples(&raw_image, &cfa_pattern)?;
 
@@ -153,7 +161,14 @@ impl RawDecoder for PureRustRawDecoder {
             )));
         }
 
-        let cfa_signed = normalize_cfa_signed(raw_samples.as_ref(), width, height, &metadata)?;
+        let cfa_signed = match &raw_samples {
+            sensor::RawSamples::U16(samples) => {
+                normalize_cfa_signed(samples.as_ref(), width, height, &metadata)?
+            }
+            sensor::RawSamples::F32(samples) => {
+                normalize_cfa_signed_f32(samples.as_ref(), width, height, &metadata)?
+            }
+        };
         metadata.noise_profile = estimate_noise_profile_wavelet_mad(&cfa_signed)?;
         exif_tags.push((
             "Orientation".to_owned(),
@@ -171,18 +186,12 @@ impl RawDecoder for PureRustRawDecoder {
     }
 }
 
-/// Performs Stage 1 signed black/white normalization `(raw - B_c) / (W_c - B_c)`
-/// without clamping sub-black read-noise values to `0.0`.
-///
-/// Validates buffer vs `metadata` dimensions, rejects zero/overflow dimensions and
-/// sample length mismatches, and verifies all active CFA channel spans upfront
-/// (`0..4` for Bayer, `0..3` for X-Trans) before entering the pixel loop.
-pub fn normalize_cfa_signed(
-    raw_samples: &[u16],
+fn validate_and_compute_inv_spans(
+    sample_len: usize,
     width: usize,
     height: usize,
     metadata: &PhotoMetadata,
-) -> Result<SignedCfaBuffer, DecodeError> {
+) -> Result<(usize, [f32; 4]), DecodeError> {
     if width != metadata.width || height != metadata.height {
         return Err(DecodeError::MalformedMetadata(format!(
             "dimension mismatch: buffer {width}x{height} != metadata {}x{}",
@@ -195,10 +204,10 @@ pub fn normalize_cfa_signed(
     if expected == 0 {
         return Err(CoreError::InvalidDimensions { width, height }.into());
     }
-    if raw_samples.len() != expected {
+    if sample_len != expected {
         return Err(CoreError::BufferLengthMismatch {
             expected,
-            actual: raw_samples.len(),
+            actual: sample_len,
         }
         .into());
     }
@@ -219,6 +228,24 @@ pub fn normalize_cfa_signed(
         }
         *inv_span = 1.0 / span;
     }
+
+    Ok((expected, inv_spans))
+}
+
+/// Performs Stage 1 signed black/white normalization `(raw - B_c) / (W_c - B_c)`
+/// without clamping sub-black read-noise values to `0.0`.
+///
+/// Validates buffer vs `metadata` dimensions, rejects zero/overflow dimensions and
+/// sample length mismatches, and verifies all active CFA channel spans upfront
+/// (`0..4` for Bayer, `0..3` for X-Trans) before entering the pixel loop.
+pub fn normalize_cfa_signed(
+    raw_samples: &[u16],
+    width: usize,
+    height: usize,
+    metadata: &PhotoMetadata,
+) -> Result<SignedCfaBuffer, DecodeError> {
+    let (expected, inv_spans) =
+        validate_and_compute_inv_spans(raw_samples.len(), width, height, metadata)?;
 
     let mut out = Vec::with_capacity(expected);
     match metadata.cfa_pattern {
@@ -261,6 +288,72 @@ pub fn normalize_cfa_signed(
                     let black = metadata.black_levels[level_idx];
                     let inv = inv_spans[level_idx];
                     out.push((f32::from(raw_samples[row_start + x]) - black) * inv);
+                }
+            }
+        }
+    }
+
+    Ok(SignedCfaBuffer::new(
+        width,
+        height,
+        metadata.cfa_pattern,
+        out,
+    )?)
+}
+
+/// Performs Stage 1 signed black/white normalization on floating-point RAW samples
+/// (e.g., HDR DNG fp16/fp24/fp32), sanitizing non-finite inputs to `0.0` before scaling.
+pub fn normalize_cfa_signed_f32(
+    raw_samples: &[f32],
+    width: usize,
+    height: usize,
+    metadata: &PhotoMetadata,
+) -> Result<SignedCfaBuffer, DecodeError> {
+    let (expected, inv_spans) =
+        validate_and_compute_inv_spans(raw_samples.len(), width, height, metadata)?;
+
+    let sanitize = |v: f32| if v.is_finite() { v } else { 0.0 };
+    let mut out = Vec::with_capacity(expected);
+    match metadata.cfa_pattern {
+        CfaPattern::Bayer(_) => {
+            let b0 = metadata.black_levels[0];
+            let b1 = metadata.black_levels[1];
+            let b2 = metadata.black_levels[2];
+            let b3 = metadata.black_levels[3];
+            let inv0 = inv_spans[0];
+            let inv1 = inv_spans[1];
+            let inv2 = inv_spans[2];
+            let inv3 = inv_spans[3];
+
+            for y in 0..height {
+                let (black_even, inv_even, black_odd, inv_odd) = if y.is_multiple_of(2) {
+                    (b0, inv0, b1, inv1)
+                } else {
+                    (b2, inv2, b3, inv3)
+                };
+
+                let row_start = y * width;
+                let row_end = row_start + width;
+                let row_samples = &raw_samples[row_start..row_end];
+
+                let (chunks, remainder) = row_samples.as_chunks::<2>();
+                for chunk in chunks {
+                    out.push((sanitize(chunk[0]) - black_even) * inv_even);
+                    out.push((sanitize(chunk[1]) - black_odd) * inv_odd);
+                }
+                if let Some(&last) = remainder.first() {
+                    out.push((sanitize(last) - black_even) * inv_even);
+                }
+            }
+        }
+        CfaPattern::XTrans(_) => {
+            for y in 0..height {
+                let row_start = y * width;
+                for x in 0..width {
+                    let level_idx = metadata.cfa_pattern.color_at(x, y).channel_index();
+                    let black = metadata.black_levels[level_idx];
+                    let inv = inv_spans[level_idx];
+                    out.push((sanitize(raw_samples[row_start + x]) - black) * inv);
                 }
             }
         }
