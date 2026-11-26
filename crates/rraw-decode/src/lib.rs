@@ -19,6 +19,8 @@ pub mod opcodes;
 pub mod sensor;
 pub mod special_sensors;
 pub mod synthetic;
+pub mod vc5;
+mod vc5_table17;
 
 pub use cfa::*;
 use noise_profile::estimate_noise_profile_wavelet_mad;

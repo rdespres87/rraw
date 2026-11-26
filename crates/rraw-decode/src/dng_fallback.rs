@@ -536,6 +536,7 @@ fn decode_dng_tiff(path: &Path, data: &[u8]) -> Result<DecodedRaw, DecodeError> 
 
     let (full_w, full_h, mut samples_u16) = match raw_ifd.compression {
         7 | 34892 => decode_dng_jpeg_cfa(data, &raw_ifd)?,
+        9 => decode_dng_vc5_cfa(data, &ifd0, &raw_ifd, &cfa_pattern)?,
         1 => decode_dng_uncompressed_cfa(data, &raw_ifd, endian)?,
         comp => {
             return Err(DecodeError::UnsupportedFormat(format!(
@@ -706,6 +707,58 @@ fn decode_dng_tiff(path: &Path, data: &[u8]) -> Result<DecodedRaw, DecodeError> 
         exif_tags,
         orientation,
     })
+}
+
+fn decode_dng_vc5_cfa(
+    data: &[u8],
+    ifd0: &ParsedIfd,
+    ifd: &ParsedIfd,
+    cfa_pattern: &CfaPattern,
+) -> Result<(usize, usize, Vec<u16>), DecodeError> {
+    let bayer_origin = match cfa_pattern {
+        CfaPattern::Bayer(origin) => *origin,
+        CfaPattern::XTrans(_) => {
+            return Err(DecodeError::UnsupportedFormat(
+                "VC-5 DNG fallback only supports 2x2 Bayer CFA".to_owned(),
+            ));
+        }
+    };
+    let width = ifd.width;
+    let height = ifd.height;
+    let (off, len) = if let (Some(&o), Some(&c)) =
+        (ifd.tile_offsets.first(), ifd.tile_byte_counts.first())
+    {
+        (o, c)
+    } else if let (Some(&o), Some(&c)) = (ifd.strip_offsets.first(), ifd.strip_byte_counts.first())
+    {
+        (o, c)
+    } else {
+        return Err(DecodeError::MalformedMetadata(
+            "VC-5 DNG missing tile/strip offsets".to_owned(),
+        ));
+    };
+    let end = off
+        .checked_add(len)
+        .ok_or_else(|| DecodeError::MalformedMetadata("VC-5 DNG offset overflow".to_owned()))?;
+    let payload = data.get(off..end).ok_or_else(|| {
+        DecodeError::MalformedMetadata("VC-5 DNG tile/strip extends past EOF".to_owned())
+    })?;
+
+    let wl = ifd
+        .white_level
+        .or(ifd0.white_level)
+        .map_or(16383.0, |w| w[0]);
+    let output_bit_depth = if wl <= 4096.0 {
+        12
+    } else if wl <= 16384.0 {
+        14
+    } else {
+        16
+    };
+
+    let samples =
+        crate::vc5::decode_vc5_bayer(payload, width, height, bayer_origin, output_bit_depth)?;
+    Ok((width, height, samples))
 }
 
 fn decode_dng_jpeg_cfa(

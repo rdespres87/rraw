@@ -541,3 +541,48 @@ fn test_decode_naked_headerless_corpus() {
         }
     }
 }
+
+#[test]
+fn test_decode_gopro_gpr_vc5_corpus() {
+    use rraw_decode::{PureRustRawDecoder, RawDecoder};
+    use std::path::Path;
+
+    let decoder = PureRustRawDecoder::new();
+    let samples = [
+        "/Users/rdespres/Projets/raw-pixls-samples/GoPro/GoPro - HERO6 Black - 16bit (4:3).GPR",
+        "/Users/rdespres/Projets/raw-pixls-samples/GoPro/GoPro - HERO7 Black - 16bit (4:3).GPR",
+        "/Users/rdespres/Projets/photo_data/GoPro/HERO5 Black/GOPR0020.GPR",
+        "/Users/rdespres/Projets/photo_data/GoPro/HERO8 Black/GOPR0009.GPR",
+        "/Users/rdespres/Projets/photo_data/GoPro/HERO9 Black/GOPR0017.GPR",
+        "/Users/rdespres/Projets/photo_data/GoPro/HERO10 Black/GOPR0018.GPR",
+        "/Users/rdespres/Projets/photo_data/GoPro/HERO11 Black/GOPR0123.GPR",
+        "/Users/rdespres/Projets/photo_data/GoPro/FUSION/GPBK1322.GPR",
+    ];
+
+    for sample in samples {
+        let path = Path::new(sample);
+        if !path.exists() {
+            continue;
+        }
+        let res = decoder.decode_file(path);
+        assert!(
+            res.is_ok(),
+            "GoPro GPR (VC-5) {sample} should decode cleanly: {:?}",
+            res.err()
+        );
+        if let Ok(decoded) = res {
+            assert!(!decoded.is_linear_rgb());
+            assert!(decoded.metadata.width >= 3000 && decoded.metadata.height >= 2000);
+            let non_zero = decoded
+                .cfa_signed
+                .samples()
+                .iter()
+                .filter(|&&v| v.is_finite() && v > 0.01)
+                .count();
+            assert!(
+                non_zero > (decoded.metadata.width * decoded.metadata.height) / 10,
+                "GoPro GPR {sample} should contain non-black signal"
+            );
+        }
+    }
+}
