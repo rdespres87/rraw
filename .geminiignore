@@ -1,0 +1,21 @@
+# Antigravity / Gemini context exclusions
+.git/
+.headroom/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+*.sqlite
+*.sqlite3
+*.db
+*.zip
+*.tar.gz
+
+# Rust build artifacts & lockfile
+target/
+Cargo.lock
+*.profraw
+*.profdata
+*.rlib
+*.rmeta
