@@ -469,3 +469,75 @@ fn test_decode_camera_aliases_monochrome_and_coolscan_corpus() {
         }
     }
 }
+
+#[test]
+fn test_decode_naked_headerless_corpus() {
+    use rraw_decode::{PureRustRawDecoder, RawDecoder};
+    use std::path::Path;
+
+    let decoder = PureRustRawDecoder::new();
+    let samples = [
+        (
+            "/Users/rdespres/Projets/raw-pixls-samples/Pentax/Pentax - Pentax Optio S4.RAW",
+            "Optio S4",
+            false,
+        ),
+        (
+            "/Users/rdespres/Projets/raw-pixls-samples/Minolta/Minolta - Dimage Z2.MRW",
+            "DiMAGE Z2",
+            false,
+        ),
+        (
+            "/Users/rdespres/Projets/raw-pixls-samples/Kodak/Kodak - Kodak C330 - Format 4:2:2 YRGB (4:2).RAW",
+            "C330",
+            true,
+        ),
+        (
+            "/Users/rdespres/Projets/photo_data/Canon/PowerShot SX710 HS/CANON_SX710HS_CHDK_CRW_0717.CRW",
+            "SX710",
+            false,
+        ),
+        (
+            "/Users/rdespres/Projets/photo_data/Canon/PowerShot SX20 IS/CRW_6488.CRW",
+            "SX20",
+            false,
+        ),
+        (
+            "/Users/rdespres/Projets/photo_data/Paralenz/+/IMG_0005.RAW",
+            "Dive Camera",
+            false,
+        ),
+        (
+            "/Users/rdespres/Projets/photo_data/Xiro/Xplorer V/2017_0908_092308_001.RAW",
+            "Xplorer V",
+            false,
+        ),
+        (
+            "/Users/rdespres/Projets/photo_data/Kodak/Kodak C603  Kodak C643/KODAK_C603_C643_FORMAT_422_CFAI0001.RAW",
+            "C603",
+            false,
+        ),
+    ];
+
+    for (sample, expected_model, expect_linear_rgb) in samples {
+        let path = Path::new(sample);
+        if !path.exists() {
+            continue;
+        }
+        let res = decoder.decode_file(path);
+        assert!(
+            res.is_ok(),
+            "Headerless RAW {sample} should decode cleanly: {:?}",
+            res.err()
+        );
+        if let Ok(decoded) = res {
+            assert!(
+                decoded.metadata.camera_model.contains(expected_model),
+                "expected model containing '{expected_model}', got '{}'",
+                decoded.metadata.camera_model
+            );
+            assert_eq!(decoded.is_linear_rgb(), expect_linear_rgb);
+            assert!(decoded.metadata.width > 0 && decoded.metadata.height > 0);
+        }
+    }
+}

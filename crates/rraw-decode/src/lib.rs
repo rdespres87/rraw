@@ -13,6 +13,7 @@ pub mod dng_fallback;
 pub mod exif;
 pub mod jpeg12;
 pub mod makernotes;
+pub mod naked_fallback;
 pub mod noise_profile;
 pub mod opcodes;
 pub mod sensor;
@@ -145,6 +146,8 @@ impl RawDecoder for PureRustRawDecoder {
                     )
                 } else if let Ok(fallback) = dng_fallback::try_decode_fallback(path) {
                     return Ok(fallback);
+                } else if let Ok(naked) = naked_fallback::try_decode_naked(path) {
+                    return Ok(naked);
                 } else {
                     return Err(DecodeError::Io(format!(
                         "failed to decode RAW file {}: {primary_err}",
