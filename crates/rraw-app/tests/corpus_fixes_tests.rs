@@ -101,3 +101,42 @@ fn test_default_smart_lighting_is_slight() {
     let grading = DarkroomGradingState::default();
     assert_eq!(grading.smart_lighting.mode, SmartLightingMode::Slight);
 }
+
+#[test]
+fn test_base_preview_from_linear_rgb_and_export_fallback() {
+    use rraw_app::preview::BaseRgbPreview;
+    use rraw_app::state::ExportScaleMode;
+    use rraw_core::SignedCfaBuffer;
+
+    let samples = vec![[0.25_f32, 0.5_f32, 0.75_f32]; 16 * 8];
+    let full = BaseRgbPreview::from_linear_rgb_with_color_and_target_width(
+        &samples,
+        16,
+        8,
+        [1.0, 1.0, 1.0],
+        None,
+        32,
+    );
+    assert_eq!(full.width, 16);
+    assert_eq!(full.height, 8);
+    assert_eq!(full.samples_rgb.len(), 128);
+    assert_eq!(full.samples_rgb[0], [0.25, 0.5, 0.75]);
+
+    let scaled = BaseRgbPreview::from_linear_rgb_with_color_and_target_width(
+        &samples,
+        16,
+        8,
+        [1.0, 1.0, 1.0],
+        None,
+        8,
+    );
+    assert_eq!(scaled.width, 8);
+    assert_eq!(scaled.height, 4);
+    assert_eq!(scaled.samples_rgb.len(), 32);
+
+    // Export builder with empty CFA (Linear RGB or raster image) must preserve ref_preview
+    let empty_cfa = SignedCfaBuffer::default();
+    let exported = RrawApp::build_export_base_static(ExportScaleMode::Original, &empty_cfa, &full);
+    assert_eq!(exported.width, 16);
+    assert_eq!(exported.height, 8);
+}

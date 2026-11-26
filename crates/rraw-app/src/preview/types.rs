@@ -358,6 +358,97 @@ impl BaseRgbPreview {
         }
     }
 
+    /// Builds a base preview from pre-demosaiced linear camera-RGB samples (`cpp == 3`).
+    #[must_use]
+    pub fn from_linear_rgb_with_color(
+        samples: &[[f32; 3]],
+        width: usize,
+        height: usize,
+        as_shot_wb: [f32; 3],
+        color_matrix: Option<&[f32; 9]>,
+    ) -> Self {
+        Self::from_linear_rgb_with_color_and_target_width(
+            samples,
+            width,
+            height,
+            as_shot_wb,
+            color_matrix,
+            PREVIEW_PROXY_MAX_WIDTH,
+        )
+    }
+
+    /// Builds a base preview scaled to `target_width` from pre-demosaiced linear camera-RGB
+    /// samples (`cpp == 3`, e.g., Apple ProRAW, Canon sRAW, Adobe Linear DNG).
+    #[must_use]
+    pub fn from_linear_rgb_with_color_and_target_width(
+        samples: &[[f32; 3]],
+        width: usize,
+        height: usize,
+        as_shot_wb: [f32; 3],
+        color_matrix: Option<&[f32; 9]>,
+        target_width: usize,
+    ) -> Self {
+        let cam_to_srgb = compute_cam_to_srgb_matrix(color_matrix, &as_shot_wb);
+        if width == 0 || height == 0 || samples.len() != width.saturating_mul(height) {
+            let semantic_masks =
+                infer_preview_semantic_masks(&[[0.0, 0.0, 0.0]], 1, 1, as_shot_wb, cam_to_srgb);
+            return Self {
+                width: 1,
+                height: 1,
+                samples_rgb: std::sync::Arc::new([[0.0, 0.0, 0.0]]),
+                as_shot_wb,
+                cam_to_srgb,
+                semantic_masks,
+                exif_orientation: 1,
+                matched_lens: None,
+                focal_length_mm: None,
+                aperture_f_number: None,
+            };
+        }
+
+        let (preview_w, preview_h, samples_rgb): (usize, usize, Vec<[f32; 3]>) = if target_width
+            >= width
+        {
+            (width, height, samples.to_vec())
+        } else {
+            let pw = target_width.clamp(1, width);
+            let ph = ((height as u64 * pw as u64) / (width as u64)).max(1) as usize;
+            let mut out = Vec::with_capacity(pw * ph);
+            for py in 0..ph {
+                let sy = ((py as u64 * height as u64) / ph as u64)
+                    .min(height.saturating_sub(1) as u64) as usize;
+                let row = sy * width;
+                for px in 0..pw {
+                    let sx = ((px as u64 * width as u64) / pw as u64)
+                        .min(width.saturating_sub(1) as u64) as usize;
+                    out.push(samples[row + sx]);
+                }
+            }
+            (pw, ph, out)
+        };
+
+        let semantic_masks = infer_preview_semantic_masks(
+            &samples_rgb,
+            preview_w,
+            preview_h,
+            as_shot_wb,
+            cam_to_srgb,
+        );
+
+        Self {
+            width: preview_w,
+            height: preview_h,
+            samples_rgb: std::sync::Arc::from(samples_rgb),
+            as_shot_wb,
+            cam_to_srgb,
+            semantic_masks,
+            exif_orientation: 1,
+            matched_lens: None,
+            focal_length_mm: None,
+            aperture_f_number: None,
+        }
+    }
+
     /// Builds a base preview from an in-memory 8-bit RGB raster image (JPEG, PNG).
     #[must_use]
     pub fn from_rgb_image(img: &image::RgbImage, target_width: usize) -> Self {

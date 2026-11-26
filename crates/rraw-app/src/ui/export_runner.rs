@@ -301,6 +301,9 @@ impl RrawApp {
         cfa: &rraw_core::SignedCfaBuffer,
         ref_preview: &BaseRgbPreview,
     ) -> BaseRgbPreview {
+        if cfa.width() <= 1 || cfa.height() <= 1 {
+            return ref_preview.clone();
+        }
         let target_width =
             Self::compute_export_target_width_static(scale_mode, cfa.width(), cfa.height());
         let mut b = BaseRgbPreview::from_cfa_with_color_and_target_width(

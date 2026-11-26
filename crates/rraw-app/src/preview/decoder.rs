@@ -253,16 +253,28 @@ pub fn generate_fast_thumbnail_uncached(path: &Path) -> Option<egui::ColorImage>
     let (grading_opt, _) = load_photo_sidecars(path);
     let grading = grading_opt.unwrap_or_default();
 
-    let base = BaseRgbPreview::from_cfa_with_color_and_target_width(
-        &decoded.cfa_signed,
-        [
-            decoded.wb_coeffs[0],
-            decoded.wb_coeffs[1],
-            decoded.wb_coeffs[2],
-        ],
-        decoded.color_matrix.as_ref(),
-        140,
-    )
+    let wb = [
+        decoded.wb_coeffs[0],
+        decoded.wb_coeffs[1],
+        decoded.wb_coeffs[2],
+    ];
+    let base = if let Some(linear_rgb) = &decoded.linear_rgb {
+        BaseRgbPreview::from_linear_rgb_with_color_and_target_width(
+            linear_rgb.samples(),
+            linear_rgb.width(),
+            linear_rgb.height(),
+            wb,
+            decoded.color_matrix.as_ref(),
+            140,
+        )
+    } else {
+        BaseRgbPreview::from_cfa_with_color_and_target_width(
+            &decoded.cfa_signed,
+            wb,
+            decoded.color_matrix.as_ref(),
+            140,
+        )
+    }
     .with_exif_orientation(orient);
 
     let (preview, _) = render_preview_from_base(&base, &grading);
@@ -456,15 +468,22 @@ pub fn decode_photo_file_payload_profiled(
         ExecutionBackend::CpuRayon,
         num_pixels,
     );
-    let mut base = BaseRgbPreview::from_cfa_with_color(
-        &decoded.cfa_signed,
-        [
-            decoded.wb_coeffs[0],
-            decoded.wb_coeffs[1],
-            decoded.wb_coeffs[2],
-        ],
-        decoded.color_matrix.as_ref(),
-    )
+    let wb = [
+        decoded.wb_coeffs[0],
+        decoded.wb_coeffs[1],
+        decoded.wb_coeffs[2],
+    ];
+    let mut base = if let Some(linear_rgb) = &decoded.linear_rgb {
+        BaseRgbPreview::from_linear_rgb_with_color(
+            linear_rgb.samples(),
+            linear_rgb.width(),
+            linear_rgb.height(),
+            wb,
+            decoded.color_matrix.as_ref(),
+        )
+    } else {
+        BaseRgbPreview::from_cfa_with_color(&decoded.cfa_signed, wb, decoded.color_matrix.as_ref())
+    }
     .with_exif_orientation(orient);
     base.matched_lens = Some(matched_lens);
     base.focal_length_mm = meta.focal_length_mm;

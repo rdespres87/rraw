@@ -149,6 +149,16 @@ fn run() -> Result<(), DecodeError> {
     if let Some(input_path) = args.input {
         let decoder = PureRustRawDecoder::new();
         let decoded = decoder.decode_file(&input_path)?;
+        if decoded.is_linear_rgb() {
+            println!(
+                "Decoded Linear RGB RAW (cpp=3): {}x{}, camera: {} {}",
+                decoded.metadata.width,
+                decoded.metadata.height,
+                decoded.metadata.camera_make,
+                decoded.metadata.camera_model,
+            );
+            return Ok(());
+        }
         println!(
             "Decoded RAW: {}x{}, camera: {} {}, CFA: {:?}",
             decoded.metadata.width,

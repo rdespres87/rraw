@@ -213,3 +213,88 @@ fn test_normalize_cfa_signed_f32_preserves_sub_black_and_sanitizes_non_finite(
     assert!((out[3] - 0.5).abs() < 1e-5);
     Ok(())
 }
+
+#[test]
+fn test_normalize_linear_rgb_signed_u16_and_f32() -> Result<(), Box<dyn std::error::Error>> {
+    // 2x2 interleaved RGB u16 with per-channel black/white levels
+    let black = [100.0_f32, 200.0, 300.0];
+    let white = [1100.0_f32, 1200.0, 1300.0];
+    let raw_u16: Vec<u16> = vec![
+        50, 200, 1300, // pixel 0: R sub-black (-0.05), G=0.0, B=1.0
+        600, 700, 800, // pixel 1: (0.5, 0.5, 0.5)
+        1100, 1200, 300, // pixel 2: (1.0, 1.0, 0.0)
+        100, 200, 300, // pixel 3: (0.0, 0.0, 0.0)
+    ];
+
+    let buf = rraw_decode::normalize_linear_rgb_signed(&raw_u16, 2, 2, black, white)?;
+    assert_eq!(buf.width(), 2);
+    assert_eq!(buf.height(), 2);
+    let px = buf.samples();
+    assert!((px[0][0] - (-0.05)).abs() < 1e-5);
+    assert!(px[0][1].abs() < 1e-5);
+    assert!((px[0][2] - 1.0).abs() < 1e-5);
+    assert!((px[1][0] - 0.5).abs() < 1e-5);
+    assert!((px[1][1] - 0.5).abs() < 1e-5);
+    assert!((px[1][2] - 0.5).abs() < 1e-5);
+
+    // Floating-point normalization must sanitize NaN/Inf to 0.0
+    let raw_f32: Vec<f32> = vec![f32::NAN, f32::INFINITY, 0.5, 0.25, 0.75, 1.0];
+    let buf_f32 = rraw_decode::normalize_linear_rgb_signed_f32(&raw_f32, 2, 1, [0.0; 3], [1.0; 3])?;
+    assert_eq!(buf_f32.samples()[0], [0.0, 0.0, 0.5]);
+    assert_eq!(buf_f32.samples()[1], [0.25, 0.75, 1.0]);
+
+    // Degenerate channel span and length mismatch must be rejected
+    assert!(rraw_decode::normalize_linear_rgb_signed(&raw_u16[..5], 2, 2, black, white).is_err());
+    assert!(rraw_decode::normalize_linear_rgb_signed(
+        &raw_u16,
+        2,
+        2,
+        [100.0, 200.0, 300.0],
+        [100.0, 1200.0, 1300.0]
+    )
+    .is_err());
+
+    Ok(())
+}
+
+#[test]
+fn test_decode_real_linear_rgb_cpp3_samples_when_present() -> Result<(), Box<dyn std::error::Error>>
+{
+    use rraw_decode::RawDecoder;
+
+    let candidates = [
+        "/Users/rdespres/Projets/raw-pixls-samples/Canon/Canon - EOS 40D - sRAW2 (sRAW) (3:2).CR2",
+        "/Users/rdespres/Projets/photo_data/Apple/iPhone 12 Pro/IMG_1361.DNG",
+        "/Users/rdespres/Projets/photo_data/Adobe DNG Converter/Canon EOS 5D Mark III/5G4A9395-uncompressed.DNG",
+    ];
+    let decoder = rraw_decode::PureRustRawDecoder::new();
+    for path_str in candidates {
+        let path = std::path::Path::new(path_str);
+        if !path.exists() {
+            continue;
+        }
+        let decoded = decoder.decode_file(path)?;
+        assert!(
+            decoded.is_linear_rgb(),
+            "expected cpp=3 Linear RGB for {path_str}"
+        );
+        if path_str.contains("sRAW") {
+            assert_eq!(
+                decoded.metadata.black_levels, [0.0; 4],
+                "Canon sRAW YCbCr->RGB output must not subtract 14-bit Bayer black pedestal"
+            );
+        }
+        let rgb = decoded
+            .linear_rgb
+            .as_ref()
+            .ok_or("linear_rgb buffer must be populated")?;
+        assert!(rgb.width() > 0 && rgb.height() > 0);
+        assert_eq!(rgb.samples().len(), rgb.width() * rgb.height());
+        assert!(rgb
+            .samples()
+            .iter()
+            .take(64)
+            .all(|px| px[0].is_finite() && px[1].is_finite() && px[2].is_finite()));
+    }
+    Ok(())
+}

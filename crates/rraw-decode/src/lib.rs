@@ -31,16 +31,84 @@ pub enum DecodeError {
     Core(#[from] CoreError),
 }
 
+/// Pre-demosaiced signed normalized linear camera-RGB buffer (`cpp == 3`,
+/// e.g., Apple ProRAW, Canon sRAW, Adobe Linear DNG, Sony Pixel-Shift ARW).
+#[derive(Debug, Clone, PartialEq)]
+pub struct LinearRgbBuffer {
+    width: usize,
+    height: usize,
+    samples: std::sync::Arc<[[f32; 3]]>,
+}
+
+impl LinearRgbBuffer {
+    /// Creates a validated linear RGB buffer with `width * height` pixels.
+    pub fn new(width: usize, height: usize, samples: Vec<[f32; 3]>) -> Result<Self, DecodeError> {
+        let Some(expected) = width.checked_mul(height) else {
+            return Err(CoreError::InvalidDimensions { width, height }.into());
+        };
+        if expected == 0 {
+            return Err(CoreError::InvalidDimensions { width, height }.into());
+        }
+        if samples.len() != expected {
+            return Err(CoreError::BufferLengthMismatch {
+                expected,
+                actual: samples.len(),
+            }
+            .into());
+        }
+        Ok(Self {
+            width,
+            height,
+            samples: std::sync::Arc::from(samples),
+        })
+    }
+
+    /// Image width in pixels.
+    #[must_use]
+    pub const fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Image height in pixels.
+    #[must_use]
+    pub const fn height(&self) -> usize {
+        self.height
+    }
+
+    /// Interleaved linear camera-RGB pixel slice (`width * height`).
+    #[must_use]
+    pub fn samples(&self) -> &[[f32; 3]] {
+        &self.samples
+    }
+
+    /// Shared zero-copy reference to the linear camera-RGB pixel buffer.
+    #[must_use]
+    pub fn samples_arc(&self) -> std::sync::Arc<[[f32; 3]]> {
+        std::sync::Arc::clone(&self.samples)
+    }
+}
+
 /// Output produced by a `RawDecoder` implementation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DecodedRaw {
     pub metadata: PhotoMetadata,
     pub cfa_signed: SignedCfaBuffer,
+    /// Present for pre-demosaiced 3-channel linear RGB RAWs (`cpp == 3`).
+    /// When `Some`, `cfa_signed` is empty (`SignedCfaBuffer::default()`).
+    pub linear_rgb: Option<LinearRgbBuffer>,
     pub wb_coeffs: [f32; 4],
     pub color_matrix: Option<[f32; 9]>,
     pub exif_tags: Vec<(String, String)>,
     /// Standard EXIF TIFF Orientation code (`1..=8`, where `6` = 90° CW Portrait, `8` = 270° CW Portrait).
     pub orientation: u16,
+}
+
+impl DecodedRaw {
+    /// Returns `true` when this decoded RAW contains pre-demosaiced linear RGB (`cpp == 3`).
+    #[must_use]
+    pub const fn is_linear_rgb(&self) -> bool {
+        self.linear_rgb.is_some()
+    }
 }
 
 /// Pure-Rust contract for read-only RAW file decoding.
@@ -67,124 +135,340 @@ impl RawDecoder for PureRustRawDecoder {
             DecodeError::Io(format!("failed to decode RAW file {}: {e}", path.display()))
         })?;
 
-        let cfa_pattern =
-            try_resolve_cfa_pattern_from_rawler(&raw_image.camera.cfa).ok_or_else(|| {
-                DecodeError::UnsupportedFormat(format!(
-                    "unsupported CFA pattern '{}' ({}x{})",
-                    raw_image.camera.cfa.name,
-                    raw_image.camera.cfa.width,
-                    raw_image.camera.cfa.height
-                ))
-            })?;
-        let (width, height, raw_samples) =
-            sensor::extract_cropped_samples(&raw_image, &cfa_pattern)?;
+        match raw_image.cpp {
+            1 => decode_single_plane_cfa(path, &raw_image),
+            3 => decode_linear_rgb(path, &raw_image),
+            cpp => Err(DecodeError::UnsupportedFormat(format!(
+                "unsupported component count cpp={cpp} (expected 1 for CFA or 3 for Linear RGB)"
+            ))),
+        }
+    }
+}
 
-        let black_levels = raw_image.blacklevel.as_bayer_array();
-        let white_levels = raw_image.whitelevel.as_bayer_array();
+fn decode_single_plane_cfa(
+    path: &Path,
+    raw_image: &rawler::RawImage,
+) -> Result<DecodedRaw, DecodeError> {
+    let raw_cfa = match &raw_image.photometric {
+        rawler::rawimage::RawPhotometricInterpretation::Cfa(cfg) => &cfg.cfa,
+        _ => &raw_image.camera.cfa,
+    };
+    let cfa_pattern = try_resolve_cfa_pattern_from_rawler(raw_cfa)
+        .or_else(|| try_resolve_cfa_pattern_from_rawler(&raw_image.camera.cfa))
+        .ok_or_else(|| {
+            DecodeError::UnsupportedFormat(format!(
+                "unsupported CFA pattern '{}' ({}x{})",
+                raw_cfa.name, raw_cfa.width, raw_cfa.height
+            ))
+        })?;
+    let (width, height, raw_samples) = sensor::extract_cropped_samples(raw_image, &cfa_pattern)?;
 
-        let mut metadata = PhotoMetadata {
-            camera_make: raw_image.clean_make.clone(),
-            camera_model: raw_image.clean_model.clone(),
-            lens_model: None,
-            focal_length_mm: None,
-            aperture_f_number: None,
-            iso: None,
-            width,
-            height,
-            black_levels,
-            white_levels,
-            cfa_pattern,
-            noise_profile: rraw_core::NoiseProfile::new(
-                [0.001; 3],
-                [0.0001; 3],
-                rraw_core::NoiseProfileSource::WaveletMadFallback,
-            )?,
-            vignette_handled_by_gainmap: false,
-            dng_warp_rectilinear: None,
-            rating: 0,
-            pick: PickStatus::Unflagged,
-            label: ColorLabel::None,
-            keywords: Vec::new(),
-        };
+    let black_levels = raw_image.blacklevel.as_bayer_array();
+    let white_levels = raw_image.whitelevel.as_bayer_array();
 
-        let color_matrix = sensor::extract_color_matrix(&raw_image);
-        let wb_coeffs =
-            sensor::sanitize_wb_coeffs_with_matrix(raw_image.wb_coeffs, color_matrix.as_ref());
+    let mut metadata = PhotoMetadata {
+        camera_make: raw_image.clean_make.clone(),
+        camera_model: raw_image.clean_model.clone(),
+        lens_model: None,
+        focal_length_mm: None,
+        aperture_f_number: None,
+        iso: None,
+        width,
+        height,
+        black_levels,
+        white_levels,
+        cfa_pattern,
+        noise_profile: rraw_core::NoiseProfile::new(
+            [0.001; 3],
+            [0.0001; 3],
+            rraw_core::NoiseProfileSource::WaveletMadFallback,
+        )?,
+        vignette_handled_by_gainmap: false,
+        dng_warp_rectilinear: None,
+        rating: 0,
+        pick: PickStatus::Unflagged,
+        label: ColorLabel::None,
+        keywords: Vec::new(),
+    };
 
-        let mut exif_tags = Vec::with_capacity(64);
-        exif_tags.push(("Camera Make".to_owned(), metadata.camera_make.clone()));
-        exif_tags.push(("Camera Model".to_owned(), metadata.camera_model.clone()));
-        exif_tags.push((
-            "Dimensions".to_owned(),
-            format!(
-                "{width} x {height} ({:.1} MP)",
-                (width * height) as f32 / 1_000_000.0
-            ),
-        ));
-        exif_tags.push((
-            "As-Shot WB Multipliers".to_owned(),
-            format!(
-                "R={:.3}, G={:.3}, B={:.3}",
-                wb_coeffs[0], wb_coeffs[1], wb_coeffs[2]
-            ),
-        ));
+    let color_matrix = sensor::extract_color_matrix(raw_image);
+    let wb_coeffs =
+        sensor::sanitize_wb_coeffs_with_matrix(raw_image.wb_coeffs, color_matrix.as_ref());
 
-        let mut orientation = match raw_image.orientation.to_u16() {
-            code @ 1..=8 => code,
-            _ => 1,
-        };
+    let mut exif_tags = Vec::with_capacity(64);
+    exif_tags.push(("Camera Make".to_owned(), metadata.camera_make.clone()));
+    exif_tags.push(("Camera Model".to_owned(), metadata.camera_model.clone()));
+    exif_tags.push((
+        "Dimensions".to_owned(),
+        format!(
+            "{width} x {height} ({:.1} MP)",
+            (width * height) as f32 / 1_000_000.0
+        ),
+    ));
+    exif_tags.push((
+        "As-Shot WB Multipliers".to_owned(),
+        format!(
+            "R={:.3}, G={:.3}, B={:.3}",
+            wb_coeffs[0], wb_coeffs[1], wb_coeffs[2]
+        ),
+    ));
 
-        exif::extract_dng_and_exif_metadata(path, &mut metadata, &mut orientation, &mut exif_tags);
+    let mut orientation = match raw_image.orientation.to_u16() {
+        code @ 1..=8 => code,
+        _ => 1,
+    };
 
-        exif_tags.push((
-            "CFA Pattern".to_owned(),
-            format!("{:?}", metadata.cfa_pattern),
-        ));
-        exif_tags.push((
-            "Sensor Black Level".to_owned(),
-            format!(
-                "{:.1}, {:.1}, {:.1}, {:.1}",
-                black_levels[0], black_levels[1], black_levels[2], black_levels[3]
-            ),
-        ));
-        exif_tags.push((
-            "Sensor White Level".to_owned(),
-            format!(
-                "{:.1}, {:.1}, {:.1}, {:.1}",
-                white_levels[0], white_levels[1], white_levels[2], white_levels[3]
-            ),
-        ));
+    exif::extract_dng_and_exif_metadata(path, &mut metadata, &mut orientation, &mut exif_tags);
 
-        if black_levels[0] >= white_levels[0] {
+    exif_tags.push((
+        "CFA Pattern".to_owned(),
+        format!("{:?}", metadata.cfa_pattern),
+    ));
+    exif_tags.push((
+        "Sensor Black Level".to_owned(),
+        format!(
+            "{:.1}, {:.1}, {:.1}, {:.1}",
+            black_levels[0], black_levels[1], black_levels[2], black_levels[3]
+        ),
+    ));
+    exif_tags.push((
+        "Sensor White Level".to_owned(),
+        format!(
+            "{:.1}, {:.1}, {:.1}, {:.1}",
+            white_levels[0], white_levels[1], white_levels[2], white_levels[3]
+        ),
+    ));
+
+    if black_levels[0] >= white_levels[0] {
+        return Err(DecodeError::MalformedMetadata(format!(
+            "invalid black/white level range: black={}, white={}",
+            black_levels[0], white_levels[0]
+        )));
+    }
+
+    let cfa_signed = match &raw_samples {
+        sensor::RawSamples::U16(samples) => {
+            normalize_cfa_signed(samples.as_ref(), width, height, &metadata)?
+        }
+        sensor::RawSamples::F32(samples) => {
+            normalize_cfa_signed_f32(samples.as_ref(), width, height, &metadata)?
+        }
+    };
+    metadata.noise_profile = estimate_noise_profile_wavelet_mad(&cfa_signed)?;
+    exif_tags.push((
+        "Orientation".to_owned(),
+        exif::orientation_label(orientation).to_owned(),
+    ));
+
+    Ok(DecodedRaw {
+        metadata,
+        cfa_signed,
+        linear_rgb: None,
+        wb_coeffs,
+        color_matrix,
+        exif_tags,
+        orientation,
+    })
+}
+
+fn decode_linear_rgb(path: &Path, raw_image: &rawler::RawImage) -> Result<DecodedRaw, DecodeError> {
+    let (width, height, raw_samples) = sensor::extract_cropped_rgb_samples(raw_image)?;
+    let (black_rgb, white_rgb) = sensor::extract_rgb_black_white_levels(raw_image);
+
+    let black_levels = [black_rgb[0], black_rgb[1], black_rgb[2], black_rgb[1]];
+    let white_levels = [white_rgb[0], white_rgb[1], white_rgb[2], white_rgb[1]];
+
+    let mut metadata = PhotoMetadata {
+        camera_make: raw_image.clean_make.clone(),
+        camera_model: raw_image.clean_model.clone(),
+        lens_model: None,
+        focal_length_mm: None,
+        aperture_f_number: None,
+        iso: None,
+        width,
+        height,
+        black_levels,
+        white_levels,
+        cfa_pattern: CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb),
+        noise_profile: rraw_core::NoiseProfile::new(
+            [0.001; 3],
+            [0.0001; 3],
+            rraw_core::NoiseProfileSource::WaveletMadFallback,
+        )?,
+        vignette_handled_by_gainmap: false,
+        dng_warp_rectilinear: None,
+        rating: 0,
+        pick: PickStatus::Unflagged,
+        label: ColorLabel::None,
+        keywords: Vec::new(),
+    };
+
+    let color_matrix = sensor::extract_color_matrix(raw_image);
+    let wb_coeffs =
+        sensor::sanitize_wb_coeffs_with_matrix(raw_image.wb_coeffs, color_matrix.as_ref());
+
+    let mut exif_tags = Vec::with_capacity(64);
+    exif_tags.push(("Camera Make".to_owned(), metadata.camera_make.clone()));
+    exif_tags.push(("Camera Model".to_owned(), metadata.camera_model.clone()));
+    exif_tags.push((
+        "Dimensions".to_owned(),
+        format!(
+            "{width} x {height} ({:.1} MP)",
+            (width * height) as f32 / 1_000_000.0
+        ),
+    ));
+    exif_tags.push((
+        "As-Shot WB Multipliers".to_owned(),
+        format!(
+            "R={:.3}, G={:.3}, B={:.3}",
+            wb_coeffs[0], wb_coeffs[1], wb_coeffs[2]
+        ),
+    ));
+
+    let mut orientation = match raw_image.orientation.to_u16() {
+        code @ 1..=8 => code,
+        _ => 1,
+    };
+
+    exif::extract_dng_and_exif_metadata(path, &mut metadata, &mut orientation, &mut exif_tags);
+
+    exif_tags.push(("Sensor Format".to_owned(), "Linear RGB (cpp=3)".to_owned()));
+    exif_tags.push((
+        "Sensor Black Level".to_owned(),
+        format!(
+            "{:.1}, {:.1}, {:.1}",
+            black_rgb[0], black_rgb[1], black_rgb[2]
+        ),
+    ));
+    exif_tags.push((
+        "Sensor White Level".to_owned(),
+        format!(
+            "{:.1}, {:.1}, {:.1}",
+            white_rgb[0], white_rgb[1], white_rgb[2]
+        ),
+    ));
+
+    let linear_rgb = match &raw_samples {
+        sensor::RawSamples::U16(samples) => {
+            normalize_linear_rgb_signed(samples.as_ref(), width, height, black_rgb, white_rgb)?
+        }
+        sensor::RawSamples::F32(samples) => {
+            normalize_linear_rgb_signed_f32(samples.as_ref(), width, height, black_rgb, white_rgb)?
+        }
+    };
+
+    exif_tags.push((
+        "Orientation".to_owned(),
+        exif::orientation_label(orientation).to_owned(),
+    ));
+
+    Ok(DecodedRaw {
+        metadata,
+        cfa_signed: SignedCfaBuffer::default(),
+        linear_rgb: Some(linear_rgb),
+        wb_coeffs,
+        color_matrix,
+        exif_tags,
+        orientation,
+    })
+}
+
+fn validate_rgb_and_compute_inv_spans(
+    sample_len: usize,
+    width: usize,
+    height: usize,
+    black_levels: [f32; 3],
+    white_levels: [f32; 3],
+) -> Result<(usize, [f32; 3]), DecodeError> {
+    let Some(expected_pixels) = width.checked_mul(height) else {
+        return Err(CoreError::InvalidDimensions { width, height }.into());
+    };
+    if expected_pixels == 0 {
+        return Err(CoreError::InvalidDimensions { width, height }.into());
+    }
+    let Some(expected_samples) = expected_pixels.checked_mul(3) else {
+        return Err(CoreError::InvalidDimensions { width, height }.into());
+    };
+    if sample_len != expected_samples {
+        return Err(CoreError::BufferLengthMismatch {
+            expected: expected_samples,
+            actual: sample_len,
+        }
+        .into());
+    }
+
+    let mut inv_spans = [0.0_f32; 3];
+    for idx in 0..3 {
+        let black = black_levels[idx];
+        let white = white_levels[idx];
+        let span = white - black;
+        if !black.is_finite() || !white.is_finite() || !span.is_finite() || span <= 0.0 {
             return Err(DecodeError::MalformedMetadata(format!(
-                "invalid black/white level range: black={}, white={}",
-                black_levels[0], white_levels[0]
+                "invalid linear RGB white-black levels at channel {idx}: black={black}, white={white}"
             )));
         }
-
-        let cfa_signed = match &raw_samples {
-            sensor::RawSamples::U16(samples) => {
-                normalize_cfa_signed(samples.as_ref(), width, height, &metadata)?
-            }
-            sensor::RawSamples::F32(samples) => {
-                normalize_cfa_signed_f32(samples.as_ref(), width, height, &metadata)?
-            }
-        };
-        metadata.noise_profile = estimate_noise_profile_wavelet_mad(&cfa_signed)?;
-        exif_tags.push((
-            "Orientation".to_owned(),
-            exif::orientation_label(orientation).to_owned(),
-        ));
-
-        Ok(DecodedRaw {
-            metadata,
-            cfa_signed,
-            wb_coeffs,
-            color_matrix,
-            exif_tags,
-            orientation,
-        })
+        inv_spans[idx] = 1.0 / span;
     }
+
+    Ok((expected_pixels, inv_spans))
+}
+
+/// Performs signed black/white normalization on interleaved 16-bit linear camera-RGB samples (`cpp == 3`).
+pub fn normalize_linear_rgb_signed(
+    raw_samples: &[u16],
+    width: usize,
+    height: usize,
+    black_levels: [f32; 3],
+    white_levels: [f32; 3],
+) -> Result<LinearRgbBuffer, DecodeError> {
+    let (expected_pixels, inv_spans) = validate_rgb_and_compute_inv_spans(
+        raw_samples.len(),
+        width,
+        height,
+        black_levels,
+        white_levels,
+    )?;
+
+    let mut out = Vec::with_capacity(expected_pixels);
+    for px in raw_samples.as_chunks::<3>().0 {
+        out.push([
+            (f32::from(px[0]) - black_levels[0]) * inv_spans[0],
+            (f32::from(px[1]) - black_levels[1]) * inv_spans[1],
+            (f32::from(px[2]) - black_levels[2]) * inv_spans[2],
+        ]);
+    }
+
+    LinearRgbBuffer::new(width, height, out)
+}
+
+/// Performs signed black/white normalization on interleaved floating-point linear camera-RGB samples
+/// (`cpp == 3`), sanitizing non-finite inputs to `0.0`.
+pub fn normalize_linear_rgb_signed_f32(
+    raw_samples: &[f32],
+    width: usize,
+    height: usize,
+    black_levels: [f32; 3],
+    white_levels: [f32; 3],
+) -> Result<LinearRgbBuffer, DecodeError> {
+    let (expected_pixels, inv_spans) = validate_rgb_and_compute_inv_spans(
+        raw_samples.len(),
+        width,
+        height,
+        black_levels,
+        white_levels,
+    )?;
+
+    let sanitize = |v: f32| if v.is_finite() { v } else { 0.0 };
+    let mut out = Vec::with_capacity(expected_pixels);
+    for px in raw_samples.as_chunks::<3>().0 {
+        out.push([
+            (sanitize(px[0]) - black_levels[0]) * inv_spans[0],
+            (sanitize(px[1]) - black_levels[1]) * inv_spans[1],
+            (sanitize(px[2]) - black_levels[2]) * inv_spans[2],
+        ]);
+    }
+
+    LinearRgbBuffer::new(width, height, out)
 }
 
 fn validate_and_compute_inv_spans(

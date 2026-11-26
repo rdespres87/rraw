@@ -108,6 +108,110 @@ pub fn extract_cropped_samples<'a>(
     }
 }
 
+fn crop_rgb_plane<'a, T: Copy>(
+    samples: &'a [T],
+    raw_image: &rawler::RawImage,
+) -> Result<(usize, usize, Cow<'a, [T]>), DecodeError> {
+    let expected_len = raw_image
+        .width
+        .checked_mul(raw_image.height)
+        .and_then(|px| px.checked_mul(3))
+        .ok_or_else(|| {
+            DecodeError::MalformedMetadata(format!(
+                "linear RGB dimensions overflow: {}x{}x3",
+                raw_image.width, raw_image.height
+            ))
+        })?;
+    if samples.len() != expected_len {
+        return Err(DecodeError::MalformedMetadata(format!(
+            "linear RGB plane length mismatch: expected {expected_len}, got {}",
+            samples.len()
+        )));
+    }
+
+    if let Some(crop) = raw_image.crop_area.or(raw_image.active_area) {
+        let (crop_x, crop_y, crop_w, crop_h) = (crop.x(), crop.y(), crop.width(), crop.height());
+        if crop_x.saturating_add(crop_w) <= raw_image.width
+            && crop_y.saturating_add(crop_h) <= raw_image.height
+            && crop_w > 0
+            && crop_h > 0
+            && (crop_x > 0 || crop_y > 0 || crop_w < raw_image.width || crop_h < raw_image.height)
+        {
+            let row_stride = raw_image.width * 3;
+            let copy_len = crop_w * 3;
+            let mut cropped = Vec::with_capacity(crop_h * copy_len);
+            for row in crop_y..(crop_y + crop_h) {
+                let start = row * row_stride + crop_x * 3;
+                let end = start + copy_len;
+                cropped.extend_from_slice(&samples[start..end]);
+            }
+            return Ok((crop_w, crop_h, Cow::Owned(cropped)));
+        }
+    }
+
+    Ok((raw_image.width, raw_image.height, Cow::Borrowed(samples)))
+}
+
+/// Extracts cropped interleaved 3-channel linear camera-RGB samples (`cpp == 3`,
+/// e.g., Apple ProRAW, Canon sRAW, Adobe Linear DNG, Sony Pixel-Shift ARW).
+pub fn extract_cropped_rgb_samples<'a>(
+    raw_image: &'a rawler::RawImage,
+) -> Result<(usize, usize, RawSamples<'a>), DecodeError> {
+    if raw_image.cpp != 3 {
+        return Err(DecodeError::UnsupportedFormat(format!(
+            "expected 3-channel linear RGB RAW (cpp=3), got cpp={}",
+            raw_image.cpp
+        )));
+    }
+
+    match &raw_image.data {
+        rawler::RawImageData::Integer(samples) => {
+            let (w, h, plane) = crop_rgb_plane(samples.as_slice(), raw_image)?;
+            Ok((w, h, RawSamples::U16(plane)))
+        }
+        rawler::RawImageData::Float(samples) => {
+            let (w, h, plane) = crop_rgb_plane(samples.as_slice(), raw_image)?;
+            Ok((w, h, RawSamples::F32(plane)))
+        }
+    }
+}
+
+/// Extracts per-channel `[R, G, B]` black and white levels for 3-channel linear RGB RAWs.
+///
+/// Canon CR2 sRAW/mRAW decoding in `rawler` converts YCbCr to 0-referenced 16-bit RGB
+/// (already subtracting the sensor Y offset and clamping at 0), while still reporting
+/// the 14-bit Bayer black pedestal in `raw_image.blacklevel`. Subtracting that pedestal
+/// a second time crushes dark blue shadows into a yellow cast, so Canon sRAW uses `[0.0; 3]`.
+#[must_use]
+pub fn extract_rgb_black_white_levels(raw_image: &rawler::RawImage) -> ([f32; 3], [f32; 3]) {
+    let is_canon_sraw = raw_image.clean_make.eq_ignore_ascii_case("Canon")
+        && (raw_image.camera.mode.to_ascii_lowercase().contains("sraw")
+            || raw_image.camera.find_hint("sraw_40d")
+            || raw_image.camera.find_hint("sraw_new"));
+
+    let bl = &raw_image.blacklevel.levels;
+    let black = if is_canon_sraw {
+        [0.0; 3]
+    } else if bl.len() >= 3 {
+        [bl[0].as_f32(), bl[1].as_f32(), bl[2].as_f32()]
+    } else if let Some(b0) = bl.first() {
+        [b0.as_f32(); 3]
+    } else {
+        [0.0; 3]
+    };
+
+    let wl = &raw_image.whitelevel.0;
+    let white = if wl.len() >= 3 {
+        [wl[0] as f32, wl[1] as f32, wl[2] as f32]
+    } else if let Some(&w0) = wl.first() {
+        [w0 as f32; 3]
+    } else {
+        [65_535.0; 3]
+    };
+
+    (black, white)
+}
+
 /// Replaces non-finite or non-positive white-balance multipliers with safe daylight fallbacks
 /// and normalizes channels relative to Green (`wb[1] = 1.0`).
 #[must_use]
