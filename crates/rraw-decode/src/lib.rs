@@ -8,7 +8,9 @@ use rraw_core::{CfaPattern, ColorLabel, CoreError, PhotoMetadata, PickStatus, Si
 use thiserror::Error;
 
 pub mod cfa;
+pub mod dng_fallback;
 pub mod exif;
+pub mod jpeg12;
 pub mod makernotes;
 pub mod noise_profile;
 pub mod opcodes;
@@ -132,9 +134,18 @@ impl PureRustRawDecoder {
 
 impl RawDecoder for PureRustRawDecoder {
     fn decode_file(&self, path: &Path) -> Result<DecodedRaw, DecodeError> {
-        let raw_image = rawler::decode_file(path).map_err(|e| {
-            DecodeError::Io(format!("failed to decode RAW file {}: {e}", path.display()))
-        })?;
+        let raw_image = match rawler::decode_file(path) {
+            Ok(img) => img,
+            Err(primary_err) => {
+                if let Ok(fallback) = dng_fallback::try_decode_fallback(path) {
+                    return Ok(fallback);
+                }
+                return Err(DecodeError::Io(format!(
+                    "failed to decode RAW file {}: {primary_err}",
+                    path.display()
+                )));
+            }
+        };
 
         match raw_image.cpp {
             1 => decode_single_plane_cfa(path, &raw_image),

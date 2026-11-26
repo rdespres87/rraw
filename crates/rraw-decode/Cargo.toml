@@ -11,6 +11,7 @@ rraw-core.workspace = true
 thiserror.workspace = true
 byteorder.workspace = true
 rawler.workspace = true
+image.workspace = true
 
 [lints]
 workspace = true

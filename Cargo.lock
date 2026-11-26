@@ -3885,6 +3885,7 @@ name = "rraw-decode"
 version = "0.3.2"
 dependencies = [
  "byteorder",
+ "image",
  "rawler",
  "rraw-core",
  "thiserror 2.0.21",

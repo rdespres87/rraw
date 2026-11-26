@@ -306,33 +306,94 @@ impl BaseRgbPreview {
         }
 
         let mut samples_rgb = Vec::with_capacity(preview_w * preview_h);
-        let max_even_x = width.saturating_sub(2) & !1;
-        let max_even_y = height.saturating_sub(2) & !1;
+        if matches!(pattern, rraw_core::CfaPattern::Bayer(_)) && width < preview_w * 2 {
+            // Centered 3x3 bilinear Bayer interpolation avoids 2x2 quad pixel-duplication
+            // staircasing and chromatic fringing on medium-resolution sensors (e.g., 1080p-4MP).
+            let max_x = width.saturating_sub(1);
+            let max_y = height.saturating_sub(1);
+            for py in 0..preview_h {
+                let sy = ((py * height) / preview_h).min(max_y);
+                let ym1 = sy.saturating_sub(1);
+                let yp1 = (sy + 1).min(max_y);
+                let row = sy * width;
+                let row_up = ym1 * width;
+                let row_dn = yp1 * width;
 
-        for py in 0..preview_h {
-            let raw_sy = (py * height) / preview_h;
-            let sy = (raw_sy & !1).min(max_even_y);
-            let next_sy = (sy + 1).min(height.saturating_sub(1));
-            let row0 = sy * width;
-            let row1 = next_sy * width;
+                for px in 0..preview_w {
+                    let sx = ((px * width) / preview_w).min(max_x);
+                    let xm1 = sx.saturating_sub(1);
+                    let xp1 = (sx + 1).min(max_x);
+                    let center = samples[row + sx];
 
-            for px in 0..preview_w {
-                let raw_sx = (px * width) / preview_w;
-                let sx = (raw_sx & !1).min(max_even_x);
-                let next_sx = (sx + 1).min(width.saturating_sub(1));
+                    let rgb = match pattern.color_at(sx, sy) {
+                        CfaColor::Red => {
+                            let g = 0.25
+                                * (samples[row + xm1]
+                                    + samples[row + xp1]
+                                    + samples[row_up + sx]
+                                    + samples[row_dn + sx]);
+                            let b = 0.25
+                                * (samples[row_up + xm1]
+                                    + samples[row_up + xp1]
+                                    + samples[row_dn + xm1]
+                                    + samples[row_dn + xp1]);
+                            [center, g, b]
+                        }
+                        CfaColor::Blue => {
+                            let r = 0.25
+                                * (samples[row_up + xm1]
+                                    + samples[row_up + xp1]
+                                    + samples[row_dn + xm1]
+                                    + samples[row_dn + xp1]);
+                            let g = 0.25
+                                * (samples[row + xm1]
+                                    + samples[row + xp1]
+                                    + samples[row_up + sx]
+                                    + samples[row_dn + sx]);
+                            [r, g, center]
+                        }
+                        CfaColor::Green => {
+                            let h = 0.5 * (samples[row + xm1] + samples[row + xp1]);
+                            let v = 0.5 * (samples[row_up + sx] + samples[row_dn + sx]);
+                            if pattern.color_at(sx ^ 1, sy) == CfaColor::Red {
+                                [h, center, v]
+                            } else {
+                                [v, center, h]
+                            }
+                        }
+                    };
+                    samples_rgb.push(rgb);
+                }
+            }
+        } else {
+            let max_even_x = width.saturating_sub(2) & !1;
+            let max_even_y = height.saturating_sub(2) & !1;
 
-                let quad = [
-                    samples[row0 + sx],
-                    samples[row0 + next_sx],
-                    samples[row1 + sx],
-                    samples[row1 + next_sx],
-                ];
+            for py in 0..preview_h {
+                let raw_sy = (py * height) / preview_h;
+                let sy = (raw_sy & !1).min(max_even_y);
+                let next_sy = (sy + 1).min(height.saturating_sub(1));
+                let row0 = sy * width;
+                let row1 = next_sy * width;
 
-                let r = quad[r_idx];
-                let g = (quad[g0_idx] + quad[g1_idx]) * 0.5;
-                let b = quad[b_idx];
+                for px in 0..preview_w {
+                    let raw_sx = (px * width) / preview_w;
+                    let sx = (raw_sx & !1).min(max_even_x);
+                    let next_sx = (sx + 1).min(width.saturating_sub(1));
 
-                samples_rgb.push([r, g, b]);
+                    let quad = [
+                        samples[row0 + sx],
+                        samples[row0 + next_sx],
+                        samples[row1 + sx],
+                        samples[row1 + next_sx],
+                    ];
+
+                    let r = quad[r_idx];
+                    let g = (quad[g0_idx] + quad[g1_idx]) * 0.5;
+                    let b = quad[b_idx];
+
+                    samples_rgb.push([r, g, b]);
+                }
             }
         }
 

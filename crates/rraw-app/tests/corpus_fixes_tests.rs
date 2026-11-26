@@ -272,3 +272,86 @@ fn test_decode_canon_powershot_g1_four_color_cygm_corpus() {
         }
     }
 }
+
+#[test]
+fn test_decode_dng_fallback_blackmagic_moto_dji_corpus() {
+    use rraw_decode::{PureRustRawDecoder, RawDecoder};
+    use std::path::Path;
+
+    let decoder = PureRustRawDecoder::new();
+
+    // 1. Blackmagic 12-bit Lossy CinemaDNG (SOF1 tiles + LinearizationTable)
+    let bm_samples = [
+        (
+            "/Users/rdespres/Projets/raw-pixls-samples/Blackmagic/Blackmagic - Micro Cinema Camera - 12bit (16:9).dng",
+            1952,
+            1104,
+        ),
+        (
+            "/Users/rdespres/Projets/photo_data/Blackmagic/Blackmagic Pocket Cinema Camera 4k/BMPCC_4k_DCI_3-1.dng",
+            4128,
+            2176,
+        ),
+    ];
+    for (sample, exp_w, exp_h) in bm_samples {
+        let path = Path::new(sample);
+        if !path.exists() {
+            continue;
+        }
+        let res = decoder.decode_file(path);
+        assert!(
+            res.is_ok(),
+            "Blackmagic 12-bit Lossy DNG {} should decode via fallback: {:?}",
+            sample,
+            res.err()
+        );
+        if let Ok(decoded) = res {
+            assert_eq!(decoded.metadata.width, exp_w);
+            assert_eq!(decoded.metadata.height, exp_h);
+            assert!(!decoded.is_linear_rgb());
+            let non_zero = decoded
+                .cfa_signed
+                .samples()
+                .iter()
+                .filter(|&&v| v.is_finite() && v > 0.01)
+                .count();
+            assert!(
+                non_zero > (exp_w * exp_h) / 10,
+                "Blackmagic CFA should contain non-black signal"
+            );
+        }
+    }
+
+    // 2. Embedded JPEG saved with .dng extension (moto g8plus)
+    let moto = Path::new(
+        "/Users/rdespres/Projets/raw-pixls-samples/moto g8plus/moto g8plus - moto g8plus.dng",
+    );
+    if moto.exists() {
+        let res = decoder.decode_file(moto);
+        assert!(
+            res.is_ok(),
+            "moto g8plus JPEG-in-DNG should decode via raster fallback: {:?}",
+            res.err()
+        );
+        if let Ok(decoded) = res {
+            assert!(decoded.is_linear_rgb());
+            assert_eq!(decoded.metadata.width, 1198);
+            assert_eq!(decoded.metadata.height, 1600);
+        }
+    }
+
+    // 3. Uncompressed 16-bit DNG with strip width quirk (DJI / Hasselblad L2D-20c)
+    let dji = Path::new("/Users/rdespres/Projets/photo_data/HASSELBLAD/L2D-20c/DJI_0023.DNG");
+    if dji.exists() {
+        let res = decoder.decode_file(dji);
+        assert!(
+            res.is_ok(),
+            "Hasselblad L2D-20c DNG should decode via uncompressed fallback: {:?}",
+            res.err()
+        );
+        if let Ok(decoded) = res {
+            assert!(decoded.metadata.width >= 5200);
+            assert!(decoded.metadata.height >= 3900);
+        }
+    }
+}
