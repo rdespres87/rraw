@@ -642,6 +642,7 @@ impl eframe::App for RrawApp {
                         photo_view: payload.photo_view,
                         base_preview: payload.base_preview,
                         cfa: payload.cfa,
+                        linear_rgb: payload.linear_rgb,
                     });
                 }
                 continue;
@@ -691,6 +692,7 @@ impl eframe::App for RrawApp {
                         photo_view: payload.photo_view,
                         base_preview: payload.base_preview,
                         cfa: payload.cfa,
+                        linear_rgb: payload.linear_rgb,
                     });
                 }
                 continue;
@@ -704,6 +706,7 @@ impl eframe::App for RrawApp {
             self.session.loaded_photo = Some(view);
             self.session.base_preview = Some(payload.base_preview.clone());
             self.session.cached_cfa = Some(payload.cfa.clone());
+            self.session.cached_linear_rgb = payload.linear_rgb.clone();
             self.session.original_texture = None;
 
             // Restore per-photo grading state
@@ -720,6 +723,7 @@ impl eframe::App for RrawApp {
                 photo_view: payload.photo_view,
                 base_preview: payload.base_preview,
                 cfa: payload.cfa,
+                linear_rgb: payload.linear_rgb,
             });
 
             self.workers.is_decoding = false;

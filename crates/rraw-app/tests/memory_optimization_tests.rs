@@ -81,6 +81,7 @@ fn test_cached_photo_entry_memory_footprint() -> Result<(), Box<dyn std::error::
         },
         base_preview: base,
         cfa,
+        linear_rgb: None,
     };
 
     let footprint = entry.memory_footprint_bytes();
@@ -141,6 +142,7 @@ fn test_photo_cache_budget_eviction() -> Result<(), Box<dyn std::error::Error>> 
             },
             base_preview: base,
             cfa,
+            linear_rgb: None,
         };
 
         app.insert_cached_photo(entry);

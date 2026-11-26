@@ -139,4 +139,136 @@ fn test_base_preview_from_linear_rgb_and_export_fallback() {
     let exported = RrawApp::build_export_base_static(ExportScaleMode::Original, &empty_cfa, &full);
     assert_eq!(exported.width, 16);
     assert_eq!(exported.height, 8);
+
+    // Export builder with full-resolution LinearRgbBuffer must honor full sensor dimensions
+    let full_res_rgb = rraw_decode::LinearRgbBuffer::new(32, 16, vec![[0.25, 0.5, 0.75]; 32 * 16]);
+    assert!(full_res_rgb.is_ok());
+    if let Ok(buf) = full_res_rgb {
+        let exported_orig = RrawApp::build_export_base_with_linear_rgb_static(
+            ExportScaleMode::Original,
+            &empty_cfa,
+            Some(&buf),
+            &scaled,
+        );
+        assert_eq!(exported_orig.width, 32);
+        assert_eq!(exported_orig.height, 16);
+
+        let exported_half = RrawApp::build_export_base_with_linear_rgb_static(
+            ExportScaleMode::Percent50,
+            &empty_cfa,
+            Some(&buf),
+            &scaled,
+        );
+        assert_eq!(exported_half.width, 16);
+        assert_eq!(exported_half.height, 8);
+    }
+}
+
+#[test]
+fn test_decode_fuji_superccd_45_deg_upright_corpus() {
+    use rraw_decode::{PureRustRawDecoder, RawDecoder};
+    use std::path::Path;
+
+    let samples = [
+        "/Users/rdespres/Projets/raw-pixls-samples/Fujifilm/Fujifilm - FinePix S5000 - 4:3.RAF",
+        "/Users/rdespres/Projets/raw-pixls-samples/Fujifilm/Fujifilm - FinePix S5600 - 4:3.RAF",
+    ];
+    let decoder = PureRustRawDecoder::new();
+
+    for sample in samples {
+        let path = Path::new(sample);
+        if !path.exists() {
+            continue;
+        }
+        let res = decoder.decode_file(path);
+        assert!(
+            res.is_ok(),
+            "SuperCCD sample {} should decode cleanly: {:?}",
+            sample,
+            res.err()
+        );
+        if let Ok(decoded) = res {
+            assert!(
+                decoded.is_linear_rgb(),
+                "SuperCCD should output LinearRgbBuffer"
+            );
+            let w = decoded.metadata.width;
+            let h = decoded.metadata.height;
+            assert!(
+                w > h,
+                "SuperCCD 4:3 image should be landscape upright ({w}x{h})"
+            );
+            let aspect = w as f32 / h as f32;
+            assert!(
+                (1.2..=1.5).contains(&aspect),
+                "SuperCCD aspect ratio should be near 4:3, got {aspect:.3} ({w}x{h})"
+            );
+            if let Some(rgb) = &decoded.linear_rgb {
+                let non_zero = rgb
+                    .samples()
+                    .iter()
+                    .filter(|p| p[0] > 0.01 || p[1] > 0.01 || p[2] > 0.01)
+                    .count();
+                assert!(non_zero > (w * h) / 4, "SuperCCD image should not be black");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_decode_canon_powershot_g1_four_color_cygm_corpus() {
+    use rraw_decode::{PureRustRawDecoder, RawDecoder};
+    use std::path::Path;
+
+    let path = Path::new(
+        "/Users/rdespres/Projets/raw-pixls-samples/Canon/Canon - PowerShot G1 - RAW (4:3).crw",
+    );
+    if !path.exists() {
+        return;
+    }
+
+    let decoder = PureRustRawDecoder::new();
+    let res = decoder.decode_file(path);
+    assert!(
+        res.is_ok(),
+        "Canon PowerShot G1 4-color CYGM should decode cleanly: {:?}",
+        res.err()
+    );
+    if let Ok(decoded) = res {
+        assert!(decoded.is_linear_rgb());
+        assert_eq!(
+            decoded.color_matrix,
+            Some(rraw_decode::special_sensors::XYZ_TO_SRGB_D65)
+        );
+        let cam_to_srgb = rraw_app::preview::compute_cam_to_srgb_matrix(
+            decoded.color_matrix.as_ref(),
+            &[1.0, 1.0, 1.0],
+        );
+        let identity = [1.0_f32, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        for (i, (&got, &exp)) in cam_to_srgb.iter().zip(identity.iter()).enumerate() {
+            assert!(
+                (got - exp).abs() < 1e-3,
+                "cam_to_srgb[{i}] should collapse to identity for pre-calibrated linear sRGB, got {got}, expected {exp}"
+            );
+        }
+        if let Some(rgb) = &decoded.linear_rgb {
+            let n = rgb.samples().len() as f64;
+            let (mut sr, mut sg, mut sb) = (0.0_f64, 0.0_f64, 0.0_f64);
+            for p in rgb.samples() {
+                assert!(p[0].is_finite() && p[1].is_finite() && p[2].is_finite());
+                sr += f64::from(p[0]);
+                sg += f64::from(p[1]);
+                sb += f64::from(p[2]);
+            }
+            let (mr, mg, mb) = (sr / n, sg / n, sb / n);
+            assert!(
+                mr > 0.02 && mg > 0.02 && mb > 0.02 && mr < 0.85 && mg < 0.85 && mb < 0.85,
+                "4-color CYGM output should have balanced RGB means, got ({mr:.4}, {mg:.4}, {mb:.4})"
+            );
+            assert!(
+                mr / mg < 1.5 && mb / mg < 1.5,
+                "4-color CYGM foliage scene must not have magenta/blue cast, got ({mr:.4}, {mg:.4}, {mb:.4})"
+            );
+        }
+    }
 }

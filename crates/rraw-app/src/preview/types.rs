@@ -540,6 +540,7 @@ pub struct CachedPhotoEntry {
     pub photo_view: LoadedPhotoView,
     pub base_preview: BaseRgbPreview,
     pub cfa: SignedCfaBuffer,
+    pub linear_rgb: Option<rraw_decode::LinearRgbBuffer>,
 }
 
 impl CachedPhotoEntry {
@@ -547,8 +548,12 @@ impl CachedPhotoEntry {
     #[must_use]
     pub fn memory_footprint_bytes(&self) -> usize {
         let cfa_bytes = self.cfa.allocation_size_bytes();
+        let linear_rgb_bytes = self
+            .linear_rgb
+            .as_ref()
+            .map_or(0, |b| std::mem::size_of_val(b.samples()));
         let preview_bytes = self.base_preview.memory_footprint_bytes();
-        cfa_bytes + preview_bytes
+        cfa_bytes + linear_rgb_bytes + preview_bytes
     }
 }
 
@@ -560,5 +565,6 @@ pub struct BackgroundDecodePayload {
     pub photo_view: LoadedPhotoView,
     pub base_preview: BaseRgbPreview,
     pub cfa: SignedCfaBuffer,
+    pub linear_rgb: Option<rraw_decode::LinearRgbBuffer>,
     pub is_prefetch: bool,
 }

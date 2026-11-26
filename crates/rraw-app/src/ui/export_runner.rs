@@ -301,6 +301,33 @@ impl RrawApp {
         cfa: &rraw_core::SignedCfaBuffer,
         ref_preview: &BaseRgbPreview,
     ) -> BaseRgbPreview {
+        Self::build_export_base_with_linear_rgb_static(scale_mode, cfa, None, ref_preview)
+    }
+
+    #[must_use]
+    pub fn build_export_base_with_linear_rgb_static(
+        scale_mode: ExportScaleMode,
+        cfa: &rraw_core::SignedCfaBuffer,
+        linear_rgb: Option<&rraw_decode::LinearRgbBuffer>,
+        ref_preview: &BaseRgbPreview,
+    ) -> BaseRgbPreview {
+        if let Some(rgb) = linear_rgb {
+            let target_width =
+                Self::compute_export_target_width_static(scale_mode, rgb.width(), rgb.height());
+            let mut b = BaseRgbPreview::from_linear_rgb_with_color_and_target_width(
+                rgb.samples(),
+                rgb.width(),
+                rgb.height(),
+                ref_preview.as_shot_wb,
+                None,
+                target_width,
+            );
+            b.cam_to_srgb = ref_preview.cam_to_srgb;
+            b.matched_lens = ref_preview.matched_lens.clone();
+            b.focal_length_mm = ref_preview.focal_length_mm;
+            b.aperture_f_number = ref_preview.aperture_f_number;
+            return b.with_exif_orientation(ref_preview.exif_orientation);
+        }
         if cfa.width() <= 1 || cfa.height() <= 1 {
             return ref_preview.clone();
         }
@@ -394,6 +421,7 @@ impl RrawApp {
             target_path: PathBuf,
             cached_base: Option<BaseRgbPreview>,
             cached_cfa: Option<rraw_core::SignedCfaBuffer>,
+            cached_linear_rgb: Option<rraw_decode::LinearRgbBuffer>,
             cached_grading: Option<DarkroomGradingState>,
         }
 
@@ -429,20 +457,23 @@ impl RrawApp {
 
             let is_loaded = self.session.loaded_photo.as_ref().map(|p| p.path.as_path())
                 == Some(photo_path.as_path());
-            let (cached_base, cached_cfa, cached_grading) = if is_loaded {
+            let (cached_base, cached_cfa, cached_linear_rgb, cached_grading) = if is_loaded {
                 (
                     self.session.base_preview.clone(),
                     self.session.cached_cfa.clone(),
+                    self.session.cached_linear_rgb.clone(),
                     Some(self.session.grading.clone()),
                 )
             } else if let Some(cached) = self.photo_cache.iter().find(|e| &e.path == photo_path) {
                 (
                     Some(cached.base_preview.clone()),
                     Some(cached.cfa.clone()),
+                    cached.linear_rgb.clone(),
                     self.library.photo_gradings.get(photo_path).cloned(),
                 )
             } else {
                 (
+                    None,
                     None,
                     None,
                     self.library.photo_gradings.get(photo_path).cloned(),
@@ -454,6 +485,7 @@ impl RrawApp {
                 target_path,
                 cached_base,
                 cached_cfa,
+                cached_linear_rgb,
                 cached_grading,
             });
         }
@@ -499,24 +531,30 @@ impl RrawApp {
                     None,
                 ));
 
-                let (base_preview, cfa_opt) = match (item.cached_base, item.cached_cfa) {
-                    (Some(base), cfa) => (base, cfa),
-                    (None, _) => {
-                        if let Some(payload) = decode_photo_file_payload(&item.path, false, 0) {
-                            (payload.base_preview, Some(payload.cfa))
-                        } else {
-                            let _ = tx.send((
-                                base_frac + step_frac,
-                                format!("Failed decoding {fname}"),
-                                Some(Err(format!("Failed to decode {}", item.path.display()))),
-                            ));
-                            continue;
+                let (base_preview, cfa_opt, linear_rgb_opt) =
+                    match (item.cached_base, item.cached_cfa, item.cached_linear_rgb) {
+                        (Some(base), cfa, linear_rgb) => (base, cfa, linear_rgb),
+                        (None, _, _) => {
+                            if let Some(payload) = decode_photo_file_payload(&item.path, false, 0) {
+                                (payload.base_preview, Some(payload.cfa), payload.linear_rgb)
+                            } else {
+                                let _ = tx.send((
+                                    base_frac + step_frac,
+                                    format!("Failed decoding {fname}"),
+                                    Some(Err(format!("Failed to decode {}", item.path.display()))),
+                                ));
+                                continue;
+                            }
                         }
-                    }
-                };
+                    };
 
                 let base = if let Some(cfa) = &cfa_opt {
-                    Self::build_export_base_static(export_config.scale_mode, cfa, &base_preview)
+                    Self::build_export_base_with_linear_rgb_static(
+                        export_config.scale_mode,
+                        cfa,
+                        linear_rgb_opt.as_ref(),
+                        &base_preview,
+                    )
                 } else {
                     base_preview
                 };
@@ -622,6 +660,7 @@ impl RrawApp {
             path: PathBuf,
             cached_base: Option<BaseRgbPreview>,
             cached_cfa: Option<rraw_core::SignedCfaBuffer>,
+            cached_linear_rgb: Option<rraw_decode::LinearRgbBuffer>,
             grading: DarkroomGradingState,
         }
 
@@ -629,10 +668,11 @@ impl RrawApp {
         for path in &sequence_paths {
             let is_loaded = self.session.loaded_photo.as_ref().map(|p| p.path.as_path())
                 == Some(path.as_path());
-            let (cached_base, cached_cfa, grading) = if is_loaded {
+            let (cached_base, cached_cfa, cached_linear_rgb, grading) = if is_loaded {
                 (
                     self.session.base_preview.clone(),
                     self.session.cached_cfa.clone(),
+                    self.session.cached_linear_rgb.clone(),
                     self.session.grading.clone(),
                 )
             } else if let Some(cached) = self.photo_cache.iter().find(|e| &e.path == path) {
@@ -645,6 +685,7 @@ impl RrawApp {
                 (
                     Some(cached.base_preview.clone()),
                     Some(cached.cfa.clone()),
+                    cached.linear_rgb.clone(),
                     g,
                 )
             } else {
@@ -654,12 +695,13 @@ impl RrawApp {
                     .get(path)
                     .cloned()
                     .unwrap_or_else(|| load_photo_sidecars(path).0.unwrap_or_default());
-                (None, None, g)
+                (None, None, None, g)
             };
             snapshots.push(TimelapseFrameSnapshot {
                 path: path.clone(),
                 cached_base,
                 cached_cfa,
+                cached_linear_rgb,
                 grading,
             });
         }
@@ -786,18 +828,24 @@ impl RrawApp {
                     None,
                 ));
 
-                let base = match (snap.cached_base, snap.cached_cfa) {
-                    (Some(b), Some(cfa)) => {
-                        Self::build_export_base_static(export_config.scale_mode, &cfa, &b)
+                let base = match (snap.cached_base, snap.cached_cfa, snap.cached_linear_rgb) {
+                    (Some(b), Some(cfa), linear_rgb) => {
+                        Self::build_export_base_with_linear_rgb_static(
+                            export_config.scale_mode,
+                            &cfa,
+                            linear_rgb.as_ref(),
+                            &b,
+                        )
                     }
-                    (Some(b), None) => b,
-                    (None, _) => {
+                    (Some(b), None, _) => b,
+                    (None, _, _) => {
                         let Some(payload) = decode_photo_file_payload(&snap.path, false, 0) else {
                             continue;
                         };
-                        Self::build_export_base_static(
+                        Self::build_export_base_with_linear_rgb_static(
                             export_config.scale_mode,
                             &payload.cfa,
+                            payload.linear_rgb.as_ref(),
                             &payload.base_preview,
                         )
                     }

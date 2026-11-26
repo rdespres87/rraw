@@ -13,6 +13,7 @@ pub mod makernotes;
 pub mod noise_profile;
 pub mod opcodes;
 pub mod sensor;
+pub mod special_sensors;
 pub mod synthetic;
 
 pub use cfa::*;
@@ -153,14 +154,52 @@ fn decode_single_plane_cfa(
         rawler::rawimage::RawPhotometricInterpretation::Cfa(cfg) => &cfg.cfa,
         _ => &raw_image.camera.cfa,
     };
-    let cfa_pattern = try_resolve_cfa_pattern_from_rawler(raw_cfa)
-        .or_else(|| try_resolve_cfa_pattern_from_rawler(&raw_image.camera.cfa))
-        .ok_or_else(|| {
-            DecodeError::UnsupportedFormat(format!(
-                "unsupported CFA pattern '{}' ({}x{})",
-                raw_cfa.name, raw_cfa.width, raw_cfa.height
-            ))
-        })?;
+
+    let resolved_cfa = try_resolve_cfa_pattern_from_rawler(raw_cfa)
+        .or_else(|| try_resolve_cfa_pattern_from_rawler(&raw_image.camera.cfa));
+
+    // Fujifilm SuperCCD 45° octagonal sensors: demosaic + rotate upright into LinearRgbBuffer
+    if let (Some(cfa_pattern), Some(fuji_rot_width)) =
+        (resolved_cfa.as_ref(), raw_image.fuji_rotation_width)
+    {
+        let linear_rgb = special_sensors::demosaic_and_rotate_fuji_superccd(
+            raw_image,
+            cfa_pattern,
+            fuji_rot_width,
+        )?;
+        let color_matrix = sensor::extract_color_matrix(raw_image);
+        let wb_coeffs =
+            sensor::sanitize_wb_coeffs_with_matrix(raw_image.wb_coeffs, color_matrix.as_ref());
+        return build_special_linear_rgb_decoded_raw(
+            path,
+            raw_image,
+            linear_rgb,
+            wb_coeffs,
+            color_matrix,
+            "SuperCCD 45-deg Linear RGB",
+        );
+    }
+
+    // 4-color 2x2 CFA sensors (e.g., CYGM / GMYC / RGBE): demosaic + calibrate to linear sRGB
+    if resolved_cfa.is_none() && special_sensors::is_four_color_2x2_cfa(raw_cfa) {
+        let linear_rgb =
+            special_sensors::demosaic_four_color_cfa_to_linear_srgb(raw_image, raw_cfa)?;
+        return build_special_linear_rgb_decoded_raw(
+            path,
+            raw_image,
+            linear_rgb,
+            [1.0; 4],
+            Some(special_sensors::XYZ_TO_SRGB_D65),
+            &format!("4-Color {} (Linear sRGB)", raw_cfa.name),
+        );
+    }
+
+    let cfa_pattern = resolved_cfa.ok_or_else(|| {
+        DecodeError::UnsupportedFormat(format!(
+            "unsupported CFA pattern '{}' ({}x{})",
+            raw_cfa.name, raw_cfa.width, raw_cfa.height
+        ))
+    })?;
     let (width, height, raw_samples) = sensor::extract_cropped_samples(raw_image, &cfa_pattern)?;
 
     let black_levels = raw_image.blacklevel.as_bayer_array();
@@ -357,6 +396,86 @@ fn decode_linear_rgb(path: &Path, raw_image: &rawler::RawImage) -> Result<Decode
         }
     };
 
+    exif_tags.push((
+        "Orientation".to_owned(),
+        exif::orientation_label(orientation).to_owned(),
+    ));
+
+    Ok(DecodedRaw {
+        metadata,
+        cfa_signed: SignedCfaBuffer::default(),
+        linear_rgb: Some(linear_rgb),
+        wb_coeffs,
+        color_matrix,
+        exif_tags,
+        orientation,
+    })
+}
+
+fn build_special_linear_rgb_decoded_raw(
+    path: &Path,
+    raw_image: &rawler::RawImage,
+    linear_rgb: LinearRgbBuffer,
+    wb_coeffs: [f32; 4],
+    color_matrix: Option<[f32; 9]>,
+    sensor_format_label: &str,
+) -> Result<DecodedRaw, DecodeError> {
+    let width = linear_rgb.width();
+    let height = linear_rgb.height();
+    let black_levels = raw_image.blacklevel.as_bayer_array();
+    let white_levels = raw_image.whitelevel.as_bayer_array();
+
+    let mut metadata = PhotoMetadata {
+        camera_make: raw_image.clean_make.clone(),
+        camera_model: raw_image.clean_model.clone(),
+        lens_model: None,
+        focal_length_mm: None,
+        aperture_f_number: None,
+        iso: None,
+        width,
+        height,
+        black_levels,
+        white_levels,
+        cfa_pattern: CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb),
+        noise_profile: rraw_core::NoiseProfile::new(
+            [0.001; 3],
+            [0.0001; 3],
+            rraw_core::NoiseProfileSource::WaveletMadFallback,
+        )?,
+        vignette_handled_by_gainmap: false,
+        dng_warp_rectilinear: None,
+        rating: 0,
+        pick: PickStatus::Unflagged,
+        label: ColorLabel::None,
+        keywords: Vec::new(),
+    };
+
+    let mut exif_tags = Vec::with_capacity(64);
+    exif_tags.push(("Camera Make".to_owned(), metadata.camera_make.clone()));
+    exif_tags.push(("Camera Model".to_owned(), metadata.camera_model.clone()));
+    exif_tags.push((
+        "Dimensions".to_owned(),
+        format!(
+            "{width} x {height} ({:.1} MP)",
+            (width * height) as f32 / 1_000_000.0
+        ),
+    ));
+    exif_tags.push((
+        "As-Shot WB Multipliers".to_owned(),
+        format!(
+            "R={:.3}, G={:.3}, B={:.3}",
+            wb_coeffs[0], wb_coeffs[1], wb_coeffs[2]
+        ),
+    ));
+
+    let mut orientation = match raw_image.orientation.to_u16() {
+        code @ 1..=8 => code,
+        _ => 1,
+    };
+
+    exif::extract_dng_and_exif_metadata(path, &mut metadata, &mut orientation, &mut exif_tags);
+
+    exif_tags.push(("Sensor Format".to_owned(), sensor_format_label.to_owned()));
     exif_tags.push((
         "Orientation".to_owned(),
         exif::orientation_label(orientation).to_owned(),

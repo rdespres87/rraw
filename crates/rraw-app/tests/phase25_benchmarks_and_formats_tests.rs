@@ -273,6 +273,7 @@ fn test_bench_memory_footprint_and_lru_saturation() -> Result<(), Box<dyn Error>
             },
             base_preview,
             cfa,
+            linear_rgb: None,
         };
 
         app.insert_cached_photo(entry);

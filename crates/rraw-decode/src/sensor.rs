@@ -273,24 +273,77 @@ pub fn sanitize_wb_coeffs_with_matrix(
     wb_coeffs
 }
 
-/// Extracts the first available 3x3 XYZ-to-camera color matrix (D65 -> D50 -> A preference).
+/// Extracts the first available 3x3 XYZ-to-camera color matrix, preferring D65/D50/Daylight
+/// and falling back to any other calibrated illuminant present in `raw_image.color_matrix`.
 #[must_use]
 pub fn extract_color_matrix(raw_image: &rawler::RawImage) -> Option<[f32; 9]> {
-    raw_image
+    let preferred = raw_image
         .color_matrix_find_first([
             rawler::imgop::xyz::Illuminant::D65,
             rawler::imgop::xyz::Illuminant::D50,
+            rawler::imgop::xyz::Illuminant::D55,
+            rawler::imgop::xyz::Illuminant::D75,
+            rawler::imgop::xyz::Illuminant::Daylight,
             rawler::imgop::xyz::Illuminant::A,
+            rawler::imgop::xyz::Illuminant::B,
+            rawler::imgop::xyz::Illuminant::C,
+            rawler::imgop::xyz::Illuminant::Flash,
         ])
-        .and_then(|(_, mat)| {
-            if mat.len() >= 9 {
-                let mut arr = [0.0_f32; 9];
-                arr.copy_from_slice(&mat[0..9]);
-                Some(arr)
-            } else {
-                None
-            }
-        })
+        .map(|(_, mat)| mat);
+
+    let matrix = preferred.or_else(|| {
+        raw_image
+            .color_matrix
+            .values()
+            .find(|mat| mat.len() >= 9 && mat[0..9].iter().all(|v| v.is_finite()))
+            .cloned()
+    })?;
+
+    if matrix.len() >= 9 && matrix[0..9].iter().all(|v| v.is_finite()) {
+        let mut arr = [0.0_f32; 9];
+        arr.copy_from_slice(&matrix[0..9]);
+        Some(arr)
+    } else {
+        None
+    }
+}
+
+/// Extracts the first available 4x3 XYZ-to-camera color matrix for 4-color CFA sensors
+/// (e.g., CYGM / GMYC / RGBE).
+#[must_use]
+pub fn extract_color_matrix_4x3(raw_image: &rawler::RawImage) -> Option<[[f32; 3]; 4]> {
+    let preferred = raw_image
+        .color_matrix_find_first([
+            rawler::imgop::xyz::Illuminant::D65,
+            rawler::imgop::xyz::Illuminant::D50,
+            rawler::imgop::xyz::Illuminant::D55,
+            rawler::imgop::xyz::Illuminant::D75,
+            rawler::imgop::xyz::Illuminant::Daylight,
+            rawler::imgop::xyz::Illuminant::A,
+            rawler::imgop::xyz::Illuminant::B,
+            rawler::imgop::xyz::Illuminant::C,
+            rawler::imgop::xyz::Illuminant::Flash,
+        ])
+        .map(|(_, mat)| mat);
+
+    let matrix = preferred.or_else(|| {
+        raw_image
+            .color_matrix
+            .values()
+            .find(|mat| mat.len() >= 12 && mat[0..12].iter().all(|v| v.is_finite()))
+            .cloned()
+    })?;
+
+    if matrix.len() >= 12 && matrix[0..12].iter().all(|v| v.is_finite()) {
+        Some([
+            [matrix[0], matrix[1], matrix[2]],
+            [matrix[3], matrix[4], matrix[5]],
+            [matrix[6], matrix[7], matrix[8]],
+            [matrix[9], matrix[10], matrix[11]],
+        ])
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

@@ -61,6 +61,7 @@ impl RrawApp {
             self.session.loaded_photo = None;
             self.session.base_preview = None;
             self.session.cached_cfa = None;
+            self.session.cached_linear_rgb = None;
             self.session.preview_texture = None;
             self.session.original_texture = None;
             self.session.needs_preview_update = false;
@@ -546,6 +547,7 @@ impl RrawApp {
             self.session.loaded_photo = Some(entry.photo_view.clone());
             self.session.base_preview = Some(entry.base_preview.clone());
             self.session.cached_cfa = Some(entry.cfa.clone());
+            self.session.cached_linear_rgb = entry.linear_rgb.clone();
             self.session.original_texture = None;
 
             // Restore per-photo grading state (preferring disk sidecar if present)
@@ -579,6 +581,7 @@ impl RrawApp {
         self.session.loaded_photo = None;
         self.session.base_preview = None;
         self.session.cached_cfa = None;
+        self.session.cached_linear_rgb = None;
         self.session.preview_texture = None;
         self.session.original_texture = None;
         self.session.needs_preview_update = false;

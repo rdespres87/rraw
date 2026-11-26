@@ -14,6 +14,8 @@ pub struct PhotoSession {
     pub loaded_photo: Option<LoadedPhotoView>,
     /// Decoded signed CFA buffer in RAM.
     pub cached_cfa: Option<SignedCfaBuffer>,
+    /// Decoded full-resolution linear RGB buffer for pre-demosaiced / special sensors.
+    pub cached_linear_rgb: Option<rraw_decode::LinearRgbBuffer>,
     /// Pre-demosaiced linear RGB base preview for zero-latency slider scrubbing.
     pub base_preview: Option<BaseRgbPreview>,
     /// Darkroom development parameters.
@@ -54,6 +56,7 @@ impl PhotoSession {
         Self {
             loaded_photo: None,
             cached_cfa: None,
+            cached_linear_rgb: None,
             base_preview: None,
             grading: DarkroomGradingState::default(),
             current_preset: GradingPreset::AsShot,
