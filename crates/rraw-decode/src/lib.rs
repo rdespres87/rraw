@@ -21,6 +21,7 @@ pub mod special_sensors;
 pub mod synthetic;
 pub mod vc5;
 mod vc5_table17;
+pub mod x3f;
 
 pub use cfa::*;
 use noise_profile::estimate_noise_profile_wavelet_mad;
@@ -148,6 +149,8 @@ impl RawDecoder for PureRustRawDecoder {
                     )
                 } else if let Ok(fallback) = dng_fallback::try_decode_fallback(path) {
                     return Ok(fallback);
+                } else if let Ok(x3f_raw) = x3f::try_decode_x3f(path) {
+                    return Ok(x3f_raw);
                 } else if let Ok(naked) = naked_fallback::try_decode_naked(path) {
                     return Ok(naked);
                 } else {

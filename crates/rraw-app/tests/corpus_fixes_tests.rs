@@ -586,3 +586,53 @@ fn test_decode_gopro_gpr_vc5_corpus() {
         }
     }
 }
+
+#[test]
+fn test_decode_sigma_polaroid_x3f_corpus() {
+    use rraw_decode::{PureRustRawDecoder, RawDecoder};
+    use std::path::Path;
+
+    let decoder = PureRustRawDecoder::new();
+    let samples = [
+        "/Users/rdespres/Projets/raw-pixls-samples/Polaroid/Polaroid - Polaroid x530.X3F",
+        "/Users/rdespres/Projets/raw-pixls-samples/Sigma/Sigma - Sigma SD9.X3F",
+        "/Users/rdespres/Projets/photo_data/Sigma/Sigma SD10/RAW_SIGMA_SD10.X3F",
+        "/Users/rdespres/Projets/photo_data/Sigma/DP1/RAW_SIGMA_DP1.X3F",
+        "/Users/rdespres/Projets/photo_data/Sigma/SIGMA DP2 Merrill/DP2M1726.X3F",
+        "/Users/rdespres/Projets/photo_data/Sigma/DP0 Quattro/_SDI0263.X3F",
+        "/Users/rdespres/Projets/photo_data/Sigma/sd Quattro H/SDIM0061.X3F",
+    ];
+
+    for sample in samples {
+        let path = Path::new(sample);
+        if !path.exists() {
+            continue;
+        }
+        let res = decoder.decode_file(path);
+        assert!(
+            res.is_ok(),
+            "Foveon X3F {sample} should decode cleanly: {:?}",
+            res.err()
+        );
+        if let Ok(decoded) = res {
+            assert!(decoded.is_linear_rgb());
+            assert!(decoded.metadata.width >= 1000 && decoded.metadata.height >= 1000);
+            if let Some(rgb) = &decoded.linear_rgb {
+                let non_zero = rgb
+                    .samples()
+                    .iter()
+                    .filter(|p| {
+                        p[0].is_finite()
+                            && p[1].is_finite()
+                            && p[2].is_finite()
+                            && (p[0] > 0.01 || p[1] > 0.01 || p[2] > 0.01)
+                    })
+                    .count();
+                assert!(
+                    non_zero > (decoded.metadata.width * decoded.metadata.height) / 10,
+                    "Foveon X3F {sample} should contain non-black signal"
+                );
+            }
+        }
+    }
+}

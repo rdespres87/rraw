@@ -83,6 +83,10 @@ fn test_is_raw_extension_classification() {
     assert!(is_raw_extension("3fr"));
     assert!(is_raw_extension("fff"));
     assert!(is_raw_extension("pef"));
+    assert!(is_raw_extension("gpr"));
+    assert!(is_raw_extension("GPR"));
+    assert!(is_raw_extension("x3f"));
+    assert!(is_raw_extension("X3F"));
 
     for ext in RAW_EXTENSIONS {
         assert!(

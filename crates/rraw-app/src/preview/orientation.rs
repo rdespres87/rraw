@@ -215,18 +215,18 @@ pub fn parse_tiff_ifd0_orientation(tiff: &[u8]) -> Option<u16> {
     None
 }
 
-/// Canonical list of RAW sensor file extensions supported by `rraw-decode` (`rawler`).
+/// Canonical list of RAW sensor file extensions supported by `rraw-decode`.
 pub const RAW_EXTENSIONS: &[&str] = &[
     "dng", "arw", "cr2", "cr3", "crw", "nef", "nrw", "raf", "rw2", "rwl", "orf", "ori", "pef",
     "iiq", "srw", "mrw", "3fr", "fff", "kdc", "dcr", "mos", "erf", "ari", "arq", "mef", "sr2",
-    "srf", "raw",
+    "srf", "raw", "gpr", "x3f",
 ];
 
 /// Canonical list of all image extensions (RAW + raster) accepted by file dialogs and folder scans.
 pub const SUPPORTED_IMAGE_EXTENSIONS: &[&str] = &[
     "dng", "arw", "cr2", "cr3", "crw", "nef", "nrw", "raf", "rw2", "rwl", "orf", "ori", "pef",
     "iiq", "srw", "mrw", "3fr", "fff", "kdc", "dcr", "mos", "erf", "ari", "arq", "mef", "sr2",
-    "srf", "raw", "jpg", "jpeg", "png", "tif", "tiff",
+    "srf", "raw", "gpr", "x3f", "jpg", "jpeg", "png", "tif", "tiff",
 ];
 
 /// Checks if the given file extension corresponds to a RAW sensor format.

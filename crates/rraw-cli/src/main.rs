@@ -149,7 +149,7 @@ fn run() -> Result<(), DecodeError> {
     if let Some(input_path) = args.input {
         let decoder = PureRustRawDecoder::new();
         let decoded = decoder.decode_file(&input_path)?;
-        if decoded.is_linear_rgb() {
+        if let Some(linear_rgb) = &decoded.linear_rgb {
             println!(
                 "Decoded Linear RGB RAW (cpp=3): {}x{}, camera: {} {}",
                 decoded.metadata.width,
@@ -157,6 +157,24 @@ fn run() -> Result<(), DecodeError> {
                 decoded.metadata.camera_make,
                 decoded.metadata.camera_model,
             );
+            if let Some(out_path) = args.output {
+                let image = CpuRgbImage::new(
+                    linear_rgb.width(),
+                    linear_rgb.height(),
+                    linear_rgb.samples().to_vec(),
+                )
+                .map_err(|e| DecodeError::MalformedMetadata(e.to_string()))?;
+                let png_bytes = image
+                    .to_png_16bit_bytes()
+                    .map_err(|e| DecodeError::MalformedMetadata(e.to_string()))?;
+                std::fs::write(&out_path, &png_bytes)
+                    .map_err(|e| DecodeError::Io(e.to_string()))?;
+                println!(
+                    "Exported 16-bit PNG: {} ({} bytes)",
+                    out_path.display(),
+                    png_bytes.len()
+                );
+            }
             return Ok(());
         }
         println!(
