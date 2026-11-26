@@ -151,6 +151,8 @@ impl RawDecoder for PureRustRawDecoder {
                     return Ok(fallback);
                 } else if let Ok(x3f_raw) = x3f::try_decode_x3f(path) {
                     return Ok(x3f_raw);
+                } else if let Ok(pro70) = special_sensors::try_decode_canon_pro70_ciff(path) {
+                    return Ok(pro70);
                 } else if let Ok(naked) = naked_fallback::try_decode_naked(path) {
                     return Ok(naked);
                 } else {

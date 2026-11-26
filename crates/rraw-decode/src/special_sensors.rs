@@ -862,6 +862,223 @@ pub fn detect_isolated_bayer_hot_pixels(
     replacements
 }
 
+/// Demosaics a 4-color 8-row × 2-column repeating CFA plane (e.g., Canon PowerShot Pro70
+/// `YC/MG/CY/GM/YC/GM/CY/MG`) using weighted 3x3 neighborhood interpolation.
+fn demosaic_four_color_8x2_bilinear(
+    plane: &[f32],
+    width: usize,
+    height: usize,
+    lut_8x2: [[usize; 2]; 8],
+) -> Vec<[f32; 4]> {
+    let Some(total) = width.checked_mul(height) else {
+        return Vec::new();
+    };
+    if total == 0 || plane.len() < total {
+        return Vec::new();
+    }
+    let mut out = vec![[0.0_f32; 4]; total];
+    let max_x = width.saturating_sub(1);
+    let max_y = height.saturating_sub(1);
+
+    for y in 0..height {
+        let y_min = y.saturating_sub(1);
+        let y_max = (y + 1).min(max_y);
+        for x in 0..width {
+            let x_min = x.saturating_sub(1);
+            let x_max = (x + 1).min(max_x);
+            let mut sums = [0.0_f32; 4];
+            let mut weights = [0.0_f32; 4];
+
+            for ny in y_min..=y_max {
+                let row_off = ny * width;
+                let lut_row = lut_8x2[ny & 7];
+                let wy: f32 = if ny == y { 2.0 } else { 1.0 };
+                for nx in x_min..=x_max {
+                    let wx: f32 = if nx == x { 2.0 } else { 1.0 };
+                    let w = wx * wy;
+                    let ch = lut_row[nx & 1];
+                    sums[ch] += plane[row_off + nx] * w;
+                    weights[ch] += w;
+                }
+            }
+
+            let mut px = [0.0_f32; 4];
+            for ch in 0..4 {
+                if weights[ch] > 0.0 {
+                    px[ch] = sums[ch] / weights[ch];
+                }
+            }
+            out[y * width + x] = px;
+        }
+    }
+
+    out
+}
+
+/// Pure-Rust decoder for Canon PowerShot Pro70 CIFF (`.CRW`) RAW files.
+///
+/// The Pro70 uses uncompressed 10-bit 16-bit-word-swapped Canon packing (`1552 × 1024`, active
+/// `1536 × 1024`) with a 4x4 repeating 4-color CYGM-like CFA (`EBGR/BERG/EBRG/BEGR`).
+pub fn try_decode_canon_pro70_ciff(
+    path: &std::path::Path,
+) -> Result<crate::DecodedRaw, DecodeError> {
+    let data = std::fs::read(path)
+        .map_err(|e| DecodeError::Io(format!("failed to read {}: {e}", path.display())))?;
+
+    const RAW_W: usize = 1552;
+    const RAW_H: usize = 1024;
+    const ACTIVE_W: usize = 1536;
+    const ROW_STRIDE_BYTES: usize = RAW_W * 10 / 8; // 1940 bytes
+    const RAW_DATA_OFFSET: usize = 26;
+    const RAW_DATA_BYTES: usize = RAW_H * ROW_STRIDE_BYTES; // 1,986,560 bytes
+
+    if data.len() < RAW_DATA_OFFSET + RAW_DATA_BYTES + 64
+        || &data[0..2] != b"II"
+        || &data[6..14] != b"HEAPCCDR"
+    {
+        return Err(DecodeError::UnsupportedFormat(
+            "not a Canon CIFF file".to_owned(),
+        ));
+    }
+    let tail = &data[RAW_DATA_OFFSET + RAW_DATA_BYTES..];
+    if !tail
+        .windows(b"PowerShot Pro70".len())
+        .any(|w| w == b"PowerShot Pro70")
+    {
+        return Err(DecodeError::UnsupportedFormat(
+            "CIFF file is not Canon PowerShot Pro70".to_owned(),
+        ));
+    }
+
+    let raw_bytes = &data[RAW_DATA_OFFSET..RAW_DATA_OFFSET + RAW_DATA_BYTES];
+    const BLACK: f32 = 34.0;
+    const WHITE: f32 = 990.0;
+    let inv_range = 1.0 / (WHITE - BLACK);
+
+    let mut plane = Vec::with_capacity(ACTIVE_W * RAW_H);
+    for y in 0..RAW_H {
+        let row = &raw_bytes[y * ROW_STRIDE_BYTES..(y + 1) * ROW_STRIDE_BYTES];
+        // Unpack 16-bit-swapped 10-bit big-endian (10 bytes -> 8 pixels)
+        let (chunks, _) = row.as_chunks::<10>();
+        let mut produced = 0usize;
+        for &c in chunks {
+            let swapped = [c[1], c[0], c[3], c[2], c[5], c[4], c[7], c[6], c[9], c[8]];
+            let (fives, _) = swapped.as_chunks::<5>();
+            for &f in fives {
+                let v = (u64::from(f[0]) << 32)
+                    | (u64::from(f[1]) << 24)
+                    | (u64::from(f[2]) << 16)
+                    | (u64::from(f[3]) << 8)
+                    | u64::from(f[4]);
+                for shift in [30u32, 20, 10, 0] {
+                    if produced < ACTIVE_W {
+                        let sample = ((v >> shift) & 0x03FF) as f32;
+                        plane.push((sample - BLACK) * inv_range);
+                        produced += 1;
+                    }
+                }
+            }
+            if produced >= ACTIVE_W {
+                break;
+            }
+        }
+    }
+
+    // 8-row repeating CYGM CFA ("YC/MG/CY/GM/YC/GM/CY/MG") mapped to [G=0, M=1, C=2, Y=3]
+    const PRO70_LUT: [[usize; 2]; 8] = [
+        [3, 2], // y % 8 == 0: Y C
+        [1, 0], // y % 8 == 1: M G
+        [2, 3], // y % 8 == 2: C Y
+        [0, 1], // y % 8 == 3: G M
+        [3, 2], // y % 8 == 4: Y C
+        [0, 1], // y % 8 == 5: G M
+        [2, 3], // y % 8 == 6: C Y
+        [1, 0], // y % 8 == 7: M G
+    ];
+    let demosaiced = demosaic_four_color_8x2_bilinear(&plane, ACTIVE_W, RAW_H, PRO70_LUT);
+
+    // D65 XYZ -> [G, M, C, Y] calibration matrix for Canon PowerShot Pro70
+    const XYZ_TO_CAM: [[f32; 3]; 4] = [
+        [-0.5106, 1.0695, 0.1576],
+        [0.3820, 0.0053, 0.4566],
+        [-0.6497, 1.0736, 0.6701],
+        [-0.3336, 1.1887, 0.1394],
+    ];
+    let cam2rgb = compute_cam4_to_srgb_matrix(&XYZ_TO_CAM).ok_or_else(|| {
+        DecodeError::MalformedMetadata("singular 4x3 Pro70 color matrix".to_owned())
+    })?;
+    let wb = sanitize_four_channel_wb_with_matrix([f32::NAN; 4], &XYZ_TO_CAM);
+
+    let mut rgb = Vec::with_capacity(ACTIVE_W * RAW_H);
+    for pix in &demosaiced {
+        let c0 = pix[0] * wb[0];
+        let c1 = pix[1] * wb[1];
+        let c2 = pix[2] * wb[2];
+        let c3 = pix[3] * wb[3];
+        let r = cam2rgb[0][0] * c0 + cam2rgb[0][1] * c1 + cam2rgb[0][2] * c2 + cam2rgb[0][3] * c3;
+        let g = cam2rgb[1][0] * c0 + cam2rgb[1][1] * c1 + cam2rgb[1][2] * c2 + cam2rgb[1][3] * c3;
+        let b = cam2rgb[2][0] * c0 + cam2rgb[2][1] * c1 + cam2rgb[2][2] * c2 + cam2rgb[2][3] * c3;
+        rgb.push([
+            if r.is_finite() { r.max(0.0) } else { 0.0 },
+            if g.is_finite() { g.max(0.0) } else { 0.0 },
+            if b.is_finite() { b.max(0.0) } else { 0.0 },
+        ]);
+    }
+    let linear_rgb = LinearRgbBuffer::new(ACTIVE_W, RAW_H, rgb)?;
+
+    let metadata = rraw_core::PhotoMetadata {
+        camera_make: "Canon".to_owned(),
+        camera_model: "PowerShot Pro70".to_owned(),
+        lens_model: None,
+        focal_length_mm: None,
+        aperture_f_number: None,
+        iso: None,
+        width: ACTIVE_W,
+        height: RAW_H,
+        black_levels: [BLACK; 4],
+        white_levels: [WHITE; 4],
+        cfa_pattern: CfaPattern::Bayer(BayerOrigin::Rggb),
+        noise_profile: rraw_core::NoiseProfile::new(
+            [0.001; 3],
+            [0.0001; 3],
+            rraw_core::NoiseProfileSource::WaveletMadFallback,
+        )?,
+        vignette_handled_by_gainmap: false,
+        dng_warp_rectilinear: None,
+        rating: 0,
+        pick: rraw_core::PickStatus::Unflagged,
+        label: rraw_core::ColorLabel::None,
+        keywords: Vec::new(),
+    };
+
+    let exif_tags = vec![
+        ("Camera Make".to_owned(), "Canon".to_owned()),
+        ("Camera Model".to_owned(), "PowerShot Pro70".to_owned()),
+        (
+            "Dimensions".to_owned(),
+            format!(
+                "{ACTIVE_W} x {RAW_H} ({:.1} MP)",
+                (ACTIVE_W * RAW_H) as f32 / 1_000_000.0
+            ),
+        ),
+        (
+            "Sensor Format".to_owned(),
+            "4-Color 4x4 CYGM (Linear sRGB)".to_owned(),
+        ),
+        ("Orientation".to_owned(), "Normal".to_owned()),
+    ];
+
+    Ok(crate::DecodedRaw {
+        metadata,
+        cfa_signed: rraw_core::SignedCfaBuffer::default(),
+        linear_rgb: Some(linear_rgb),
+        wb_coeffs: [1.0; 4],
+        color_matrix: Some(XYZ_TO_SRGB_D65),
+        exif_tags,
+        orientation: 1,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{

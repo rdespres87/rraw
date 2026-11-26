@@ -636,3 +636,28 @@ fn test_decode_sigma_polaroid_x3f_corpus() {
         }
     }
 }
+
+#[test]
+fn test_decode_canon_powershot_pro70_ciff_corpus() {
+    use rraw_decode::{PureRustRawDecoder, RawDecoder};
+    use std::path::Path;
+
+    let path =
+        Path::new("/Users/rdespres/Projets/raw-pixls-samples/Canon/Canon - PowerShot Pro70.CRW");
+    if !path.exists() {
+        return;
+    }
+    let decoder = PureRustRawDecoder::new();
+    let res = decoder.decode_file(path);
+    assert!(
+        res.is_ok(),
+        "Canon PowerShot Pro70 CIFF should decode cleanly: {:?}",
+        res.err()
+    );
+    if let Ok(decoded) = res {
+        assert!(decoded.is_linear_rgb());
+        assert_eq!(decoded.metadata.camera_model, "PowerShot Pro70");
+        assert_eq!(decoded.metadata.width, 1536);
+        assert_eq!(decoded.metadata.height, 1024);
+    }
+}
