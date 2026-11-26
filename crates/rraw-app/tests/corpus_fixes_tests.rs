@@ -355,3 +355,117 @@ fn test_decode_dng_fallback_blackmagic_moto_dji_corpus() {
         }
     }
 }
+
+#[test]
+fn test_decode_camera_aliases_monochrome_and_coolscan_corpus() {
+    use rraw_decode::{PureRustRawDecoder, RawDecoder};
+    use std::path::Path;
+
+    let decoder = PureRustRawDecoder::new();
+
+    // 1. Camera aliases / rebadges (authentic make & model preserved)
+    let alias_samples = [
+        (
+            "/Users/rdespres/Projets/raw-pixls-samples/Leica/Leica - D-LUX 6 - 16:9.RWL",
+            "LEICA",
+            "D-LUX 6",
+        ),
+        (
+            "/Users/rdespres/Projets/raw-pixls-samples/Minolta/Minolta - DiMAGE 5 - 4:3.MRW",
+            "Minolta Co., Ltd.",
+            "DiMAGE 5",
+        ),
+        (
+            "/Users/rdespres/Projets/raw-pixls-samples/Hasselblad/Hasselblad - CF132.3FR",
+            "Hasselblad",
+            " Flash Sync",
+        ),
+        (
+            "/Users/rdespres/Projets/raw-pixls-samples/Phase One/Phase One - P40+ - IIQ S (4:3).IIQ",
+            "Phase One A/S",
+            "P40+",
+        ),
+        (
+            "/Users/rdespres/Projets/photo_data/HASSELBLAD/Lunar/DSC00343.ARW",
+            "HASSELBLAD",
+            "Lunar",
+        ),
+        (
+            "/Users/rdespres/Projets/photo_data/SAMSUNG TECHWIN/GX-1L/SG1L5458.PEF",
+            "SAMSUNG TECHWIN",
+            "GX-1L",
+        ),
+    ];
+
+    for (sample, exp_make, exp_model) in alias_samples {
+        let path = Path::new(sample);
+        if !path.exists() {
+            continue;
+        }
+        let res = decoder.decode_file(path);
+        assert!(
+            res.is_ok(),
+            "Alias sample {} should decode cleanly: {:?}",
+            sample,
+            res.err()
+        );
+        if let Ok(decoded) = res {
+            assert_eq!(decoded.metadata.camera_make, exp_make);
+            assert_eq!(decoded.metadata.camera_model, exp_model);
+            assert!(decoded.metadata.width > 0 && decoded.metadata.height > 0);
+        }
+    }
+
+    // 2. True monochrome sensors (CFA-less -> neutral LinearRgbBuffer)
+    let mono_samples = [
+        "/Users/rdespres/Projets/photo_data/Leica/M Monochrom (Typ 246)/M2462362.DNG",
+        "/Users/rdespres/Projets/photo_data/PENTAX/K-3 Mark III Monochrome/K3III.PEF",
+    ];
+    for sample in mono_samples {
+        let path = Path::new(sample);
+        if !path.exists() {
+            continue;
+        }
+        let res = decoder.decode_file(path);
+        assert!(
+            res.is_ok(),
+            "Monochrome sample {} should decode cleanly: {:?}",
+            sample,
+            res.err()
+        );
+        if let Ok(decoded) = res {
+            assert!(decoded.is_linear_rgb());
+            if let Some(rgb) = &decoded.linear_rgb {
+                for px in rgb.samples().iter().take(64) {
+                    assert!(
+                        (px[0] - px[1]).abs() < 1e-6 && (px[1] - px[2]).abs() < 1e-6,
+                        "monochrome pixels must be strictly neutral gray"
+                    );
+                }
+            }
+        }
+    }
+
+    // 3. Uncompressed RGB TIFF scanners (Nikon COOLSCAN IV ED 8-bit & V ED 16-bit)
+    let coolscan_samples = [
+        "/Users/rdespres/Projets/raw-pixls-samples/Nikon/Nikon - Nikon COOLSCAN IV ED - uncompressed (4:3).nef",
+        "/Users/rdespres/Projets/raw-pixls-samples/Nikon/Nikon - Nikon COOLSCAN V ED - uncompressed (3:2).nef",
+    ];
+    for sample in coolscan_samples {
+        let path = Path::new(sample);
+        if !path.exists() {
+            continue;
+        }
+        let res = decoder.decode_file(path);
+        assert!(
+            res.is_ok(),
+            "Coolscan sample {} should decode cleanly: {:?}",
+            sample,
+            res.err()
+        );
+        if let Ok(decoded) = res {
+            assert!(decoded.is_linear_rgb());
+            assert!(decoded.metadata.width > 0 && decoded.metadata.height > 0);
+        }
+    }
+}

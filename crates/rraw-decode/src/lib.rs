@@ -7,6 +7,7 @@ use std::path::Path;
 use rraw_core::{CfaPattern, ColorLabel, CoreError, PhotoMetadata, PickStatus, SignedCfaBuffer};
 use thiserror::Error;
 
+pub mod camera_aliases;
 pub mod cfa;
 pub mod dng_fallback;
 pub mod exif;
@@ -134,26 +135,53 @@ impl PureRustRawDecoder {
 
 impl RawDecoder for PureRustRawDecoder {
     fn decode_file(&self, path: &Path) -> Result<DecodedRaw, DecodeError> {
-        let raw_image = match rawler::decode_file(path) {
-            Ok(img) => img,
+        let (raw_image, original_identity) = match rawler::decode_file(path) {
+            Ok(img) => (img, None),
             Err(primary_err) => {
-                if let Ok(fallback) = dng_fallback::try_decode_fallback(path) {
+                if let Some(aliased) = camera_aliases::try_decode_with_alias(path) {
+                    (
+                        aliased.raw_image,
+                        Some((aliased.original_make, aliased.original_model)),
+                    )
+                } else if let Ok(fallback) = dng_fallback::try_decode_fallback(path) {
                     return Ok(fallback);
+                } else {
+                    return Err(DecodeError::Io(format!(
+                        "failed to decode RAW file {}: {primary_err}",
+                        path.display()
+                    )));
                 }
-                return Err(DecodeError::Io(format!(
-                    "failed to decode RAW file {}: {primary_err}",
-                    path.display()
-                )));
             }
         };
 
-        match raw_image.cpp {
+        let mut decoded = match raw_image.cpp {
             1 => decode_single_plane_cfa(path, &raw_image),
             3 => decode_linear_rgb(path, &raw_image),
             cpp => Err(DecodeError::UnsupportedFormat(format!(
                 "unsupported component count cpp={cpp} (expected 1 for CFA or 3 for Linear RGB)"
             ))),
+        }?;
+
+        if let Some((orig_make, orig_model)) = original_identity {
+            if !orig_make.is_empty() {
+                decoded.metadata.camera_make = orig_make.clone();
+                for (k, v) in &mut decoded.exif_tags {
+                    if k == "Camera Make" {
+                        *v = orig_make.clone();
+                    }
+                }
+            }
+            if !orig_model.is_empty() {
+                decoded.metadata.camera_model = orig_model.clone();
+                for (k, v) in &mut decoded.exif_tags {
+                    if k == "Camera Model" {
+                        *v = orig_model.clone();
+                    }
+                }
+            }
         }
+
+        Ok(decoded)
     }
 }
 
@@ -202,6 +230,26 @@ fn decode_single_plane_cfa(
             [1.0; 4],
             Some(special_sensors::XYZ_TO_SRGB_D65),
             &format!("4-Color {} (Linear sRGB)", raw_cfa.name),
+        );
+    }
+
+    // True monochrome / CFA-less sensors (e.g., Leica M Monochrom, Pentax K-3 III Monochrome)
+    if resolved_cfa.is_none()
+        && (raw_cfa.width == 0
+            || raw_cfa.height == 0
+            || matches!(
+                raw_image.photometric,
+                rawler::rawimage::RawPhotometricInterpretation::BlackIsZero
+            ))
+    {
+        let linear_rgb = special_sensors::decode_monochrome_sensor_to_linear_rgb(raw_image)?;
+        return build_special_linear_rgb_decoded_raw(
+            path,
+            raw_image,
+            linear_rgb,
+            [1.0; 4],
+            Some(special_sensors::XYZ_TO_SRGB_D65),
+            "Monochrome Sensor (Linear RGB)",
         );
     }
 
@@ -296,7 +344,7 @@ fn decode_single_plane_cfa(
         )));
     }
 
-    let cfa_signed = match &raw_samples {
+    let mut cfa_signed = match &raw_samples {
         sensor::RawSamples::U16(samples) => {
             normalize_cfa_signed(samples.as_ref(), width, height, &metadata)?
         }
@@ -304,6 +352,17 @@ fn decode_single_plane_cfa(
             normalize_cfa_signed_f32(samples.as_ref(), width, height, &metadata)?
         }
     };
+    if matches!(metadata.cfa_pattern, CfaPattern::Bayer(_)) {
+        let fixes =
+            special_sensors::detect_isolated_bayer_hot_pixels(cfa_signed.samples(), width, height);
+        if !fixes.is_empty() {
+            let mut samples = cfa_signed.samples().to_vec();
+            for (idx, val) in fixes {
+                samples[idx] = val;
+            }
+            cfa_signed = SignedCfaBuffer::new(width, height, metadata.cfa_pattern, samples)?;
+        }
+    }
     metadata.noise_profile = estimate_noise_profile_wavelet_mad(&cfa_signed)?;
     exif_tags.push((
         "Orientation".to_owned(),

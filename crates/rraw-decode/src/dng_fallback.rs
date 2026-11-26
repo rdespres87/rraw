@@ -325,7 +325,9 @@ fn parse_ifd(data: &[u8], off: usize, e: Endian) -> Option<ParsedIfd> {
                 }
             }
             258 => {
-                if let Some(&v) = read_u32_list(data, e, typ, n.min(1), entry_off).first() {
+                // BitsPerSample has count=3 for RGB TIFFs (stored out-of-line when total_bytes > 4),
+                // so pass the real count (capped at 16) rather than 1 to preserve pointer dereferencing.
+                if let Some(&v) = read_u32_list(data, e, typ, n.min(16), entry_off).first() {
                     ifd.bps = v as u16;
                 }
             }
@@ -487,12 +489,33 @@ fn decode_dng_tiff(path: &Path, data: &[u8]) -> Result<DecodedRaw, DecodeError> 
 
     // Select primary full-resolution CFA or LinearRaw IFD
     let raw_ifd = candidates
-        .into_iter()
+        .iter()
         .filter(|c| c.width > 0 && c.height > 0 && matches!(c.photometric, 32803 | 34892))
         .max_by_key(|c| (c.new_subfile_type == 0, c.width.saturating_mul(c.height)))
-        .ok_or_else(|| {
-            DecodeError::UnsupportedFormat("no CFA or LinearRaw IFD found in DNG/TIFF".to_owned())
-        })?;
+        .cloned();
+
+    let Some(raw_ifd) = raw_ifd else {
+        // Fallback for uncompressed 8-bit / 16-bit interleaved RGB TIFF/NEF scanners
+        // (e.g., Nikon COOLSCAN IV/V ED).
+        if let Some(rgb_ifd) = candidates
+            .into_iter()
+            .filter(|c| {
+                c.width > 0
+                    && c.height > 0
+                    && c.photometric == 2
+                    && c.spp == 3
+                    && c.compression == 1
+                    && matches!(c.bps, 8 | 16)
+                    && !c.strip_offsets.is_empty()
+            })
+            .max_by_key(|c| c.width.saturating_mul(c.height))
+        {
+            return decode_uncompressed_rgb_tiff(path, data, &ifd0, &rgb_ifd, endian);
+        }
+        return Err(DecodeError::UnsupportedFormat(
+            "no CFA, LinearRaw, or uncompressed RGB IFD found in DNG/TIFF".to_owned(),
+        ));
+    };
 
     let cfa_pattern = raw_ifd
         .cfa_pattern
@@ -869,4 +892,155 @@ fn decode_dng_uncompressed_cfa(
     }
 
     Ok((effective_width, ifd.height, out))
+}
+
+fn decode_uncompressed_rgb_tiff(
+    path: &Path,
+    data: &[u8],
+    ifd0: &ParsedIfd,
+    rgb_ifd: &ParsedIfd,
+    endian: Endian,
+) -> Result<DecodedRaw, DecodeError> {
+    let width = rgb_ifd.width;
+    let height = rgb_ifd.height;
+    let pixel_count = width
+        .checked_mul(height)
+        .ok_or(CoreError::InvalidDimensions { width, height })?;
+    let bytes_per_sample = usize::from(rgb_ifd.bps / 8);
+    let expected_bytes = pixel_count
+        .checked_mul(3)
+        .and_then(|n| n.checked_mul(bytes_per_sample))
+        .ok_or(CoreError::InvalidDimensions { width, height })?;
+
+    let mut raw_bytes = Vec::with_capacity(expected_bytes);
+    for (&off, &len) in rgb_ifd
+        .strip_offsets
+        .iter()
+        .zip(rgb_ifd.strip_byte_counts.iter())
+    {
+        let end = off.checked_add(len).ok_or_else(|| {
+            DecodeError::MalformedMetadata("uncompressed RGB TIFF strip offset overflow".to_owned())
+        })?;
+        let slice = data.get(off..end).ok_or_else(|| {
+            DecodeError::MalformedMetadata("uncompressed RGB TIFF strip out of bounds".to_owned())
+        })?;
+        let remaining = expected_bytes.saturating_sub(raw_bytes.len());
+        if remaining == 0 {
+            break;
+        }
+        raw_bytes.extend_from_slice(&slice[..slice.len().min(remaining)]);
+    }
+    if raw_bytes.len() != expected_bytes {
+        return Err(CoreError::BufferLengthMismatch {
+            expected: expected_bytes,
+            actual: raw_bytes.len(),
+        }
+        .into());
+    }
+
+    let mut linear = Vec::with_capacity(pixel_count);
+    if rgb_ifd.bps == 8 {
+        for px in raw_bytes.as_chunks::<3>().0 {
+            linear.push([
+                srgb_u8_to_linear(px[0]),
+                srgb_u8_to_linear(px[1]),
+                srgb_u8_to_linear(px[2]),
+            ]);
+        }
+    } else {
+        let inv_max = 1.0_f32 / 65535.0_f32;
+        for px in raw_bytes.as_chunks::<6>().0 {
+            let (r, g, b) = match endian {
+                Endian::Little => (
+                    u16::from_le_bytes([px[0], px[1]]),
+                    u16::from_le_bytes([px[2], px[3]]),
+                    u16::from_le_bytes([px[4], px[5]]),
+                ),
+                Endian::Big => (
+                    u16::from_be_bytes([px[0], px[1]]),
+                    u16::from_be_bytes([px[2], px[3]]),
+                    u16::from_be_bytes([px[4], px[5]]),
+                ),
+            };
+            linear.push([
+                f32::from(r) * inv_max,
+                f32::from(g) * inv_max,
+                f32::from(b) * inv_max,
+            ]);
+        }
+    }
+
+    let linear_rgb = LinearRgbBuffer::new(width, height, linear)?;
+    let camera_make = ifd0
+        .make
+        .clone()
+        .or_else(|| rgb_ifd.make.clone())
+        .unwrap_or_default();
+    let camera_model = ifd0
+        .model
+        .clone()
+        .or_else(|| rgb_ifd.model.clone())
+        .unwrap_or_else(|| "TIFF RGB".to_owned());
+
+    let mut metadata = PhotoMetadata {
+        camera_make,
+        camera_model,
+        lens_model: None,
+        focal_length_mm: None,
+        aperture_f_number: None,
+        iso: None,
+        width,
+        height,
+        black_levels: [0.0; 4],
+        white_levels: [1.0; 4],
+        cfa_pattern: CfaPattern::Bayer(BayerOrigin::Rggb),
+        noise_profile: rraw_core::NoiseProfile::new(
+            [0.001; 3],
+            [0.0001; 3],
+            rraw_core::NoiseProfileSource::WaveletMadFallback,
+        )?,
+        vignette_handled_by_gainmap: false,
+        dng_warp_rectilinear: None,
+        rating: 0,
+        pick: PickStatus::Unflagged,
+        label: ColorLabel::None,
+        keywords: Vec::new(),
+    };
+
+    let mut orientation = ifd0
+        .orientation
+        .or(rgb_ifd.orientation)
+        .filter(|c| (1..=8).contains(c))
+        .unwrap_or(1);
+
+    let mut exif_tags = vec![
+        ("Camera Make".to_owned(), metadata.camera_make.clone()),
+        ("Camera Model".to_owned(), metadata.camera_model.clone()),
+        (
+            "Dimensions".to_owned(),
+            format!(
+                "{width} x {height} ({:.1} MP)",
+                (width * height) as f32 / 1_000_000.0
+            ),
+        ),
+        (
+            "Sensor Format".to_owned(),
+            format!("Uncompressed {}-bit RGB TIFF", rgb_ifd.bps),
+        ),
+    ];
+    exif::extract_dng_and_exif_metadata(path, &mut metadata, &mut orientation, &mut exif_tags);
+    exif_tags.push((
+        "Orientation".to_owned(),
+        exif::orientation_label(orientation).to_owned(),
+    ));
+
+    Ok(DecodedRaw {
+        metadata,
+        cfa_signed: SignedCfaBuffer::default(),
+        linear_rgb: Some(linear_rgb),
+        wb_coeffs: [1.0; 4],
+        color_matrix: Some(XYZ_TO_SRGB_D65),
+        exif_tags,
+        orientation,
+    })
 }
