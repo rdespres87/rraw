@@ -412,34 +412,40 @@ struct RowHist {
     hc: u32,
 }
 
+/// Parameters for creative vignette shaping.
+#[derive(Clone, Copy)]
+struct CreativeVignetteParams {
+    cx: f32,
+    cy: f32,
+    amount: f32,
+    midpoint: f32,
+    feather: f32,
+    roundness: f32,
+}
+
 /// Applies creative vignette attenuation/boost to a linear post-DRT pixel.
-#[allow(clippy::too_many_arguments)]
 fn apply_creative_vignette(
     rgb: &mut [f32; 3],
     px: usize,
     py: usize,
-    cx: f32,
-    cy: f32,
-    cv_amt: f32,
-    cv_mid: f32,
-    cv_feather: f32,
-    cv_round: f32,
+    params: CreativeVignetteParams,
 ) {
     let fx = px as f32;
     let fy = py as f32;
-    let u_rel = (fx - cx) / cx.max(1.0);
-    let v_rel = (fy - cy) / cy.max(1.0);
+    let u_rel = (fx - params.cx) / params.cx.max(1.0);
+    let v_rel = (fy - params.cy) / params.cy.max(1.0);
     let r_ellip = (u_rel * u_rel + v_rel * v_rel).sqrt();
-    let r_circ = ((fx - cx).powi(2) + (fy - cy).powi(2)).sqrt() / cx.min(cy).max(1.0);
+    let r_circ = ((fx - params.cx).powi(2) + (fy - params.cy).powi(2)).sqrt()
+        / params.cx.min(params.cy).max(1.0);
     let r_rect = u_rel.abs().max(v_rel.abs());
-    let r_dist = if cv_round > 0.0 {
-        r_ellip * (1.0 - cv_round) + r_circ * cv_round
+    let r_dist = if params.roundness > 0.0 {
+        r_ellip * (1.0 - params.roundness) + r_circ * params.roundness
     } else {
-        r_ellip * (1.0 + cv_round) + r_rect * (-cv_round)
+        r_ellip * (1.0 + params.roundness) + r_rect * (-params.roundness)
     };
-    let t = ((r_dist - cv_mid) / (cv_feather.max(0.05) * 1.2)).clamp(0.0, 1.0);
+    let t = ((r_dist - params.midpoint) / (params.feather.max(0.05) * 1.2)).clamp(0.0, 1.0);
     let smooth_t = t * t * (3.0 - 2.0 * t);
-    let cv_mult = (1.0 + cv_amt * smooth_t).max(0.0);
+    let cv_mult = (1.0 + params.amount * smooth_t).max(0.0);
     rgb[0] *= cv_mult;
     rgb[1] *= cv_mult;
     rgb[2] *= cv_mult;
@@ -616,7 +622,17 @@ fn finalize_post_drt_display(
 
                 if has_cv {
                     apply_creative_vignette(
-                        &mut rgb_s, px, py, cx, cy, cv_amt, cv_mid, cv_feather, cv_round,
+                        &mut rgb_s,
+                        px,
+                        py,
+                        CreativeVignetteParams {
+                            cx,
+                            cy,
+                            amount: cv_amt,
+                            midpoint: cv_mid,
+                            feather: cv_feather,
+                            roundness: cv_round,
+                        },
                     );
                 }
 

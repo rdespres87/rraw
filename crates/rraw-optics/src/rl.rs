@@ -279,3 +279,75 @@ pub fn execute_richardson_lucy(
 
     current
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rraw_core::{CoreError, NoiseProfileSource};
+
+    fn make_params(iterations: u32) -> Result<RichardsonLucyParams, CoreError> {
+        Ok(RichardsonLucyParams {
+            iterations,
+            base_psf_sigma: 1.0,
+            deringing_threshold: 0.05,
+            epsilon: 1e-6,
+            noise_profile: NoiseProfile::new(
+                [0.001; 3],
+                [0.0001; 3],
+                NoiseProfileSource::WaveletMadFallback,
+            )?,
+        })
+    }
+
+    #[test]
+    fn zero_dimensions_and_mismatch_return_input_unchanged() -> Result<(), CoreError> {
+        let image = vec![1.0f32, 2.0, 3.0, 4.0];
+        let p = make_params(3)?;
+        assert_eq!(execute_richardson_lucy(&image, 0, 2, &p), image);
+        assert_eq!(execute_richardson_lucy(&image, 2, 0, &p), image);
+        assert_eq!(execute_richardson_lucy(&image, 2, 2, &p), image);
+        Ok(())
+    }
+
+    #[test]
+    fn zero_iterations_clamps_non_finite_and_negative_values() -> Result<(), CoreError> {
+        let image = vec![
+            -1.0f32,
+            f32::NAN,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            2.5,
+            0.0,
+        ];
+        let p = make_params(0)?;
+        let out = execute_richardson_lucy(&image, 2, 1, &p);
+        assert_eq!(out, vec![0.0, 0.0, 0.0, 0.0, 2.5, 0.0]);
+        Ok(())
+    }
+
+    #[test]
+    fn multi_iteration_edge_impulse_is_finite_and_bounded() -> Result<(), CoreError> {
+        let w = 16usize;
+        let h = 16usize;
+        let mut image = vec![0.25f32; w * h * 3];
+        for y in 0..h {
+            for x in 0..(w / 2) {
+                let idx = (y * w + x) * 3;
+                image[idx] = 1.0;
+                image[idx + 1] = 1.0;
+                image[idx + 2] = 1.0;
+            }
+        }
+        let center = ((h / 2) * w + (w / 2)) * 3;
+        image[center] = 5.0;
+        image[center + 1] = 5.0;
+        image[center + 2] = 5.0;
+
+        let p = make_params(3)?;
+        let out = execute_richardson_lucy(&image, w as u32, h as u32, &p);
+
+        assert_eq!(out.len(), w * h * 3);
+        assert!(out.iter().all(|v| v.is_finite() && *v >= 0.0));
+        Ok(())
+    }
+}

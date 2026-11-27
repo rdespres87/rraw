@@ -15,5 +15,6 @@ pub mod inspector;
 pub mod presets;
 pub mod sections;
 pub mod shortcuts;
+pub mod timelapse_export;
 pub mod tone_curves;
 pub mod viewport;

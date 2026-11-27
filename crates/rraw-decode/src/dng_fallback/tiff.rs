@@ -295,33 +295,59 @@ pub(super) fn decode_dng_tiff(path: &Path, data: &[u8]) -> Result<DecodedRaw, De
     assemble_dng_raw(
         path,
         &cropped_samples,
-        width,
-        height,
-        cfa_pattern,
-        [black_levels, white_levels, wb_coeffs],
-        color_matrix,
-        camera_make,
-        camera_model,
-        raw_ifd.geometry.compression,
-        orientation,
+        DngImageParams {
+            width,
+            height,
+            cfa_pattern,
+            levels_and_wb: [black_levels, white_levels, wb_coeffs],
+            color_matrix,
+        },
+        DngAssemblyMeta {
+            camera_make,
+            camera_model,
+            compression: raw_ifd.geometry.compression,
+            orientation,
+        },
     )
 }
 
-/// Assembles `PhotoMetadata`, normalizes CFA samples, estimates noise, and returns `DecodedRaw`.
-#[allow(clippy::too_many_arguments)]
-fn assemble_dng_raw(
-    path: &Path,
-    cropped_samples: &[u16],
+/// Image geometry, CFA, and colorimetric parameters for DNG assembly.
+struct DngImageParams {
     width: usize,
     height: usize,
     cfa_pattern: CfaPattern,
     levels_and_wb: [[f32; 4]; 3],
     color_matrix: Option<[f32; 9]>,
+}
+
+/// Camera and file-level metadata for DNG assembly.
+struct DngAssemblyMeta {
     camera_make: String,
     camera_model: String,
     compression: u16,
-    mut orientation: u16,
+    orientation: u16,
+}
+
+/// Assembles `PhotoMetadata`, normalizes CFA samples, estimates noise, and returns `DecodedRaw`.
+fn assemble_dng_raw(
+    path: &Path,
+    cropped_samples: &[u16],
+    params: DngImageParams,
+    meta: DngAssemblyMeta,
 ) -> Result<DecodedRaw, DecodeError> {
+    let DngImageParams {
+        width,
+        height,
+        cfa_pattern,
+        levels_and_wb,
+        color_matrix,
+    } = params;
+    let DngAssemblyMeta {
+        camera_make,
+        camera_model,
+        compression,
+        mut orientation,
+    } = meta;
     let [black_levels, white_levels, wb_coeffs] = levels_and_wb;
     let mut metadata = PhotoMetadata {
         camera_make,

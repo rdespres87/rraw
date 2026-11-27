@@ -700,3 +700,84 @@ impl ColorToneRecipeClipboard {
         stage5.tone_curves = self.tone_curves.clone();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_recipe_round_trips_canonical_json() -> Result<(), CoreError> {
+        let recipe = Recipe::default();
+        let json = recipe.to_canonical_json()?;
+        let parsed = Recipe::from_canonical_json(&json)?;
+        assert_eq!(recipe.to_canonical_json()?, parsed.to_canonical_json()?);
+        Ok(())
+    }
+
+    #[test]
+    fn from_canonical_json_rejects_bad_version_and_syntax() {
+        let bad_ver = format!(r#"{{"schema_version":{}}}"#, CURRENT_SCHEMA_VERSION + 1);
+        let mut full_bad = Recipe::default()
+            .to_canonical_json()
+            .unwrap_or_default()
+            .replace(
+                &format!(r#""schema_version": {}"#, CURRENT_SCHEMA_VERSION),
+                &format!(r#""schema_version": {}"#, CURRENT_SCHEMA_VERSION + 1),
+            );
+        if full_bad.is_empty() {
+            full_bad = bad_ver;
+        }
+        assert!(matches!(
+            Recipe::from_canonical_json(&full_bad),
+            Err(CoreError::UnsupportedSchemaVersion { .. })
+        ));
+        assert!(matches!(
+            Recipe::from_canonical_json("not valid json {{{"),
+            Err(CoreError::DeserializationError(_))
+        ));
+    }
+
+    #[test]
+    fn stage_hashes_are_deterministic_and_hex_round_trips() -> Result<(), CoreError> {
+        let a = Recipe::default();
+        let b = Recipe::default();
+        assert_eq!(a.hash_l0("src"), b.hash_l0("src"));
+        assert_eq!(a.hash_l1("src"), b.hash_l1("src"));
+        assert_eq!(a.hash_l2(), b.hash_l2());
+        assert_eq!(a.hash_display("src", 1.0), b.hash_display("src", 1.0));
+        assert_ne!(a.hash_l0("src_a"), a.hash_l0("src_b"));
+
+        let hex = a.hash_l0("src").to_hex();
+        assert_eq!(StageHash::from_hex(&hex)?, a.hash_l0("src"));
+        assert!(StageHash::from_hex("bad").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn clipboard_transfers_only_color_tone_fields() {
+        let src = Stage5GradingParams {
+            exposure_ev: 1.5,
+            contrast: -0.3,
+            highlights: 0.7,
+            shadows: -0.2,
+            whites: 0.1,
+            blacks: -0.1,
+            saturation: 1.2,
+            vibrance: 0.8,
+            ..Default::default()
+        };
+
+        let clip = ColorToneRecipeClipboard::from_stage5(&src);
+        let mut dst = Stage5GradingParams::default();
+        clip.apply_to_stage5(&mut dst);
+
+        assert_eq!(dst.exposure_ev, 1.5);
+        assert_eq!(dst.contrast, -0.3);
+        assert_eq!(dst.highlights, 0.7);
+        assert_eq!(dst.shadows, -0.2);
+        assert_eq!(dst.whites, 0.1);
+        assert_eq!(dst.blacks, -0.1);
+        assert_eq!(dst.saturation, 1.2);
+        assert_eq!(dst.vibrance, 0.8);
+    }
+}
