@@ -908,4 +908,98 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn from_xml_str_handles_empty_missing_model_and_malformed_xml() -> Result<(), LensfunError> {
+        let empty = LensfunDatabase::from_xml_str("<lensdatabase/>")?;
+        assert!(empty.is_empty());
+
+        let no_model = LensfunDatabase::from_xml_str(
+            "<lensdatabase><lens><maker>NoModel</maker><mount>EF</mount><cropfactor>1.6</cropfactor></lens></lensdatabase>",
+        )?;
+        assert_eq!(no_model.len(), 1);
+        assert!(no_model.lenses()[0].model.is_empty());
+
+        let malformed = LensfunDatabase::from_xml_str("<lensdatabase><lens></lensdatabase>");
+        assert!(malformed.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn interpolate_single_point_and_exact_boundaries() -> Result<(), LensfunError> {
+        let single_xml = r#"<lensdatabase><lens>
+            <maker>T</maker><model>Single</model>
+            <calibration>
+                <distortion model="poly3" focal="35" k1="-0.02" />
+                <tca model="linear" focal="35" kr="1.001" kb="0.999" />
+                <vignetting model="pa" focal="35" aperture="2.8" k1="-0.3" />
+            </calibration>
+        </lens></lensdatabase>"#;
+        let db = LensfunDatabase::from_xml_str(single_xml)?;
+        let lens = db.find_lens("Single").ok_or_else(|| {
+            LensfunError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "missing lens",
+            ))
+        })?;
+        let m_low = db.interpolate_model(lens, 10.0, None);
+        let m_high = db.interpolate_model(lens, 200.0, Some(11.0));
+        assert_eq!(m_low.distortion, m_high.distortion);
+        assert_eq!(m_low.lateral_ca, m_high.lateral_ca);
+        assert_eq!(m_low.vignette, m_high.vignette);
+
+        let two_xml = r#"<lensdatabase><lens>
+            <maker>T</maker><model>Two</model>
+            <calibration>
+                <distortion model="poly5" focal="20" k1="-0.04" k2="0.0" />
+                <distortion model="poly5" focal="60" k1="-0.02" k2="0.0" />
+                <tca model="linear" focal="20" kr="1.002" kb="0.998" />
+                <tca model="linear" focal="60" kr="1.000" kb="1.000" />
+            </calibration>
+        </lens></lensdatabase>"#;
+        let db2 = LensfunDatabase::from_xml_str(two_xml)?;
+        let lens2 = db2.find_lens("Two").ok_or_else(|| {
+            LensfunError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "missing lens",
+            ))
+        })?;
+        let m_mid = db2.interpolate_model(lens2, 40.0, None);
+        assert!((m_mid.distortion.k1 - (-0.03)).abs() < 1e-5);
+        assert!((m_mid.lateral_ca.scale_r - 1.001).abs() < 1e-5);
+        Ok(())
+    }
+
+    #[test]
+    fn search_lenses_respects_limit_and_case_insensitivity() -> Result<(), LensfunError> {
+        let xml = r#"<lensdatabase>
+            <lens><maker>Canon</maker><model>EF 50mm</model><calibration/></lens>
+            <lens><maker>Canon</maker><model>EF 85mm</model><calibration/></lens>
+            <lens><maker>Nikon</maker><model>AF 50mm</model><calibration/></lens>
+        </lensdatabase>"#;
+        let db = LensfunDatabase::from_xml_str(xml)?;
+        assert!(db.search_lenses("canon", 1).len() <= 1);
+        assert_eq!(db.search_lenses("CANON", 10).len(), 2);
+        assert!(db.search_lenses("nonexistent_xyz", 5).is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn match_metadata_prefers_curated_and_handles_missing_lens() {
+        let db = LensfunDatabase::new();
+        let meta_none = sample_metadata();
+        let fallback = db.match_metadata(&meta_none);
+        assert!(!fallback.is_exact_match);
+
+        let curated_name = "Sony FE 24-70mm F2.8 GM";
+        let meta_curated = PhotoMetadata {
+            lens_model: Some(curated_name.to_owned()),
+            focal_length_mm: Some(50.0),
+            aperture_f_number: Some(2.8),
+            ..sample_metadata()
+        };
+        let matched = db.match_metadata(&meta_curated);
+        assert!(matched.is_exact_match);
+        assert_eq!(matched.profile_name, curated_name);
+    }
 }
