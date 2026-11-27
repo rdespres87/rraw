@@ -93,6 +93,109 @@ pub struct FramePrecomputedBuffers {
     pub brush_grids: Vec<Option<PrecomputedBrushGrid>>,
 }
 
+/// Single-slot thread-local cache for `LensfunDatabase::find_lens` + `interpolate_model`
+/// results, keyed by `(override_name, focal_bits, aperture_bits)`.
+struct CachedLensOverride {
+    override_name: String,
+    focal_bits: u32,
+    aperture_bits: Option<u32>,
+    kv: Option<(f32, f32)>,
+}
+
+thread_local! {
+    static LENS_OVERRIDE_CACHE: std::cell::RefCell<Option<CachedLensOverride>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Resolves `(distortion_k1, vignette_v1)` for a named lens override without
+/// allocating a `MatchedLens` or re-scanning `LensfunDatabase` on repeated frames.
+fn resolve_lens_override_kv(
+    override_name: &str,
+    focal: f32,
+    aperture: Option<f32>,
+) -> Option<(f32, f32)> {
+    let focal_bits = focal.to_bits();
+    let aperture_bits = aperture.map(f32::to_bits);
+
+    let hit = LENS_OVERRIDE_CACHE.with_borrow(|c| {
+        c.as_ref()
+            .filter(|e| {
+                e.override_name == override_name
+                    && e.focal_bits == focal_bits
+                    && e.aperture_bits == aperture_bits
+            })
+            .map(|e| e.kv)
+    });
+    if let Some(kv) = hit {
+        return kv;
+    }
+
+    let db = rraw_optics::LensfunDatabase::global();
+    let kv = db.find_lens(override_name).map(|lens| {
+        let model = db.interpolate_model(lens, focal, aperture);
+        (model.distortion.k1, model.vignette.v1)
+    });
+
+    let entry = CachedLensOverride {
+        override_name: override_name.to_string(),
+        focal_bits,
+        aperture_bits,
+        kv,
+    };
+    LENS_OVERRIDE_CACHE.with_borrow_mut(|c| *c = Some(entry));
+    kv
+}
+
+/// Computes effective `(k_dist, v_gain)` for the current frame without cloning `MatchedLens`.
+fn resolve_optical_distortion_and_vignette(
+    base: &BaseRgbPreview,
+    grading: &DarkroomGradingState,
+) -> (f32, f32) {
+    match grading.optics.optical_tab {
+        OpticalCorrectionTab::Profile => {
+            if !grading.optics.lens_profile_auto {
+                return (0.0, 0.0);
+            }
+            let base_kv = if let Some(override_name) = &grading.optics.lens_profile_override {
+                resolve_lens_override_kv(
+                    override_name,
+                    base.focal_length_mm.unwrap_or(50.0),
+                    base.aperture_f_number,
+                )
+                .or_else(|| {
+                    base.matched_lens
+                        .as_ref()
+                        .map(|m| (m.model.distortion.k1, m.model.vignette.v1))
+                })
+            } else {
+                base.matched_lens
+                    .as_ref()
+                    .map(|m| (m.model.distortion.k1, m.model.vignette.v1))
+            };
+            if let Some((k1, v1)) = base_kv {
+                let dist_scale = (grading.optics.lens_distortion_strength / 100.0).max(0.0);
+                let vig_scale = (grading.optics.lens_vignette_strength / 100.0).max(0.0);
+                (k1 * dist_scale, v1 * vig_scale)
+            } else {
+                (0.0, 0.0)
+            }
+        }
+        OpticalCorrectionTab::Manual => {
+            let kd = if grading.optics.distortion_correction {
+                (grading.optics.distortion_amount / 100.0) * 0.15
+            } else {
+                0.0
+            };
+            let vg = if grading.optics.vignette_correction {
+                (grading.optics.vignette_amount / 100.0) * 0.65
+            } else {
+                0.0
+            };
+            (kd, vg)
+        }
+    }
+}
+
 /// Shared precomputed frame state for per-pixel evaluation across both interactive preview and export.
 ///
 /// Guarantees 100% mathematical parity between `render_preview_from_base_profiled` and
@@ -132,54 +235,7 @@ impl<'a> PreparedGradingFrame<'a> {
         let cy = preview_h as f32 * 0.5;
         let max_radius_sq = (cx * cx + cy * cy).max(1.0);
 
-        let (k_dist, v_gain) = match grading.optics.optical_tab {
-            OpticalCorrectionTab::Profile => {
-                let active_matched =
-                    if let Some(override_name) = &grading.optics.lens_profile_override {
-                        let db = rraw_optics::LensfunDatabase::global();
-                        let focal = base.focal_length_mm.unwrap_or(50.0);
-                        let aperture = base.aperture_f_number;
-                        db.find_lens(override_name)
-                            .map(|lens| rraw_optics::MatchedLens {
-                                profile_name: format!("{} {}", lens.maker, lens.model),
-                                maker: lens.maker.clone(),
-                                model: db.interpolate_model(lens, focal, aperture),
-                                is_exact_match: true,
-                            })
-                            .or_else(|| base.matched_lens.clone())
-                    } else {
-                        base.matched_lens.clone()
-                    };
-
-                if let Some(matched) = &active_matched {
-                    if grading.optics.lens_profile_auto {
-                        let dist_scale = (grading.optics.lens_distortion_strength / 100.0).max(0.0);
-                        let vig_scale = (grading.optics.lens_vignette_strength / 100.0).max(0.0);
-                        (
-                            matched.model.distortion.k1 * dist_scale,
-                            matched.model.vignette.v1 * vig_scale,
-                        )
-                    } else {
-                        (0.0, 0.0)
-                    }
-                } else {
-                    (0.0, 0.0)
-                }
-            }
-            OpticalCorrectionTab::Manual => {
-                let kd = if grading.optics.distortion_correction {
-                    (grading.optics.distortion_amount / 100.0) * 0.15
-                } else {
-                    0.0
-                };
-                let vg = if grading.optics.vignette_correction {
-                    (grading.optics.vignette_amount / 100.0) * 0.65
-                } else {
-                    0.0
-                };
-                (kd, vg)
-            }
-        };
+        let (k_dist, v_gain) = resolve_optical_distortion_and_vignette(base, grading);
 
         let rot_deg = grading.geometry.rotation_degrees;
         let rot_rad = rot_deg.to_radians();
@@ -955,5 +1011,102 @@ fn apply_ane_neural_denoise_rgb(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rraw_optics::{MatchedLens, OpticalCorrectionModel};
+
+    fn make_matched_lens(k1: f32, v1: f32) -> MatchedLens {
+        let mut model = OpticalCorrectionModel::default();
+        model.distortion.k1 = k1;
+        model.vignette.v1 = v1;
+        MatchedLens {
+            profile_name: "Test Lens".to_string(),
+            maker: "TestMaker".to_string(),
+            model,
+            is_exact_match: true,
+        }
+    }
+
+    fn make_test_base(
+        matched_lens: Option<MatchedLens>,
+    ) -> Result<BaseRgbPreview, rraw_core::CoreError> {
+        let cfa = rraw_core::SignedCfaBuffer::new(
+            2,
+            2,
+            rraw_core::CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb),
+            vec![0.0; 4],
+        )?;
+        let mut base = BaseRgbPreview::from_cfa(&cfa);
+        base.matched_lens = matched_lens;
+        base.focal_length_mm = Some(50.0);
+        base.aperture_f_number = Some(2.8);
+        Ok(base)
+    }
+
+    #[test]
+    fn profile_auto_disabled_returns_zero() -> Result<(), rraw_core::CoreError> {
+        let base = make_test_base(Some(make_matched_lens(0.12, -0.35)))?;
+        let mut grading = DarkroomGradingState::default();
+        grading.optics.optical_tab = OpticalCorrectionTab::Profile;
+        grading.optics.lens_profile_auto = false;
+        assert_eq!(
+            resolve_optical_distortion_and_vignette(&base, &grading),
+            (0.0, 0.0)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn profile_matched_lens_applies_scaled_distortion_and_vignette(
+    ) -> Result<(), rraw_core::CoreError> {
+        let base = make_test_base(Some(make_matched_lens(0.10, -0.40)))?;
+        let mut grading = DarkroomGradingState::default();
+        grading.optics.optical_tab = OpticalCorrectionTab::Profile;
+        grading.optics.lens_profile_auto = true;
+        grading.optics.lens_distortion_strength = 50.0;
+        grading.optics.lens_vignette_strength = 75.0;
+        let (k_dist, v_gain) = resolve_optical_distortion_and_vignette(&base, &grading);
+        assert!((k_dist - 0.05).abs() < 1e-6);
+        assert!((v_gain - (-0.30)).abs() < 1e-6);
+        Ok(())
+    }
+
+    #[test]
+    fn profile_unknown_override_falls_back_to_matched_lens_and_caches_miss(
+    ) -> Result<(), rraw_core::CoreError> {
+        let base = make_test_base(Some(make_matched_lens(0.20, 0.40)))?;
+        let mut grading = DarkroomGradingState::default();
+        grading.optics.optical_tab = OpticalCorrectionTab::Profile;
+        grading.optics.lens_profile_auto = true;
+        grading.optics.lens_distortion_strength = 100.0;
+        grading.optics.lens_vignette_strength = 100.0;
+        grading.optics.lens_profile_override = Some("Nonexistent Lens 999mm".to_string());
+
+        let first = resolve_optical_distortion_and_vignette(&base, &grading);
+        let second = resolve_optical_distortion_and_vignette(&base, &grading);
+        assert!((first.0 - 0.20).abs() < 1e-6);
+        assert!((first.1 - 0.40).abs() < 1e-6);
+        assert_eq!(first, second);
+        Ok(())
+    }
+
+    #[test]
+    fn manual_tab_applies_scaled_distortion_and_vignette() -> Result<(), rraw_core::CoreError> {
+        let base = make_test_base(None)?;
+        let mut grading = DarkroomGradingState::default();
+        grading.optics.optical_tab = OpticalCorrectionTab::Manual;
+        grading.optics.distortion_correction = true;
+        grading.optics.distortion_amount = 50.0;
+        grading.optics.vignette_correction = true;
+        grading.optics.vignette_amount = -40.0;
+
+        let (k_dist, v_gain) = resolve_optical_distortion_and_vignette(&base, &grading);
+        assert!((k_dist - 0.075).abs() < 1e-6);
+        assert!((v_gain - (-0.26)).abs() < 1e-6);
+        Ok(())
     }
 }
