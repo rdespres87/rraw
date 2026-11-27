@@ -30,15 +30,8 @@ pub struct FusedPreviewOutput {
     pub has_clipping: bool,
 }
 
-/// Executes optional Stage 5 (curves / 3D CLUT), optional Stage 6 (local & AI semantic masks),
-/// and Stage 7 (AgX DRT & scopes) in one GPU command submission with zero intermediate readbacks.
-pub fn execute_stages5_to_7_fused(
-    ctx: &GpuContext,
-    stage5: &Stage5Pipeline,
-    stage6: &Stage6Pipeline,
-    stage7: &Stage7Pipeline,
-    req: &FusedPreviewRequest<'_>,
-) -> Result<FusedPreviewOutput, GpuError> {
+/// Validates fused preview buffer lengths and stage dimension consistency.
+fn validate_fused_request(req: &FusedPreviewRequest<'_>) -> Result<usize, GpuError> {
     let count = (req.stage7.width as usize)
         .checked_mul(req.stage7.height as usize)
         .and_then(|px| px.checked_mul(3))
@@ -50,13 +43,6 @@ pub fn execute_stages5_to_7_fused(
         return Err(GpuError::BufferLengthMismatch {
             expected: count,
             actual: req.linear_rgb.len(),
-        });
-    }
-    if count == 0 {
-        return Ok(FusedPreviewOutput {
-            drt_rgb: Vec::new(),
-            histogram_lum: vec![0_u32; 256],
-            has_clipping: false,
         });
     }
     if let Some(s5) = req.stage5 {
@@ -78,6 +64,99 @@ pub fn execute_stages5_to_7_fused(
                     .saturating_mul(3),
             });
         }
+    }
+    Ok(count)
+}
+
+/// Maps all three staging buffers in one device poll and copies out the final results.
+fn map_and_readback_fused(
+    ctx: &GpuContext,
+    staging_output: &wgpu::Buffer,
+    staging_hist: &wgpu::Buffer,
+    staging_clip: &wgpu::Buffer,
+) -> Result<FusedPreviewOutput, GpuError> {
+    let out_slice = staging_output.slice(..);
+    let hist_slice = staging_hist.slice(..);
+    let clip_slice = staging_clip.slice(..);
+
+    let (tx_out, rx_out) = mpsc::channel();
+    let (tx_hist, rx_hist) = mpsc::channel();
+    let (tx_clip, rx_clip) = mpsc::channel();
+
+    out_slice.map_async(wgpu::MapMode::Read, move |res| {
+        let _ = tx_out.send(res);
+    });
+    hist_slice.map_async(wgpu::MapMode::Read, move |res| {
+        let _ = tx_hist.send(res);
+    });
+    clip_slice.map_async(wgpu::MapMode::Read, move |res| {
+        let _ = tx_clip.send(res);
+    });
+
+    let _ = ctx.device().poll(wgpu::PollType::Wait {
+        submission_index: None,
+        timeout: None,
+    });
+
+    rx_out
+        .recv()
+        .map_err(|e| GpuError::BufferMapFailed(e.to_string()))?
+        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
+    rx_hist
+        .recv()
+        .map_err(|e| GpuError::BufferMapFailed(e.to_string()))?
+        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
+    rx_clip
+        .recv()
+        .map_err(|e| GpuError::BufferMapFailed(e.to_string()))?
+        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
+
+    let out_mapped = out_slice
+        .get_mapped_range()
+        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
+    let hist_mapped = hist_slice
+        .get_mapped_range()
+        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
+    let clip_mapped = clip_slice
+        .get_mapped_range()
+        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
+
+    let drt_rgb: Vec<f32> = bytemuck::cast_slice(&out_mapped).to_vec();
+    let histogram_lum: Vec<u32> = bytemuck::cast_slice(&hist_mapped).to_vec();
+    let clip_vals: &[u32] = bytemuck::cast_slice(&clip_mapped);
+    let has_clipping = clip_vals.first().is_some_and(|&v| v > 0);
+
+    drop(out_mapped);
+    drop(hist_mapped);
+    drop(clip_mapped);
+
+    staging_output.unmap();
+    staging_hist.unmap();
+    staging_clip.unmap();
+
+    Ok(FusedPreviewOutput {
+        drt_rgb,
+        histogram_lum,
+        has_clipping,
+    })
+}
+
+/// Executes optional Stage 5 (curves / 3D CLUT), optional Stage 6 (local & AI semantic masks),
+/// and Stage 7 (AgX DRT & scopes) in one GPU command submission with zero intermediate readbacks.
+pub fn execute_stages5_to_7_fused(
+    ctx: &GpuContext,
+    stage5: &Stage5Pipeline,
+    stage6: &Stage6Pipeline,
+    stage7: &Stage7Pipeline,
+    req: &FusedPreviewRequest<'_>,
+) -> Result<FusedPreviewOutput, GpuError> {
+    let count = validate_fused_request(req)?;
+    if count == 0 {
+        return Ok(FusedPreviewOutput {
+            drt_rgb: Vec::new(),
+            histogram_lum: vec![0_u32; 256],
+            has_clipping: false,
+        });
     }
 
     let pixel_bytes = count
@@ -199,70 +278,7 @@ pub fn execute_stages5_to_7_fused(
 
     ctx.queue().submit(Some(encoder.finish()));
 
-    let out_slice = staging_output.slice(..);
-    let hist_slice = staging_hist.slice(..);
-    let clip_slice = staging_clip.slice(..);
-
-    let (tx_out, rx_out) = mpsc::channel();
-    let (tx_hist, rx_hist) = mpsc::channel();
-    let (tx_clip, rx_clip) = mpsc::channel();
-
-    out_slice.map_async(wgpu::MapMode::Read, move |res| {
-        let _ = tx_out.send(res);
-    });
-    hist_slice.map_async(wgpu::MapMode::Read, move |res| {
-        let _ = tx_hist.send(res);
-    });
-    clip_slice.map_async(wgpu::MapMode::Read, move |res| {
-        let _ = tx_clip.send(res);
-    });
-
-    let _ = ctx.device().poll(wgpu::PollType::Wait {
-        submission_index: None,
-        timeout: None,
-    });
-
-    rx_out
-        .recv()
-        .map_err(|e| GpuError::BufferMapFailed(e.to_string()))?
-        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
-    rx_hist
-        .recv()
-        .map_err(|e| GpuError::BufferMapFailed(e.to_string()))?
-        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
-    rx_clip
-        .recv()
-        .map_err(|e| GpuError::BufferMapFailed(e.to_string()))?
-        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
-
-    let out_mapped = out_slice
-        .get_mapped_range()
-        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
-    let hist_mapped = hist_slice
-        .get_mapped_range()
-        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
-    let clip_mapped = clip_slice
-        .get_mapped_range()
-        .map_err(|e| GpuError::BufferMapFailed(format!("{e:?}")))?;
-
-    let drt_rgb: Vec<f32> = bytemuck::cast_slice(&out_mapped).to_vec();
-    let histogram_lum: Vec<u32> = bytemuck::cast_slice(&hist_mapped).to_vec();
-    let clip_vals: &[u32] = bytemuck::cast_slice(&clip_mapped);
-    let has_clipping = clip_vals.first().is_some_and(|&v| v > 0);
-
-    drop(out_mapped);
-    drop(hist_mapped);
-    drop(clip_mapped);
-
-    staging_output.unmap();
-    staging_hist.unmap();
-    staging_clip.unmap();
-
-    Ok(FusedPreviewOutput {
-        drt_rgb,
-        histogram_lum,
-        has_clipping,
-    })
+    map_and_readback_fused(ctx, &staging_output, &staging_hist, &staging_clip)
 }
 
 #[cfg(test)]

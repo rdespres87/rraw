@@ -304,3 +304,87 @@ fn test_stage3_gpu_rl_execution() {
         assert!(v >= 0.0, "Pixel {i} must be non-negative (got {v})");
     }
 }
+
+#[test]
+fn test_rl_edge_cases_zero_dims_mismatch_and_zero_iterations() {
+    let Ok(noise_profile) =
+        NoiseProfile::new([0.001; 3], [0.001; 3], NoiseProfileSource::CameraTable)
+    else {
+        return;
+    };
+    let img = vec![0.5_f32; 48];
+    let params_iter1 = RichardsonLucyParams {
+        iterations: 1,
+        epsilon: 1e-6,
+        base_psf_sigma: 1.0,
+        deringing_threshold: 0.05,
+        noise_profile,
+    };
+    assert_eq!(execute_richardson_lucy(&img, 0, 4, &params_iter1), img);
+    assert_eq!(execute_richardson_lucy(&img, 3, 4, &params_iter1), img);
+
+    let vals = vec![
+        f32::NAN,
+        f32::INFINITY,
+        -0.5,
+        0.5,
+        1.0,
+        0.3,
+        0.7,
+        0.1,
+        0.9,
+        0.2,
+        0.8,
+        0.4,
+        0.6,
+        0.0,
+        -1.0,
+    ];
+    let params_iter0 = RichardsonLucyParams {
+        iterations: 0,
+        epsilon: 1e-6,
+        base_psf_sigma: 1.0,
+        deringing_threshold: 0.05,
+        noise_profile,
+    };
+    let out = execute_richardson_lucy(&vals, 5, 1, &params_iter0);
+    assert_eq!(out[0], 0.0);
+    assert_eq!(out[1], 0.0);
+    assert_eq!(out[2], 0.0);
+    assert_eq!(out[3], 0.5);
+    assert_eq!(out[4], 1.0);
+    assert_eq!(out[13], 0.0);
+    assert_eq!(out[14], 0.0);
+}
+
+#[test]
+fn test_rl_moderate_gradient_smoothstep_regularization() {
+    let Ok(noise_profile) =
+        NoiseProfile::new([0.0005; 3], [0.0002; 3], NoiseProfileSource::CameraTable)
+    else {
+        return;
+    };
+    let (w, h) = (16_u32, 16_u32);
+    let mut img = vec![0.0_f32; (w * h * 3) as usize];
+    for y in 0..h {
+        for x in 0..w {
+            let v = 0.2 + 0.15 * (x as f32 / (w - 1) as f32);
+            let i = ((y * w + x) * 3) as usize;
+            img[i] = v;
+            img[i + 1] = v;
+            img[i + 2] = v;
+        }
+    }
+    let params = RichardsonLucyParams {
+        iterations: 2,
+        epsilon: 1e-6,
+        base_psf_sigma: 1.0,
+        deringing_threshold: 0.05,
+        noise_profile,
+    };
+    let out = execute_richardson_lucy(&img, w, h, &params);
+    assert_eq!(out.len(), img.len());
+    for &v in &out {
+        assert!(v.is_finite() && v >= 0.0);
+    }
+}

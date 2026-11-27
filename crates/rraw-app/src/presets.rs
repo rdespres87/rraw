@@ -169,6 +169,7 @@ impl GradingPreset {
         }
     }
 
+    /// Applies this preset's grading parameters to `grading`.
     pub fn apply(self, grading: &mut DarkroomGradingState) {
         grading.preset = self;
         grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();
@@ -181,6 +182,30 @@ impl GradingPreset {
                 *grading = DarkroomGradingState::default();
                 grading.preset = p;
             }
+            Self::Custom => {}
+            Self::DaylightPunch
+            | Self::PortraitSoft
+            | Self::CinematicAgX
+            | Self::MonochromeFineArt
+            | Self::LandscapeVivid
+            | Self::GoldenHourWarmth
+            | Self::MoodyMatte
+            | Self::HighKeyAiry
+            | Self::StreetContrastBW
+            | Self::VintageFilm
+            | Self::NightAstro => self.apply_standard_preset(grading),
+            Self::FujiClassicChrome
+            | Self::KodakPortra400
+            | Self::FujiVelvia50
+            | Self::KodakTriX400
+            | Self::IlfordHp5
+            | Self::SepiaVintage => self.apply_film_preset(grading),
+        }
+    }
+
+    /// Applies standard tonal, color, and monochrome look presets.
+    fn apply_standard_preset(self, grading: &mut DarkroomGradingState) {
+        match self {
             Self::DaylightPunch => {
                 grading.tone.exposure_ev = 0.3;
                 grading.tone.contrast = 15.0;
@@ -315,6 +340,13 @@ impl GradingPreset {
                 grading.optics.vignette_correction = true;
                 grading.color.is_monochrome = false;
             }
+            _ => {}
+        }
+    }
+
+    /// Applies film-emulation presets with custom tone curves.
+    fn apply_film_preset(self, grading: &mut DarkroomGradingState) {
+        match self {
             Self::FujiClassicChrome => {
                 grading.tone.exposure_ev = 0.0;
                 grading.tone.contrast = 14.0;
@@ -419,7 +451,7 @@ impl GradingPreset {
                 grading.tone_curves.blue =
                     curve_from_points(&[(0.0, 0.01), (0.50, 0.44), (1.0, 0.92)]);
             }
-            Self::Custom => {}
+            _ => {}
         }
     }
 

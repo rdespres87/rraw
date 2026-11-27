@@ -610,3 +610,13 @@ fn test_stage_hash_display_recipe_id_and_smart_lighting_is_active(
     assert!(custom_half.is_active());
     Ok(())
 }
+
+#[test]
+fn test_stage_hash_from_hex_and_recipe_json_error_paths() {
+    use rraw_core::recipe::{Recipe, StageHash};
+
+    assert!(StageHash::from_hex("abcd").is_err());
+    let non_hex = "z".repeat(64);
+    assert!(StageHash::from_hex(&non_hex).is_err());
+    assert!(Recipe::from_canonical_json("{not valid json").is_err());
+}

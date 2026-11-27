@@ -403,6 +403,118 @@ fn build_interleaved_semantic_rgba(sem: &rraw_ai::SemanticMaskSet) -> Option<(Ve
     Some((rgba, sw, sh))
 }
 
+struct RowHist {
+    r: [u32; 256],
+    g: [u32; 256],
+    b: [u32; 256],
+    lum: [u32; 256],
+    sc: u32,
+    hc: u32,
+}
+
+/// Applies creative vignette attenuation/boost to a linear post-DRT pixel.
+#[allow(clippy::too_many_arguments)]
+fn apply_creative_vignette(
+    rgb: &mut [f32; 3],
+    px: usize,
+    py: usize,
+    cx: f32,
+    cy: f32,
+    cv_amt: f32,
+    cv_mid: f32,
+    cv_feather: f32,
+    cv_round: f32,
+) {
+    let fx = px as f32;
+    let fy = py as f32;
+    let u_rel = (fx - cx) / cx.max(1.0);
+    let v_rel = (fy - cy) / cy.max(1.0);
+    let r_ellip = (u_rel * u_rel + v_rel * v_rel).sqrt();
+    let r_circ = ((fx - cx).powi(2) + (fy - cy).powi(2)).sqrt() / cx.min(cy).max(1.0);
+    let r_rect = u_rel.abs().max(v_rel.abs());
+    let r_dist = if cv_round > 0.0 {
+        r_ellip * (1.0 - cv_round) + r_circ * cv_round
+    } else {
+        r_ellip * (1.0 + cv_round) + r_rect * (-cv_round)
+    };
+    let t = ((r_dist - cv_mid) / (cv_feather.max(0.05) * 1.2)).clamp(0.0, 1.0);
+    let smooth_t = t * t * (3.0 - 2.0 * t);
+    let cv_mult = (1.0 + cv_amt * smooth_t).max(0.0);
+    rgb[0] *= cv_mult;
+    rgb[1] *= cv_mult;
+    rgb[2] *= cv_mult;
+}
+
+/// Blends semantic and local mask visualization overlays onto an 8-bit RGB pixel.
+fn apply_mask_overlays(
+    rgb: &mut [u8; 3],
+    base: &BaseRgbPreview,
+    grading: &DarkroomGradingState,
+    u_norm: f32,
+    v_norm: f32,
+) {
+    let blend_overlay = |px: &mut [u8; 3], mask_w: f32| {
+        if mask_w > 1e-3 {
+            px[0] = ((px[0] as f32) * (1.0 - mask_w) + 255.0 * mask_w).clamp(0.0, 255.0) as u8;
+            px[1] = ((px[1] as f32) * (1.0 - mask_w) + 40.0 * mask_w).clamp(0.0, 255.0) as u8;
+            px[2] = ((px[2] as f32) * (1.0 - mask_w) + 115.0 * mask_w).clamp(0.0, 255.0) as u8;
+        }
+    };
+
+    if let Some(overlay_cat) = grading.masks.show_semantic_mask_overlay {
+        let (inv, fth) = grading
+            .masks
+            .semantic_masks
+            .iter()
+            .find(|m| m.category == overlay_cat)
+            .map_or((false, 0.35), |m| (m.invert, m.feather));
+        let mask_w = base
+            .semantic_masks
+            .sample_bilinear(overlay_cat, u_norm, v_norm, inv, fth)
+            * 0.65;
+        blend_overlay(rgb, mask_w);
+    }
+
+    if let Some(mask_idx) = grading.masks.show_local_mask_overlay {
+        if let Some(m) = grading.masks.local_masks.get(mask_idx) {
+            let mask_w = m.evaluate_weight(u_norm, v_norm) * 0.65;
+            blend_overlay(rgb, mask_w);
+        }
+    }
+}
+
+/// Reduces per-row histogram buckets into a single frame `HistogramData`.
+fn merge_row_histograms(row_hists: Vec<RowHist>) -> HistogramData {
+    let mut hist_r = [0_u32; 256];
+    let mut hist_g = [0_u32; 256];
+    let mut hist_b = [0_u32; 256];
+    let mut hist_lum = [0_u32; 256];
+    let mut shadow_clipped = 0_u32;
+    let mut highlight_clipped = 0_u32;
+    for row in row_hists {
+        for i in 0..256 {
+            hist_r[i] += row.r[i];
+            hist_g[i] += row.g[i];
+            hist_b[i] += row.b[i];
+            hist_lum[i] += row.lum[i];
+        }
+        shadow_clipped += row.sc;
+        highlight_clipped += row.hc;
+    }
+
+    let max_count = hist_lum[1..255].iter().copied().max().unwrap_or(1).max(1);
+    HistogramData {
+        r: hist_r,
+        g: hist_g,
+        b: hist_b,
+        lum: hist_lum,
+        max_count,
+        shadow_clipped,
+        highlight_clipped,
+        out_of_gamut_count: 0,
+    }
+}
+
 fn finalize_post_drt_display(
     base: &BaseRgbPreview,
     drt_rgb: &[f32],
@@ -438,15 +550,6 @@ fn finalize_post_drt_display(
     let cv_round = (grading.effects.creative_vignette_roundness / 100.0).clamp(-1.0, 1.0);
     let cx = preview_w as f32 * 0.5;
     let cy = preview_h as f32 * 0.5;
-
-    struct RowHist {
-        r: [u32; 256],
-        g: [u32; 256],
-        b: [u32; 256],
-        lum: [u32; 256],
-        sc: u32,
-        hc: u32,
-    }
 
     let mut color_pixels = vec![Color32::TRANSPARENT; preview_w.saturating_mul(preview_h)];
     let row_hists: Vec<RowHist> = color_pixels
@@ -505,90 +608,47 @@ fn finalize_post_drt_display(
                     * (1.0 + (base_vibrance + user_vibrance) * vib_w))
                     .max(0.0);
 
-                let mut r_s = lum_c + (r_c - lum_c) * eff_sat;
-                let mut g_s = lum_c + (g_c - lum_c) * eff_sat;
-                let mut b_s = lum_c + (b_c - lum_c) * eff_sat;
+                let mut rgb_s = [
+                    lum_c + (r_c - lum_c) * eff_sat,
+                    lum_c + (g_c - lum_c) * eff_sat,
+                    lum_c + (b_c - lum_c) * eff_sat,
+                ];
 
                 if has_cv {
-                    let fx = px as f32;
-                    let fy = py as f32;
-                    let u_rel = (fx - cx) / cx.max(1.0);
-                    let v_rel = (fy - cy) / cy.max(1.0);
-                    let r_ellip = (u_rel * u_rel + v_rel * v_rel).sqrt();
-                    let r_circ =
-                        ((fx - cx).powi(2) + (fy - cy).powi(2)).sqrt() / cx.min(cy).max(1.0);
-                    let r_rect = u_rel.abs().max(v_rel.abs());
-                    let r_dist = if cv_round > 0.0 {
-                        r_ellip * (1.0 - cv_round) + r_circ * cv_round
-                    } else {
-                        r_ellip * (1.0 + cv_round) + r_rect * (-cv_round)
-                    };
-                    let t = ((r_dist - cv_mid) / (cv_feather.max(0.05) * 1.2)).clamp(0.0, 1.0);
-                    let smooth_t = t * t * (3.0 - 2.0 * t);
-                    let cv_mult = (1.0 + cv_amt * smooth_t).max(0.0);
-                    r_s *= cv_mult;
-                    g_s *= cv_mult;
-                    b_s *= cv_mult;
+                    apply_creative_vignette(
+                        &mut rgb_s, px, py, cx, cy, cv_amt, cv_mid, cv_feather, cv_round,
+                    );
                 }
 
-                let ur = PreparedGradingFrame::to_u8_fast(r_s.max(0.0));
-                let ug = PreparedGradingFrame::to_u8_fast(g_s.max(0.0));
-                let ub = PreparedGradingFrame::to_u8_fast(b_s.max(0.0));
-                let [mut u8_r, mut u8_g, mut u8_b] = if is_mono {
+                let ur = PreparedGradingFrame::to_u8_fast(rgb_s[0].max(0.0));
+                let ug = PreparedGradingFrame::to_u8_fast(rgb_s[1].max(0.0));
+                let ub = PreparedGradingFrame::to_u8_fast(rgb_s[2].max(0.0));
+                let mut u8_rgb = if is_mono {
                     let lv = ((ur as u32 * 54 + ug as u32 * 183 + ub as u32 * 19) >> 8) as u8;
                     [lv, lv, lv]
                 } else {
                     [ur, ug, ub]
                 };
 
-                if let Some(overlay_cat) = grading.masks.show_semantic_mask_overlay {
-                    let (inv, fth) = grading
-                        .masks
-                        .semantic_masks
-                        .iter()
-                        .find(|m| m.category == overlay_cat)
-                        .map_or((false, 0.35), |m| (m.invert, m.feather));
-                    let mask_w =
-                        base.semantic_masks
-                            .sample_bilinear(overlay_cat, u_norm, v_norm, inv, fth)
-                            * 0.65;
-                    if mask_w > 1e-3 {
-                        u8_r = ((u8_r as f32) * (1.0 - mask_w) + 255.0 * mask_w).clamp(0.0, 255.0)
-                            as u8;
-                        u8_g = ((u8_g as f32) * (1.0 - mask_w) + 40.0 * mask_w).clamp(0.0, 255.0)
-                            as u8;
-                        u8_b = ((u8_b as f32) * (1.0 - mask_w) + 115.0 * mask_w).clamp(0.0, 255.0)
-                            as u8;
-                    }
+                if has_overlay {
+                    apply_mask_overlays(&mut u8_rgb, base, grading, u_norm, v_norm);
                 }
 
-                if let Some(mask_idx) = grading.masks.show_local_mask_overlay {
-                    if let Some(m) = grading.masks.local_masks.get(mask_idx) {
-                        let mask_w = m.evaluate_weight(u_norm, v_norm) * 0.65;
-                        if mask_w > 1e-3 {
-                            u8_r = ((u8_r as f32) * (1.0 - mask_w) + 255.0 * mask_w)
-                                .clamp(0.0, 255.0) as u8;
-                            u8_g = ((u8_g as f32) * (1.0 - mask_w) + 40.0 * mask_w)
-                                .clamp(0.0, 255.0) as u8;
-                            u8_b = ((u8_b as f32) * (1.0 - mask_w) + 115.0 * mask_w)
-                                .clamp(0.0, 255.0) as u8;
-                        }
-                    }
-                }
-
-                hr[u8_r as usize] += 1;
-                hg[u8_g as usize] += 1;
-                hb[u8_b as usize] += 1;
-                let lum = (((u8_r as u32 * 54) + (u8_g as u32 * 183) + (u8_b as u32 * 19)) >> 8)
-                    .min(255) as usize;
+                hr[u8_rgb[0] as usize] += 1;
+                hg[u8_rgb[1] as usize] += 1;
+                hb[u8_rgb[2] as usize] += 1;
+                let lum =
+                    (((u8_rgb[0] as u32 * 54) + (u8_rgb[1] as u32 * 183) + (u8_rgb[2] as u32 * 19))
+                        >> 8)
+                        .min(255) as usize;
                 hl[lum] += 1;
                 if lum <= 1 {
                     sc += 1;
                 }
-                if lum >= 250 || u8_r >= 253 || u8_g >= 253 || u8_b >= 253 {
+                if lum >= 250 || u8_rgb[0] >= 253 || u8_rgb[1] >= 253 || u8_rgb[2] >= 253 {
                     hc += 1;
                 }
-                *out_px = Color32::from_rgb(u8_r, u8_g, u8_b);
+                *out_px = Color32::from_rgb(u8_rgb[0], u8_rgb[1], u8_rgb[2]);
             }
 
             RowHist {
@@ -602,35 +662,7 @@ fn finalize_post_drt_display(
         })
         .collect();
 
-    let mut hist_r = [0_u32; 256];
-    let mut hist_g = [0_u32; 256];
-    let mut hist_b = [0_u32; 256];
-    let mut hist_lum = [0_u32; 256];
-    let mut shadow_clipped = 0_u32;
-    let mut highlight_clipped = 0_u32;
-    for row in row_hists {
-        for i in 0..256 {
-            hist_r[i] += row.r[i];
-            hist_g[i] += row.g[i];
-            hist_b[i] += row.b[i];
-            hist_lum[i] += row.lum[i];
-        }
-        shadow_clipped += row.sc;
-        highlight_clipped += row.hc;
-    }
-
-    let max_count = hist_lum[1..255].iter().copied().max().unwrap_or(1).max(1);
-    let hist_data = HistogramData {
-        r: hist_r,
-        g: hist_g,
-        b: hist_b,
-        lum: hist_lum,
-        max_count,
-        shadow_clipped,
-        highlight_clipped,
-        out_of_gamut_count: 0,
-    };
-
+    let hist_data = merge_row_histograms(row_hists);
     (
         egui::ColorImage::new([preview_w, preview_h], color_pixels),
         hist_data,

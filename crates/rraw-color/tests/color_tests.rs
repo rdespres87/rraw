@@ -306,3 +306,89 @@ fn test_cpu_pipeline_hlr_curves_and_xtrans() -> Result<(), Box<dyn std::error::E
 
     Ok(())
 }
+
+#[test]
+fn test_clut3d_labels_validation_and_cube_error_paths() {
+    use rraw_color::clut::{ColorLut3d, FilmSimulationProfile};
+
+    for profile in [
+        FilmSimulationProfile::ClassicChrome,
+        FilmSimulationProfile::Portra400,
+        FilmSimulationProfile::Velvia50,
+        FilmSimulationProfile::TriX400,
+        FilmSimulationProfile::IlfordHp5,
+    ] {
+        assert!(!profile.label().is_empty());
+    }
+
+    assert!(ColorLut3d::identity(1).is_err());
+    assert!(ColorLut3d::from_data(1, vec![]).is_err());
+    assert!(ColorLut3d::from_data(2, vec![[0.0; 3]; 3]).is_err());
+    assert!(ColorLut3d::from_data(2, vec![[f32::NAN, 0.0, 0.0]; 8]).is_err());
+    assert!(ColorLut3d::generate_film_profile(FilmSimulationProfile::ClassicChrome, 1).is_err());
+
+    for bad_cube in [
+        "LUT_3D_SIZE\n",
+        "LUT_3D_SIZE abc\n",
+        "LUT_3D_SIZE 1\n",
+        "TITLE \"no size\"\n0.0 0.0 0.0\n",
+        "LUT_3D_SIZE 2\nBAD 0.0 0.0\n",
+        "LUT_3D_SIZE 2\n0.0 BAD 0.0\n",
+        "LUT_3D_SIZE 2\n0.0 0.0 BAD\n",
+    ] {
+        assert!(ColorLut3d::from_cube_str(bad_cube).is_err());
+    }
+}
+
+#[test]
+fn test_cpu_rgb_image_pixel_png_and_colorchecker_bounds() -> Result<(), Box<dyn std::error::Error>>
+{
+    use rraw_color::pipeline::CpuRgbImage;
+
+    let img = CpuRgbImage::new(2, 2, vec![[0.25, 0.5, 0.75]; 4])?;
+    assert_eq!(img.pixel(0, 0), [0.25, 0.5, 0.75]);
+    assert_eq!(img.pixel(10, 10), [0.0, 0.0, 0.0]);
+    let png = img.to_png_16bit_bytes()?;
+    assert!(png.starts_with(&[0x89, b'P', b'N', b'G']));
+
+    assert!(colorchecker_patch_xyz(24).is_err());
+    assert!(delta_e_00(Vec3::ZERO, [0.0, 0.0, 0.0]).is_finite());
+
+    let recipe = rraw_core::Recipe::default();
+    let rb_clipped = rraw_core::SignedCfaBuffer::new(
+        4,
+        4,
+        rraw_core::CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb),
+        (0..16)
+            .map(|i| {
+                if (i / 4) % 2 == 0 && i % 2 == 0 || (i / 4) % 2 == 1 && i % 2 == 1 {
+                    1.5
+                } else {
+                    0.2
+                }
+            })
+            .collect(),
+    )?;
+    let g_clipped = rraw_core::SignedCfaBuffer::new(
+        4,
+        4,
+        rraw_core::CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb),
+        (0..16)
+            .map(|i| {
+                if ((i / 4) + (i % 2)) % 2 == 1 {
+                    1.5
+                } else {
+                    0.2
+                }
+            })
+            .collect(),
+    )?;
+    let pipe = rraw_color::pipeline::CpuReferencePipeline::new();
+    assert_eq!(pipe.execute(&rb_clipped, &recipe, 1.0)?.width(), 4);
+    assert_eq!(pipe.execute(&g_clipped, &recipe, 1.0)?.width(), 4);
+
+    let mut opendrt_recipe = recipe;
+    opendrt_recipe.stage7_display.tone_mapper = rraw_core::recipe::ToneMapperKind::OpenDrt;
+    assert_eq!(pipe.execute(&g_clipped, &opendrt_recipe, 1.0)?.width(), 4);
+    Ok(())
+}

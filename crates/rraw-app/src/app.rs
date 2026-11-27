@@ -626,15 +626,8 @@ impl RrawApp {
             }
         }
     }
-}
-
-impl eframe::App for RrawApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        ui.style_mut().spacing.scroll.kinetic.rubber_band = false;
-
-        self.handle_global_keyboard_shortcuts(ui);
-
-        // Collect results from background decoding worker without blocking the UI
+    /// Collects decoded photo payloads from the background worker without blocking the UI.
+    fn drain_decode_results(&mut self) {
         while let Ok(payload) = self.workers.decode_receiver.try_recv() {
             if payload.is_prefetch {
                 if !self.photo_cache.iter().any(|e| e.path == payload.path) {
@@ -733,40 +726,10 @@ impl eframe::App for RrawApp {
             // Trigger background prefetching for adjacent photos
             self.trigger_prefetch(&payload.path);
         }
+    }
 
-        // Drain completed thumbnail images from background workers
-        while let Ok((path, img)) = self.workers.thumbnail_receiver.try_recv() {
-            self.workers.thumbnail_pending.remove(&path);
-            let is_currently_active = self
-                .session
-                .loaded_photo
-                .as_ref()
-                .is_some_and(|p| p.path == path);
-            if !is_currently_active {
-                if let Some(tex) = self.workers.thumbnail_textures.get_mut(&path) {
-                    tex.set(img, egui::TextureOptions::LINEAR);
-                } else {
-                    let tex = ui.ctx().load_texture(
-                        format!("thumb_{}", path.display()),
-                        img,
-                        egui::TextureOptions::LINEAR,
-                    );
-                    self.workers.thumbnail_textures.insert(path, tex);
-                }
-            }
-        }
-
-        if !self.workers.thumbnail_pending.is_empty() {
-            ui.ctx().request_repaint();
-        }
-
-        // Drain background DAM session indexing updates (bounded to 128 per frame to preserve 120 FPS)
-        let dam_drained = self.drain_dam_indexing_events(128);
-        if dam_drained > 0 {
-            ui.ctx().request_repaint();
-        }
-
-        // Drain background export status & completion
+    /// Drains background export progress and completion status updates.
+    fn drain_export_results(&mut self) {
         while let Ok((progress, label, outcome)) = self.workers.export_receiver.try_recv() {
             self.export.stats.progress = progress;
             self.export.stats.progress_label = label;
@@ -810,6 +773,49 @@ impl eframe::App for RrawApp {
                 }
             }
         }
+    }
+}
+
+impl eframe::App for RrawApp {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        ui.style_mut().spacing.scroll.kinetic.rubber_band = false;
+
+        self.handle_global_keyboard_shortcuts(ui);
+        self.drain_decode_results();
+
+        // Drain completed thumbnail images from background workers
+        while let Ok((path, img)) = self.workers.thumbnail_receiver.try_recv() {
+            self.workers.thumbnail_pending.remove(&path);
+            let is_currently_active = self
+                .session
+                .loaded_photo
+                .as_ref()
+                .is_some_and(|p| p.path == path);
+            if !is_currently_active {
+                if let Some(tex) = self.workers.thumbnail_textures.get_mut(&path) {
+                    tex.set(img, egui::TextureOptions::LINEAR);
+                } else {
+                    let tex = ui.ctx().load_texture(
+                        format!("thumb_{}", path.display()),
+                        img,
+                        egui::TextureOptions::LINEAR,
+                    );
+                    self.workers.thumbnail_textures.insert(path, tex);
+                }
+            }
+        }
+
+        if !self.workers.thumbnail_pending.is_empty() {
+            ui.ctx().request_repaint();
+        }
+
+        // Drain background DAM session indexing updates (bounded to 128 per frame to preserve 120 FPS)
+        let dam_drained = self.drain_dam_indexing_events(128);
+        if dam_drained > 0 {
+            ui.ctx().request_repaint();
+        }
+
+        self.drain_export_results();
 
         if self.export.stats.is_exporting {
             ui.ctx().request_repaint();

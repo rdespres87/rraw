@@ -352,3 +352,24 @@ fn test_demosaic_xtrans_siemens_star_psnr_above_38db() -> Result<(), CoreError> 
 
     Ok(())
 }
+
+#[test]
+fn test_demosaic_bilinear_bayer_and_xtrans_flat_field() -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_core::{demosaic_cfa, BayerOrigin, CfaPattern, DemosaicMethod, SignedCfaBuffer};
+
+    for pattern in [
+        CfaPattern::Bayer(BayerOrigin::Rggb),
+        CfaPattern::fujifilm_xtrans(),
+    ] {
+        let (w, h) = (8_usize, 8_usize);
+        let cfa = SignedCfaBuffer::new(w, h, pattern, vec![0.42_f32; w * h])?;
+        let rgb = demosaic_cfa(&cfa, DemosaicMethod::Bilinear)?;
+        assert_eq!(rgb.len(), w * h);
+        for px in &rgb {
+            assert!((px[0] - 0.42).abs() < 1e-5);
+            assert!((px[1] - 0.42).abs() < 1e-5);
+            assert!((px[2] - 0.42).abs() < 1e-5);
+        }
+    }
+    Ok(())
+}

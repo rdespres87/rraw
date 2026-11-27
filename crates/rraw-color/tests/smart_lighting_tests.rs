@@ -254,3 +254,65 @@ fn test_cpu_reference_pipeline_with_smart_lighting() -> Result<(), ColorError> {
     assert!(!png_bytes.is_empty());
     Ok(())
 }
+
+#[test]
+fn test_smart_lighting_slight_custom_and_highlight_compression(
+) -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_color::apply_smart_lighting_acescg as apply_smart_lighting;
+    use rraw_core::{SmartLightingMode, SmartLightingParams};
+
+    let (w, h) = (16_usize, 16_usize);
+    let mut img = vec![[0.0_f32; 3]; w * h];
+    for (i, px) in img.iter_mut().enumerate() {
+        let v = if i == 0 {
+            0.0
+        } else if i % 2 == 0 {
+            0.02
+        } else {
+            1.8
+        };
+        *px = [v, v, v];
+    }
+
+    let mut slight = img.clone();
+    let res_slight = apply_smart_lighting(
+        &mut slight,
+        w,
+        h,
+        &SmartLightingParams {
+            mode: SmartLightingMode::Slight,
+            intensity: 100.0,
+            ..Default::default()
+        },
+    )?;
+    assert!(res_slight.is_some());
+
+    let mut custom_noop = img.clone();
+    let res_noop = apply_smart_lighting(
+        &mut custom_noop,
+        w,
+        h,
+        &SmartLightingParams {
+            mode: SmartLightingMode::Custom,
+            intensity: 100.0,
+            custom_shadow_lift: 0.0,
+            custom_highlight_compression: 0.0,
+        },
+    )?;
+    assert!(res_noop.is_some());
+
+    let mut custom_active = img;
+    let res_active = apply_smart_lighting(
+        &mut custom_active,
+        w,
+        h,
+        &SmartLightingParams {
+            mode: SmartLightingMode::Custom,
+            intensity: 100.0,
+            custom_shadow_lift: 0.5,
+            custom_highlight_compression: 0.6,
+        },
+    )?;
+    assert!(res_active.is_some());
+    Ok(())
+}
