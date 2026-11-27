@@ -251,7 +251,7 @@ impl RrawApp {
             self.layout_config.save();
         }
         if toggle_split {
-            self.viewport.split_compare = !self.viewport.split_compare;
+            self.viewport.split.active = !self.viewport.split.active;
         }
         if toggle_clipping {
             self.toggle_clipping_overlay();
@@ -400,61 +400,64 @@ impl RrawApp {
     fn render_top_bar_zoom_controls(&mut self, ui: &mut egui::Ui) {
         ui.label(egui::RichText::new(self.t(Key::TopBarZoom)).size(12.0));
         if ui
-            .selectable_label(self.viewport.zoom_level <= 0.0, self.t(Key::TopBarZoomFit))
+            .selectable_label(
+                self.viewport.camera.zoom_level <= 0.0,
+                self.t(Key::TopBarZoomFit),
+            )
             .clicked()
         {
-            self.viewport.zoom_level = 0.0;
-            self.viewport.pan_offset = egui::Vec2::ZERO;
+            self.viewport.camera.zoom_level = 0.0;
+            self.viewport.camera.pan_offset = egui::Vec2::ZERO;
         }
         if ui
             .selectable_label(
-                (self.viewport.zoom_level - 1.0).abs() < 0.01,
+                (self.viewport.camera.zoom_level - 1.0).abs() < 0.01,
                 self.t(Key::TopBarZoom11),
             )
             .clicked()
         {
-            self.viewport.zoom_level = 1.0;
-            self.viewport.pan_offset = egui::Vec2::ZERO;
+            self.viewport.camera.zoom_level = 1.0;
+            self.viewport.camera.pan_offset = egui::Vec2::ZERO;
         }
-        let fit_s = self.viewport.last_fit_scale.max(0.001);
+        let fit_s = self.viewport.camera.last_fit_scale.max(0.001);
         if ui.small_button("➖").clicked() {
-            let cur_s = if self.viewport.zoom_level <= 0.0 {
+            let cur_s = if self.viewport.camera.zoom_level <= 0.0 {
                 fit_s
             } else {
-                self.viewport.zoom_level
+                self.viewport.camera.zoom_level
             };
             let new_s = (cur_s / 1.25).max(fit_s);
             if (new_s - fit_s).abs() / fit_s < 0.015 || new_s <= fit_s {
-                self.viewport.zoom_level = 0.0;
-                self.viewport.pan_offset = egui::Vec2::ZERO;
+                self.viewport.camera.zoom_level = 0.0;
+                self.viewport.camera.pan_offset = egui::Vec2::ZERO;
             } else {
-                self.viewport.zoom_level = new_s;
+                self.viewport.camera.zoom_level = new_s;
             }
         }
-        let zoom_pct_str = if self.viewport.zoom_level <= 0.0 {
+        let zoom_pct_str = if self.viewport.camera.zoom_level <= 0.0 {
             self.t(Key::TopBarZoomFitted).to_string()
         } else {
             format!(
                 "{}%",
-                ((self.viewport.zoom_level / fit_s) * 100.0).round() as u32
+                ((self.viewport.camera.zoom_level / fit_s) * 100.0).round() as u32
             )
         };
         ui.label(egui::RichText::new(zoom_pct_str).monospace().strong());
         if ui.small_button("➕").clicked() {
-            let cur_s = if self.viewport.zoom_level <= 0.0 {
+            let cur_s = if self.viewport.camera.zoom_level <= 0.0 {
                 fit_s
             } else {
-                self.viewport.zoom_level
+                self.viewport.camera.zoom_level
             };
             let new_s = (cur_s * 1.25).min(fit_s * 20.0);
-            self.viewport.zoom_level = new_s;
+            self.viewport.camera.zoom_level = new_s;
         }
         if ui
             .button(self.t(Key::TopBarCenter))
             .on_hover_text(self.t(Key::TopBarCenterTooltip))
             .clicked()
         {
-            self.viewport.pan_offset = egui::Vec2::ZERO;
+            self.viewport.camera.pan_offset = egui::Vec2::ZERO;
         }
 
         ui.separator();

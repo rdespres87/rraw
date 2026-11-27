@@ -430,9 +430,9 @@ impl RrawApp {
 
     /// Snapshots active canvas tool flags, executes `f`, and reconciles mutual-exclusion transitions.
     fn with_canvas_tool_reconcile<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
-        let prev_crop = self.viewport.is_crop_editing;
-        let prev_horizon = self.viewport.horizon_tool_active;
-        let prev_phase = self.viewport.parallel_tool_phase;
+        let prev_crop = self.viewport.crop.is_editing;
+        let prev_horizon = self.viewport.geometry_tools.horizon_active;
+        let prev_phase = self.viewport.geometry_tools.parallel_phase;
         let prev_brush = self.session.grading.masks.active_brush_mask_idx;
         let result = f(self);
         self.reconcile_canvas_tool_transitions(prev_crop, prev_horizon, prev_phase, prev_brush);
@@ -487,8 +487,8 @@ impl RrawApp {
             DarkroomSection::Crop => self.with_canvas_tool_reconcile(|app| {
                 let dims = app.session.loaded_photo.as_ref().map(|p| p.dimensions);
                 let mut flags = sections::crop::CropUiFlags {
-                    is_crop_editing: &mut app.viewport.is_crop_editing,
-                    show_grid: &mut app.viewport.crop_show_grid,
+                    is_crop_editing: &mut app.viewport.crop.is_editing,
+                    show_grid: &mut app.viewport.crop.show_grid,
                 };
                 sections::crop::render(
                     ui,
@@ -502,18 +502,18 @@ impl RrawApp {
                 sections::straighten::render(
                     ui,
                     &mut app.session.grading.geometry,
-                    &mut app.viewport.horizon_tool_active,
-                    &mut app.viewport.horizon_start_point,
+                    &mut app.viewport.geometry_tools.horizon_active,
+                    &mut app.viewport.geometry_tools.horizon_start_point,
                     &mut app.status_message,
                     cur_lang,
                 )
             }),
             DarkroomSection::Geometry => self.with_canvas_tool_reconcile(|app| {
                 let mut tool_state = sections::geometry::ParallelLinesToolState {
-                    phase: &mut app.viewport.parallel_tool_phase,
-                    line1: &mut app.viewport.parallel_line1,
-                    line2: &mut app.viewport.parallel_line2,
-                    drag_start: &mut app.viewport.parallel_drag_start,
+                    phase: &mut app.viewport.geometry_tools.parallel_phase,
+                    line1: &mut app.viewport.geometry_tools.parallel_line1,
+                    line2: &mut app.viewport.geometry_tools.parallel_line2,
+                    drag_start: &mut app.viewport.geometry_tools.parallel_drag_start,
                     status_message: &mut app.status_message,
                 };
                 sections::geometry::render(

@@ -9,7 +9,7 @@ fn test_escape_dismisses_shortcuts_dialog_first() {
     let mut app = RrawApp::new_headless();
     app.export.show_shortcuts_dialog = true;
     app.export.show_export_dialog = true;
-    app.viewport.is_crop_editing = true;
+    app.viewport.crop.is_editing = true;
     app.library
         .selected_photos
         .insert(PathBuf::from("/test/photo.dng"));
@@ -20,21 +20,21 @@ fn test_escape_dismisses_shortcuts_dialog_first() {
     assert!(!app.export.show_shortcuts_dialog);
     // Other states must remain untouched
     assert!(app.export.show_export_dialog);
-    assert!(app.viewport.is_crop_editing);
+    assert!(app.viewport.crop.is_editing);
     assert_eq!(app.library.selected_photos.len(), 1);
 
     // Press Escape again -> Should dismiss export dialog
     let dismissed2 = app.handle_escape_key();
     assert!(dismissed2);
     assert!(!app.export.show_export_dialog);
-    assert!(app.viewport.is_crop_editing);
+    assert!(app.viewport.crop.is_editing);
     assert_eq!(app.library.selected_photos.len(), 1);
 
     // Press Escape again -> Should cancel crop editing
     let dismissed3 = app.handle_escape_key();
     assert!(dismissed3);
-    assert!(!app.viewport.is_crop_editing);
-    assert_eq!(app.viewport.crop_drag_handle, CropDragHandle::None);
+    assert!(!app.viewport.crop.is_editing);
+    assert_eq!(app.viewport.crop.drag_handle, CropDragHandle::None);
     assert_eq!(app.library.selected_photos.len(), 1);
 
     // Press Escape again -> Should clear selected photos
@@ -50,7 +50,7 @@ fn test_escape_dismisses_shortcuts_dialog_first() {
 #[test]
 fn test_escape_cancels_perspective_and_brush_tools() {
     let mut app = RrawApp::new_headless();
-    app.viewport.parallel_tool_phase = ParallelToolPhase::DrawingLine1;
+    app.viewport.geometry_tools.parallel_phase = ParallelToolPhase::DrawingLine1;
     app.library
         .selected_photos
         .insert(PathBuf::from("/test/photo.dng"));
@@ -58,7 +58,7 @@ fn test_escape_cancels_perspective_and_brush_tools() {
     let dismissed = app.handle_escape_key();
     assert!(dismissed);
     assert_eq!(
-        app.viewport.parallel_tool_phase,
+        app.viewport.geometry_tools.parallel_phase,
         ParallelToolPhase::Inactive
     );
     assert_eq!(app.library.selected_photos.len(), 1);

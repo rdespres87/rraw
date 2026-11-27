@@ -219,11 +219,11 @@ impl RrawApp {
         }
 
         if !matches!(family, ToolFamily::All | ToolFamily::Geometry) {
-            self.viewport.is_crop_editing = false;
-            self.viewport.crop_drag_handle = CropDragHandle::None;
-            self.viewport.horizon_tool_active = false;
-            self.viewport.horizon_start_point = None;
-            self.viewport.parallel_tool_phase = ParallelToolPhase::Inactive;
+            self.viewport.crop.is_editing = false;
+            self.viewport.crop.drag_handle = CropDragHandle::None;
+            self.viewport.geometry_tools.horizon_active = false;
+            self.viewport.geometry_tools.horizon_start_point = None;
+            self.viewport.geometry_tools.parallel_phase = ParallelToolPhase::Inactive;
         }
     }
 
@@ -237,12 +237,12 @@ impl RrawApp {
     #[must_use]
     pub fn active_canvas_tool(&self) -> crate::controllers::viewport::ActiveCanvasTool {
         use crate::controllers::viewport::ActiveCanvasTool;
-        if self.viewport.is_crop_editing {
+        if self.viewport.crop.is_editing {
             ActiveCanvasTool::Crop
-        } else if self.viewport.horizon_tool_active {
+        } else if self.viewport.geometry_tools.horizon_active {
             ActiveCanvasTool::Horizon
-        } else if self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive {
-            ActiveCanvasTool::ParallelLines(self.viewport.parallel_tool_phase)
+        } else if self.viewport.geometry_tools.parallel_phase != ParallelToolPhase::Inactive {
+            ActiveCanvasTool::ParallelLines(self.viewport.geometry_tools.parallel_phase)
         } else if let Some(idx) = self.session.grading.masks.active_brush_mask_idx {
             ActiveCanvasTool::FreehandBrush(idx)
         } else {
@@ -254,30 +254,31 @@ impl RrawApp {
     pub fn activate_canvas_tool(&mut self, tool: crate::controllers::viewport::ActiveCanvasTool) {
         use crate::controllers::viewport::ActiveCanvasTool;
 
-        self.viewport.is_crop_editing = false;
-        self.viewport.crop_drag_handle = CropDragHandle::None;
-        self.viewport.horizon_tool_active = false;
-        self.viewport.horizon_start_point = None;
-        self.viewport.parallel_tool_phase = ParallelToolPhase::Inactive;
-        self.viewport.parallel_line1 = None;
-        self.viewport.parallel_line2 = None;
-        self.viewport.parallel_drag_start = None;
+        self.viewport.crop.is_editing = false;
+        self.viewport.crop.drag_handle = CropDragHandle::None;
+        self.viewport.geometry_tools.horizon_active = false;
+        self.viewport.geometry_tools.horizon_start_point = None;
+        self.viewport.geometry_tools.parallel_phase = ParallelToolPhase::Inactive;
+        self.viewport.geometry_tools.parallel_line1 = None;
+        self.viewport.geometry_tools.parallel_line2 = None;
+        self.viewport.geometry_tools.parallel_drag_start = None;
         self.session.grading.masks.active_brush_mask_idx = None;
 
         match tool {
             ActiveCanvasTool::None => {}
             ActiveCanvasTool::Crop => {
-                self.viewport.is_crop_editing = true;
+                self.viewport.crop.is_editing = true;
             }
             ActiveCanvasTool::Horizon => {
-                self.viewport.horizon_tool_active = true;
+                self.viewport.geometry_tools.horizon_active = true;
             }
             ActiveCanvasTool::ParallelLines(phase) => {
-                self.viewport.parallel_tool_phase = if phase == ParallelToolPhase::Inactive {
-                    ParallelToolPhase::DrawingLine1
-                } else {
-                    phase
-                };
+                self.viewport.geometry_tools.parallel_phase =
+                    if phase == ParallelToolPhase::Inactive {
+                        ParallelToolPhase::DrawingLine1
+                    } else {
+                        phase
+                    };
             }
             ActiveCanvasTool::FreehandBrush(mask_idx) => {
                 self.session.grading.masks.active_brush_mask_idx = Some(mask_idx);
@@ -296,14 +297,14 @@ impl RrawApp {
     ) {
         use crate::controllers::viewport::ActiveCanvasTool;
 
-        if !prev_crop && self.viewport.is_crop_editing {
+        if !prev_crop && self.viewport.crop.is_editing {
             self.activate_canvas_tool(ActiveCanvasTool::Crop);
-        } else if !prev_horizon && self.viewport.horizon_tool_active {
+        } else if !prev_horizon && self.viewport.geometry_tools.horizon_active {
             self.activate_canvas_tool(ActiveCanvasTool::Horizon);
         } else if prev_parallel == ParallelToolPhase::Inactive
-            && self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive
+            && self.viewport.geometry_tools.parallel_phase != ParallelToolPhase::Inactive
         {
-            let phase = self.viewport.parallel_tool_phase;
+            let phase = self.viewport.geometry_tools.parallel_phase;
             self.activate_canvas_tool(ActiveCanvasTool::ParallelLines(phase));
         } else if let Some(idx) = self.session.grading.masks.active_brush_mask_idx {
             if prev_brush != Some(idx) {

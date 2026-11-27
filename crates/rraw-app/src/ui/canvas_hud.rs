@@ -19,11 +19,11 @@ impl RrawApp {
     /// Compact viewport display toggles rendered in the top bar.
     pub fn render_view_toggles(&mut self, ui: &mut egui::Ui) {
         if ui
-            .selectable_label(self.viewport.split_compare, self.t(Key::ToggleBeforeAfter))
+            .selectable_label(self.viewport.split.active, self.t(Key::ToggleBeforeAfter))
             .on_hover_text(self.t(Key::ToggleBeforeAfterTooltip))
             .clicked()
         {
-            self.viewport.split_compare = !self.viewport.split_compare;
+            self.viewport.split.active = !self.viewport.split.active;
         }
 
         if ui

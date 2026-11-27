@@ -12,7 +12,7 @@ use crate::state::CurveChannel;
 impl RrawApp {
     /// Returns a mutable reference to the currently active channel curve.
     fn active_curve_mut(&mut self) -> &mut ChannelCurve {
-        match self.viewport.active_curve_channel {
+        match self.viewport.curve_editor.active_channel {
             CurveChannel::CombinedRgb => &mut self.session.grading.tone_curves.combined_rgb,
             CurveChannel::Red => &mut self.session.grading.tone_curves.red,
             CurveChannel::Green => &mut self.session.grading.tone_curves.green,
@@ -23,7 +23,7 @@ impl RrawApp {
 
     /// Returns a shared reference to the currently active channel curve.
     fn active_curve(&self) -> &ChannelCurve {
-        match self.viewport.active_curve_channel {
+        match self.viewport.curve_editor.active_channel {
             CurveChannel::CombinedRgb => &self.session.grading.tone_curves.combined_rgb,
             CurveChannel::Red => &self.session.grading.tone_curves.red,
             CurveChannel::Green => &self.session.grading.tone_curves.green,
@@ -34,7 +34,7 @@ impl RrawApp {
 
     /// Color representing the active curve in canvas rendering.
     fn active_curve_color(&self) -> Color32 {
-        match self.viewport.active_curve_channel {
+        match self.viewport.curve_editor.active_channel {
             CurveChannel::CombinedRgb => Color32::from_rgb(240, 240, 245),
             CurveChannel::Red => Color32::from_rgb(255, 90, 90),
             CurveChannel::Green => Color32::from_rgb(90, 230, 110),
@@ -63,7 +63,7 @@ impl RrawApp {
         }
         self.record_undo_snapshot();
         *self.active_curve_mut() = ChannelCurve::new_linear();
-        self.viewport.dragging_curve_point = None;
+        self.viewport.curve_editor.dragging_point = None;
         self.session.needs_preview_update = true;
         self.session.sidecar_dirty = true;
     }
@@ -75,7 +75,7 @@ impl RrawApp {
         }
         self.record_undo_snapshot();
         self.session.grading.tone_curves = rraw_core::curves::ToneCurvesRecipe::default();
-        self.viewport.dragging_curve_point = None;
+        self.viewport.curve_editor.dragging_point = None;
         self.session.needs_preview_update = true;
         self.session.sidecar_dirty = true;
     }
@@ -129,7 +129,7 @@ impl RrawApp {
         let cur_lang = self.lang();
         ui.horizontal(|ui| {
             for ch in CurveChannel::ALL {
-                let is_active = self.viewport.active_curve_channel == ch;
+                let is_active = self.viewport.curve_editor.active_channel == ch;
                 let is_mod = self.is_channel_modified(ch);
                 let label = if is_mod {
                     format!("{} •", ch.label_lang(cur_lang))
@@ -137,8 +137,8 @@ impl RrawApp {
                     ch.label_lang(cur_lang).to_string()
                 };
                 if ui.selectable_label(is_active, label).clicked() {
-                    self.viewport.active_curve_channel = ch;
-                    self.viewport.dragging_curve_point = None;
+                    self.viewport.curve_editor.active_channel = ch;
+                    self.viewport.curve_editor.dragging_point = None;
                 }
             }
         });
@@ -176,7 +176,7 @@ impl RrawApp {
             Stroke::new(1.0, Color32::from_rgb(45, 50, 60)),
         );
 
-        let (hist_bins, hist_color) = match self.viewport.active_curve_channel {
+        let (hist_bins, hist_color) = match self.viewport.curve_editor.active_channel {
             CurveChannel::Red => (
                 &self.viewport.histogram.r[..],
                 Color32::from_rgba_unmultiplied(225, 80, 80, 48),
@@ -221,7 +221,7 @@ impl RrawApp {
         active_spline: &PchipSpline,
         curve_color: Color32,
     ) {
-        if self.viewport.active_curve_channel != CurveChannel::CombinedRgb {
+        if self.viewport.curve_editor.active_channel != CurveChannel::CombinedRgb {
             let master_spline = PchipSpline::new(&self.session.grading.tone_curves.combined_rgb);
             let ghost_color = Color32::from_rgba_unmultiplied(200, 205, 220, 50);
             Self::paint_spline_polyline(painter, rect, &master_spline, ghost_color, 1.2);
@@ -275,7 +275,7 @@ impl RrawApp {
             let py = rect.bottom() - pt.y * rect.height();
             let pt_canvas = Pos2::new(px, py);
 
-            let is_dragging = self.viewport.dragging_curve_point == Some(idx);
+            let is_dragging = self.viewport.curve_editor.dragging_point == Some(idx);
             let is_hovered = pointer_pos.is_some_and(|pos| pos.distance(pt_canvas) < 8.0);
 
             if is_dragging || is_hovered {
@@ -347,7 +347,7 @@ impl RrawApp {
 
         if let Some(idx) = point_to_remove {
             self.active_curve_mut().remove_point(idx);
-            self.viewport.dragging_curve_point = None;
+            self.viewport.curve_editor.dragging_point = None;
             modified = true;
         }
 
@@ -355,7 +355,7 @@ impl RrawApp {
         let primary_down = ui.input(|i| i.pointer.primary_down());
 
         if (response.drag_started() || (response.hovered() && primary_pressed))
-            && self.viewport.dragging_curve_point.is_none()
+            && self.viewport.curve_editor.dragging_point.is_none()
         {
             if let Some(pos) = pointer_pos {
                 if rect.contains(pos) {
@@ -371,13 +371,13 @@ impl RrawApp {
                         }
                     }
                     if let Some(idx) = closest_idx {
-                        self.viewport.dragging_curve_point = Some(idx);
+                        self.viewport.curve_editor.dragging_point = Some(idx);
                     } else {
                         let new_x = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
                         let new_y = ((rect.bottom() - pos.y) / rect.height()).clamp(0.0, 1.0);
                         if let Ok(new_pt) = CurvePoint::new(new_x, new_y) {
                             let inserted_idx = self.active_curve_mut().add_point(new_pt);
-                            self.viewport.dragging_curve_point = Some(inserted_idx);
+                            self.viewport.curve_editor.dragging_point = Some(inserted_idx);
                             modified = true;
                         }
                     }
@@ -385,8 +385,12 @@ impl RrawApp {
             }
         }
 
-        if (response.dragged() || primary_down) && self.viewport.dragging_curve_point.is_some() {
-            if let (Some(drag_idx), Some(pos)) = (self.viewport.dragging_curve_point, pointer_pos) {
+        if (response.dragged() || primary_down)
+            && self.viewport.curve_editor.dragging_point.is_some()
+        {
+            if let (Some(drag_idx), Some(pos)) =
+                (self.viewport.curve_editor.dragging_point, pointer_pos)
+            {
                 let len = self.active_curve().points.len();
                 if drag_idx < len {
                     let is_first = drag_idx == 0;
@@ -417,7 +421,7 @@ impl RrawApp {
         }
 
         if response.drag_stopped() || ui.input(|i| i.pointer.primary_released()) {
-            self.viewport.dragging_curve_point = None;
+            self.viewport.curve_editor.dragging_point = None;
         }
 
         if modified {

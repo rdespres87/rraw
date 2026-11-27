@@ -93,25 +93,25 @@ fn test_p1_3_interactive_canvas_tools_mutual_exclusion() {
 
     app.activate_canvas_tool(ActiveCanvasTool::Crop);
     assert_eq!(app.active_canvas_tool(), ActiveCanvasTool::Crop);
-    assert!(app.viewport.is_crop_editing);
+    assert!(app.viewport.crop.is_editing);
 
     app.activate_canvas_tool(ActiveCanvasTool::Horizon);
     assert_eq!(app.active_canvas_tool(), ActiveCanvasTool::Horizon);
-    assert!(!app.viewport.is_crop_editing);
-    assert!(app.viewport.horizon_tool_active);
+    assert!(!app.viewport.crop.is_editing);
+    assert!(app.viewport.geometry_tools.horizon_active);
 
     app.activate_canvas_tool(ActiveCanvasTool::ParallelLines(
         ParallelToolPhase::DrawingLine1,
     ));
-    assert!(!app.viewport.horizon_tool_active);
+    assert!(!app.viewport.geometry_tools.horizon_active);
     assert_eq!(
-        app.viewport.parallel_tool_phase,
+        app.viewport.geometry_tools.parallel_phase,
         ParallelToolPhase::DrawingLine1
     );
 
     app.activate_canvas_tool(ActiveCanvasTool::FreehandBrush(2));
     assert_eq!(
-        app.viewport.parallel_tool_phase,
+        app.viewport.geometry_tools.parallel_phase,
         ParallelToolPhase::Inactive
     );
     assert_eq!(app.session.grading.masks.active_brush_mask_idx, Some(2));

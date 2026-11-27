@@ -68,27 +68,27 @@ fn test_p1_2_inspector_canvas_tool_transitions_and_checkbox_deactivation() {
     // 1. Activate Horizon tool first
     app.activate_canvas_tool(ActiveCanvasTool::Horizon);
     assert_eq!(app.active_canvas_tool(), ActiveCanvasTool::Horizon);
-    assert!(app.viewport.horizon_tool_active);
+    assert!(app.viewport.geometry_tools.horizon_active);
 
     // 2. Simulate Crop editing activated in inspector while Horizon was previously active
-    app.viewport.is_crop_editing = true;
+    app.viewport.crop.is_editing = true;
     app.reconcile_canvas_tool_transitions(false, true, ParallelToolPhase::Inactive, None);
     assert_eq!(app.active_canvas_tool(), ActiveCanvasTool::Crop);
-    assert!(app.viewport.is_crop_editing);
+    assert!(app.viewport.crop.is_editing);
     assert!(
-        !app.viewport.horizon_tool_active,
+        !app.viewport.geometry_tools.horizon_active,
         "activating Crop must automatically deactivate Horizon"
     );
 
     // 3. When geometry.crop_enabled is unchecked (false), rendering sections::crop::render
     // must automatically deactivate is_crop_editing
     app.session.grading.geometry.crop_enabled = false;
-    app.viewport.is_crop_editing = true;
+    app.viewport.crop.is_editing = true;
     let ctx = egui::Context::default();
     let mut out1 = ctx.run_ui(egui::RawInput::default(), |ui| {
         let mut flags = sections::crop::CropUiFlags {
-            is_crop_editing: &mut app.viewport.is_crop_editing,
-            show_grid: &mut app.viewport.crop_show_grid,
+            is_crop_editing: &mut app.viewport.crop.is_editing,
+            show_grid: &mut app.viewport.crop.show_grid,
         };
         let _ = sections::crop::render(
             ui,
@@ -100,20 +100,20 @@ fn test_p1_2_inspector_canvas_tool_transitions_and_checkbox_deactivation() {
     });
     out1.textures_delta.clear();
     assert!(
-        !app.viewport.is_crop_editing,
+        !app.viewport.crop.is_editing,
         "disabling crop_enabled must clear is_crop_editing"
     );
 
     // 4. When geometry.geometry_enabled is unchecked (false), rendering sections::geometry::render
     // must automatically reset parallel_tool_phase to Inactive
     app.session.grading.geometry.geometry_enabled = false;
-    app.viewport.parallel_tool_phase = ParallelToolPhase::DrawingLine1;
+    app.viewport.geometry_tools.parallel_phase = ParallelToolPhase::DrawingLine1;
     let mut out2 = ctx.run_ui(egui::RawInput::default(), |ui| {
         let mut tool_state = sections::geometry::ParallelLinesToolState {
-            phase: &mut app.viewport.parallel_tool_phase,
-            line1: &mut app.viewport.parallel_line1,
-            line2: &mut app.viewport.parallel_line2,
-            drag_start: &mut app.viewport.parallel_drag_start,
+            phase: &mut app.viewport.geometry_tools.parallel_phase,
+            line1: &mut app.viewport.geometry_tools.parallel_line1,
+            line2: &mut app.viewport.geometry_tools.parallel_line2,
+            drag_start: &mut app.viewport.geometry_tools.parallel_drag_start,
             status_message: &mut app.status_message,
         };
         let _ = sections::geometry::render(
@@ -125,7 +125,7 @@ fn test_p1_2_inspector_canvas_tool_transitions_and_checkbox_deactivation() {
     });
     out2.textures_delta.clear();
     assert_eq!(
-        app.viewport.parallel_tool_phase,
+        app.viewport.geometry_tools.parallel_phase,
         ParallelToolPhase::Inactive,
         "disabling geometry_enabled must reset parallel_tool_phase to Inactive"
     );

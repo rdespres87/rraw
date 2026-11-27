@@ -38,22 +38,22 @@ fn test_canvas_tool_completion_calls_activate_none() {
     // 1. Activate Crop
     app.activate_canvas_tool(ActiveCanvasTool::Crop);
     assert_eq!(app.active_canvas_tool(), ActiveCanvasTool::Crop);
-    assert!(app.viewport.is_crop_editing);
+    assert!(app.viewport.crop.is_editing);
 
     // Complete Crop
     app.activate_canvas_tool(ActiveCanvasTool::None);
     assert_eq!(app.active_canvas_tool(), ActiveCanvasTool::None);
-    assert!(!app.viewport.is_crop_editing);
+    assert!(!app.viewport.crop.is_editing);
 
     // 2. Activate Horizon
     app.activate_canvas_tool(ActiveCanvasTool::Horizon);
     assert_eq!(app.active_canvas_tool(), ActiveCanvasTool::Horizon);
-    assert!(app.viewport.horizon_tool_active);
+    assert!(app.viewport.geometry_tools.horizon_active);
 
     // Complete Horizon
     app.activate_canvas_tool(ActiveCanvasTool::None);
     assert_eq!(app.active_canvas_tool(), ActiveCanvasTool::None);
-    assert!(!app.viewport.horizon_tool_active);
+    assert!(!app.viewport.geometry_tools.horizon_active);
 
     // 3. Activate Parallel Lines
     app.activate_canvas_tool(ActiveCanvasTool::ParallelLines(
@@ -68,7 +68,7 @@ fn test_canvas_tool_completion_calls_activate_none() {
     app.activate_canvas_tool(ActiveCanvasTool::None);
     assert_eq!(app.active_canvas_tool(), ActiveCanvasTool::None);
     assert_eq!(
-        app.viewport.parallel_tool_phase,
+        app.viewport.geometry_tools.parallel_phase,
         ParallelToolPhase::Inactive
     );
 }

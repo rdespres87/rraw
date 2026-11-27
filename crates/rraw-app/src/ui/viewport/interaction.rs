@@ -111,40 +111,45 @@ pub fn handle_pan_and_zoom(
 ) -> bool {
     let is_holding_space = ui.input(|i| i.key_down(egui::Key::Space));
     let is_middle_drag = ui.input(|i| i.pointer.button_down(egui::PointerButton::Middle));
-    let is_panning_override = (is_holding_space || is_middle_drag) && viewport.zoom_level > 0.0;
+    let is_panning_override =
+        (is_holding_space || is_middle_drag) && viewport.camera.zoom_level > 0.0;
 
-    viewport.pan_offset = clamp_pan_offset(
-        viewport.pan_offset,
+    viewport.camera.pan_offset = clamp_pan_offset(
+        viewport.camera.pan_offset,
         ctx.layout.display_size,
         ctx.available_rect,
         ctx.layout.margin,
-        viewport.zoom_level,
+        viewport.camera.zoom_level,
     );
 
     if resp.dragged()
         && (!ctx.is_tool_active || is_panning_override)
-        && viewport.crop_drag_handle == CropDragHandle::None
-        && viewport.zoom_level > 0.0
+        && viewport.crop.drag_handle == CropDragHandle::None
+        && viewport.camera.zoom_level > 0.0
     {
-        viewport.pan_offset = clamp_pan_offset(
-            viewport.pan_offset + resp.drag_delta(),
+        viewport.camera.pan_offset = clamp_pan_offset(
+            viewport.camera.pan_offset + resp.drag_delta(),
             ctx.layout.display_size,
             ctx.available_rect,
             ctx.layout.margin,
-            viewport.zoom_level,
+            viewport.camera.zoom_level,
         );
     }
 
-    if resp.double_clicked() && !viewport.is_crop_editing && !ctx.is_tool_active {
-        viewport.zoom_level = if viewport.zoom_level <= 0.0 { 1.0 } else { 0.0 };
-        viewport.pan_offset = egui::Vec2::ZERO;
+    if resp.double_clicked() && !viewport.crop.is_editing && !ctx.is_tool_active {
+        viewport.camera.zoom_level = if viewport.camera.zoom_level <= 0.0 {
+            1.0
+        } else {
+            0.0
+        };
+        viewport.camera.pan_offset = egui::Vec2::ZERO;
     }
 
     let scroll = ui.input(|i| i.smooth_scroll_delta.y);
     if scroll.abs() > 0.0
         && resp.hovered()
         && (!ctx.is_tool_active || ctx.is_brush_active)
-        && !viewport.is_crop_editing
+        && !viewport.crop.is_editing
     {
         let (next_zoom, next_pan) = compute_scroll_zoom(
             ctx.layout.current_scale,
@@ -152,10 +157,10 @@ pub fn handle_pan_and_zoom(
             scroll,
             resp.hover_pos(),
             ctx.layout.center,
-            viewport.pan_offset,
+            viewport.camera.pan_offset,
         );
-        viewport.zoom_level = next_zoom;
-        viewport.pan_offset = next_pan;
+        viewport.camera.zoom_level = next_zoom;
+        viewport.camera.pan_offset = next_pan;
     }
 
     is_panning_override
@@ -191,7 +196,7 @@ pub fn resolve_show_original(
                 || (i.key_down(egui::Key::D) && !i.modifiers.command && !i.modifiers.ctrl)
         });
 
-    let is_holding_left_fit = !viewport.split_compare
+    let is_holding_left_fit = !viewport.split.active
         && !ctx.is_any_dialog_open
         && !ui.ctx().egui_wants_pointer_input()
         && ui.input(|i| {
@@ -201,8 +206,8 @@ pub fn resolve_show_original(
                     .is_some_and(|p| ctx.preview_rect.contains(p))
         })
         && !ctx.is_tool_active
-        && viewport.crop_drag_handle == CropDragHandle::None
-        && viewport.zoom_level <= 0.0;
+        && viewport.crop.drag_handle == CropDragHandle::None
+        && viewport.camera.zoom_level <= 0.0;
 
     ctx.is_comparing_original
         || is_holding_left_fit

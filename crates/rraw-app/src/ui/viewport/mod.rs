@@ -43,16 +43,17 @@ impl RrawApp {
                         available_rect,
                         texture.size_vec2(),
                         &self.session.grading.geometry,
-                        self.viewport.is_crop_editing,
-                        self.viewport.zoom_level,
-                        self.viewport.pan_offset,
+                        self.viewport.crop.is_editing,
+                        self.viewport.camera.zoom_level,
+                        self.viewport.camera.pan_offset,
                     );
-                    self.viewport.last_fit_scale = layout.fit_scale;
+                    self.viewport.camera.last_fit_scale = layout.fit_scale;
 
                     let resp = ui.allocate_rect(available_rect, egui::Sense::click_and_drag());
                     let is_brush_active = self.is_freehand_brush_active();
-                    let is_tool_active = self.viewport.horizon_tool_active
-                        || self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive
+                    let is_tool_active = self.viewport.geometry_tools.horizon_active
+                        || self.viewport.geometry_tools.parallel_phase
+                            != ParallelToolPhase::Inactive
                         || is_brush_active;
 
                     if is_brush_active {
@@ -86,8 +87,9 @@ impl RrawApp {
 
                     let split_pos = self
                         .viewport
-                        .split_compare
-                        .then_some(self.viewport.split_position);
+                        .split
+                        .active
+                        .then_some(self.viewport.split.position);
                     let paint_params = canvas::CanvasPaintParams {
                         layout: &layout,
                         soft_proof: &self.session.grading.soft_proof,
@@ -107,7 +109,7 @@ impl RrawApp {
                     };
                     self.handle_viewport_overlays(ui, &resp, &painter, &brush_ctx, is_brush_active);
 
-                    if self.viewport.split_compare
+                    if self.viewport.split.active
                         && !show_original
                         && self.session.original_texture.is_some()
                     {
@@ -238,7 +240,7 @@ impl RrawApp {
                         available_rect,
                         mask,
                         has_mask_overlay,
-                        self.viewport.zoom_level,
+                        self.viewport.camera.zoom_level,
                         cur_lang,
                     );
                 }
@@ -253,12 +255,12 @@ impl RrawApp {
             language: cur_lang,
         };
 
-        if self.session.grading.geometry.crop_enabled && self.viewport.is_crop_editing {
+        if self.session.grading.geometry.crop_enabled && self.viewport.crop.is_editing {
             let mut crop_state = crop_overlay::CropToolState {
                 geometry: &mut self.session.grading.geometry,
-                is_crop_editing: &mut self.viewport.is_crop_editing,
-                crop_drag_handle: &mut self.viewport.crop_drag_handle,
-                crop_show_grid: self.viewport.crop_show_grid,
+                is_crop_editing: &mut self.viewport.crop.is_editing,
+                crop_drag_handle: &mut self.viewport.crop.drag_handle,
+                crop_show_grid: self.viewport.crop.show_grid,
             };
             let crop_out = crop_overlay::handle_crop_overlay(ui, &tool_ctx, &mut crop_state);
             if crop_out.needs_preview_update {
@@ -267,17 +269,17 @@ impl RrawApp {
             if crop_out.save_sidecar {
                 self.session.sidecar_dirty = true;
             }
-            if !self.viewport.is_crop_editing {
+            if !self.viewport.crop.is_editing {
                 self.activate_canvas_tool(crate::controllers::viewport::ActiveCanvasTool::None);
             }
         }
 
-        if self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive {
+        if self.viewport.geometry_tools.parallel_phase != ParallelToolPhase::Inactive {
             let mut tool_state = ParallelLinesToolState {
-                phase: &mut self.viewport.parallel_tool_phase,
-                line1: &mut self.viewport.parallel_line1,
-                line2: &mut self.viewport.parallel_line2,
-                drag_start: &mut self.viewport.parallel_drag_start,
+                phase: &mut self.viewport.geometry_tools.parallel_phase,
+                line1: &mut self.viewport.geometry_tools.parallel_line1,
+                line2: &mut self.viewport.geometry_tools.parallel_line2,
+                drag_start: &mut self.viewport.geometry_tools.parallel_drag_start,
                 status_message: &mut self.status_message,
             };
             let p_out = perspective_tools::handle_parallel_lines_tool(
@@ -296,17 +298,17 @@ impl RrawApp {
             if p_out.save_sidecar {
                 self.session.sidecar_dirty = true;
             }
-            if self.viewport.parallel_tool_phase == ParallelToolPhase::Inactive {
+            if self.viewport.geometry_tools.parallel_phase == ParallelToolPhase::Inactive {
                 self.activate_canvas_tool(crate::controllers::viewport::ActiveCanvasTool::None);
             }
         }
 
-        if self.viewport.horizon_tool_active {
+        if self.viewport.geometry_tools.horizon_active {
             let h_out = perspective_tools::handle_horizon_tool(
                 ui,
                 &tool_ctx,
-                &mut self.viewport.horizon_tool_active,
-                &mut self.viewport.horizon_start_point,
+                &mut self.viewport.geometry_tools.horizon_active,
+                &mut self.viewport.geometry_tools.horizon_start_point,
                 &mut self.session.grading.geometry,
             );
             if h_out.mark_custom_preset {
@@ -319,13 +321,13 @@ impl RrawApp {
             if h_out.save_sidecar {
                 self.session.sidecar_dirty = true;
             }
-            if !self.viewport.horizon_tool_active {
+            if !self.viewport.geometry_tools.horizon_active {
                 self.activate_canvas_tool(crate::controllers::viewport::ActiveCanvasTool::None);
             }
         }
 
         if self.session.grading != pre_viewport_grading {
-            if self.viewport.is_crop_editing {
+            if self.viewport.crop.is_editing {
                 self.notify_grading_edited_deferred_preview(pre_viewport_grading, pointer_down);
             } else {
                 self.notify_grading_edited(pre_viewport_grading, pointer_down);
@@ -352,7 +354,7 @@ impl RrawApp {
         split_compare::render_split_divider(
             ui,
             image_rect,
-            &mut self.viewport.split_position,
+            &mut self.viewport.split.position,
             label_before,
             label_after,
         );

@@ -28,24 +28,24 @@ fn test_photo_session_independent_lifecycle() {
 fn test_viewport_controller_independent_operations() {
     let mut vp = ViewportController::default();
     assert!(vp.is_zoom_fit());
-    assert_eq!(vp.zoom_level, 0.0);
-    assert_eq!(vp.pan_offset, egui::Vec2::ZERO);
-    assert!(!vp.split_compare);
+    assert_eq!(vp.camera.zoom_level, 0.0);
+    assert_eq!(vp.camera.pan_offset, egui::Vec2::ZERO);
+    assert!(!vp.split.active);
 
     // Toggle split compare
     vp.toggle_split_compare();
-    assert!(vp.split_compare);
+    assert!(vp.split.active);
     vp.toggle_split_compare();
-    assert!(!vp.split_compare);
+    assert!(!vp.split.active);
 
     // Zoom and pan manipulations
-    vp.zoom_level = 1.0;
-    vp.pan_offset = egui::Vec2::new(50.0, 100.0);
+    vp.camera.zoom_level = 1.0;
+    vp.camera.pan_offset = egui::Vec2::new(50.0, 100.0);
     assert!(!vp.is_zoom_fit());
 
     vp.reset_view();
     assert!(vp.is_zoom_fit());
-    assert_eq!(vp.pan_offset, egui::Vec2::ZERO);
+    assert_eq!(vp.camera.pan_offset, egui::Vec2::ZERO);
 }
 
 #[test]

@@ -227,21 +227,21 @@ impl RrawApp {
             self.export
                 .close_dialog(crate::controllers::export::ActiveModalDialog::Export);
             true
-        } else if self.viewport.is_crop_editing {
-            self.viewport.is_crop_editing = false;
-            self.viewport.crop_drag_handle = CropDragHandle::None;
+        } else if self.viewport.crop.is_editing {
+            self.viewport.crop.is_editing = false;
+            self.viewport.crop.drag_handle = CropDragHandle::None;
             self.status_message = self.t(Key::EscapeCropDeactivated).to_string();
             true
-        } else if self.viewport.horizon_tool_active {
-            self.viewport.horizon_tool_active = false;
-            self.viewport.horizon_start_point = None;
+        } else if self.viewport.geometry_tools.horizon_active {
+            self.viewport.geometry_tools.horizon_active = false;
+            self.viewport.geometry_tools.horizon_start_point = None;
             self.status_message = self.t(Key::EscapeHorizonDeactivated).to_string();
             true
-        } else if self.viewport.parallel_tool_phase != ParallelToolPhase::Inactive {
-            self.viewport.parallel_tool_phase = ParallelToolPhase::Inactive;
-            self.viewport.parallel_line1 = None;
-            self.viewport.parallel_line2 = None;
-            self.viewport.parallel_drag_start = None;
+        } else if self.viewport.geometry_tools.parallel_phase != ParallelToolPhase::Inactive {
+            self.viewport.geometry_tools.parallel_phase = ParallelToolPhase::Inactive;
+            self.viewport.geometry_tools.parallel_line1 = None;
+            self.viewport.geometry_tools.parallel_line2 = None;
+            self.viewport.geometry_tools.parallel_drag_start = None;
             self.status_message = self.t(Key::EscapePerspectiveDeactivated).to_string();
             true
         } else if self.session.grading.masks.active_brush_mask_idx.is_some() {
@@ -518,8 +518,8 @@ impl RrawApp {
 
         // Reset zoom & pan and active canvas tools on new photo open
         self.activate_canvas_tool(crate::controllers::viewport::ActiveCanvasTool::None);
-        self.viewport.zoom_level = 0.0;
-        self.viewport.pan_offset = egui::Vec2::ZERO;
+        self.viewport.camera.zoom_level = 0.0;
+        self.viewport.camera.pan_offset = egui::Vec2::ZERO;
         self.session.original_texture = None;
         self.session.is_comparing_original = false;
 
