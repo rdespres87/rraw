@@ -14,6 +14,7 @@ members = [
     "crates/rraw-cli",
     "crates/rraw-app",
 ]
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.3.2"

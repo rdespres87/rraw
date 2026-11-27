@@ -190,25 +190,30 @@ struct DirEntry {
 pub fn try_decode_x3f(path: &Path) -> Result<DecodedRaw, DecodeError> {
     let data = std::fs::read(path)
         .map_err(|e| DecodeError::Io(format!("failed to read {}: {e}", path.display())))?;
+    try_decode_x3f_bytes(&data)
+}
+
+/// Attempts to decode an in-memory `.X3F` (Foveon X3) byte slice into a `LinearRgbBuffer`.
+pub fn try_decode_x3f_bytes(data: &[u8]) -> Result<DecodedRaw, DecodeError> {
     if data.len() < 40 || &data[0..4] != b"FOVb" {
         return Err(DecodeError::UnsupportedFormat("not an X3F file".into()));
     }
 
-    let dir_off = read_u32_le(&data, data.len() - 4)? as usize;
+    let dir_off = read_u32_le(data, data.len() - 4)? as usize;
     if dir_off + 12 > data.len() || &data[dir_off..dir_off + 4] != b"SECd" {
         return Err(DecodeError::MalformedMetadata(
             "X3F missing SECd directory".into(),
         ));
     }
-    let num_entries = read_u32_le(&data, dir_off + 8)? as usize;
+    let num_entries = read_u32_le(data, dir_off + 8)? as usize;
     let mut entries = Vec::with_capacity(num_entries.min(64));
     for i in 0..num_entries {
         let base = dir_off + 12 + i * 12;
         if base + 12 > data.len() {
             break;
         }
-        let offset = read_u32_le(&data, base)? as usize;
-        let length = read_u32_le(&data, base + 4)? as usize;
+        let offset = read_u32_le(data, base)? as usize;
+        let length = read_u32_le(data, base + 4)? as usize;
         let tag = [
             data[base + 8],
             data[base + 9],
@@ -226,7 +231,7 @@ pub fn try_decode_x3f(path: &Path) -> Result<DecodedRaw, DecodeError> {
     let props = entries
         .iter()
         .find(|e| &e.tag == b"PROP")
-        .map(|e| parse_prop_section(&data, e))
+        .map(|e| parse_prop_section(data, e))
         .unwrap_or_default();
 
     let make = props
@@ -252,7 +257,7 @@ pub fn try_decode_x3f(path: &Path) -> Result<DecodedRaw, DecodeError> {
         .find(|e| {
             (&e.tag == b"IMA2" || &e.tag == b"IMAG")
                 && e.offset + 28 <= data.len()
-                && matches!(read_u32_le(&data, e.offset + 8), Ok(1 | 3))
+                && matches!(read_u32_le(data, e.offset + 8), Ok(1 | 3))
         })
         .ok_or_else(|| {
             DecodeError::UnsupportedFormat("X3F contains no RAW image section".into())
@@ -298,7 +303,7 @@ pub fn try_decode_x3f(path: &Path) -> Result<DecodedRaw, DecodeError> {
     let camf_matrix = entries
         .iter()
         .find(|e| &e.tag == b"CAMF")
-        .and_then(|e| extract_camf_raw_to_srgb(&data, e, &wb_desc));
+        .and_then(|e| extract_camf_raw_to_srgb(data, e, &wb_desc));
 
     let linear_rgb = calibrate_foveon_to_linear_srgb(
         &raw_rgb_u16,

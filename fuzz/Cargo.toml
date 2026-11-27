@@ -1,0 +1,50 @@
+[workspace]
+
+[package]
+name = "rraw-decode-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+rraw-core = { path = "../crates/rraw-core" }
+rraw-decode = { path = "../crates/rraw-decode" }
+
+[[bin]]
+name = "fuzz_vc5"
+path = "fuzz_targets/fuzz_vc5.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_x3f"
+path = "fuzz_targets/fuzz_x3f.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dng_fallback"
+path = "fuzz_targets/fuzz_dng_fallback.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_jpeg12"
+path = "fuzz_targets/fuzz_jpeg12.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_opcodes"
+path = "fuzz_targets/fuzz_opcodes.rs"
+test = false
+doc = false
+bench = false

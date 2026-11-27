@@ -29,11 +29,16 @@ pub fn try_decode_fallback(path: &Path) -> Result<DecodedRaw, DecodeError> {
         ))
     })?;
 
-    if is_jpeg_or_png_magic(&data) {
-        return decode_embedded_raster(path, &data);
+    try_decode_fallback_bytes(path, &data)
+}
+
+/// Attempts to decode an in-memory DNG/TIFF/raster byte slice using the pure-Rust fallback decoder.
+pub fn try_decode_fallback_bytes(path: &Path, data: &[u8]) -> Result<DecodedRaw, DecodeError> {
+    if is_jpeg_or_png_magic(data) {
+        return decode_embedded_raster(path, data);
     }
 
-    decode_dng_tiff(path, &data)
+    decode_dng_tiff(path, data)
 }
 
 #[inline]
