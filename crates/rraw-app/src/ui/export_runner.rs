@@ -11,6 +11,29 @@ use super::export::ExportWriteConfig;
 use crate::app::RrawApp;
 use crate::preview::*;
 use crate::state::*;
+use crate::workers::ExportProgressMessage;
+
+/// Per-photo data handed to the background export worker.
+struct ExportTask {
+    path: PathBuf,
+    target_path: PathBuf,
+    cached_base: Option<BaseRgbPreview>,
+    cached_cfa: Option<rraw_core::SignedCfaBuffer>,
+    cached_linear_rgb: Option<rraw_decode::LinearRgbBuffer>,
+    cached_grading: Option<DarkroomGradingState>,
+}
+
+/// Outcome of a single export task within the batch worker.
+enum ExportTaskStep {
+    /// File written successfully to the target path.
+    Saved(PathBuf),
+    /// Decode failed; skip this item and continue with the next.
+    DecodeSkipped,
+    /// User cancelled; abort the entire batch.
+    Cancelled,
+    /// Irrecoverable write error; abort the entire batch.
+    FatalError,
+}
 
 impl RrawApp {
     pub fn write_exported_image_static(
@@ -384,9 +407,30 @@ impl RrawApp {
             return self.spawn_background_timelapse_export();
         }
 
-        let photos_to_export: Vec<PathBuf> = match mode {
+        let photos = self.collect_export_photo_paths(mode)?;
+        let items = self.prepare_export_tasks(&photos)?;
+
+        self.save_current_photo_sidecar();
+
+        let export_config = ExportWriteConfig {
+            format: self.export.config.format,
+            jpeg_quality: self.export.config.jpeg_quality,
+            bit_depth: self.export.config.bit_depth,
+            scale_mode: self.export.config.scale_mode,
+            hdr_gain_map: self.export.config.hdr_gain_map,
+        };
+        let tx = self.workers.export_sender.clone();
+        let cancel = self.workers.reset_export_cancel();
+
+        Self::run_background_export_worker(items, export_config, tx, cancel);
+        Ok(())
+    }
+
+    /// Resolves the list of photo paths to export for the given target mode.
+    fn collect_export_photo_paths(&self, mode: ExportTargetMode) -> Result<Vec<PathBuf>, String> {
+        match mode {
             ExportTargetMode::BatchSelection => {
-                let matching_selected: Vec<PathBuf> = self
+                let matching: Vec<PathBuf> = self
                     .library
                     .selected_photos
                     .iter()
@@ -394,39 +438,33 @@ impl RrawApp {
                     .cloned()
                     .collect();
 
-                if matching_selected.is_empty() {
+                if matching.is_empty() {
                     if let Some(loaded) = &self.session.loaded_photo {
-                        vec![loaded.path.clone()]
+                        Ok(vec![loaded.path.clone()])
                     } else {
-                        return Err("No photos selected for batch export.".to_string());
+                        Err("No photos selected for batch export.".to_string())
                     }
                 } else {
-                    let mut sorted = matching_selected;
+                    let mut sorted = matching;
                     sorted.sort();
-                    sorted
+                    Ok(sorted)
                 }
             }
             ExportTargetMode::CurrentPhoto | ExportTargetMode::TimelapseSequence => {
                 if let Some(loaded) = &self.session.loaded_photo {
-                    vec![loaded.path.clone()]
+                    Ok(vec![loaded.path.clone()])
                 } else {
-                    return Err("No photo loaded to export.".to_string());
+                    Err("No photo loaded to export.".to_string())
                 }
             }
-        };
-
-        // Prepare lightweight export tasks on UI thread (< 0.1 ms) with zero disk I/O
-        struct ExportTask {
-            path: PathBuf,
-            target_path: PathBuf,
-            cached_base: Option<BaseRgbPreview>,
-            cached_cfa: Option<rraw_core::SignedCfaBuffer>,
-            cached_linear_rgb: Option<rraw_decode::LinearRgbBuffer>,
-            cached_grading: Option<DarkroomGradingState>,
         }
+    }
 
-        let mut items = Vec::with_capacity(photos_to_export.len());
-
+    /// Builds `ExportTask` entries (target paths, cached buffers) for the given photos.
+    fn prepare_export_tasks(
+        &self,
+        photos_to_export: &[PathBuf],
+    ) -> Result<Vec<ExportTask>, String> {
         let base_dest = self.export.config.custom_dir.clone().unwrap_or_else(|| {
             self.session
                 .loaded_photo
@@ -448,7 +486,8 @@ impl RrawApp {
         let ext = self.export.config.format.extension();
         let suffix = &self.export.config.suffix;
 
-        for photo_path in &photos_to_export {
+        let mut items = Vec::with_capacity(photos_to_export.len());
+        for photo_path in photos_to_export {
             let stem = photo_path
                 .file_stem()
                 .and_then(|s| s.to_str())
@@ -493,131 +532,52 @@ impl RrawApp {
         if items.is_empty() {
             return Err("No photos could be prepared for export.".to_string());
         }
+        Ok(items)
+    }
 
-        self.save_current_photo_sidecar();
+    /// Returns `true` and sends the cancellation progress message if the flag is set.
+    fn is_export_cancelled(
+        cancel: &std::sync::atomic::AtomicBool,
+        tx: &std::sync::mpsc::Sender<ExportProgressMessage>,
+    ) -> bool {
+        if cancel.load(std::sync::atomic::Ordering::Acquire) {
+            let msg = "Export cancelled by user.".to_string();
+            let _ = tx.send((1.0, "Export cancelled".to_string(), Some(Err(msg))));
+            true
+        } else {
+            false
+        }
+    }
 
-        let export_config = ExportWriteConfig {
-            format: self.export.config.format,
-            jpeg_quality: self.export.config.jpeg_quality,
-            bit_depth: self.export.config.bit_depth,
-            scale_mode: self.export.config.scale_mode,
-            hdr_gain_map: self.export.config.hdr_gain_map,
-        };
-        let tx = self.workers.export_sender.clone();
-        let cancel = self.workers.reset_export_cancel();
-
+    /// Spawns the background thread that processes all export tasks sequentially.
+    fn run_background_export_worker(
+        items: Vec<ExportTask>,
+        export_config: ExportWriteConfig,
+        tx: std::sync::mpsc::Sender<ExportProgressMessage>,
+        cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) {
         std::thread::spawn(move || {
             let total = items.len();
-            let mut last_path = None;
+            let mut last_path: Option<PathBuf> = None;
 
             for (idx, item) in items.into_iter().enumerate() {
-                if cancel.load(std::sync::atomic::Ordering::Acquire) {
-                    let msg = "Export cancelled by user.".to_string();
-                    let _ = tx.send((1.0, "Export cancelled".to_string(), Some(Err(msg))));
+                if Self::is_export_cancelled(&cancel, &tx) {
                     return;
                 }
-                let base_frac = (idx as f32) / (total as f32).max(1.0);
-                let step_frac = 1.0 / (total as f32).max(1.0);
-                let fname = item
-                    .path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("photo");
 
-                // Stage 1: Preparation & decoding (0% -> 25%)
-                let _ = tx.send((
-                    base_frac + step_frac * 0.05,
-                    format!("Decoding {fname} ({}/{total})", idx + 1),
-                    None,
-                ));
-
-                let (base_preview, cfa_opt, linear_rgb_opt) =
-                    match (item.cached_base, item.cached_cfa, item.cached_linear_rgb) {
-                        (Some(base), cfa, linear_rgb) => (base, cfa, linear_rgb),
-                        (None, _, _) => {
-                            if let Some(payload) = decode_photo_file_payload(&item.path, false, 0) {
-                                (payload.base_preview, Some(payload.cfa), payload.linear_rgb)
-                            } else {
-                                let _ = tx.send((
-                                    base_frac + step_frac,
-                                    format!("Failed decoding {fname}"),
-                                    Some(Err(format!("Failed to decode {}", item.path.display()))),
-                                ));
-                                continue;
-                            }
-                        }
-                    };
-
-                let base = if let Some(cfa) = &cfa_opt {
-                    Self::build_export_base_with_linear_rgb_static(
-                        export_config.scale_mode,
-                        cfa,
-                        linear_rgb_opt.as_ref(),
-                        &base_preview,
-                    )
-                } else {
-                    base_preview
-                };
-
-                let grading = item
-                    .cached_grading
-                    .unwrap_or_else(|| load_photo_sidecars(&item.path).0.unwrap_or_default());
-
-                // Stage 2: Color grading, tone curves & geometry rendering (25% -> 60%)
-                if cancel.load(std::sync::atomic::Ordering::Acquire) {
-                    let msg = "Export cancelled by user.".to_string();
-                    let _ = tx.send((1.0, "Export cancelled".to_string(), Some(Err(msg))));
-                    return;
-                }
-                let _ = tx.send((
-                    base_frac + step_frac * 0.25,
-                    format!("Rendering {fname} ({}/{total})", idx + 1),
-                    None,
-                ));
-
-                let effective_depth = match export_config.format {
-                    ExportFormatChoice::Jpeg | ExportFormatChoice::Avif => ExportBitDepth::Bits8,
-                    ExportFormatChoice::Png
-                    | ExportFormatChoice::Tiff
-                    | ExportFormatChoice::Jxl => export_config.bit_depth,
-                };
-                let (out_w, out_h, raster_buf) =
-                    render_export_image_with_depth(&base, &grading, 1.0, effective_depth);
-
-                // Stage 3: Image compression & file writing (60% -> 98%)
-                if cancel.load(std::sync::atomic::Ordering::Acquire) {
-                    let msg = "Export cancelled by user.".to_string();
-                    let _ = tx.send((1.0, "Export cancelled".to_string(), Some(Err(msg))));
-                    return;
-                }
-                let _ = tx.send((
-                    base_frac + step_frac * 0.60,
-                    format!("Encoding {fname} ({}/{total})", idx + 1),
-                    None,
-                ));
-
-                let outcome = Self::write_exported_image_static(
+                match Self::execute_single_export_task(
+                    item,
                     export_config,
-                    &item.target_path,
-                    out_w,
-                    out_h,
-                    raster_buf.as_u8_slice().unwrap_or(&[]),
-                    raster_buf.as_u16_slice().unwrap_or(&[]),
-                );
-
-                match outcome {
-                    Ok(()) => {
-                        let _ = tx.send((
-                            base_frac + step_frac * 0.98,
-                            format!("Saved {fname} ({}/{total})", idx + 1),
-                            None,
-                        ));
-                        last_path = Some(item.target_path);
+                    idx,
+                    total,
+                    &tx,
+                    &cancel,
+                ) {
+                    ExportTaskStep::Saved(path) => {
+                        last_path = Some(path);
                     }
-                    Err(e) => {
-                        let _ = tx.send((1.0, format!("Error: {e}"), Some(Err(e))));
-                        return;
-                    }
+                    ExportTaskStep::DecodeSkipped => continue,
+                    ExportTaskStep::Cancelled | ExportTaskStep::FatalError => return,
                 }
             }
 
@@ -629,8 +589,116 @@ impl RrawApp {
             };
             let _ = tx.send((1.0, final_msg, Some(result)));
         });
+    }
 
-        Ok(())
+    /// Executes one export task: decode -> render -> encode and write.
+    fn execute_single_export_task(
+        item: ExportTask,
+        export_config: ExportWriteConfig,
+        idx: usize,
+        total: usize,
+        tx: &std::sync::mpsc::Sender<ExportProgressMessage>,
+        cancel: &std::sync::atomic::AtomicBool,
+    ) -> ExportTaskStep {
+        let base_frac = (idx as f32) / (total as f32).max(1.0);
+        let step_frac = 1.0 / (total as f32).max(1.0);
+        let fname = item
+            .path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("photo");
+
+        // Stage 1: Preparation & decoding (0% -> 25%)
+        let _ = tx.send((
+            base_frac + step_frac * 0.05,
+            format!("Decoding {fname} ({}/{total})", idx + 1),
+            None,
+        ));
+
+        let (base_preview, cfa_opt, linear_rgb_opt) =
+            match (item.cached_base, item.cached_cfa, item.cached_linear_rgb) {
+                (Some(base), cfa, linear_rgb) => (base, cfa, linear_rgb),
+                (None, _, _) => {
+                    if let Some(payload) = decode_photo_file_payload(&item.path, false, 0) {
+                        (payload.base_preview, Some(payload.cfa), payload.linear_rgb)
+                    } else {
+                        let _ = tx.send((
+                            base_frac + step_frac,
+                            format!("Failed decoding {fname}"),
+                            Some(Err(format!("Failed to decode {}", item.path.display()))),
+                        ));
+                        return ExportTaskStep::DecodeSkipped;
+                    }
+                }
+            };
+
+        let base = if let Some(cfa) = &cfa_opt {
+            Self::build_export_base_with_linear_rgb_static(
+                export_config.scale_mode,
+                cfa,
+                linear_rgb_opt.as_ref(),
+                &base_preview,
+            )
+        } else {
+            base_preview
+        };
+
+        let grading = item
+            .cached_grading
+            .unwrap_or_else(|| load_photo_sidecars(&item.path).0.unwrap_or_default());
+
+        // Stage 2: Color grading, tone curves & geometry rendering (25% -> 60%)
+        if Self::is_export_cancelled(cancel, tx) {
+            return ExportTaskStep::Cancelled;
+        }
+        let _ = tx.send((
+            base_frac + step_frac * 0.25,
+            format!("Rendering {fname} ({}/{total})", idx + 1),
+            None,
+        ));
+
+        let effective_depth = match export_config.format {
+            ExportFormatChoice::Jpeg | ExportFormatChoice::Avif => ExportBitDepth::Bits8,
+            ExportFormatChoice::Png | ExportFormatChoice::Tiff | ExportFormatChoice::Jxl => {
+                export_config.bit_depth
+            }
+        };
+        let (out_w, out_h, raster_buf) =
+            render_export_image_with_depth(&base, &grading, 1.0, effective_depth);
+
+        // Stage 3: Image compression & file writing (60% -> 98%)
+        if Self::is_export_cancelled(cancel, tx) {
+            return ExportTaskStep::Cancelled;
+        }
+        let _ = tx.send((
+            base_frac + step_frac * 0.60,
+            format!("Encoding {fname} ({}/{total})", idx + 1),
+            None,
+        ));
+
+        let outcome = Self::write_exported_image_static(
+            export_config,
+            &item.target_path,
+            out_w,
+            out_h,
+            raster_buf.as_u8_slice().unwrap_or(&[]),
+            raster_buf.as_u16_slice().unwrap_or(&[]),
+        );
+
+        match outcome {
+            Ok(()) => {
+                let _ = tx.send((
+                    base_frac + step_frac * 0.98,
+                    format!("Saved {fname} ({}/{total})", idx + 1),
+                    None,
+                ));
+                ExportTaskStep::Saved(item.target_path)
+            }
+            Err(e) => {
+                let _ = tx.send((1.0, format!("Error: {e}"), Some(Err(e))));
+                ExportTaskStep::FatalError
+            }
+        }
     }
 
     /// Requests cooperative cancellation of the currently running background export or timelapse job.
