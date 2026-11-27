@@ -300,20 +300,36 @@ fn apply_descale(even: i32, odd: i32, descale: u8) -> (i32, i32) {
     }
 }
 
-/// Applies the 2D inverse 2-6 wavelet transform for one decomposition level:
-/// vertical 2-6 on `(LL, HL)` and `(LH, HH)` followed by horizontal 2-6 into `out_w × out_h`.
-#[allow(clippy::too_many_arguments)]
-fn invert_2d_level(
-    ll: &[i16],
-    lh: &[i16],
-    hl: &[i16],
-    hh: &[i16],
+/// Borrowed subband coefficient slices for one 2D wavelet decomposition level.
+#[derive(Clone, Copy)]
+struct SubbandSlices<'a> {
+    ll: &'a [i16],
+    lh: &'a [i16],
+    hl: &'a [i16],
+    hh: &'a [i16],
+}
+
+/// Dimensions and inverse-transform descale shift for one 2D wavelet level.
+#[derive(Clone, Copy)]
+struct WaveletLevelDims {
     in_w: usize,
     in_h: usize,
     out_w: usize,
     out_h: usize,
     descale: u8,
-) -> Vec<i16> {
+}
+
+/// Applies the 2D inverse 2-6 wavelet transform for one decomposition level:
+/// vertical 2-6 on `(LL, HL)` and `(LH, HH)` followed by horizontal 2-6 into `out_w × out_h`.
+fn invert_2d_level(subbands: SubbandSlices<'_>, dims: WaveletLevelDims) -> Vec<i16> {
+    let SubbandSlices { ll, lh, hl, hh } = subbands;
+    let WaveletLevelDims {
+        in_w,
+        in_h,
+        out_w,
+        out_h,
+        descale,
+    } = dims;
     let mut output = vec![0i16; out_w * out_h];
     let mut even_lp = vec![0i16; in_w];
     let mut odd_lp = vec![0i16; in_w];
@@ -621,7 +637,21 @@ pub fn decode_vc5_bayer(
                 &trie,
                 &uncompand,
             )?;
-            ll = invert_2d_level(&ll, &lh, &hl, &hh, in_w, in_h, out_w, out_h, descale);
+            ll = invert_2d_level(
+                SubbandSlices {
+                    ll: &ll,
+                    lh: &lh,
+                    hl: &hl,
+                    hh: &hh,
+                },
+                WaveletLevelDims {
+                    in_w,
+                    in_h,
+                    out_w,
+                    out_h,
+                    descale,
+                },
+            );
         }
 
         channels.push(ll);
@@ -716,7 +746,21 @@ mod tests {
         // restoring the exact constant level 1000.
         let ll = vec![1000i16; 16];
         let zero = vec![0i16; 16];
-        let out = invert_2d_level(&ll, &zero, &zero, &zero, 4, 4, 8, 8, 2);
+        let out = invert_2d_level(
+            SubbandSlices {
+                ll: &ll,
+                lh: &zero,
+                hl: &zero,
+                hh: &zero,
+            },
+            WaveletLevelDims {
+                in_w: 4,
+                in_h: 4,
+                out_w: 8,
+                out_h: 8,
+                descale: 2,
+            },
+        );
         assert_eq!(out.len(), 64);
         for &v in &out {
             assert!((i32::from(v) - 1000).abs() <= 1, "expected ~1000, got {v}");
