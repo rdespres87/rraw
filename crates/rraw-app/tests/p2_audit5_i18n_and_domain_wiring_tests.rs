@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
-//! TDD integration tests for Phase 23 / Task 23.3 (Deep Maturity Audit #5 — Chantier 3):
-//! - P2.1: 100% residual French string localization across explorer, EXIF, filmstrip, left sidebar, and top bar.
-//! - P2.2: Domain crate feature wiring into `rraw-app`:
+//! TDD integration tests for i18n completeness and domain crate wiring:
+//! - 100% residual French string localization across explorer, EXIF, filmstrip, left sidebar, and top bar.
+//! - Domain crate feature wiring into `rraw-app`:
 //!   - `rraw-optics::execute_richardson_lucy` capture sharpening deconvolution in `PreparedGradingFrame`.
 //!   - `rraw-export` ISO 21496-1 Gain Map HDR metadata calculation and `.hdrgm.xmp` / `.tmap` emission in export.
 
@@ -26,7 +26,7 @@ use rraw_app::state::{DarkroomGradingState, ExportBitDepth, ExportFormatChoice, 
 use rraw_app::ui::export::ExportWriteConfig;
 use rraw_app::RrawApp;
 
-/// P2.1 — Verifies that all explorer, EXIF, filmstrip, left sidebar, and top-bar Soft Proofing
+/// Verifies that all explorer, EXIF, filmstrip, left sidebar, and top-bar Soft Proofing
 /// strings are 100% localized in English and Spanish with zero residual French words.
 #[test]
 fn test_p2_1_explorer_exif_filmstrip_and_topbar_complete_i18n_localization(
@@ -107,7 +107,7 @@ fn test_p2_1_explorer_exif_filmstrip_and_topbar_complete_i18n_localization(
     Ok(())
 }
 
-/// P2.2a — Verifies that `rraw_optics::execute_richardson_lucy` capture sharpening is wired into
+/// Verifies that `rraw_optics::execute_richardson_lucy` capture sharpening is wired into
 /// `PreparedGradingFrame` when `capture_sharpening_amount > 0.5`, sharpening blurred edges and
 /// maintaining 100% mathematical parity between interactive preview and export.
 #[test]
@@ -195,7 +195,7 @@ fn test_p2_2_richardson_lucy_capture_sharpening_wired_in_preview_and_export(
     Ok(())
 }
 
-/// P2.2b — Verifies that enabling ISO 21496-1 Gain Map HDR in `ExportWriteConfig` computes the
+/// Verifies that enabling ISO 21496-1 Gain Map HDR in `ExportWriteConfig` computes the
 /// gain map via `rraw_export::GainMapCalculator` and emits both the `.hdrgm.xmp` XMP packet and
 /// the 40-byte `.tmap` binary ISOBMFF box alongside the exported image.
 #[test]

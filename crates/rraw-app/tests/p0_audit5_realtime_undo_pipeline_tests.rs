@@ -1,10 +1,10 @@
 #![forbid(unsafe_code)]
 
-//! TDD Integration Tests for Deep Maturity Audit #5 — Chantier P0:
-//! - P0.1: Eliminate synchronous UI-thread `fsync` spam during continuous slider drags & coalesce sidecar writes.
-//! - P0.2: Cache and alphabetically sort explorer subdirectories in `LibraryController`.
-//! - P0.3: Bounded Undo / Redo history stack (`PhotoSession::MAX_UNDO_HISTORY = 64`, `undo_grading`, `redo_grading`).
-//! - P0.4: Unified per-pixel grading kernel (`PreparedGradingFrame`) guaranteeing preview and export parity.
+//! TDD Integration Tests for real-time sidecar coalescing, directory caching, undo history, and grading parity:
+//! - Eliminate synchronous UI-thread `fsync` spam during continuous slider drags & coalesce sidecar writes.
+//! - Cache and alphabetically sort explorer subdirectories in `LibraryController`.
+//! - Bounded Undo / Redo history stack (`PhotoSession::MAX_UNDO_HISTORY = 64`, `undo_grading`, `redo_grading`).
+//! - Unified per-pixel grading kernel (`PreparedGradingFrame`) guaranteeing preview and export parity.
 
 use std::fs;
 

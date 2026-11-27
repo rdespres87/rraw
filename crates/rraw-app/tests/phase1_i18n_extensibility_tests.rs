@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Phase 1 TDD integration tests: 100% dynamic catalog-driven internationalization.
+//! TDD integration tests: 100% dynamic catalog-driven internationalization.
 //!
 //! Verifies that adding a brand-new external JSON language catalog (e.g. German `de_ext`)
 //! translates every UI message, preset, shortcut, HUD badge, and status string without

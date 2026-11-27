@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Integration tests for Phase 13.2 — macOS App Bundle & Drag-and-Drop DMG Packaging.
+//! Integration tests for macOS App Bundle & Drag-and-Drop DMG Packaging.
 //!
 //! Validates:
 //!   - `assets/macos/Info.plist`: Apple XML property list template integrity & document types.

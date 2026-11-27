@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! TDD Verification Suite for Task 15.1: State De-Obesity & Domain Hierarchy.
+//! TDD Verification Suite for State De-Obesity & Domain Hierarchy.
 //!
 //! Validates:
 //! 1. Composable domain sub-structs (`ToneGradingParams`, `ColorGradingParams`, `DenoiseSharpenParams`,

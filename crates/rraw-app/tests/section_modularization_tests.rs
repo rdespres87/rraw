@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! TDD and regression test suite for Task 15.2: Monolithic File & Function Decomposition.
+//! TDD and regression test suite for modular file and function decomposition.
 //!
 //! Validates:
 //! 1. Principle of least privilege: modular sections accept dedicated sub-struct references.

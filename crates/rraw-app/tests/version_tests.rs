@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Tests for Phase 13.1 — Semantic Versioning & Build Metadata:
+//! Tests for Semantic Versioning & Build Metadata:
 //! compile-time `VERSION`, git commit hash, build date, About dialog, CLI `--version`.
 
 use rraw_app::RrawApp;

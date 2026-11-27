@@ -1,4 +1,4 @@
-//! TDD integration tests for Task 16.2:
+//! TDD integration tests for:
 //! Architectural Decomposition of `RrawApp` into Specialized Domain Controllers (`rraw-app`).
 
 use rraw_app::controllers::{

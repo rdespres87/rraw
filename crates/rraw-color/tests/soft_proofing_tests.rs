@@ -1,4 +1,4 @@
-//! Color Management, ICC Output/Printer Profile Simulation, Rendering Intents, and Out-of-Gamut Detection (Task 6.4).
+//! Color Management, ICC Output/Printer Profile Simulation, Rendering Intents, and Out-of-Gamut Detection.
 
 use glam::Vec3;
 use rraw_color::{

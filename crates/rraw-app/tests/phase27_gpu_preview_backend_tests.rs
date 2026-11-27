@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Phase 27 — Phase 4 TDD integration tests for the live WGPU interactive preview backend
+//! TDD integration tests for the live WGPU interactive preview backend
 //! (`GpuPreviewEngine`, `can_use_gpu_fast_path`, automatic CPU fallback, and colorimetric parity).
 
 use std::sync::Arc;

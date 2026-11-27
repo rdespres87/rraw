@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Strict TDD unit & integration tests for Phase 7.1 Edge-Aware Adaptive Demosaicing.
+//! Strict TDD unit & integration tests for Edge-Aware Adaptive Demosaicing.
 
 use rraw_core::demosaic::{demosaic_cfa, DemosaicMethod};
 use rraw_core::{BayerOrigin, CfaColor, CfaPattern, CoreError, SignedCfaBuffer};

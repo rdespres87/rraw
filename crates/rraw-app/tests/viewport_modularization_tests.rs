@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! TDD and regression test suite for Task 15.2 Step 2: Monolithic Viewport Decomposition.
+//! TDD and regression test suite for modular viewport decomposition.
 //!
 //! Validates:
 //! 1. Viewport submodules (`hud`, `split_compare`, `crop_overlay`, `perspective_tools`, `brush_overlay`).

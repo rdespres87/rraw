@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! TDD and regression test suite for Task 15.2 Step 3: Monolithic Preview Pipeline Decomposition.
+//! TDD and regression test suite for modular preview pipeline decomposition.
 //!
 //! Validates:
 //! 1. Preview submodules (`types`, `orientation`, `masks`, `decoder`, `pipeline`).

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! End-to-End Concurrency & Stress Integration Tests for Phase 16 (Task 16.3).
+//! End-to-End Concurrency & Stress Integration Tests.
 //!
 //! Validates:
 //! 1. Atomic epoch cancellation under rapid 250-request scrubbing.

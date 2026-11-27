@@ -1,4 +1,4 @@
-//! Integration tests for Task 20.2: Interactive AI Masking & Real-Time Neural Denoising UI.
+//! Integration tests for Interactive AI Masking & Real-Time Neural Denoising UI.
 
 use rraw_app::grading::DenoiseSharpenParams;
 use rraw_app::i18n::{Key, Language};

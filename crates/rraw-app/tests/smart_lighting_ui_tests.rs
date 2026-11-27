@@ -8,7 +8,7 @@ use rraw_app::state::{DarkroomGradingState, DarkroomSection, GradingRecipeClipbo
 use rraw_core::{SmartLightingMode, SmartLightingParams};
 
 // ---------------------------------------------------------------------------
-// 1. Clipboard copy / paste round-trip (Phase 12 model)
+// Clipboard copy / paste round-trip model
 // ---------------------------------------------------------------------------
 #[test]
 fn test_smart_lighting_clipboard_copy_paste() {

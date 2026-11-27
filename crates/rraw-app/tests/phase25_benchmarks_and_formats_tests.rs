@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Phase 25 — Pre-Release Performance Benchmarks, Memory Footprint & RAW Format Evaluation.
+//! Pre-Release Performance Benchmarks, Memory Footprint & RAW Format Evaluation.
 //!
 //! Verifies:
 //! 1. End-to-end RAW decoding latency and synthetic stream parsing throughput.

@@ -1,4 +1,4 @@
-//! TDD integration tests for Task 16.1:
+//! TDD integration tests for:
 //! Concurrency Hardening, Thread Cancellation & VRAM Eviction Engine (`rraw-app`).
 
 use rraw_app::preview::{DecodeCoordinator, LruThumbnailCache};

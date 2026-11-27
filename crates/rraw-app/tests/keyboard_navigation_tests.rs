@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 //! Integration and verification tests for keyboard navigation, inspector tab state,
-//! shortcuts invariants, and macOS packaging configuration (Task 21.3).
+//! shortcuts invariants, and macOS packaging configuration.
 
 use rraw_app::state::{LeftPanelTab, RatingFilter};
 use std::fs;

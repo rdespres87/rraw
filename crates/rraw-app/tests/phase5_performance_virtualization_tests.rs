@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Phase 5 regression tests: horizontal filmstrip virtualization (10,000+ entries)
+//! Regression tests: horizontal filmstrip virtualization (10,000+ entries).
 //! and full-resolution CPU demosaicing invalidation control during continuous UI interactions.
 
 use std::path::PathBuf;

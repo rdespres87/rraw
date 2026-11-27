@@ -1,10 +1,10 @@
 #![forbid(unsafe_code)]
 
-//! TDD integration test suite for Audit #4 Priority P0 remediations:
-//! - P0.1: Parallel single-buffer export rendering (`ExportRasterBuffer`, `render_export_image_with_depth`) & Preview/Export parity.
-//! - P0.2: Asynchronous frame-by-frame streaming Timelapse export without blocking the UI thread or accumulating full-res frames in RAM.
-//! - P0.3: O(1) bilinear lookup grid & AABB bounding-box acceleration for freehand brush masks (`PrecomputedBrushGrid`).
-//! - P0.4: Atomic write-temp-then-rename sidecar persistence and `.rraw.json` > `.xmp` rating precedence contract.
+//! TDD integration test suite for export rendering, timelapse streaming, brush acceleration, and sidecar persistence:
+//! - Parallel single-buffer export rendering (`ExportRasterBuffer`, `render_export_image_with_depth`) & Preview/Export parity.
+//! - Asynchronous frame-by-frame streaming Timelapse export without blocking the UI thread or accumulating full-res frames in RAM.
+//! - O(1) bilinear lookup grid & AABB bounding-box acceleration for freehand brush masks (`PrecomputedBrushGrid`).
+//! - Atomic write-temp-then-rename sidecar persistence and `.rraw.json` > `.xmp` rating precedence contract.
 
 use std::error::Error;
 use std::time::{Duration, Instant};
