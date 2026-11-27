@@ -284,3 +284,105 @@ pub(super) fn rotate_rgb_45cw(
 
     Ok((crop_w, crop_h, dst))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rraw_core::{BayerOrigin, CfaPattern};
+
+    fn make_test_raw(
+        w: usize,
+        h: usize,
+        black: [u16; 4],
+        white: [u16; 4],
+        is_float: bool,
+    ) -> rawler::RawImage {
+        let mut cam = rawler::decoders::Camera::default();
+        let cfa = rawler::cfa::CFA::new("RGGB");
+        cam.cfa = cfa.clone();
+        let pix = rawler::pixarray::PixU16::new_with(vec![1000; w * h], w, h);
+        let mut raw = rawler::RawImage::new(
+            cam,
+            pix,
+            1,
+            [1.0; 4],
+            rawler::rawimage::RawPhotometricInterpretation::Cfa(rawler::rawimage::CFAConfig::new(
+                &cfa,
+                &rawler::cfa::PlaneColor::default(),
+            )),
+            Some(rawler::rawimage::BlackLevel::new(&black, 2, 2, 1)),
+            Some(rawler::rawimage::WhiteLevel::new(
+                white.map(u32::from).to_vec(),
+            )),
+            false,
+        );
+        raw.width = w;
+        raw.height = h;
+        if is_float {
+            raw.data = rawler::rawimage::RawImageData::Float(vec![1000.0; w * h]);
+        }
+        raw
+    }
+
+    #[test]
+    fn fuji_rotated_dimensions_handles_portrait_and_landscape() {
+        let (w1, h1) = fuji_rotated_dimensions(100, 70);
+        assert!(w1 >= h1);
+        let (w2, h2) = fuji_rotated_dimensions(100, 20);
+        assert!(w2 >= h2);
+    }
+
+    #[test]
+    fn demosaic_and_rotate_fuji_superccd_validates_inputs() {
+        let raw = make_test_raw(16, 16, [100; 4], [4095; 4], false);
+        assert!(matches!(
+            demosaic_and_rotate_fuji_superccd(&raw, &CfaPattern::fujifilm_xtrans(), 8),
+            Err(DecodeError::UnsupportedFormat(_))
+        ));
+
+        let tiny = make_test_raw(1, 1, [100; 4], [4095; 4], false);
+        assert!(matches!(
+            demosaic_and_rotate_fuji_superccd(&tiny, &CfaPattern::Bayer(BayerOrigin::Rggb), 8),
+            Err(DecodeError::Core(CoreError::InvalidDimensions { .. }))
+        ));
+
+        let bad_levels = make_test_raw(16, 16, [100; 4], [100; 4], false);
+        assert!(matches!(
+            demosaic_and_rotate_fuji_superccd(
+                &bad_levels,
+                &CfaPattern::Bayer(BayerOrigin::Rggb),
+                8
+            ),
+            Err(DecodeError::MalformedMetadata(_))
+        ));
+
+        let mut bad_int = make_test_raw(16, 16, [100; 4], [4095; 4], false);
+        bad_int.data = rawler::rawimage::RawImageData::Integer(vec![0; 3]);
+        assert!(matches!(
+            demosaic_and_rotate_fuji_superccd(&bad_int, &CfaPattern::Bayer(BayerOrigin::Rggb), 8),
+            Err(DecodeError::Core(CoreError::BufferLengthMismatch { .. }))
+        ));
+
+        let mut bad_flt = make_test_raw(16, 16, [100; 4], [4095; 4], true);
+        bad_flt.data = rawler::rawimage::RawImageData::Float(vec![0.0; 3]);
+        assert!(matches!(
+            demosaic_and_rotate_fuji_superccd(&bad_flt, &CfaPattern::Bayer(BayerOrigin::Rggb), 8),
+            Err(DecodeError::Core(CoreError::BufferLengthMismatch { .. }))
+        ));
+    }
+
+    #[test]
+    fn demosaic_and_rotate_fuji_superccd_float_with_crop_area(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut raw = make_test_raw(16, 16, [100; 4], [4095; 4], true);
+        raw.crop_area = Some(rawler::imgop::Rect::new(
+            rawler::imgop::Point::new(1, 1),
+            rawler::imgop::Dim2::new(4, 4),
+        ));
+        let result =
+            demosaic_and_rotate_fuji_superccd(&raw, &CfaPattern::Bayer(BayerOrigin::Rggb), 8)?;
+        assert_eq!(result.width, 4);
+        assert_eq!(result.height, 4);
+        Ok(())
+    }
+}

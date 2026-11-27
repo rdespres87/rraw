@@ -4,9 +4,19 @@
 
 ## Current Status
 
-- **Active Release Baseline**: `v0.3.2` + **12 verified local commits ahead of `origin/main`** (`4439733`..`a2761fc`)
-- **Last Verified Baseline**: **545 tests passing across 96 test suites** (verified on `cargo test --workspace`), 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **11 of 12 crates enforcing `#![forbid(unsafe_code)]`** (only `rraw-coreml` uses `#![deny(unsafe_code)]` for `sysctlbyname`), **85.04% deterministic 4-crate CPU line coverage** (CI gate `>= 85%`), multi-OS CI (`ci-macos` + `ci-linux`), weekly/PR `cargo audit` security workflow, and baseline ADRs in `docs/adr/`.
-- **Local Commits Ahead of `origin/main` (`4439733`..`a2761fc`)**:
+- **Active Release Baseline**: `v0.3.2` + **verified local commits ahead of `origin/main`** (`4439733`..`e5afca1` + coverage/hygiene polish)
+- **Last Verified Baseline**: **557 tests passing across 99 test suites** (verified on `cargo test --workspace`), 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **11 of 12 crates enforcing `#![forbid(unsafe_code)]`** (only `rraw-coreml` uses `#![deny(unsafe_code)]` for `sysctlbyname`), **85.19% deterministic 4-crate CPU line coverage** (CI gate `>= 85%`), standalone `fuzz/` crate with 5 `cargo-fuzz` targets, multi-OS CI (`ci-macos` + `ci-linux`), weekly/PR `cargo audit` security workflow, and baseline ADRs in `docs/adr/`.
+- **Local Commits Ahead of `origin/main` (`4439733`..`e5afca1`)**:
+  - `e5afca1` — `test(decode): add cargo-fuzz targets for pure-Rust binary parsers`
+  - `de13b26` — `docs(tests): remove ephemeral phase and audit labels from test headers`
+  - `401732a` — `refactor(app): decompose ViewportController into focused state structs`
+  - `8b4f43f` — `refactor(app): decompose spawn_background_export into focused export task helpers`
+  - `0cf45f9` — `refactor(app): decompose chrome keyboard shortcuts and top bar helpers`
+  - `f601945` — `refactor(app): decompose render_tone_curves_section into focused helpers`
+  - `f67acc5` — `refactor(decode): decompose decode_jpeg_gray into focused helpers`
+  - `55e97cd` — `refactor(decode): split dng_fallback into submodules and group ParsedIfd`
+  - `01f170c` — `refactor(decode): split special_sensors into focused submodules`
+  - `5a63466` — `docs: synchronize README and session state with current architecture`
   - `a2761fc` — `fix(storage): rely on SQLite busy_timeout instead of sleep retry`
   - `ae782ee` — `refactor(decode): wrap wavelet level dimensions in context struct`
   - `837adeb` — `test(decode,optics): add synthetic unit tests to restore 85% CPU coverage`
