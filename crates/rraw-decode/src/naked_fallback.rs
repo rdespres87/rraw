@@ -941,4 +941,50 @@ mod tests {
         assert!((wb[1] - 1.0).abs() < 1e-3);
         assert!((wb[2] - 2.5).abs() < 1e-3);
     }
+
+    #[test]
+    fn test_decode_naked_slice_bayer_and_yuyv_specs() -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(s) = NAKED_SPECS
+            .iter()
+            .find(|s| s.packing != NakedPacking::Yuyv422)
+        {
+            let mut buf = vec![0x55_u8; s.file_size];
+            if !s.magic_prefix.is_empty() {
+                buf[..s.magic_prefix.len()].copy_from_slice(s.magic_prefix);
+            }
+            let raw = decode_naked_slice(&buf, s)?;
+            assert_eq!(raw.metadata.width, s.width);
+            assert_eq!(raw.metadata.height, s.height);
+        }
+        if let Some(s) = NAKED_SPECS
+            .iter()
+            .find(|s| s.packing == NakedPacking::Yuyv422)
+        {
+            let mut buf = vec![0x55_u8; s.file_size];
+            if !s.magic_prefix.is_empty() {
+                buf[..s.magic_prefix.len()].copy_from_slice(s.magic_prefix);
+            }
+            let raw = decode_naked_slice(&buf, s)?;
+            assert!(raw.linear_rgb.is_some());
+        }
+        let s = NAKED_SPECS.first().ok_or("no specs")?;
+        assert!(decode_naked_slice(&[0u8; 4], s).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_try_decode_naked_unmatched_size() -> Result<(), Box<dyn std::error::Error>> {
+        struct TempFile(std::path::PathBuf);
+        impl Drop for TempFile {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_file(&self.0);
+            }
+        }
+        let tf = TempFile(
+            std::env::temp_dir().join(format!("rraw_unmatched_{}.bin", std::process::id())),
+        );
+        std::fs::write(&tf.0, [0u8; 17])?;
+        assert!(try_decode_naked(&tf.0).is_err());
+        Ok(())
+    }
 }

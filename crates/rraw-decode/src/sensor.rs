@@ -384,4 +384,66 @@ mod tests {
             wb[2]
         );
     }
+
+    #[test]
+    fn test_extract_cropped_cfa_and_rgb_float_and_crop_area(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let cfa = rawler::cfa::CFA::new("RGGB");
+        let cam = rawler::decoders::Camera {
+            cfa: cfa.clone(),
+            ..Default::default()
+        };
+        let pix = rawler::pixarray::PixU16::new_with(vec![1000u16; 256], 16, 16);
+        let mut raw = rawler::RawImage::new(
+            cam,
+            pix,
+            1,
+            [1.0; 4],
+            rawler::rawimage::RawPhotometricInterpretation::Cfa(rawler::rawimage::CFAConfig::new(
+                &cfa,
+                &rawler::cfa::PlaneColor::default(),
+            )),
+            Some(rawler::rawimage::BlackLevel::new(&[100u16; 4], 2, 2, 1)),
+            Some(rawler::rawimage::WhiteLevel::new(vec![4095; 4])),
+            false,
+        );
+        raw.crop_area = Some(rawler::imgop::Rect::new(
+            rawler::imgop::Point::new(2, 2),
+            rawler::imgop::Dim2::new(12, 12),
+        ));
+        raw.data = rawler::RawImageData::Float(vec![1000.0; 256]);
+        let (w, h, s) = super::extract_cropped_samples(
+            &raw,
+            &rraw_core::CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb),
+        )?;
+        assert_eq!((w, h), (12, 12));
+        assert!(matches!(s, super::RawSamples::F32(ref v) if v.len() == 144));
+
+        let cam2 = rawler::decoders::Camera::default();
+        let pix2 = rawler::pixarray::PixU16::new_with(vec![1000u16; 16 * 16 * 3], 16 * 3, 16);
+        let mut raw2 = rawler::RawImage::new(
+            cam2,
+            pix2,
+            3,
+            [1.0; 4],
+            rawler::rawimage::RawPhotometricInterpretation::BlackIsZero,
+            Some(rawler::rawimage::BlackLevel::new(&[100u16; 3], 1, 1, 3)),
+            Some(rawler::rawimage::WhiteLevel::new(vec![4095; 3])),
+            false,
+        );
+        raw2.crop_area = Some(rawler::imgop::Rect::new(
+            rawler::imgop::Point::new(2, 2),
+            rawler::imgop::Dim2::new(10, 10),
+        ));
+        raw2.data = rawler::RawImageData::Float(vec![1000.0; 16 * 16 * 3]);
+        raw2.color_matrix.insert(
+            rawler::imgop::xyz::Illuminant::D65,
+            vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        );
+        let (rw, rh, rs) = super::extract_cropped_rgb_samples(&raw2)?;
+        assert_eq!((rw, rh), (10, 10));
+        assert!(matches!(rs, super::RawSamples::F32(ref v) if v.len() == 300));
+        assert!(super::extract_color_matrix(&raw2).is_some());
+        Ok(())
+    }
 }

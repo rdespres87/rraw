@@ -897,6 +897,15 @@ mod tests {
         let meta_unknown = sample_metadata();
         let _ = db.match_metadata(&meta_unknown);
         let _ = LensfunDatabase::discover_system_paths();
+        assert!(!LensfunDatabase::embedded().is_empty());
+        assert!(!LensfunDatabase::global().is_empty());
+        let _ = LensfunDatabase::from_xml_str("<lensdatabase><unclosed");
+        let deg_xml = r#"<lensdatabase><lens><maker>M</maker><model>D</model><calibration><distortion model="ptlens" focal="50" a="0.5" b="0.5" c="0.0"/><distortion model="poly3" focal="35" k1="1.0"/><vignetting model="pa" focal="50" aperture="2.8" distance="500" k1="-0.2"/><vignetting model="pa" focal="50" aperture="2.8" distance="2000" k1="-0.1"/></calibration></lens></lensdatabase>"#;
+        let deg_db = LensfunDatabase::from_xml_str(deg_xml)?;
+        if let Some(l) = deg_db.find_lens("D") {
+            let m = deg_db.interpolate_model(l, 42.0, Some(2.8));
+            assert!(m.vignette.v1.is_finite());
+        }
         Ok(())
     }
 }

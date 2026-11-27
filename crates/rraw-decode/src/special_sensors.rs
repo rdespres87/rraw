@@ -1182,4 +1182,179 @@ mod tests {
         assert!((by_idx[&(5 * w + 9)] - 0.08).abs() < 1e-6);
         assert!((by_idx[&(9 * w + 5)] - 0.08).abs() < 1e-6);
     }
+
+    #[test]
+    fn canon_pro70_ciff_synthetic_and_errors() -> Result<(), Box<dyn std::error::Error>> {
+        struct TempFile(std::path::PathBuf);
+        impl Drop for TempFile {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_file(&self.0);
+            }
+        }
+        let dir = std::env::temp_dir();
+        let tf_bad = TempFile(dir.join(format!("rraw_test_bad_{}.ciff", std::process::id())));
+        std::fs::write(&tf_bad.0, b"NOT_CIFF")?;
+        assert!(super::try_decode_canon_pro70_ciff(&tf_bad.0).is_err());
+
+        const SIZE: usize = 26 + 1024 * 1940 + 80;
+        let mut buf = vec![0x55_u8; SIZE];
+        buf[0..2].copy_from_slice(b"II");
+        buf[6..14].copy_from_slice(b"HEAPCCDR");
+        let tail_start = 26 + 1024 * 1940;
+        buf[tail_start..tail_start + 15].copy_from_slice(b"PowerShot Pro70");
+        let tf = TempFile(dir.join(format!("rraw_test_good_{}.ciff", std::process::id())));
+        std::fs::write(&tf.0, &buf)?;
+        let raw = super::try_decode_canon_pro70_ciff(&tf.0)?;
+        assert_eq!(raw.metadata.width, 1536);
+        assert_eq!(raw.metadata.height, 1024);
+        assert!(raw.linear_rgb.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn is_four_color_2x2_cfa_checks() {
+        assert!(super::is_four_color_2x2_cfa(&rawler::cfa::CFA::new("CYGM")));
+        assert!(!super::is_four_color_2x2_cfa(&rawler::cfa::CFA::new(
+            "RGGB"
+        )));
+    }
+
+    fn make_test_raw_image(w: usize, h: usize, data: Vec<u16>, cfa_str: &str) -> rawler::RawImage {
+        let cam = rawler::decoders::Camera {
+            cfa: rawler::cfa::CFA::new(cfa_str),
+            ..Default::default()
+        };
+        let pix = rawler::pixarray::PixU16::new_with(data, w, h);
+        rawler::RawImage::new(
+            cam,
+            pix,
+            1,
+            [1.0; 4],
+            rawler::rawimage::RawPhotometricInterpretation::BlackIsZero,
+            Some(rawler::rawimage::BlackLevel::new(&[100u16; 4], 2, 2, 1)),
+            Some(rawler::rawimage::WhiteLevel::new(vec![4095; 4])),
+            false,
+        )
+    }
+
+    #[test]
+    fn test_demosaic_and_rotate_fuji_superccd_synthetic() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let raw = make_test_raw_image(32, 32, vec![1000u16; 1024], "RGGB");
+        let buf = super::demosaic_and_rotate_fuji_superccd(
+            &raw,
+            &rraw_core::CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb),
+            20,
+        )?;
+        assert!(buf.width() > 0 && buf.height() > 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_decode_monochrome_sensor_to_linear_rgb_synthetic(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let raw = make_test_raw_image(16, 16, vec![2000u16; 256], "");
+        let buf = super::decode_monochrome_sensor_to_linear_rgb(&raw)?;
+        assert!(buf.width() == 16 && buf.height() == 16);
+
+        let mut raw2 = make_test_raw_image(16, 16, vec![2000u16; 256], "");
+        raw2.data = rawler::RawImageData::Float(vec![2000.0; 256]);
+        let buf2 = super::decode_monochrome_sensor_to_linear_rgb(&raw2)?;
+        assert!(buf2.width() == 16 && buf2.height() == 16);
+        Ok(())
+    }
+
+    #[test]
+    fn test_demosaic_four_color_cfa_error_on_bayer() {
+        let raw = make_test_raw_image(16, 16, vec![1000u16; 256], "RGGB");
+        assert!(super::demosaic_four_color_cfa_to_linear_srgb(
+            &raw,
+            &rawler::cfa::CFA::new("RGGB")
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_demosaic_four_color_cfa_to_linear_srgb_synthetic(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut raw = make_test_raw_image(16, 16, vec![1000u16; 256], "RGBE");
+        raw.color_matrix.insert(
+            rawler::imgop::xyz::Illuminant::D65,
+            vec![0.8, 0.2, 0.0, 0.1, 0.7, 0.2, 0.0, 0.3, 0.7, 0.5, 0.4, 0.1],
+        );
+        let buf =
+            super::demosaic_four_color_cfa_to_linear_srgb(&raw, &rawler::cfa::CFA::new("RGBE"))?;
+        assert_eq!((buf.width(), buf.height()), (16, 16));
+        Ok(())
+    }
+
+    #[test]
+    fn test_demosaic_four_color_cfa_float_synthetic() -> Result<(), Box<dyn std::error::Error>> {
+        let mut raw = make_test_raw_image(16, 16, vec![1000u16; 256], "RGBE");
+        raw.data = rawler::RawImageData::Float(vec![1000.0; 256]);
+        raw.color_matrix.insert(
+            rawler::imgop::xyz::Illuminant::D65,
+            vec![0.8, 0.2, 0.0, 0.1, 0.7, 0.2, 0.0, 0.3, 0.7, 0.5, 0.4, 0.1],
+        );
+        let buf =
+            super::demosaic_four_color_cfa_to_linear_srgb(&raw, &rawler::cfa::CFA::new("RGBE"))?;
+        assert_eq!((buf.width(), buf.height()), (16, 16));
+        Ok(())
+    }
+
+    #[test]
+    fn test_fuji_superccd_float_and_xtrans_err() -> Result<(), Box<dyn std::error::Error>> {
+        let mut raw = make_test_raw_image(32, 32, vec![1000u16; 1024], "RGGB");
+        raw.data = rawler::RawImageData::Float(vec![1000.0; 1024]);
+        let buf = super::demosaic_and_rotate_fuji_superccd(
+            &raw,
+            &rraw_core::CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb),
+            20,
+        )?;
+        assert!(buf.width() > 0 && buf.height() > 0);
+        assert!(super::demosaic_and_rotate_fuji_superccd(
+            &raw,
+            &rraw_core::CfaPattern::fujifilm_xtrans(),
+            20,
+        )
+        .is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_monochrome_and_4color_crop_area() -> Result<(), Box<dyn std::error::Error>> {
+        let mut raw_mono = make_test_raw_image(16, 16, vec![2000u16; 256], "");
+        raw_mono.crop_area = Some(rawler::imgop::Rect::new(
+            rawler::imgop::Point::new(2, 2),
+            rawler::imgop::Dim2::new(10, 10),
+        ));
+        let buf = super::decode_monochrome_sensor_to_linear_rgb(&raw_mono)?;
+        assert_eq!((buf.width(), buf.height()), (10, 10));
+
+        let mut raw4 = make_test_raw_image(16, 16, vec![1000u16; 256], "RGBE");
+        raw4.crop_area = Some(rawler::imgop::Rect::new(
+            rawler::imgop::Point::new(2, 2),
+            rawler::imgop::Dim2::new(12, 12),
+        ));
+        raw4.color_matrix.insert(
+            rawler::imgop::xyz::Illuminant::D65,
+            vec![0.8, 0.2, 0.0, 0.1, 0.7, 0.2, 0.0, 0.3, 0.7, 0.5, 0.4, 0.1],
+        );
+        let buf4 =
+            super::demosaic_four_color_cfa_to_linear_srgb(&raw4, &rawler::cfa::CFA::new("RGBE"))?;
+        assert_eq!((buf4.width(), buf4.height()), (12, 12));
+
+        let mut raw_fuji = make_test_raw_image(32, 32, vec![1000u16; 1024], "RGGB");
+        raw_fuji.crop_area = Some(rawler::imgop::Rect::new(
+            rawler::imgop::Point::new(2, 2),
+            rawler::imgop::Dim2::new(28, 28),
+        ));
+        let buf_fuji = super::demosaic_and_rotate_fuji_superccd(
+            &raw_fuji,
+            &rraw_core::CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb),
+            18,
+        )?;
+        assert!(buf_fuji.width() > 0 && buf_fuji.height() > 0);
+        Ok(())
+    }
 }

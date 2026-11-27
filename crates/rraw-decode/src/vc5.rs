@@ -722,4 +722,40 @@ mod tests {
             assert!((i32::from(v) - 1000).abs() <= 1, "expected ~1000, got {v}");
         }
     }
+
+    #[test]
+    fn test_decode_vc5_bayer_16x16_synthetic() -> Result<(), Box<dyn std::error::Error>> {
+        let mut vc5 = Vec::new();
+        vc5.extend_from_slice(b"VC-5");
+        let push_tag = |buf: &mut Vec<u8>, tag: u16, val: u16| {
+            buf.extend_from_slice(&tag.to_be_bytes());
+            buf.extend_from_slice(&val.to_be_bytes());
+        };
+        push_tag(&mut vc5, 0x000c, 4);
+        push_tag(&mut vc5, 0x0014, 16);
+        push_tag(&mut vc5, 0x0015, 16);
+        push_tag(&mut vc5, 0x006d, 0);
+        for ch in 0u16..4 {
+            push_tag(&mut vc5, 0x003e, ch);
+            push_tag(&mut vc5, 0x0030, 0);
+            push_tag(&mut vc5, 0x2000, 1);
+            vc5.extend_from_slice(&[0x03, 0xE8, 0x00, 0x00]);
+            for sb in 1u16..10 {
+                push_tag(&mut vc5, 0x0030, sb);
+                push_tag(&mut vc5, 0x2000, 2);
+                vc5.extend_from_slice(&[0u8; 8]);
+            }
+        }
+        for bd in [12u16, 14, 16] {
+            let out = decode_vc5_bayer(&vc5, 16, 16, BayerOrigin::Rggb, bd)?;
+            assert_eq!(out.len(), 256);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_decode_vc5_bayer_errors() {
+        assert!(decode_vc5_bayer(b"NOPE", 16, 16, BayerOrigin::Rggb, 12).is_err());
+        assert!(decode_vc5_bayer(b"VC-5\x00\x0c\x00\x03", 16, 16, BayerOrigin::Rggb, 12).is_err());
+    }
 }

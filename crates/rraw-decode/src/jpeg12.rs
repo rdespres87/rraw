@@ -601,4 +601,96 @@ mod tests {
         ];
         assert!(!is_jpeg12_stream(&sof0_8bit));
     }
+
+    #[test]
+    fn decode_jpeg_gray_8bit_luma_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+        let img =
+            image::GrayImage::from_fn(16, 16, |x, y| image::Luma([((x * 16 + y) % 256) as u8]));
+        let mut buf = Vec::new();
+        image::DynamicImage::ImageLuma8(img).write_to(
+            &mut std::io::Cursor::new(&mut buf),
+            image::ImageFormat::Jpeg,
+        )?;
+        let dec = super::decode_jpeg_gray(&buf)?;
+        assert_eq!(dec.width, 16);
+        assert_eq!(dec.height, 16);
+        assert_eq!(dec.precision, 8);
+        assert_eq!(dec.samples.len(), 256);
+        Ok(())
+    }
+
+    #[test]
+    fn decode_jpeg_gray_error_paths() {
+        assert!(super::decode_jpeg_gray(&[]).is_err());
+        assert!(super::decode_jpeg_gray(&[0xFF, 0xD8, 0xFF, 0xD9]).is_err());
+        assert!(!super::is_jpeg12_stream(&[0xFF, 0xD8]));
+    }
+
+    #[test]
+    fn decode_jpeg_gray_12bit_sof1_synthetic() -> Result<(), Box<dyn std::error::Error>> {
+        let mut stream: Vec<u8> = Vec::new();
+        stream.extend_from_slice(&[0xFF, 0xD8]);
+        stream.extend_from_slice(&[0xFF, 0xDB, 0x00, 0x83, 0x10]);
+        for _ in 0..64 {
+            stream.extend_from_slice(&[0x00, 0x01]);
+        }
+        stream.extend_from_slice(&[
+            0xFF, 0xC1, 0x00, 0x0B, 12, 0x00, 0x08, 0x00, 0x08, 1, 1, 0x11, 0,
+        ]);
+        stream.extend_from_slice(&[0xFF, 0xC4, 0x00, 0x14, 0x00]);
+        stream.extend_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        stream.extend_from_slice(&[0]);
+        stream.extend_from_slice(&[0xFF, 0xC4, 0x00, 0x14, 0x10]);
+        stream.extend_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        stream.extend_from_slice(&[0x00]);
+        stream.extend_from_slice(&[0xFF, 0xDA, 0x00, 0x08, 1, 1, 0x00, 0, 63, 0]);
+        stream.extend_from_slice(&[0x00, 0x00]);
+        stream.extend_from_slice(&[0xFF, 0xD9]);
+
+        assert!(super::is_jpeg12_stream(&stream));
+        let dec = super::decode_jpeg_gray(&stream)?;
+        assert_eq!(dec.width, 8);
+        assert_eq!(dec.height, 8);
+        assert_eq!(dec.precision, 12);
+        assert_eq!(dec.samples.len(), 64);
+        Ok(())
+    }
+
+    #[test]
+    fn decode_jpeg_gray_12bit_with_dri_and_nonzero_coeffs() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let mut stream: Vec<u8> = Vec::new();
+        stream.extend_from_slice(&[0xFF, 0xD8]);
+        // DQT 16-bit
+        stream.extend_from_slice(&[0xFF, 0xDB, 0x00, 0x83, 0x10]);
+        for _ in 0..64 {
+            stream.extend_from_slice(&[0x00, 0x01]);
+        }
+        // DRI = 1
+        stream.extend_from_slice(&[0xFF, 0xDD, 0x00, 0x04, 0x00, 0x01]);
+        // SOF1 16x8, 12-bit
+        stream.extend_from_slice(&[
+            0xFF, 0xC1, 0x00, 0x0B, 12, 0x00, 0x08, 0x00, 0x10, 1, 1, 0x11, 0,
+        ]);
+        // DHT DC: '0'->0, '10'->1
+        stream.extend_from_slice(&[0xFF, 0xC4, 0x00, 0x15, 0x00]);
+        stream.extend_from_slice(&[1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        stream.extend_from_slice(&[0x00, 0x01]);
+        // DHT AC: '0'->0x00 (EOB), '10'->0x01 (run=0, cat=1)
+        stream.extend_from_slice(&[0xFF, 0xC4, 0x00, 0x15, 0x10]);
+        stream.extend_from_slice(&[1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        stream.extend_from_slice(&[0x00, 0x01]);
+        // SOS
+        stream.extend_from_slice(&[0xFF, 0xDA, 0x00, 0x08, 1, 1, 0x00, 0, 63, 0]);
+        // Block 0: DC='10'(cat 1) + '1'(+1), AC='10'(0x01) + '1'(+1), EOB='0' -> 10_1_10_1_0 = 0xB4
+        // RST0 marker: FF D0
+        // Block 1: DC='0', EOB='0' -> 0x00
+        stream.extend_from_slice(&[0xB4, 0xFF, 0xD0, 0x00]);
+        stream.extend_from_slice(&[0xFF, 0xD9]);
+
+        let dec = super::decode_jpeg_gray(&stream)?;
+        assert_eq!((dec.width, dec.height, dec.precision), (16, 8, 12));
+        assert_eq!(dec.samples.len(), 128);
+        Ok(())
+    }
 }
