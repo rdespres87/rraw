@@ -208,6 +208,135 @@ pub struct PreparedGradingFrame<'a> {
     buffers: FramePrecomputedBuffers,
 }
 
+fn preprocess_base_samples(
+    base: &BaseRgbPreview,
+    grading: &DarkroomGradingState,
+    eff_wb: [f32; 3],
+    allow_defringe_mask: bool,
+) -> Option<Vec<[f32; 3]>> {
+    let preview_w = base.width;
+    let preview_h = base.height;
+    let denoise_cfg = rraw_core::DenoiseConfig {
+        chroma_amount: (grading.denoise_sharpen.color_denoise / 100.0).clamp(0.0, 1.0),
+        luma_amount: (grading.denoise_sharpen.luma_denoise / 100.0).clamp(0.0, 1.0),
+    };
+    let defringe_cfg = rraw_optics::DefringeConfig {
+        purple_amount: (grading.optics.defringe_purple_amount / 100.0).clamp(0.0, 1.0),
+        green_amount: (grading.optics.defringe_green_amount / 100.0).clamp(0.0, 1.0),
+        threshold: grading.optics.defringe_threshold.clamp(0.01, 0.50),
+    };
+    let need_ane = grading.denoise_sharpen.ane_neural_denoise
+        && grading.denoise_sharpen.ane_denoise_strength > 1e-4;
+    let need_denoise =
+        denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4 || need_ane;
+    let need_defringe = defringe_cfg.purple_amount > 1e-4 || defringe_cfg.green_amount > 1e-4;
+    let show_defringe_mask = allow_defringe_mask && grading.optics.defringe_preview_mask;
+    let sharpen_excess = (grading.denoise_sharpen.capture_sharpening_amount - 0.5).max(0.0);
+    let need_sharpen = !show_defringe_mask && sharpen_excess > 1e-4;
+
+    if !(need_denoise || need_defringe || show_defringe_mask || need_sharpen) {
+        return None;
+    }
+
+    let mut s = base.samples_rgb.to_vec();
+    if need_denoise {
+        rraw_core::denoise_rgb_with_wb(&mut s, preview_w, preview_h, &denoise_cfg, Some(eff_wb));
+        if need_ane {
+            let str_f = (grading.denoise_sharpen.ane_denoise_strength / 100.0).clamp(0.0, 1.0);
+            apply_ane_neural_denoise_rgb(&mut s, preview_w, preview_h, str_f);
+        }
+    }
+    if need_sharpen && preview_w > 0 && preview_h > 0 {
+        if let (Ok(w_u32), Ok(h_u32), Ok(noise_profile)) = (
+            u32::try_from(preview_w),
+            u32::try_from(preview_h),
+            rraw_core::NoiseProfile::new(
+                [0.0002; 3],
+                [0.00005; 3],
+                rraw_core::NoiseProfileSource::WaveletMadFallback,
+            ),
+        ) {
+            let rl_params = rraw_optics::RichardsonLucyParams {
+                iterations: if sharpen_excess >= 1.0 { 2 } else { 1 },
+                epsilon: 1e-4,
+                base_psf_sigma: (0.45 + sharpen_excess * 0.45).clamp(0.35, 1.25),
+                deringing_threshold: 0.08,
+                noise_profile,
+            };
+            let mut flat_rgb = Vec::with_capacity(s.len().saturating_mul(3));
+            for px in &s {
+                flat_rgb.extend_from_slice(px);
+            }
+            let deconvolved =
+                rraw_optics::execute_richardson_lucy(&flat_rgb, w_u32, h_u32, &rl_params);
+            let blend = sharpen_excess.clamp(0.0, 1.0);
+            if deconvolved.len() == s.len().saturating_mul(3) {
+                for (i, px) in s.iter_mut().enumerate() {
+                    px[0] = px[0] * (1.0 - blend) + deconvolved[i * 3] * blend;
+                    px[1] = px[1] * (1.0 - blend) + deconvolved[i * 3 + 1] * blend;
+                    px[2] = px[2] * (1.0 - blend) + deconvolved[i * 3 + 2] * blend;
+                }
+            }
+        }
+    }
+    if show_defringe_mask {
+        rraw_optics::defringe_mask_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
+    } else if need_defringe {
+        rraw_optics::defringe_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
+    }
+    Some(s)
+}
+
+fn compute_smart_lighting_map(
+    effective_samples: &[[f32; 3]],
+    preview_w: usize,
+    preview_h: usize,
+    eff_wb: [f32; 3],
+    combined_mat: &[f32; 9],
+    smart_lighting: &rraw_core::SmartLightingParams,
+) -> Option<Vec<f32>> {
+    if !smart_lighting.is_active() {
+        return None;
+    }
+    let n_pix = preview_w * preview_h;
+    let mut rgb_linear = Vec::with_capacity(n_pix);
+    for s in effective_samples.iter().take(n_pix) {
+        let [r, g, b] = clip_saturated_sensor_highlights(*s, eff_wb);
+        let r_scaled = (combined_mat[0] * r + combined_mat[1] * g + combined_mat[2] * b).max(0.0);
+        let g_scaled = (combined_mat[3] * r + combined_mat[4] * g + combined_mat[5] * b).max(0.0);
+        let b_scaled = (combined_mat[6] * r + combined_mat[7] * g + combined_mat[8] * b).max(0.0);
+        rgb_linear.push([r_scaled, g_scaled, b_scaled]);
+    }
+    if rgb_linear.len() != n_pix {
+        return None;
+    }
+    let orig_lumas: Vec<f32> = rgb_linear
+        .iter()
+        .map(|rgb| rraw_color::smart_lighting::aces_cg_luminance(*rgb).max(0.0))
+        .collect();
+    rraw_color::smart_lighting::apply_smart_lighting_acescg(
+        &mut rgb_linear,
+        preview_w,
+        preview_h,
+        smart_lighting,
+    )
+    .ok()?;
+    let gains = rgb_linear
+        .iter()
+        .enumerate()
+        .map(|(i, mapped)| {
+            let orig_y = orig_lumas[i];
+            let mapped_y = rraw_color::smart_lighting::aces_cg_luminance(*mapped).max(0.0);
+            if orig_y > 1e-7 {
+                mapped_y / orig_y
+            } else {
+                1.0
+            }
+        })
+        .collect();
+    Some(gains)
+}
+
 impl<'a> PreparedGradingFrame<'a> {
     /// Precomputes all frame-level matrices, LUTs, denoise/defringe buffers, AABB brush grids,
     /// and smart lighting gain maps required for parallel per-pixel evaluation.
@@ -262,84 +391,12 @@ impl<'a> PreparedGradingFrame<'a> {
             (0.0, 0.0)
         };
 
-        let denoise_cfg = rraw_core::DenoiseConfig {
-            chroma_amount: (grading.denoise_sharpen.color_denoise / 100.0).clamp(0.0, 1.0),
-            luma_amount: (grading.denoise_sharpen.luma_denoise / 100.0).clamp(0.0, 1.0),
-        };
-        let defringe_cfg = rraw_optics::DefringeConfig {
-            purple_amount: (grading.optics.defringe_purple_amount / 100.0).clamp(0.0, 1.0),
-            green_amount: (grading.optics.defringe_green_amount / 100.0).clamp(0.0, 1.0),
-            threshold: grading.optics.defringe_threshold.clamp(0.01, 0.50),
-        };
-        let need_ane = grading.denoise_sharpen.ane_neural_denoise
-            && grading.denoise_sharpen.ane_denoise_strength > 1e-4;
-        let need_denoise =
-            denoise_cfg.chroma_amount > 1e-4 || denoise_cfg.luma_amount > 1e-4 || need_ane;
-        let need_defringe = defringe_cfg.purple_amount > 1e-4 || defringe_cfg.green_amount > 1e-4;
-        let show_defringe_mask = allow_defringe_mask && grading.optics.defringe_preview_mask;
-        let sharpen_excess = (grading.denoise_sharpen.capture_sharpening_amount - 0.5).max(0.0);
-        let need_sharpen = !show_defringe_mask && sharpen_excess > 1e-4;
-
-        let processed_samples =
-            if need_denoise || need_defringe || show_defringe_mask || need_sharpen {
-                let mut s = base.samples_rgb.to_vec();
-                if need_denoise {
-                    rraw_core::denoise_rgb_with_wb(
-                        &mut s,
-                        preview_w,
-                        preview_h,
-                        &denoise_cfg,
-                        Some([eff_wb_r, eff_wb_g, eff_wb_b]),
-                    );
-                    if need_ane {
-                        let str_f =
-                            (grading.denoise_sharpen.ane_denoise_strength / 100.0).clamp(0.0, 1.0);
-                        apply_ane_neural_denoise_rgb(&mut s, preview_w, preview_h, str_f);
-                    }
-                }
-                if need_sharpen && preview_w > 0 && preview_h > 0 {
-                    if let (Ok(w_u32), Ok(h_u32), Ok(noise_profile)) = (
-                        u32::try_from(preview_w),
-                        u32::try_from(preview_h),
-                        rraw_core::NoiseProfile::new(
-                            [0.0002; 3],
-                            [0.00005; 3],
-                            rraw_core::NoiseProfileSource::WaveletMadFallback,
-                        ),
-                    ) {
-                        let rl_params = rraw_optics::RichardsonLucyParams {
-                            iterations: if sharpen_excess >= 1.0 { 2 } else { 1 },
-                            epsilon: 1e-4,
-                            base_psf_sigma: (0.45 + sharpen_excess * 0.45).clamp(0.35, 1.25),
-                            deringing_threshold: 0.08,
-                            noise_profile,
-                        };
-                        let mut flat_rgb = Vec::with_capacity(s.len().saturating_mul(3));
-                        for px in &s {
-                            flat_rgb.extend_from_slice(px);
-                        }
-                        let deconvolved = rraw_optics::execute_richardson_lucy(
-                            &flat_rgb, w_u32, h_u32, &rl_params,
-                        );
-                        let blend = sharpen_excess.clamp(0.0, 1.0);
-                        if deconvolved.len() == s.len().saturating_mul(3) {
-                            for (i, px) in s.iter_mut().enumerate() {
-                                px[0] = px[0] * (1.0 - blend) + deconvolved[i * 3] * blend;
-                                px[1] = px[1] * (1.0 - blend) + deconvolved[i * 3 + 1] * blend;
-                                px[2] = px[2] * (1.0 - blend) + deconvolved[i * 3 + 2] * blend;
-                            }
-                        }
-                    }
-                }
-                if show_defringe_mask {
-                    rraw_optics::defringe_mask_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
-                } else if need_defringe {
-                    rraw_optics::defringe_rgb(&mut s, preview_w, preview_h, &defringe_cfg);
-                }
-                Some(s)
-            } else {
-                None
-            };
+        let processed_samples = preprocess_base_samples(
+            base,
+            grading,
+            [eff_wb_r, eff_wb_g, eff_wb_b],
+            allow_defringe_mask,
+        );
 
         let has_creative_vignette = grading.effects.creative_vignette_amount.abs() > 0.1;
         let cv_amt = grading.effects.creative_vignette_amount / 100.0;
@@ -421,57 +478,14 @@ impl<'a> PreparedGradingFrame<'a> {
         let user_sat = grading.tone.saturation / 100.0;
 
         let effective_samples = processed_samples.as_deref().unwrap_or(&base.samples_rgb);
-        let smart_lighting_map: Option<Vec<f32>> = if grading.smart_lighting.is_active() {
-            let n_pix = preview_w * preview_h;
-            let mut rgb_linear = Vec::with_capacity(n_pix);
-            for s in effective_samples.iter().take(n_pix) {
-                let [r, g, b] =
-                    clip_saturated_sensor_highlights(*s, [eff_wb_r, eff_wb_g, eff_wb_b]);
-                let r_scaled =
-                    (combined_mat[0] * r + combined_mat[1] * g + combined_mat[2] * b).max(0.0);
-                let g_scaled =
-                    (combined_mat[3] * r + combined_mat[4] * g + combined_mat[5] * b).max(0.0);
-                let b_scaled =
-                    (combined_mat[6] * r + combined_mat[7] * g + combined_mat[8] * b).max(0.0);
-                rgb_linear.push([r_scaled, g_scaled, b_scaled]);
-            }
-            if rgb_linear.len() == n_pix {
-                let orig_lumas: Vec<f32> = rgb_linear
-                    .iter()
-                    .map(|rgb| rraw_color::smart_lighting::aces_cg_luminance(*rgb).max(0.0))
-                    .collect();
-                if rraw_color::smart_lighting::apply_smart_lighting_acescg(
-                    &mut rgb_linear,
-                    preview_w,
-                    preview_h,
-                    &grading.smart_lighting,
-                )
-                .is_ok()
-                {
-                    let gains: Vec<f32> = rgb_linear
-                        .iter()
-                        .enumerate()
-                        .map(|(i, mapped)| {
-                            let orig_y = orig_lumas[i];
-                            let mapped_y =
-                                rraw_color::smart_lighting::aces_cg_luminance(*mapped).max(0.0);
-                            if orig_y > 1e-7 {
-                                mapped_y / orig_y
-                            } else {
-                                1.0
-                            }
-                        })
-                        .collect();
-                    Some(gains)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        let smart_lighting_map = compute_smart_lighting_map(
+            effective_samples,
+            preview_w,
+            preview_h,
+            [eff_wb_r, eff_wb_g, eff_wb_b],
+            &combined_mat,
+            &grading.smart_lighting,
+        );
 
         Self {
             base,
@@ -555,67 +569,69 @@ impl<'a> PreparedGradingFrame<'a> {
         self.buffers.smart_lighting_map.as_deref()
     }
 
-    /// Evaluates the pre-Stage-5 linear RGB value at `(px, py)` including optical lens distortion,
-    /// radial vignetting, geometric warp (rotation, flip, keystone), white balance, exposure,
-    /// camera-to-sRGB matrix, Smart Lighting gain map, and shadows/highlights/blacks tonal shift.
     #[inline]
     #[must_use]
-    pub fn evaluate_pre_stage5_linear(&self, px: usize, py: usize) -> [f32; 3] {
+    fn sample_geometry_and_vignette(
+        &self,
+        orig_x: f32,
+        orig_y: f32,
+        identity_xy: Option<(usize, usize)>,
+    ) -> (usize, f32, f32, f32) {
         let geom = &self.geometry;
-        let u = &self.uniforms;
-        let effective_samples = self.effective_samples();
-        let max_sample_idx = effective_samples.len().saturating_sub(1);
-
-        let (sample_idx, v_mult) = if geom.is_identity_geom_base {
-            let s_idx = (py * geom.preview_w + px).min(max_sample_idx);
-            let v = if geom.v_gain > 1e-4 {
-                let kx = px as f32 - geom.cx;
-                let ky = py as f32 - geom.cy;
+        let max_sample_idx = self.effective_samples().len().saturating_sub(1);
+        let compute_vignette = |kx: f32, ky: f32| -> f32 {
+            if geom.v_gain > 1e-4 {
                 let norm_r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
                 1.0 + geom.v_gain * norm_r2 + (geom.v_gain * 0.4) * (norm_r2 * norm_r2)
             } else {
                 1.0
-            };
-            (s_idx, v)
-        } else {
-            let orig_x = px as f32;
-            let orig_y = py as f32;
-            let raw_dx = (orig_x - geom.cx) * geom.flip_x;
-            let raw_dy = (orig_y - geom.cy) * geom.flip_y;
-            let rx = raw_dx * geom.cos_rot + raw_dy * geom.sin_rot;
-            let ry = -raw_dx * geom.sin_rot + raw_dy * geom.cos_rot;
-            let v_scale = (1.0 + geom.keystone_v * (ry / geom.cy)).max(0.1);
-            let kx = (rx / v_scale) / geom.auto_zoom;
-            let h_scale = (1.0 + geom.keystone_h * (kx / geom.cx)).max(0.1);
-            let ky = (ry / h_scale) / geom.auto_zoom;
-
-            let s_idx = if geom.k_dist.abs() > 1e-5 {
-                let r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
-                let warp = 1.0 + geom.k_dist * r2;
-                let warped_x = ((geom.cx + kx * warp).round() as isize)
-                    .clamp(0, geom.preview_w as isize - 1) as usize;
-                let warped_y = ((geom.cy + ky * warp).round() as isize)
-                    .clamp(0, geom.preview_h as isize - 1) as usize;
-                warped_y * geom.preview_w + warped_x
-            } else {
-                let sx = ((geom.cx + kx).round() as isize).clamp(0, geom.preview_w as isize - 1)
-                    as usize;
-                let sy = ((geom.cy + ky).round() as isize).clamp(0, geom.preview_h as isize - 1)
-                    as usize;
-                sy * geom.preview_w + sx
-            };
-
-            let v = if geom.v_gain > 1e-4 {
-                let norm_r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
-                1.0 + geom.v_gain * norm_r2 + (geom.v_gain * 0.4) * (norm_r2 * norm_r2)
-            } else {
-                1.0
-            };
-            (s_idx.min(max_sample_idx), v)
+            }
         };
 
-        let [mean_r, mean_g, mean_b] =
-            clip_saturated_sensor_highlights(effective_samples[sample_idx], u.eff_wb);
+        if let Some((ix, iy)) = identity_xy {
+            let s_idx = (iy * geom.preview_w + ix).min(max_sample_idx);
+            let v = compute_vignette(ix as f32 - geom.cx, iy as f32 - geom.cy);
+            let un = (ix as f32 + 0.5) / (geom.preview_w.max(1) as f32);
+            let vn = (iy as f32 + 0.5) / (geom.preview_h.max(1) as f32);
+            return (s_idx, v, un, vn);
+        }
+
+        let raw_dx = (orig_x - geom.cx) * geom.flip_x;
+        let raw_dy = (orig_y - geom.cy) * geom.flip_y;
+        let rx = raw_dx * geom.cos_rot + raw_dy * geom.sin_rot;
+        let ry = -raw_dx * geom.sin_rot + raw_dy * geom.cos_rot;
+        let v_scale = (1.0 + geom.keystone_v * (ry / geom.cy)).max(0.1);
+        let kx = (rx / v_scale) / geom.auto_zoom;
+        let h_scale = (1.0 + geom.keystone_h * (kx / geom.cx)).max(0.1);
+        let ky = (ry / h_scale) / geom.auto_zoom;
+
+        let warp = if geom.k_dist.abs() > 1e-5 {
+            let r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
+            1.0 + geom.k_dist * r2
+        } else {
+            1.0
+        };
+        let sx = ((geom.cx + kx * warp).round() as isize)
+            .clamp(0, geom.preview_w.saturating_sub(1) as isize) as usize;
+        let sy = ((geom.cy + ky * warp).round() as isize)
+            .clamp(0, geom.preview_h.saturating_sub(1) as isize) as usize;
+        let s_idx = (sy * geom.preview_w + sx).min(max_sample_idx);
+        let v = compute_vignette(kx, ky);
+        let un = (orig_x / (geom.preview_w.max(1) as f32)).clamp(0.0, 1.0);
+        let vn = (orig_y / (geom.preview_h.max(1) as f32)).clamp(0.0, 1.0);
+        (s_idx, v, un, vn)
+    }
+
+    #[inline]
+    #[must_use]
+    fn evaluate_pre_stage5_from_sample(&self, sample_idx: usize, v_mult: f32) -> [f32; 3] {
+        let u = &self.uniforms;
+        let sample = self
+            .effective_samples()
+            .get(sample_idx)
+            .copied()
+            .unwrap_or([0.0; 3]);
+        let [mean_r, mean_g, mean_b] = clip_saturated_sensor_highlights(sample, u.eff_wb);
         let mut r_s =
             (u.combined_mat[0] * mean_r + u.combined_mat[1] * mean_g + u.combined_mat[2] * mean_b)
                 .max(0.0)
@@ -654,6 +670,18 @@ impl<'a> PreparedGradingFrame<'a> {
         }
     }
 
+    /// Evaluates the pre-Stage-5 linear RGB value at `(px, py)` including optical lens distortion,
+    /// radial vignetting, geometric warp (rotation, flip, keystone), white balance, exposure,
+    /// camera-to-sRGB matrix, Smart Lighting gain map, and shadows/highlights/blacks tonal shift.
+    #[inline]
+    #[must_use]
+    pub fn evaluate_pre_stage5_linear(&self, px: usize, py: usize) -> [f32; 3] {
+        let identity_xy = self.geometry.is_identity_geom_base.then_some((px, py));
+        let (sample_idx, v_mult, _, _) =
+            self.sample_geometry_and_vignette(px as f32, py as f32, identity_xy);
+        self.evaluate_pre_stage5_from_sample(sample_idx, v_mult)
+    }
+
     /// Returns the base preview width in pixels.
     #[inline]
     #[must_use]
@@ -688,105 +716,9 @@ impl<'a> PreparedGradingFrame<'a> {
     ) -> ([f32; 3], SoftProofResult, f32, f32) {
         let geom = &self.geometry;
         let u = &self.uniforms;
-        let effective_samples = self
-            .buffers
-            .processed_samples
-            .as_deref()
-            .unwrap_or(&self.base.samples_rgb);
-        let max_sample_idx = effective_samples.len().saturating_sub(1);
-
-        let (sample_idx, v_mult, u_norm, v_norm) = if let Some((ix, iy)) = identity_xy {
-            let s_idx = (iy * geom.preview_w + ix).min(max_sample_idx);
-            let v = if geom.v_gain > 1e-4 {
-                let kx = ix as f32 - geom.cx;
-                let ky = iy as f32 - geom.cy;
-                let norm_r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
-                1.0 + geom.v_gain * norm_r2 + (geom.v_gain * 0.4) * (norm_r2 * norm_r2)
-            } else {
-                1.0
-            };
-            let un = (ix as f32 + 0.5) / (geom.preview_w.max(1) as f32);
-            let vn = (iy as f32 + 0.5) / (geom.preview_h.max(1) as f32);
-            (s_idx, v, un, vn)
-        } else {
-            let raw_dx = (orig_x - geom.cx) * geom.flip_x;
-            let raw_dy = (orig_y - geom.cy) * geom.flip_y;
-            let rx = raw_dx * geom.cos_rot + raw_dy * geom.sin_rot;
-            let ry = -raw_dx * geom.sin_rot + raw_dy * geom.cos_rot;
-            let v_scale = (1.0 + geom.keystone_v * (ry / geom.cy)).max(0.1);
-            let kx = (rx / v_scale) / geom.auto_zoom;
-            let h_scale = (1.0 + geom.keystone_h * (kx / geom.cx)).max(0.1);
-            let ky = (ry / h_scale) / geom.auto_zoom;
-
-            let s_idx = if geom.k_dist.abs() > 1e-5 {
-                let r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
-                let warp = 1.0 + geom.k_dist * r2;
-                let warped_x = ((geom.cx + kx * warp).round() as isize)
-                    .clamp(0, geom.preview_w as isize - 1) as usize;
-                let warped_y = ((geom.cy + ky * warp).round() as isize)
-                    .clamp(0, geom.preview_h as isize - 1) as usize;
-                warped_y * geom.preview_w + warped_x
-            } else {
-                let sx = ((geom.cx + kx).round() as isize).clamp(0, geom.preview_w as isize - 1)
-                    as usize;
-                let sy = ((geom.cy + ky).round() as isize).clamp(0, geom.preview_h as isize - 1)
-                    as usize;
-                sy * geom.preview_w + sx
-            };
-
-            let v = if geom.v_gain > 1e-4 {
-                let norm_r2 = (kx * kx + ky * ky) / geom.max_radius_sq;
-                1.0 + geom.v_gain * norm_r2 + (geom.v_gain * 0.4) * (norm_r2 * norm_r2)
-            } else {
-                1.0
-            };
-            let un = (orig_x / (geom.preview_w.max(1) as f32)).clamp(0.0, 1.0);
-            let vn = (orig_y / (geom.preview_h.max(1) as f32)).clamp(0.0, 1.0);
-            (s_idx.min(max_sample_idx), v, un, vn)
-        };
-
-        let [mean_r, mean_g, mean_b] =
-            clip_saturated_sensor_highlights(effective_samples[sample_idx], u.eff_wb);
-
-        let mut r_scaled =
-            (u.combined_mat[0] * mean_r + u.combined_mat[1] * mean_g + u.combined_mat[2] * mean_b)
-                .max(0.0)
-                * v_mult;
-        let mut g_scaled =
-            (u.combined_mat[3] * mean_r + u.combined_mat[4] * mean_g + u.combined_mat[5] * mean_b)
-                .max(0.0)
-                * v_mult;
-        let mut b_scaled =
-            (u.combined_mat[6] * mean_r + u.combined_mat[7] * mean_g + u.combined_mat[8] * mean_b)
-                .max(0.0)
-                * v_mult;
-
-        if let Some(gains) = &self.buffers.smart_lighting_map {
-            let sl_idx = sample_idx.min(gains.len().saturating_sub(1));
-            let g = gains[sl_idx];
-            r_scaled *= g;
-            g_scaled *= g;
-            b_scaled *= g;
-        }
-
-        let (r_toned, g_toned, b_toned) = if u.has_tonal_adjustment {
-            let lum = 0.2126 * r_scaled + 0.7152 * g_scaled + 0.0722 * b_scaled;
-            let y_norm = lum / (lum + 0.18);
-            let shadow_weight = (1.0 - y_norm).powi(2);
-            let highlight_weight = y_norm.powi(2);
-            let shadow_shift = (self.grading.tone.shadows / 100.0) * 2.5 * shadow_weight;
-            let highlight_shift = (self.grading.tone.highlights / 100.0) * 2.5 * highlight_weight;
-            let blacks_weight = (1.0 - y_norm).powi(4);
-            let blacks_shift = (self.grading.tone.blacks / 100.0) * 1.5 * blacks_weight;
-            let tone_gain = 2.0_f32.powf(shadow_shift + highlight_shift + blacks_shift);
-            (
-                (r_scaled * tone_gain).max(0.0),
-                (g_scaled * tone_gain).max(0.0),
-                (b_scaled * tone_gain).max(0.0),
-            )
-        } else {
-            (r_scaled, g_scaled, b_scaled)
-        };
+        let (sample_idx, v_mult, u_norm, v_norm) =
+            self.sample_geometry_and_vignette(orig_x, orig_y, identity_xy);
+        let [r_toned, g_toned, b_toned] = self.evaluate_pre_stage5_from_sample(sample_idx, v_mult);
 
         let (r_curved, g_curved, b_curved) = if u.has_curves {
             let c = rraw_color::curves::apply_tone_curves_lut(
