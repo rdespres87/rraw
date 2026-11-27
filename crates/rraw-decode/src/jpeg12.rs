@@ -272,8 +272,127 @@ impl IdctTables {
     }
 }
 
-/// Decodes a single-component 8-bit (`SOF0`) or 12-bit (`SOF1`) Sequential DCT JPEG stream.
-pub fn decode_jpeg_gray(data: &[u8]) -> Result<DecodedJpegGray, DecodeError> {
+struct ParsedJpegHeaders {
+    width: usize,
+    height: usize,
+    precision: u8,
+    restart_interval: usize,
+    qtable: [f32; 64],
+    dc_table: HuffTable,
+    ac_table: HuffTable,
+    scan_start: usize,
+}
+
+fn parse_dqt_segment(seg: &[u8], qtables: &mut [Option<[f32; 64]>; 4]) -> Result<(), DecodeError> {
+    let mut cur = 0_usize;
+    while cur < seg.len() {
+        let pq_tq = seg[cur];
+        cur += 1;
+        let pq = (pq_tq >> 4) & 0x0F;
+        let tq = usize::from(pq_tq & 0x0F);
+        if tq >= 4 {
+            return Err(DecodeError::MalformedMetadata(format!(
+                "invalid JPEG DQT table id {tq}"
+            )));
+        }
+        let mut tbl = [0.0_f32; 64];
+        if pq == 0 {
+            if cur + 64 > seg.len() {
+                return Err(DecodeError::MalformedMetadata(
+                    "truncated 8-bit JPEG DQT table".to_owned(),
+                ));
+            }
+            for (dst, &b) in tbl.iter_mut().zip(&seg[cur..cur + 64]) {
+                *dst = f32::from(b);
+            }
+            cur += 64;
+        } else if pq == 1 {
+            if cur + 128 > seg.len() {
+                return Err(DecodeError::MalformedMetadata(
+                    "truncated 16-bit JPEG DQT table".to_owned(),
+                ));
+            }
+            for (dst, pair) in tbl.iter_mut().zip(seg[cur..cur + 128].as_chunks::<2>().0) {
+                *dst = f32::from(u16::from_be_bytes(*pair));
+            }
+            cur += 128;
+        } else {
+            return Err(DecodeError::UnsupportedFormat(format!(
+                "unsupported JPEG DQT precision {pq}"
+            )));
+        }
+        qtables[tq] = Some(tbl);
+    }
+    Ok(())
+}
+
+fn parse_dht_segment(
+    seg: &[u8],
+    dc_tables: &mut [Option<HuffTable>; 4],
+    ac_tables: &mut [Option<HuffTable>; 4],
+) -> Result<(), DecodeError> {
+    let mut cur = 0_usize;
+    while cur < seg.len() {
+        if cur + 17 > seg.len() {
+            return Err(DecodeError::MalformedMetadata(
+                "truncated JPEG DHT header".to_owned(),
+            ));
+        }
+        let tc_th = seg[cur];
+        cur += 1;
+        let tc = (tc_th >> 4) & 0x0F;
+        let th = usize::from(tc_th & 0x0F);
+        if th >= 4 {
+            return Err(DecodeError::MalformedMetadata(format!(
+                "invalid JPEG DHT table id {th}"
+            )));
+        }
+        let mut counts = [0_u8; 16];
+        counts.copy_from_slice(&seg[cur..cur + 16]);
+        cur += 16;
+        let total: usize = counts.iter().map(|&c| usize::from(c)).sum();
+        if cur + total > seg.len() {
+            return Err(DecodeError::MalformedMetadata(
+                "truncated JPEG DHT symbol list".to_owned(),
+            ));
+        }
+        let values = seg[cur..cur + total].to_vec();
+        cur += total;
+        let table = HuffTable::from_dht(&counts, values);
+        if tc == 0 {
+            dc_tables[th] = Some(table);
+        } else if tc == 1 {
+            ac_tables[th] = Some(table);
+        }
+    }
+    Ok(())
+}
+
+fn parse_sof_segment(seg: &[u8]) -> Result<(u8, usize, usize, usize), DecodeError> {
+    if seg.len() < 9 {
+        return Err(DecodeError::MalformedMetadata(
+            "truncated JPEG SOF segment".to_owned(),
+        ));
+    }
+    let precision = seg[0];
+    if precision != 8 && precision != 12 {
+        return Err(DecodeError::UnsupportedFormat(format!(
+            "unsupported JPEG sample precision {precision}"
+        )));
+    }
+    let height = usize::from(u16::from_be_bytes([seg[1], seg[2]]));
+    let width = usize::from(u16::from_be_bytes([seg[3], seg[4]]));
+    let num_comp = seg[5];
+    if num_comp != 1 {
+        return Err(DecodeError::UnsupportedFormat(format!(
+            "expected single-component JPEG CFA tile, got {num_comp} components"
+        )));
+    }
+    let qtable_id = usize::from(seg[8]);
+    Ok((precision, width, height, qtable_id))
+}
+
+fn parse_jpeg_headers(data: &[u8]) -> Result<ParsedJpegHeaders, DecodeError> {
     if data.len() < 4 || data[0] != 0xFF || data[1] != 0xD8 {
         return Err(DecodeError::MalformedMetadata(
             "missing JPEG SOI marker".to_owned(),
@@ -293,7 +412,7 @@ pub fn decode_jpeg_gray(data: &[u8]) -> Result<DecodedJpegGray, DecodeError> {
     let mut ac_id = 0_usize;
     let mut scan_start = None;
 
-    let mut pos = 2;
+    let mut pos = 2_usize;
     while pos + 2 <= data.len() {
         if data[pos] != 0xFF {
             pos += 1;
@@ -327,118 +446,17 @@ pub fn decode_jpeg_gray(data: &[u8]) -> Result<DecodedJpegGray, DecodeError> {
         pos += seg_len;
 
         match marker {
-            0xDB => {
-                // DQT
-                let mut cur = 0;
-                while cur < seg.len() {
-                    let pq_tq = seg[cur];
-                    cur += 1;
-                    let pq = (pq_tq >> 4) & 0x0F;
-                    let tq = usize::from(pq_tq & 0x0F);
-                    if tq >= 4 {
-                        return Err(DecodeError::MalformedMetadata(format!(
-                            "invalid JPEG DQT table id {tq}"
-                        )));
-                    }
-                    let mut tbl = [0.0_f32; 64];
-                    if pq == 0 {
-                        if cur + 64 > seg.len() {
-                            return Err(DecodeError::MalformedMetadata(
-                                "truncated 8-bit JPEG DQT table".to_owned(),
-                            ));
-                        }
-                        for (dst, &b) in tbl.iter_mut().zip(&seg[cur..cur + 64]) {
-                            *dst = f32::from(b);
-                        }
-                        cur += 64;
-                    } else if pq == 1 {
-                        if cur + 128 > seg.len() {
-                            return Err(DecodeError::MalformedMetadata(
-                                "truncated 16-bit JPEG DQT table".to_owned(),
-                            ));
-                        }
-                        for (dst, pair) in
-                            tbl.iter_mut().zip(seg[cur..cur + 128].as_chunks::<2>().0)
-                        {
-                            *dst = f32::from(u16::from_be_bytes(*pair));
-                        }
-                        cur += 128;
-                    } else {
-                        return Err(DecodeError::UnsupportedFormat(format!(
-                            "unsupported JPEG DQT precision {pq}"
-                        )));
-                    }
-                    qtables[tq] = Some(tbl);
-                }
-            }
-            0xC4 => {
-                // DHT
-                let mut cur = 0;
-                while cur < seg.len() {
-                    if cur + 17 > seg.len() {
-                        return Err(DecodeError::MalformedMetadata(
-                            "truncated JPEG DHT header".to_owned(),
-                        ));
-                    }
-                    let tc_th = seg[cur];
-                    cur += 1;
-                    let tc = (tc_th >> 4) & 0x0F;
-                    let th = usize::from(tc_th & 0x0F);
-                    if th >= 4 {
-                        return Err(DecodeError::MalformedMetadata(format!(
-                            "invalid JPEG DHT table id {th}"
-                        )));
-                    }
-                    let mut counts = [0_u8; 16];
-                    counts.copy_from_slice(&seg[cur..cur + 16]);
-                    cur += 16;
-                    let total: usize = counts.iter().map(|&c| usize::from(c)).sum();
-                    if cur + total > seg.len() {
-                        return Err(DecodeError::MalformedMetadata(
-                            "truncated JPEG DHT symbol list".to_owned(),
-                        ));
-                    }
-                    let values = seg[cur..cur + total].to_vec();
-                    cur += total;
-                    let table = HuffTable::from_dht(&counts, values);
-                    if tc == 0 {
-                        dc_tables[th] = Some(table);
-                    } else if tc == 1 {
-                        ac_tables[th] = Some(table);
-                    }
-                }
-            }
+            0xDB => parse_dqt_segment(seg, &mut qtables)?,
+            0xC4 => parse_dht_segment(seg, &mut dc_tables, &mut ac_tables)?,
             0xDD => {
-                // DRI
                 if seg.len() >= 2 {
                     restart_interval = usize::from(u16::from_be_bytes([seg[0], seg[1]]));
                 }
             }
             0xC0 | 0xC1 => {
-                // SOF0 (Baseline) or SOF1 (Extended Sequential, including 12-bit)
-                if seg.len() < 9 {
-                    return Err(DecodeError::MalformedMetadata(
-                        "truncated JPEG SOF segment".to_owned(),
-                    ));
-                }
-                precision = seg[0];
-                if precision != 8 && precision != 12 {
-                    return Err(DecodeError::UnsupportedFormat(format!(
-                        "unsupported JPEG sample precision {precision}"
-                    )));
-                }
-                height = usize::from(u16::from_be_bytes([seg[1], seg[2]]));
-                width = usize::from(u16::from_be_bytes([seg[3], seg[4]]));
-                let num_comp = seg[5];
-                if num_comp != 1 {
-                    return Err(DecodeError::UnsupportedFormat(format!(
-                        "expected single-component JPEG CFA tile, got {num_comp} components"
-                    )));
-                }
-                qtable_id = usize::from(seg[8]);
+                (precision, width, height, qtable_id) = parse_sof_segment(seg)?;
             }
             0xDA => {
-                // SOS
                 if seg.len() < 6 {
                     return Err(DecodeError::MalformedMetadata(
                         "truncated JPEG SOS segment".to_owned(),
@@ -460,7 +478,7 @@ pub fn decode_jpeg_gray(data: &[u8]) -> Result<DecodedJpegGray, DecodeError> {
         }
     }
 
-    let Some(start) = scan_start else {
+    let Some(scan_start) = scan_start else {
         return Err(DecodeError::MalformedMetadata(
             "missing JPEG SOS marker".to_owned(),
         ));
@@ -475,22 +493,109 @@ pub fn decode_jpeg_gray(data: &[u8]) -> Result<DecodedJpegGray, DecodeError> {
             "missing JPEG DQT table {qtable_id}"
         )));
     };
-    let Some(dc_table) = dc_tables.get(dc_id).and_then(|t| t.as_ref()) else {
+    let Some(dc_table) = dc_tables.get_mut(dc_id).and_then(Option::take) else {
         return Err(DecodeError::MalformedMetadata(format!(
             "missing JPEG DC Huffman table {dc_id}"
         )));
     };
-    let Some(ac_table) = ac_tables.get(ac_id).and_then(|t| t.as_ref()) else {
+    let Some(ac_table) = ac_tables.get_mut(ac_id).and_then(Option::take) else {
         return Err(DecodeError::MalformedMetadata(format!(
             "missing JPEG AC Huffman table {ac_id}"
         )));
     };
 
+    Ok(ParsedJpegHeaders {
+        width,
+        height,
+        precision,
+        restart_interval,
+        qtable,
+        dc_table,
+        ac_table,
+        scan_start,
+    })
+}
+
+fn decode_mcu_block(
+    reader: &mut BitReader<'_>,
+    dc_table: &HuffTable,
+    ac_table: &HuffTable,
+    qtable: &[f32; 64],
+    dc_pred: &mut i64,
+) -> Result<[f32; 64], DecodeError> {
+    let mut coeffs = [0.0_f32; 64];
+
+    let dc_cat = u32::from(reader.decode_huff(dc_table)?);
+    if dc_cat > 15 {
+        return Err(DecodeError::MalformedMetadata(format!(
+            "invalid JPEG DC category {dc_cat}"
+        )));
+    }
+    let dc_bits = reader.read_bits(dc_cat)?;
+    *dc_pred += i64::from(extend_sign(dc_bits, dc_cat));
+    coeffs[0] = (*dc_pred as f32) * qtable[0];
+
+    let mut k = 1_usize;
+    while k < 64 {
+        let sym = reader.decode_huff(ac_table)?;
+        if sym == 0x00 {
+            break;
+        }
+        let run = usize::from(sym >> 4);
+        let size = u32::from(sym & 0x0F);
+        if sym == 0xF0 {
+            k += 16;
+            continue;
+        }
+        k += run;
+        if k >= 64 {
+            break;
+        }
+        let ac_bits = reader.read_bits(size)?;
+        let ac_val = extend_sign(ac_bits, size);
+        coeffs[ZIGZAG[k]] = (ac_val as f32) * qtable[k];
+        k += 1;
+    }
+
+    Ok(coeffs)
+}
+
+fn store_mcu_block(
+    spatial: &[f32; 64],
+    samples: &mut [u16],
+    width: usize,
+    height: usize,
+    base: (usize, usize),
+    clamp: (f32, f32),
+) {
+    let (base_x, base_y) = base;
+    let (level_shift, max_sample) = clamp;
+    let max_dy = height.saturating_sub(base_y).min(8);
+    let max_dx = width.saturating_sub(base_x).min(8);
+    for dy in 0..max_dy {
+        let dst_row = (base_y + dy) * width + base_x;
+        let src_row = dy * 8;
+        for dx in 0..max_dx {
+            let val = (spatial[src_row + dx] + level_shift)
+                .round()
+                .clamp(0.0, max_sample);
+            samples[dst_row + dx] = val as u16;
+        }
+    }
+}
+
+/// Decodes a single-component 8-bit (`SOF0`) or 12-bit (`SOF1`) Sequential DCT JPEG stream.
+pub fn decode_jpeg_gray(data: &[u8]) -> Result<DecodedJpegGray, DecodeError> {
+    let headers = parse_jpeg_headers(data)?;
+    let width = headers.width;
+    let height = headers.height;
+    let precision = headers.precision;
+
     let mcu_w = width.div_ceil(8);
     let mcu_h = height.div_ceil(8);
     let mut samples = vec![0_u16; width * height];
 
-    let mut reader = BitReader::new(data, start);
+    let mut reader = BitReader::new(data, headers.scan_start);
     let idct = IdctTables::new();
     let level_shift = (1_u32 << (precision - 1)) as f32;
     let max_sample = ((1_u32 << precision) - 1) as f32;
@@ -500,65 +605,32 @@ pub fn decode_jpeg_gray(data: &[u8]) -> Result<DecodedJpegGray, DecodeError> {
 
     for mcu_y in 0..mcu_h {
         for mcu_x in 0..mcu_w {
-            if restart_interval > 0 && mcu_index > 0 && mcu_index.is_multiple_of(restart_interval) {
+            if headers.restart_interval > 0
+                && mcu_index > 0
+                && mcu_index.is_multiple_of(headers.restart_interval)
+            {
                 reader.consume_restart_marker();
                 dc_pred = 0;
             }
             mcu_index += 1;
 
-            let mut coeffs = [0.0_f32; 64];
-
-            // DC coefficient
-            let dc_cat = u32::from(reader.decode_huff(dc_table)?);
-            if dc_cat > 15 {
-                return Err(DecodeError::MalformedMetadata(format!(
-                    "invalid JPEG DC category {dc_cat}"
-                )));
-            }
-            let dc_bits = reader.read_bits(dc_cat)?;
-            dc_pred += i64::from(extend_sign(dc_bits, dc_cat));
-            coeffs[0] = (dc_pred as f32) * qtable[0];
-
-            // AC coefficients
-            let mut k = 1_usize;
-            while k < 64 {
-                let sym = reader.decode_huff(ac_table)?;
-                if sym == 0x00 {
-                    break;
-                }
-                let run = usize::from(sym >> 4);
-                let size = u32::from(sym & 0x0F);
-                if sym == 0xF0 {
-                    k += 16;
-                    continue;
-                }
-                k += run;
-                if k >= 64 {
-                    break;
-                }
-                let ac_bits = reader.read_bits(size)?;
-                let ac_val = extend_sign(ac_bits, size);
-                coeffs[ZIGZAG[k]] = (ac_val as f32) * qtable[k];
-                k += 1;
-            }
-
+            let coeffs = decode_mcu_block(
+                &mut reader,
+                &headers.dc_table,
+                &headers.ac_table,
+                &headers.qtable,
+                &mut dc_pred,
+            )?;
             let mut spatial = [0.0_f32; 64];
             idct.idct_8x8(&coeffs, &mut spatial);
-
-            let base_y = mcu_y * 8;
-            let base_x = mcu_x * 8;
-            let max_dy = (height - base_y).min(8);
-            let max_dx = (width - base_x).min(8);
-            for dy in 0..max_dy {
-                let dst_row = (base_y + dy) * width + base_x;
-                let src_row = dy * 8;
-                for dx in 0..max_dx {
-                    let val = (spatial[src_row + dx] + level_shift)
-                        .round()
-                        .clamp(0.0, max_sample);
-                    samples[dst_row + dx] = val as u16;
-                }
-            }
+            store_mcu_block(
+                &spatial,
+                &mut samples,
+                width,
+                height,
+                (mcu_x * 8, mcu_y * 8),
+                (level_shift, max_sample),
+            );
         }
     }
 
