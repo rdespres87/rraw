@@ -419,13 +419,13 @@ impl SqliteDamIndex {
         let label_str = color_label_to_str(label);
         let pick_str = pick_status_to_str(pick);
 
-        let mut attempts = 0;
-        loop {
-            let guard_res = self.conn.lock();
-            let guard =
-                guard_res.map_err(|_| StorageError::Database("Mutex poisoned".to_owned()))?;
+        let guard = self
+            .conn
+            .lock()
+            .map_err(|_| StorageError::Database("Mutex poisoned".to_owned()))?;
 
-            let res = guard.execute(
+        let rows = guard
+            .execute(
                 "INSERT INTO photos (
                     raw_path, camera_make, camera_model, width, height, rating, pick_status, color_label, updated_at
                 ) VALUES (?1, 'Unknown', 'Unknown', 0, 0, ?2, ?3, ?4, unixepoch())
@@ -435,24 +435,10 @@ impl SqliteDamIndex {
                     pick_status = excluded.pick_status,
                     updated_at = excluded.updated_at",
                 params![path_str, rating as i64, pick_str, label_str],
-            );
+            )
+            .map_err(|e| StorageError::Database(format!("Update ratings failed: {e}")))?;
 
-            match res {
-                Ok(rows) => return Ok(rows > 0),
-                Err(rusqlite::Error::SqliteFailure(err, _))
-                    if err.code == rusqlite::ErrorCode::DatabaseBusy && attempts < 5 =>
-                {
-                    drop(guard);
-                    attempts += 1;
-                    std::thread::sleep(std::time::Duration::from_millis(5 * attempts));
-                }
-                Err(e) => {
-                    return Err(StorageError::Database(format!(
-                        "Update ratings failed: {e}"
-                    )))
-                }
-            }
-        }
+        Ok(rows > 0)
     }
 
     /// Retrieves an indexed photo record by raw file path.
