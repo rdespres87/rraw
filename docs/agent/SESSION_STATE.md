@@ -4,9 +4,12 @@
 
 ## Current Status
 
-- **Active Release Baseline**: `v0.3.2` + **verified local commits ahead of `origin/main`** (`4439733`..`e5afca1` + coverage/hygiene polish)
-- **Last Verified Baseline**: **557 tests passing across 99 test suites** (verified on `cargo test --workspace`), 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **11 of 12 crates enforcing `#![forbid(unsafe_code)]`** (only `rraw-coreml` uses `#![deny(unsafe_code)]` for `sysctlbyname`), **85.19% deterministic 4-crate CPU line coverage** (CI gate `>= 85%`), standalone `fuzz/` crate with 5 `cargo-fuzz` targets, multi-OS CI (`ci-macos` + `ci-linux`), weekly/PR `cargo audit` security workflow, and baseline ADRs in `docs/adr/`.
-- **Local Commits Ahead of `origin/main` (`4439733`..`e5afca1`)**:
+- **Active Release Baseline**: `v0.3.2` + **verified local commits ahead of `origin/main`** (`4439733`..`8d55f33` + coverage gate fix)
+- **Last Verified Baseline**: **575 tests passing across 99 test suites** (verified on `cargo test --workspace`), 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **11 of 12 crates enforcing `#![forbid(unsafe_code)]`** (only `rraw-coreml` uses `#![deny(unsafe_code)]` for `sysctlbyname`), **85.01% deterministic 4-crate CPU line coverage** (CI gate `>= 85%`), standalone `fuzz/` crate with 5 `cargo-fuzz` targets, multi-OS CI (`ci-macos` + `ci-linux`), weekly/PR `cargo audit` security workflow, and baseline ADRs in `docs/adr/`.
+- **Local Commits Ahead of `origin/main` (`4439733`..`8d55f33`)**:
+  - `8d55f33` — `refactor(optics,decode,app): split optics::render, memoize lens search, extract test modules, expand lensfun tests`
+  - `7f5825f` — `perf(app): cache lens profile override lookup and eliminate per-frame clone`
+  - `edae464` — `test(core,color,optics,decode): restore 85% CPU coverage and sync release state`
   - `e5afca1` — `test(decode): add cargo-fuzz targets for pure-Rust binary parsers`
   - `de13b26` — `docs(tests): remove ephemeral phase and audit labels from test headers`
   - `401732a` — `refactor(app): decompose ViewportController into focused state structs`

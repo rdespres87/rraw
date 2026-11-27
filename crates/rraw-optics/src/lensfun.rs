@@ -1002,4 +1002,63 @@ mod tests {
         assert!(matched.is_exact_match);
         assert_eq!(matched.profile_name, curated_name);
     }
+
+    #[test]
+    fn parse_ptlens_distortion_poly3_tca_and_vignetting_pa() -> Result<(), LensfunError> {
+        let xml = r#"<lensdatabase><lens>
+            <maker>T</maker><model>Test 24mm</model>
+            <calibration>
+                <distortion model="ptlens" focal="24" a="0.01" b="-0.02" c="0.005" />
+                <distortion model="poly3" focal="0" k1="0.1" />
+                <tca model="poly3" focal="24" vr="1.001" vb="0.999" />
+                <vignetting model="pa" focal="24" aperture="2.8" k1="-0.4" k2="0.1" k3="-0.02" />
+            </calibration>
+        </lens></lensdatabase>"#;
+        let db = LensfunDatabase::from_xml_str(xml)?;
+        let lens = db.find_lens("Test 24mm").ok_or_else(|| {
+            LensfunError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "lens Test 24mm not found",
+            ))
+        })?;
+        let model = db.interpolate_model(lens, 24.0, Some(2.8));
+        assert!(model.distortion.k1 != 0.0);
+        assert!(model.lateral_ca != Default::default());
+        assert!(model.vignette != Default::default());
+        Ok(())
+    }
+
+    #[test]
+    fn from_reader_and_load_with_system_succeed() -> Result<(), Box<dyn std::error::Error>> {
+        let xml = r#"<lensdatabase><lens><maker>T</maker><model>Reader Lens</model><calibration><distortion model="ptlens" focal="35" a="0.01" b="0" c="0" /></calibration></lens></lensdatabase>"#;
+        let db = LensfunDatabase::from_reader(std::io::Cursor::new(xml.as_bytes()))?;
+        assert!(db.find_lens("Reader Lens").is_some());
+        let sys_db = LensfunDatabase::load_with_system();
+        assert!(!sys_db.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn global_database_is_non_empty() {
+        assert!(!LensfunDatabase::global().is_empty());
+    }
+
+    #[test]
+    fn merge_and_find_lens_handle_duplicates_full_name_and_empty_queries(
+    ) -> Result<(), LensfunError> {
+        let mut base = LensfunDatabase::from_xml_str(
+            "<lensdatabase><lens><maker>Canon</maker><model>RF 50mm</model><calibration/></lens></lensdatabase>",
+        )?;
+        let extra = LensfunDatabase::from_xml_str(
+            "<lensdatabase><lens><maker>Canon</maker><model>RF 50mm</model><calibration/></lens><lens><maker>Nikon</maker><model>Z 35mm</model><calibration/></lens></lensdatabase>",
+        )?;
+        base.merge(extra);
+        assert_eq!(base.len(), 2);
+        assert!(base.find_lens("").is_none());
+        assert!(base.find_lens("Canon RF 50mm").is_some());
+        assert!(base.find_lens("Z 35mm").is_some());
+        assert!(base.find_lens("nonexistent_lens_xyz").is_none());
+        assert_eq!(base.search_lenses("", 5).len(), 2);
+        Ok(())
+    }
 }

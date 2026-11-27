@@ -247,3 +247,62 @@ fn test_pchip_monotone_cubic_hermite_spline_properties() -> Result<(), Box<dyn s
 
     Ok(())
 }
+
+#[test]
+fn test_pchip_degenerate_and_apply_tone_curves_lut() -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_color::curves::{apply_tone_curves_lut, generate_1d_lut_1024, PchipSpline};
+    use rraw_core::curves::{ChannelCurve, CurvePoint, ToneCurvesRecipe};
+
+    let empty = ChannelCurve { points: Vec::new() };
+    let single = ChannelCurve {
+        points: vec![CurvePoint::new(0.5, 0.7)?],
+    };
+    let e = PchipSpline::new(&empty).evaluate(0.25);
+    let s = PchipSpline::new(&single).evaluate(0.25);
+    assert!(e.is_finite() && e >= 0.0);
+    assert!(s.is_finite() && s >= 0.0);
+
+    let lut = generate_1d_lut_1024(&ToneCurvesRecipe::default());
+    let zero = apply_tone_curves_lut(glam::Vec3::ZERO, &lut);
+    let mid = apply_tone_curves_lut(glam::Vec3::new(0.25, 0.5, 0.75), &lut);
+    for v in [zero, mid] {
+        assert!(v.x.is_finite() && v.x >= 0.0);
+        assert!(v.y.is_finite() && v.y >= 0.0);
+        assert!(v.z.is_finite() && v.z >= 0.0);
+    }
+    Ok(())
+}
+
+#[test]
+fn test_cpu_pipeline_hlr_curves_and_xtrans() -> Result<(), Box<dyn std::error::Error>> {
+    assert!(rraw_color::pipeline::CpuRgbImage::new(2, 2, vec![[0.0; 3]; 3]).is_err());
+
+    let mut recipe = rraw_core::Recipe::default();
+    recipe
+        .stage5_grading
+        .tone_curves
+        .combined_rgb
+        .add_point(rraw_core::curves::CurvePoint::new(0.5, 0.6)?);
+
+    let bayer = rraw_core::SignedCfaBuffer::new(
+        6,
+        6,
+        rraw_core::CfaPattern::Bayer(rraw_core::BayerOrigin::Rggb),
+        vec![1.5; 36],
+    )?;
+    let bayer_out =
+        rraw_color::pipeline::CpuReferencePipeline::new().execute(&bayer, &recipe, 1.0)?;
+    assert!(bayer_out.width() == 6 && bayer_out.height() == 6);
+
+    let xtrans = rraw_core::SignedCfaBuffer::new(
+        6,
+        6,
+        rraw_core::CfaPattern::XTrans([[rraw_core::CfaColor::Green; 6]; 6]),
+        vec![0.5; 36],
+    )?;
+    let xtrans_out =
+        rraw_color::pipeline::CpuReferencePipeline::new().execute(&xtrans, &recipe, 1.0)?;
+    assert!(xtrans_out.width() == 6 && xtrans_out.height() == 6);
+
+    Ok(())
+}

@@ -533,3 +533,80 @@ fn test_all_pipeline_enum_variants_roundtrip_and_hash_sensitivity(
 
     Ok(())
 }
+
+#[test]
+fn test_color_tone_clipboard_preserves_laplacian_and_smart_lighting(
+) -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_core::recipe::*;
+    let source = Stage5GradingParams {
+        exposure_ev: 0.5,
+        contrast: 1.2,
+        highlights: -0.3,
+        shadows: 0.4,
+        whites: 0.1,
+        blacks: -0.2,
+        saturation: 1.1,
+        vibrance: 0.8,
+        laplacian_local_contrast: 0.0,
+        tone_curves: Default::default(),
+        smart_lighting: SmartLightingParams {
+            mode: SmartLightingMode::Off,
+            intensity: 0.0,
+            custom_shadow_lift: 0.0,
+            custom_highlight_compression: 0.0,
+        },
+    };
+    let clip = ColorToneRecipeClipboard::from_stage5(&source);
+    let mut target = Stage5GradingParams {
+        laplacian_local_contrast: 0.45,
+        smart_lighting: SmartLightingParams {
+            mode: SmartLightingMode::Medium,
+            intensity: 0.7,
+            custom_shadow_lift: 0.0,
+            custom_highlight_compression: 0.0,
+        },
+        ..Default::default()
+    };
+    clip.apply_to_stage5(&mut target);
+    assert_eq!(target.exposure_ev, source.exposure_ev);
+    assert_eq!(target.contrast, source.contrast);
+    assert_eq!(target.highlights, source.highlights);
+    assert_eq!(target.shadows, source.shadows);
+    assert_eq!(target.whites, source.whites);
+    assert_eq!(target.blacks, source.blacks);
+    assert_eq!(target.saturation, source.saturation);
+    assert_eq!(target.vibrance, source.vibrance);
+    assert_eq!(target.laplacian_local_contrast, 0.45);
+    assert_eq!(target.smart_lighting.mode, SmartLightingMode::Medium);
+    Ok(())
+}
+
+#[test]
+fn test_stage_hash_display_recipe_id_and_smart_lighting_is_active(
+) -> Result<(), Box<dyn std::error::Error>> {
+    use rraw_core::recipe::*;
+    assert_eq!(StageHash::ZERO.to_string(), "0".repeat(64));
+    assert_eq!(RecipeId::default().to_string(), "default");
+    let off = SmartLightingParams {
+        mode: SmartLightingMode::Off,
+        intensity: 1.0,
+        custom_shadow_lift: 0.0,
+        custom_highlight_compression: 0.0,
+    };
+    assert!(!off.is_active());
+    let medium_zero = SmartLightingParams {
+        mode: SmartLightingMode::Medium,
+        intensity: 0.0,
+        custom_shadow_lift: 0.0,
+        custom_highlight_compression: 0.0,
+    };
+    assert!(!medium_zero.is_active());
+    let custom_half = SmartLightingParams {
+        mode: SmartLightingMode::Custom,
+        intensity: 0.5,
+        custom_shadow_lift: 0.1,
+        custom_highlight_compression: 0.2,
+    };
+    assert!(custom_half.is_active());
+    Ok(())
+}
