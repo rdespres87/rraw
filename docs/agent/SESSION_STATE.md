@@ -4,19 +4,21 @@
 
 ## Current Status
 
-- **Active Release Baseline**: `v0.3.0` (`89ae601` on `origin/main`) + **10 verified local commits ahead of `origin/main`** (`f8ac420`..`b25f2ba`) + P2.2 safety/hygiene hardening
-- **Last Verified Baseline**: **467 tests passing across 95 test suites** (8.37s), 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **11 of 12 crates enforcing `#![forbid(unsafe_code)]`** (only `rraw-coreml` uses `#![deny(unsafe_code)]` for `sysctlbyname`), **100% of `src/` files strictly under 1,000 lines**, **87.68% deterministic 4-crate CPU line coverage** (CI gate `>= 85%`), multi-OS CI (`ci-macos` + `ci-linux`), weekly/PR `cargo audit` security workflow, and baseline ADRs in `docs/adr/`.
-- **Local Commits Ahead of `origin/main` (100% of Maturity Audit #10 P0 / P1 / P2 Complete)**:
-  - `f8ac420` — `fix(test): relax debug and CI latency budget in preview benchmarks`
-  - `26a4798` — `perf(gpu): fuse Stages 5-7 into single submission and share 3D CLUT via Arc`
-  - `aa2500f` — `fix(dam): initialize session DAM on startup and decouple directory index epoch`
-  - `b6fea96` — `perf(dam): offload SQLite rating writes to non-blocking background worker`
-  - `0418e19` — `ci: add Linux cross-platform job and cargo-audit security workflow`
-  - `db6e746` — `docs: add baseline architecture decision records and sync session state`
-  - `9283967` — `refactor: decompose darkroom inspector section, deduplicate JXL guard, and update thumbnail sidecar hash`
-  - `bdc36fd` — `refactor(storage): remove obsolete XmpEditor module and residual XMP sidecar references`
-  - `49d2196` — `refactor: wrap high-arity viewport and CFA helpers in context structs and isolate crop grid flag`
-  - `b25f2ba` — `test: replace sleeps with deterministic sync and expand DAG coverage`
+- **Active Release Baseline**: `v0.3.2` + **12 verified local commits ahead of `origin/main`** (`4439733`..`a2761fc`)
+- **Last Verified Baseline**: **545 tests passing across 96 test suites** (verified on `cargo test --workspace`), 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **11 of 12 crates enforcing `#![forbid(unsafe_code)]`** (only `rraw-coreml` uses `#![deny(unsafe_code)]` for `sysctlbyname`), **85.04% deterministic 4-crate CPU line coverage** (CI gate `>= 85%`), multi-OS CI (`ci-macos` + `ci-linux`), weekly/PR `cargo audit` security workflow, and baseline ADRs in `docs/adr/`.
+- **Local Commits Ahead of `origin/main` (`4439733`..`a2761fc`)**:
+  - `a2761fc` — `fix(storage): rely on SQLite busy_timeout instead of sleep retry`
+  - `ae782ee` — `refactor(decode): wrap wavelet level dimensions in context struct`
+  - `837adeb` — `test(decode,optics): add synthetic unit tests to restore 85% CPU coverage`
+  - `2211c0d` — `feat(decode): add pure-Rust Canon PowerShot Pro70 4-color CYGM CIFF decoder`
+  - `e3ff243` — `feat(decode,app): add pure-Rust Foveon X3F decoder and register GPR/X3F extensions in app`
+  - `230ae18` — `feat(decode): add pure-Rust VC-5 (SMPTE ST 2073-1) wavelet decoder for GoPro GPR`
+  - `472e226` — `feat(decode): add headerless naked RAW fallback decoder for legacy, CinemaDNG, and YUV formats`
+  - `d8df6e6` — `feat(decode): add camera alias fallback, monochrome sensors, RGB TIFF, and DNG fallback`
+  - `5688c4f` — `feat(decode,app): add pure-Rust 12-bit JPEG/DNG fallback decoder and extend RAW filter`
+  - `91a09fa` — `feat(decode,app): add SuperCCD 45-deg rotation, 4-color CYGM demosaic, and Foveon/monochrome UI tags`
+  - `c7e6acd` — `feat(decode,app): add native cpp=3 linear RGB decoding and prefer photosites over thumbnails`
+  - `4439733` — `chore(config): add .geminiignore to exclude build artifacts and heavy assets`
 - **Preceding Milestone**: Phase 28 — Maturity Audit #9 Remediation (`v0.3.0`, `89ae601`) **Complete**
   - **Coverage Gate >= 85% (`84586e6`)**: Added deterministic unit tests for `rraw-decode` (`opcodes`, `makernotes`, `exif`) and `rraw-optics` (`lensfun`), raising 4-crate CPU `cargo llvm-cov` line coverage from `82.72%` → `89.16%` and raising CI `coverage-core` gate from `82%` → `85%`.
   - **GPU Fast-Path for Advanced Masks & Overlay (`ce51de7`)**: Extended `GeometricMask` and `stage6_masks.wgsl` with `temperature_shift`, `invert`, and smoothstep `feather` parity; lifted CPU fallbacks for local/semantic masks and red mask overlays in `gpu_backend.rs` (only `FreehandBrush` falls back to CPU), verified live Metal GPU vs CPU parity ($\Delta E_{00} < 1.0$).

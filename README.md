@@ -46,26 +46,25 @@
 ### 6. Catalog-Free Workflow & Non-Destructive Sidecars
 - **Direct Filesystem Operation**: No proprietary, monolithic catalog databases that risk corruption or lock-in.
 - **Asynchronous SQLite Cache**: Ultra-fast background indexing of metadata (`PhotoMetadata`), EXIF, and thumbnail mipmaps for instantaneous folder navigation.
-- **Dual Sidecar Architecture**:
-  - Deterministic `.rraw.json` recipe DAG recording all adjustment parameters.
-  - Lossless, non-destructive `.xmp` sidecar synchronization, strictly preserving third-party namespaces (e.g. Adobe Lightroom, Darktable).
+- **Native Sidecar Architecture**:
+  - Deterministic `.rraw/<photo>.rraw.json` recipe DAG recording all adjustment parameters cleanly alongside `.rraw/cache.db`.
 
 ### 7. Next-Generation HDR Batch & Timelapse Export
 - **Multi-Threaded Queue**: Asynchronous background export preserving full bit depth.
-- **Supported Formats**: 16-bit TIFF, 16-bit PNG, full-quality JPEG, AVIF (pure-Rust `rav1e`), and JPEG XL (`libjxl`).
+- **Supported Formats**: 16-bit TIFF, 16-bit PNG, full-quality JPEG, AVIF (pure-Rust `rav1e`), and JPEG XL (pure-Rust `zune-jpegxl`).
 - **ISO 21496-1 HDR Gain Maps**: Embeds standardized gain maps into AVIF, JPEG XL, and JPEG files, providing universal backward compatibility on standard SDR displays while unlocking full HDR luminance on supported devices.
 - **RAW Timelapse & Temporal Deflicker Engine**: High-bit-depth numbered sequence assembly (`<prefix>_00001.<ext>`), weighted local-linear temporal log2 luminance deflickering (`ΔEV`) eliminating mechanical aperture jitter, Holy Grail day-to-night keyframe ramping (interpolating Exposure, Kelvin, Tint, Contrast, and Saturation), and `timelapse_sequence.json` manifest generation with ready-to-run FFmpeg ProRes 422 HQ / 10-bit HEVC assembly commands.
 
 ### 8. Full Internationalization (i18n) & Desktop Ergonomics
-- **Zero-Allocation i18n Engine**: 100% typed string tables with compile-time exhaustiveness matching (`Language { Fr, En }`), zero runtime allocations (`&'static str`), and instant reactive live switching without app restart.
-- **Persistent User Preferences**: Compact `FR | EN` top bar toggle, backward-compatible layout persistence (`~/.config/rraw/layout.json`), and comprehensive French / English localization across all panels, tools, EXIF metadata, and shortcuts.
+- **Dynamic JSON i18n Engine**: Runtime-loaded translation catalogs (`assets/i18n/{en,fr,es}.json`) backed by compile-time `Key` identifiers and instant reactive live switching without app restart.
+- **Persistent User Preferences**: Compact `EN | FR | ES` top bar toggle, backward-compatible layout persistence (`~/.config/rraw/layout.json`), and comprehensive English, French, and Spanish localization across all panels, tools, EXIF metadata, and shortcuts.
 
 ---
 
 ## Architecture & Engineering Rigor
 
 - **Pure-Rust Parsing & Business Logic**: All TIFF/ISOBMFF, DNG `OpcodeList`, MakerNotes, Lensfun XML, and Adobe `.lcp` parsing are implemented in safe Rust (`#![forbid(unsafe_code)]`), eliminating attack surfaces from legacy C/C++ libraries.
-- **Strict `unsafe` Isolation (`E0453` Compliant)**: 10 out of 12 workspace crates enforce `#![forbid(unsafe_code)]`. Only `rraw-macos-edr` and `rraw-coreml` use `#![deny(unsafe_code)]` with minimal, audited, `// SAFETY:`-documented `#[allow(unsafe_code)]` blocks bridging macOS platform subsystems (`AppKit`/`QuartzCore` display headroom and CoreML/ANE neural execution) behind safe traits.
+- **Strict `unsafe` Isolation (`E0453` Compliant)**: 11 out of 12 workspace crates enforce `#![forbid(unsafe_code)]`. Only `rraw-coreml` uses `#![deny(unsafe_code)]` with minimal, audited, `// SAFETY:`-documented `#[allow(unsafe_code)]` blocks bridging macOS CoreML/ANE subsystems (`sysctlbyname`) behind safe traits.
 - **Zero-Crash Policy**: Workspace-wide Clippy lints forbid `.unwrap()`, `.expect()`, `panic!()`, `todo!()`, and `unimplemented!()` in all production and test code.
 - **Mathematically Grounded TDD**: Every processing stage is verified with deterministic synthetic fixtures (Poisson-Gaussian noise, Siemens stars, analytic PSF blur, synthetic D50/D65 ColorChecker patches) and headless GPU testing (`GpuContext::new_headless()`).
 
@@ -93,7 +92,7 @@
 | [`rraw-color`](crates/rraw-color/Cargo.toml) | `lib` | `#![forbid(unsafe_code)]` | Iterative CCT / 1D mired solver, `ForwardMatrix` & `ColorMatrix` -> Bradford -> `ACEScg`, Gamut Guard, `AgX` / `OpenDRT`, shared CPU reference pipeline | `rraw-core`, `rraw-optics` |
 | [`rraw-gpu`](crates/rraw-gpu/Cargo.toml) | `lib` | `#![forbid(unsafe_code)]` | `wgpu` context (`new_headless()` + surface), WGSL Stages 1–7, LRU VRAM cache (`L0`/`L1`/`L2`), 120 Hz RoI scrubbing, GPU scopes | `rraw-core`, `rraw-optics`, `rraw-color` |
 | [`rraw-ai`](crates/rraw-ai/Cargo.toml) | `lib` | `#![forbid(unsafe_code)]` | `TileDenoiser` implementation (`ort` CoreML EP), FP16 Anscombe/log conditioning, `504×504` tiles (`48px` cosine overlap), epoch cancellation | `rraw-core` |
-| [`rraw-storage`](crates/rraw-storage/Cargo.toml) | `lib` | `#![forbid(unsafe_code)]` | Async SQLite DAM cache on `PhotoMetadata`, non-destructive `.xmp` & `.rraw.json` sidecars, disk thumbnail mipmap cache | `rraw-core`, `rraw-decode` |
+| [`rraw-storage`](crates/rraw-storage/Cargo.toml) | `lib` | `#![forbid(unsafe_code)]` | Async SQLite DAM cache on `PhotoMetadata`, non-destructive `.rraw.json` sidecars, disk thumbnail mipmap cache | `rraw-core`, `rraw-decode` |
 | [`rraw-export`](crates/rraw-export/Cargo.toml) | `lib` | `#![forbid(unsafe_code)]` | Multi-threaded batch export queue: TIFF/PNG 16-bit, JPEG, AVIF (`rav1e`), JXL (`zune-jpegxl` pure-Rust), ICC profiles, ISO 21496-1 Gain Maps (`tmap` + `hdrgm:*`) | `rraw-core`, `rraw-gpu`, `rraw-color` |
 | [`rraw-macos-edr`](crates/rraw-macos-edr/Cargo.toml) | `lib` | `#![deny(unsafe_code)]` | Minimal audited `objc2` bridge (`CAMetalLayer`, `extendedLinearDisplayP3`, `NSScreen` headroom) behind `DisplayHeadroomProvider` | `rraw-core` |
 | [`rraw-coreml`](crates/rraw-coreml/Cargo.toml) | `lib` | `#![deny(unsafe_code)]` | Isolated macOS CoreML & Apple Neural Engine (ANE) hardware bridge (`AneRawDenoiser`, `AneSemanticSegmenter`) | `rraw-core`, `rraw-ai` |
