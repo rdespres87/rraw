@@ -2,8 +2,8 @@
 
 ## Next Actionable Objective (Immediate Priority)
 
-- **Push `main` to `origin/main` when authorized** (all Maturity Audit #10 P0, P1, and P2 remediation items are complete and locally verified) or start the next feature milestone (`v0.4.0`).
-  - **Verified Baseline**: **467 tests passing across 95 suites** (8.37s), 0 clippy warnings, 0 `#[allow(clippy::...)]`, **11 of 12 crates enforcing `#![forbid(unsafe_code)]`**, 100% of `src/` files `< 1,000` lines, **87.68%** 4-crate CPU line coverage (`>= 85%` CI gate), multi-OS CI (`ci-macos` + `ci-linux`), `cargo audit` security workflow, and `docs/adr/` baseline.
+- **Release `v0.4.0` ready to commit, tag, and push to `origin/main` when authorized** (`Cargo.toml` bumped to `0.4.0`, `RELEASE_NOTES.md` updated).
+  - **Verified Baseline**: **586 tests passing across 99 suites**, 0 clippy warnings, **11 of 12 crates enforcing `#![forbid(unsafe_code)]`**, **85.00%** 4-crate CPU line coverage (`>= 85%` CI gate), multi-OS CI (`ci-macos` + `ci-linux`), `cargo audit` security workflow, 5 `cargo-fuzz` targets, and `docs/adr/` baseline.
 
 ---
 

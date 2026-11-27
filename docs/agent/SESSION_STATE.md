@@ -4,9 +4,12 @@
 
 ## Current Status
 
-- **Active Release Baseline**: `v0.3.2` + **verified local commits ahead of `origin/main`** (`4439733`..`8d55f33` + coverage gate fix)
-- **Last Verified Baseline**: **575 tests passing across 99 test suites** (verified on `cargo test --workspace`), 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **0 `#[allow(clippy::...)]`** across all 12 crates, **11 of 12 crates enforcing `#![forbid(unsafe_code)]`** (only `rraw-coreml` uses `#![deny(unsafe_code)]` for `sysctlbyname`), **85.01% deterministic 4-crate CPU line coverage** (CI gate `>= 85%`), standalone `fuzz/` crate with 5 `cargo-fuzz` targets, multi-OS CI (`ci-macos` + `ci-linux`), weekly/PR `cargo audit` security workflow, and baseline ADRs in `docs/adr/`.
-- **Local Commits Ahead of `origin/main` (`4439733`..`8d55f33`)**:
+- **Active Release Baseline**: `v0.4.0` release candidate (**verified local commits ahead of `origin/main`**)
+- **Last Verified Baseline**: **586 tests passing across 99 test suites** (verified on `cargo test --workspace`), 0 clippy errors and 0 warnings (`cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings`), **11 of 12 crates enforcing `#![forbid(unsafe_code)]`** (only `rraw-coreml` uses `#![deny(unsafe_code)]` for `sysctlbyname`), **85.00% deterministic 4-crate CPU line coverage** (CI gate `>= 85%`), standalone `fuzz/` crate with 5 `cargo-fuzz` targets, multi-OS CI (`ci-macos` + `ci-linux`), weekly/PR `cargo audit` security workflow, and baseline ADRs in `docs/adr/`.
+- **Recent Local Commits Ahead of `origin/main` (`4439733`..`a5dae70`)**:
+  - `a5dae70` — `refactor: split oversized functions into focused helpers and expand unit test coverage`
+  - `7cbe99f` — `refactor(app,optics): trim pipeline and extract lensfun unit tests`
+  - `73eeb6d` — `test(core,color,optics): restore 85% CPU coverage gate and sync session state`
   - `8d55f33` — `refactor(optics,decode,app): split optics::render, memoize lens search, extract test modules, expand lensfun tests`
   - `7f5825f` — `perf(app): cache lens profile override lookup and eliminate per-frame clone`
   - `edae464` — `test(core,color,optics,decode): restore 85% CPU coverage and sync release state`
